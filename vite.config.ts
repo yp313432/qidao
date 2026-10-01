@@ -179,7 +179,16 @@ export default defineConfig(({ command, isPreview }) => ({
     ...(command === "build" || isPreview
       ? [
           nitro({
-            preset: "vercel",
+            /**
+             * 部署目标可切换。
+             *
+             * 优先级：NITRO_PRESET 环境变量 > 自动识别 > vercel。
+             *
+             * 为什么要"自动识别"：Cloudflare 构建时会自己带上 CF_PAGES 标记，
+             * 这样**忘了设环境变量也不会构建出错误平台的产物**（那个报错很难懂）。
+             * 想强行指定就设 NITRO_PRESET。
+             */
+            preset: process.env.NITRO_PRESET ?? (process.env.CF_PAGES ? "cloudflare_pages" : "vercel"),
             // Auto-registers server/middleware/* (the PWA install page +
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
