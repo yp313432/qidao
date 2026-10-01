@@ -111,7 +111,22 @@ function main(argv) {
     process.exit(2);
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  /**
+   * Windows 上必须走 shell。
+   *
+   * `node_modules/.bin/vite` 在 Linux/macOS 是带 shebang 的脚本，直接 spawn 就行；
+   * 但在 Windows 上真正能执行的是 `vite.CMD`（批处理），而 Node 从安全策略起
+   * **不再隐式用 shell 执行 .cmd/.bat**，于是 spawn("vite") 直接 ENOENT ——
+   * 报错是 "failed to run vite: spawn vite ENOENT"，看起来像没装依赖，极难定位。
+   *
+   * 云端（Linux）行为不变；只有 Windows 额外套一层 shell。
+   * 这里的 command/args 都来自本仓库自己的 npm script，没有外部输入。
+   */
+  const child = spawn(command, args, {
+    stdio: "inherit",
+    env,
+    shell: process.platform === "win32",
+  });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));
