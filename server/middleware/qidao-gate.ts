@@ -24,7 +24,12 @@ const GATE_PATH = "/__gate";
 
 interface GateEvent {
   url: URL;
-  req: { method: string; headers: Headers };
+  req: {
+    method: string;
+    headers: Headers;
+    /** 读请求体（交口令那个 POST 要用）。 */
+    text: () => Promise<string>;
+  };
 }
 
 function passphrase(): string {
