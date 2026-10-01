@@ -30,10 +30,23 @@ interface GateEvent {
     /** 读请求体（交口令那个 POST 要用）。 */
     text: () => Promise<string>;
   };
+  /** Cloudflare 上 Nitro 会把 Workers 的绑定挂在这里。 */
+  context?: { cloudflare?: { env?: Record<string, unknown> } };
 }
 
-function passphrase(): string {
-  return (process.env.QIDAO_PASSPHRASE ?? "").trim();
+/**
+ * 从两个地方找口令。
+ *
+ * 为什么不只读 process.env：Cloudflare 上变量有两种放法 ——
+ *   ① 明文「变量」→ 会被写进部署配置，**下次从 Git 部署可能被冲掉**
+ *   ② 加密「密钥 Secret」→ 存在配置之外，部署不会动它（推荐）
+ * 开 nodejs_compat 时 process.env 通常能读到，但不保证两种都覆盖，
+ * 所以这里连 Workers 的绑定一起看，哪个有值用哪个。
+ */
+function readPassphrase(event: GateEvent): string {
+  const fromProcess = String(process.env?.QIDAO_PASSPHRASE ?? "");
+  const fromBindings = String(event.context?.cloudflare?.env?.QIDAO_PASSPHRASE ?? "");
+  return (fromProcess || fromBindings).trim();
 }
 
 /** 用口令派生一个签名：cookie 里存的是它，不是口令本身。 */
@@ -129,7 +142,7 @@ export default async function qidaoGateMiddleware(
   event: GateEvent,
   next: () => unknown | Promise<unknown>,
 ): Promise<unknown> {
-  const secret = passphrase();
+  const secret = readPassphrase(event);
   // 没配口令 = 这道门不存在（本地开发、预览、CI 都是这个状态）
   if (!secret) return next();
 
