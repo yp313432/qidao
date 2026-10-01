@@ -1,0 +1,761 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-bg: var(--aster-bg);
+  --color-fg: var(--aster-fg);
+  --color-muted: var(--aster-muted);
+  --color-subtle: var(--aster-subtle);
+  --color-surface: var(--aster-surface);
+  --color-elevated: var(--aster-elevated);
+  --color-chip: var(--aster-chip);
+  --color-line: var(--aster-line);
+  --color-accent: var(--aster-accent);
+  --color-accent-fg: var(--aster-accent-fg);
+  --color-ink: var(--aster-ink);
+  --color-ink-fg: var(--aster-ink-fg);
+  --color-warn: var(--aster-warn);
+  --color-ok: var(--aster-ok);
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  /* 胶囊语言：所有卡片/行/面板统一到这个圆度，跟底部导航同一家族。 */
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.75rem;
+}
+
+:root,
+[data-theme="dawn"] {
+  --aster-canvas: #ece6dc;
+  --aster-bg: #f6f3ee;
+  --aster-menu: color-mix(in oklab, #fffcf8 94%, transparent);
+  --aster-fg: #1c1917;
+  --aster-muted: #7a746c;
+  --aster-subtle: #b0aaa2;
+  --aster-surface: color-mix(in oklab, #fffcf8 18%, transparent);
+  --aster-elevated: color-mix(in oklab, #ffffff 28%, transparent);
+  --aster-chip: color-mix(in oklab, #ffffff 14%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 70%, transparent);
+  --aster-accent: #c17b5a;
+  --aster-accent-fg: #fffaf6;
+  --aster-ink: #1c1917;
+  --aster-ink-fg: #f6f3ee;
+  --aster-warn: #b4532a;
+  --aster-ok: #4d7c5a;
+  --aster-shadow: 0 12px 40px color-mix(in oklab, #1c1917 10%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 90%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 22%, transparent);
+  --aster-gleam-a: 0.6;
+  --aster-flash-a: 0.14;
+  --aster-blur: 30px;
+  --aster-blob-1: rgba(238, 199, 158, 0.75);
+  --aster-blob-2: rgba(206, 184, 238, 0.68);
+  --aster-blob-3: rgba(160, 206, 232, 0.68);
+  color-scheme: light;
+}
+
+[data-theme="dusk"] {
+  --aster-canvas: #120f0d;
+  --aster-bg: #1a1613;
+  --aster-menu: color-mix(in oklab, #241f1b 94%, transparent);
+  --aster-fg: #f3ece4;
+  --aster-muted: #b5a99c;
+  --aster-subtle: #8a7f74;
+  --aster-surface: color-mix(in oklab, #241f1b 17%, transparent);
+  --aster-elevated: color-mix(in oklab, #2c2621 26%, transparent);
+  --aster-chip: color-mix(in oklab, #342d27 13%, transparent);
+  --aster-line: color-mix(in oklab, #f3ece4 30%, transparent);
+  --aster-accent: #d49274;
+  --aster-accent-fg: #1a1613;
+  --aster-ink: #f3ece4;
+  --aster-ink-fg: #1a1613;
+  --aster-warn: #e07a4c;
+  --aster-ok: #7dba90;
+  --aster-shadow: 0 16px 40px color-mix(in oklab, #000 45%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 34%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 10%, transparent);
+  --aster-gleam-a: 0.5;
+  --aster-flash-a: 0.12;
+  --aster-blur: 30px;
+  --aster-blob-1: rgba(170, 96, 48, 0.62);
+  --aster-blob-2: rgba(120, 72, 148, 0.55);
+  --aster-blob-3: rgba(46, 74, 128, 0.62);
+  color-scheme: dark;
+}
+
+[data-theme="ink"] {
+  --aster-canvas: #07080a;
+  --aster-bg: #0e0f12;
+  --aster-menu: color-mix(in oklab, #16181d 94%, transparent);
+  --aster-fg: #eceef2;
+  --aster-muted: #9aa0ab;
+  --aster-subtle: #6d7380;
+  --aster-surface: color-mix(in oklab, #16181d 17%, transparent);
+  --aster-elevated: color-mix(in oklab, #1d2026 26%, transparent);
+  --aster-chip: color-mix(in oklab, #262a32 13%, transparent);
+  --aster-line: color-mix(in oklab, #eceef2 28%, transparent);
+  --aster-accent: #c9cdd6;
+  --aster-accent-fg: #0e0f12;
+  --aster-ink: #eceef2;
+  --aster-ink-fg: #0e0f12;
+  --aster-warn: #e08b6a;
+  --aster-ok: #7dba90;
+  --aster-shadow: 0 16px 40px color-mix(in oklab, #000 50%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 32%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 9%, transparent);
+  --aster-gleam-a: 0.45;
+  --aster-flash-a: 0.1;
+  --aster-blur: 30px;
+  --aster-blob-1: rgba(58, 102, 162, 0.55);
+  --aster-blob-2: rgba(92, 74, 168, 0.5);
+  --aster-blob-3: rgba(30, 122, 122, 0.5);
+  color-scheme: dark;
+}
+
+/* 正文字体族：在「我的 → 个性化 → 正文字体」里切换。 */
+:root[data-font="serif"] {
+  --font-sans: "Source Serif 4", "Songti SC", "SimSun", "Iowan Old Style", Georgia, serif;
+}
+:root[data-font="kai"] {
+  --font-sans: "Kaiti SC", "KaiTi", "楷体", "STKaiti", "Songti SC", serif;
+}
+:root[data-font="mono"] {
+  --font-sans: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--aster-canvas);
+    color: var(--aster-fg);
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--aster-canvas);
+    color: var(--aster-fg);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* 「减弱动态效果」默认照办，但**用户可以要求始终开启**。
+
+   原来这条是无条件的 `*`，所以系统里一开这个开关，黑胶不转、心跳不动、
+   头像不碰 —— 看起来就像"动画坏了"。现在拆成三种：
+     auto（默认）→ 听系统的
+     on          → 绕过这条，动画照跑
+     off         → 不管系统怎么说，都关掉
+   用 :not([data-motion="on"]) 而不是加 !important 去盖，规则更干净。 */
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="on"]) *,
+  html:not([data-motion="on"]) *::before,
+  html:not([data-motion="on"]) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ——— 液态玻璃 · 背景与材质 ———
+   通透度 = 各主题 --aster-surface / --aster-elevated / --aster-chip 的填充百分比；
+   --aster-sheen 是玻璃内部常驻光泽；
+   指针高光 = 从触点「弹出」的一小点柔光，用 ::after 的 transform/opacity 过渡实现，
+   不依赖 @property，所以所有手机浏览器都能看到动效。 */
+
+/* 全屏背景层：主题光斑渐变，作为玻璃折射的底。 */
+.background-canvas {
+  background:
+    radial-gradient(58% 70% at 16% 10%, var(--aster-blob-1), transparent 62%),
+    radial-gradient(48% 64% at 84% 14%, var(--aster-blob-2), transparent 62%),
+    radial-gradient(70% 68% at 50% 104%, var(--aster-blob-3), transparent 70%),
+    var(--aster-canvas);
+}
+
+/* 主体玻璃面板。光带作为第一层背景（走在内容下面）。 */
+.bg-surface,
+.bg-elevated {
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 26%,
+      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
+      rgba(0, 0, 0, 0.06) 60%,
+      transparent 74%
+    ),
+    linear-gradient(180deg, var(--aster-sheen) 0%, transparent 45%);
+  background-size: 240% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: -30% 0, 0 0;
+  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight),
+    inset 0 14px 26px -20px var(--aster-glass-highlight),
+    var(--aster-shadow);
+}
+
+/* 轻量玻璃：chip / 胶囊 / 气泡。 */
+.bg-chip {
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 26%,
+      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
+      rgba(0, 0, 0, 0.06) 60%,
+      transparent 74%
+    ),
+    linear-gradient(180deg, var(--aster-sheen) 0%, transparent 60%);
+  background-size: 240% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: -30% 0, 0 0;
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
+}
+
+.aster-card {
+  background-color: var(--aster-elevated);
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 26%,
+      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
+      rgba(0, 0, 0, 0.06) 60%,
+      transparent 74%
+    ),
+    linear-gradient(180deg, var(--aster-sheen) 0%, transparent 45%);
+  background-size: 240% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: -30% 0, 0 0;
+  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight),
+    inset 0 14px 26px -20px var(--aster-glass-highlight),
+    var(--aster-shadow);
+}
+
+/* 底部导航：悬浮椭圆胶囊玻璃。 */
+.glass-nav {
+  background-color: color-mix(in oklab, var(--aster-canvas) 22%, transparent);
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 26%,
+      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
+      rgba(0, 0, 0, 0.06) 60%,
+      transparent 74%
+    ),
+    linear-gradient(180deg, transparent 0%, var(--aster-sheen) 100%);
+  background-size: 240% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: -30% 0, 0 0;
+  -webkit-backdrop-filter: blur(26px) saturate(1.8);
+  backdrop-filter: blur(26px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight),
+    var(--aster-shadow);
+}
+
+/* 抽屉：铺满整屏的一层玻璃。 */
+.glass-panel {
+  background-color: color-mix(in oklab, var(--aster-canvas) 52%, transparent);
+  background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 34%);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight),
+    var(--aster-shadow);
+}
+
+/* 抽屉里的对话列表：单独一层，一直铺到底。 */
+.glass-tray {
+  background-color: color-mix(in oklab, var(--aster-canvas) 62%, transparent);
+  background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 26%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow: inset 0 1px 0 0 var(--aster-glass-highlight);
+}
+
+/* 选中态：胶囊里更亮的一层玻璃。 */
+.glass-active {
+  background-color: color-mix(in oklab, var(--aster-glass-highlight) 42%, transparent);
+  box-shadow: inset 0 1px 0 0 var(--aster-glass-highlight);
+}
+
+/* ——— 组件级高光 ———
+   点按/悬停哪一块玻璃，就只有那一块自己扫过一道柔光（1.1s 一次），
+   不跟指针、也不整页扫。光带定义在各玻璃类的 background-image 里，
+   走在内容下面 —— 文字不会被冲淡，是玻璃本身在反光。 */
+[data-gleam="sweep"] {
+  animation: gleam-sweep 1.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes gleam-sweep {
+  0% {
+    background-position: -30% 0, 0 0;
+  }
+  100% {
+    background-position: 130% 0, 0 0;
+  }
+}
+
+/* 页面切换的克制入场。
+   注意：只做 opacity，不能用 transform —— 一旦元素保留 transform，
+   它就会成为 position: fixed 子元素的定位参照，抽屉/浮层会算错位置。 */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.view-enter {
+  animation: view-enter 0.28s ease;
+}
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--aster-muted) 0%,
+    var(--aster-fg) 50%,
+    var(--aster-muted) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ——— 五子棋 ———
+   棋盘保持不透明（保证黑白棋子可读），但配色更柔和、边缘带一点玻璃质感。 */
+.gobang-board {
+  background: linear-gradient(160deg, #eadfc8 0%, #dcc9a8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 22px 36px -30px rgba(255, 255, 255, 0.95),
+    inset 0 -26px 46px -36px rgba(107, 79, 50, 0.32),
+    0 18px 44px -20px rgba(28, 25, 23, 0.3);
+}
+
+.stone-black {
+  background: radial-gradient(circle at 35% 30%, #5d5752 0%, #2b2624 55%, #17130f 100%);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.28),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.stone-white {
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f4eee4 60%, #ded4c6 100%);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.16),
+    inset 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+/* ------------------------------------------------------------------
+ * 导航是浮层，所以页面底部要留白。
+ * 出现迷你播放条时给它让位 —— PlayerHost 会把 --aster-mini 设成
+ * 那一条的高度，没有播放条时它是 0，完全不影响布局。
+ * ------------------------------------------------------------------ */
+.pb-above-nav {
+  padding-bottom: calc(4.75rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
+}
+
+.pb-above-nav-lg {
+  padding-bottom: calc(6rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
+}
+/* ------------------------------------------------------------------
+ * 「她高亮这里」用的一圈光晕。几秒后自动褪掉，不常驻、不改结构。
+ * ------------------------------------------------------------------ */
+.aster-highlight {
+  border-radius: 1rem;
+  animation: aster-highlight-pulse 1.1s ease-in-out 3;
+}
+
+@keyframes aster-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--aster-accent) 45%, transparent);
+  }
+}
+/* 语音模式里那个会呼吸的麦克风 */
+.voice-pulse {
+  animation: voice-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--aster-accent) 40%, transparent);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 14px color-mix(in oklab, var(--aster-accent) 0%, transparent);
+    transform: scale(1.04);
+  }
+}
+/* ------------------------------------------------------------------
+ * 弹层 / 菜单专用材质。
+ *
+ * 普通玻璃面板是 17%~28% 的填充，做卡片很好看；但做**菜单**就不行了 ——
+ * 底下的输入框、列表文字会透上来，看起来像跟菜单「融在一起」。
+ * 菜单要的是能读，所以这里用主题底色给到 92%，再加一层厚模糊。
+ * ------------------------------------------------------------------ */
+.glass-menu {
+  background-color: var(--aster-menu, color-mix(in oklab, var(--aster-bg) 92%, transparent));
+  background-image: none;
+  backdrop-filter: blur(30px) saturate(1.3);
+  -webkit-backdrop-filter: blur(30px) saturate(1.3);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+/* 结果卡 / 弹层的入场：轻微上浮 + 放大，比直接出现舒服 */
+@keyframes aster-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.aster-pop { animation: aster-pop 0.3s cubic-bezier(0.2, 0.8, 0.25, 1); }
+
+/* 黑胶慢慢转 */
+@keyframes aster-spin-kf { to { transform: rotate(360deg); } }
+.aster-spin { animation: aster-spin-kf 7s linear infinite; }
+
+/* ------------------------------------------------------------------
+ * 正在播放的舞台：两个头像靠近、轻触、再分开；中间的线像心电图一样跑。
+ * 暂停时通过 inline 的 animation-play-state 一起停下。
+ * ------------------------------------------------------------------ */
+@keyframes aster-duet-left {
+  0%, 100% { transform: translateX(-9px) scale(0.96); }
+  46%, 54% { transform: translateX(7px) scale(1.05); }
+}
+@keyframes aster-duet-right {
+  0%, 100% { transform: translateX(9px) scale(0.96); }
+  46%, 54% { transform: translateX(-7px) scale(1.05); }
+}
+.aster-duet-l { animation: aster-duet-left 4.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+.aster-duet-r { animation: aster-duet-right 4.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+
+@keyframes aster-beat {
+  0%   { stroke-dashoffset: 300; opacity: 0.18; }
+  50%  { stroke-dashoffset: 0;   opacity: 1; }
+  100% { stroke-dashoffset: -300; opacity: 0.18; }
+}
+.aster-beat { stroke-dasharray: 300; animation: aster-beat 4.4s linear infinite; }
+
+@keyframes aster-lyric-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.aster-lyric-fade { animation: aster-lyric-in 0.5s ease-out; }
+
+/* ------------------------------------------------------------------
+ * 黑胶唱片：同心纹路 + 一点斜上方的高光，转起来才像在放歌。
+ * ------------------------------------------------------------------ */
+.aster-vinyl {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 30.6%, rgba(255, 255, 255, 0.07) 31%, transparent 31.6%),
+    repeating-radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 255, 255, 0.045) 0 0.5px,
+      transparent 0.5px 3.5px
+    ),
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.18), transparent 46%),
+    #191512;
+  box-shadow:
+    0 26px 60px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+@keyframes aster-spin-kf { to { transform: rotate(360deg); } }
+.aster-spin { animation: aster-spin-kf 7s linear infinite; }
+.aster-spin-slow { animation: aster-spin-kf 20s linear infinite; }
+
+/* ------------------------------------------------------------------
+ * 双人舞台：两个头像真的靠近、在中点相碰、再分开。
+ * 间距 80px，两边各走 40px —— 所以 44%~56% 那一段是真的贴在一起。
+ * 暂停时用 --duet-dur 放慢一倍，而不是停住。
+ * ------------------------------------------------------------------ */
+@keyframes aster-duet-left {
+  0%, 100% { transform: translateX(-40px) scale(0.93); }
+  44%, 56% { transform: translateX(0) scale(1.06); }
+}
+@keyframes aster-duet-right {
+  0%, 100% { transform: translateX(40px) scale(0.93); }
+  44%, 56% { transform: translateX(0) scale(1.06); }
+}
+.aster-duet-l {
+  animation: aster-duet-left var(--duet-dur, 4.4s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+.aster-duet-r {
+  animation: aster-duet-right var(--duet-dur, 4.4s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes aster-beat {
+  0%   { stroke-dashoffset: 300; opacity: 0.25; }
+  50%  { stroke-dashoffset: 0;   opacity: 1; }
+  100% { stroke-dashoffset: -300; opacity: 0.25; }
+}
+.aster-beat {
+  stroke-dasharray: 300;
+  animation: aster-beat var(--duet-dur, 4.4s) linear infinite;
+}
+
+/* 修正：静息位就是布局位（间距 80px），动画是**往中间走 40px** —— 正好贴上。
+   （上一版把正负号写反了，变成从中点往两边分开，实测最大间距 164px。） */
+@keyframes aster-duet-left {
+  0%, 100% { transform: translateX(0) scale(0.95); }
+  44%, 56% { transform: translateX(40px) scale(1.06); }
+}
+@keyframes aster-duet-right {
+  0%, 100% { transform: translateX(0) scale(0.95); }
+  44%, 56% { transform: translateX(-40px) scale(1.06); }
+}
+
+/* 修正：不再让头像各走各的、线固定在中间（那样头像会把线盖住）。
+   现在只有「中间那段」在动 —— 它伸缩，两个头像被 flex 推着走，
+   线始终顶在两头像的内边缘上；空档收窄时线从两边被裁掉，形状不变。 */
+@keyframes aster-gap {
+  0%, 100% { width: 120px; }
+  44%, 56% { width: 10px; }
+}
+.aster-gap {
+  flex: 0 0 auto;
+  animation: aster-gap var(--duet-dur, 4.4s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+/* 头像跟着同一节奏轻轻「跳」一下（transform 不影响布局，所以不会把线推歪） */
+@keyframes aster-duet-pulse {
+  0%, 100% { transform: scale(0.96); }
+  44%, 56% { transform: scale(1.06); }
+}
+.aster-duet {
+  animation: aster-duet-pulse var(--duet-dur, 4.4s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+/* ------------------------------------------------------------------
+ * 指针高光：一小团柔光跟着手指/鼠标走。
+ *
+ * 取代了以前那道「横扫整块玻璃的光带」—— 那道是 0.6 的白、1.1 秒扫完，
+ * 看起来像闪电。现在是 9rem 的小圆，峰值只有 0.18，停手后 0.5 秒淡掉。
+ * z-index 高于内容但不吃事件；位置/尺寸/圆角由 JS 照抄被点亮的那块玻璃。
+ * ------------------------------------------------------------------ */
+.pointer-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+  background: radial-gradient(
+    9rem circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.05) 46%,
+    transparent 72%
+  );
+}
+
+/* ------------------------------------------------------------------
+ * 第三次修：节奏。
+ *
+ * 原来的问题是「贴在一起」占了周期的 12%（44%~56%），线被压住很久，
+ * 看起来像两个层级。现在改成：
+ *    0 → 11%   快速冲过去（0.29s，cubic-bezier 急加速）  ← 「啪」
+ *    11 → 17%  极短地贴一下（0.16s）                    ← 就是那一下
+ *    17 → 100% 慢慢拉开（2.15s）                        ← 波形绝大部分时间完整可见
+ * 所以线被遮住的只有 0.16 秒，波形约 94% 的时间是完整的。
+ * 而且最窄也留 8px —— 线永远不会窄到看不见。
+ * ------------------------------------------------------------------ */
+@keyframes aster-gap {
+  0%   { width: 118px; animation-timing-function: cubic-bezier(0.15, 1, 0.3, 1); }
+  11%  { width: 8px;   animation-timing-function: linear; }
+  17%  { width: 8px;   animation-timing-function: cubic-bezier(0.35, 0, 0.75, 0.35); }
+  100% { width: 118px; }
+}
+
+@keyframes aster-duet-pulse {
+  0%, 100% { transform: scale(1); }
+  11%, 17% { transform: scale(1.09); }
+}
+
+@keyframes aster-beat {
+  0%   { stroke-dashoffset: 300; opacity: 0.18; }
+  11%  { stroke-dashoffset: 40;  opacity: 1; }
+  17%  { stroke-dashoffset: 0;   opacity: 1; }
+  100% { stroke-dashoffset: -300; opacity: 0.18; }
+}
+
+/* 第四次调：把「冲」和「拉」都改成快启动的缓动。
+   上一版拉开用的是 cubic-bezier(0.35, 0, ...) —— 慢启动，
+   结果贴在一起的时间占了 52%（实测），波形被压了一半以上的时间。
+   现在：0→6% 冲过去（0.16s）；6→12% 贴住（0.16s）；12→100% 快速拉开（快启动）。 */
+@keyframes aster-gap {
+  0%   { width: 118px; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+  6%   { width: 8px;   animation-timing-function: linear; }
+  12%  { width: 8px;   animation-timing-function: cubic-bezier(0.1, 0.9, 0.2, 1); }
+  100% { width: 118px; }
+}
+
+/* ------------------------------------------------------------------
+ * 信封：三段式拆信动画。
+ * 盖子绕上边翻转 180°，蜡封裂开淡出，信纸从信封里升起来。
+ * 用 CSS 3D（perspective + rotateX），手机浏览器都支持。
+ * ------------------------------------------------------------------ */
+.env-stage {
+  perspective: 900px;
+  width: min(19rem, 78vw);
+}
+
+.env-body {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  transform-style: preserve-3d;
+  animation: env-float 4.5s ease-in-out infinite;
+}
+@keyframes env-float {
+  0%, 100% { transform: translateY(-4px); }
+  50% { transform: translateY(4px); }
+}
+
+/* 信封本体（口袋） */
+.env-pocket {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.9rem;
+  background: linear-gradient(160deg, var(--aster-elevated), var(--aster-surface));
+  border: 1px solid var(--aster-line);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.env-pocket::before,
+.env-pocket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 55%);
+}
+
+/* 盖子：绕上边翻过去 */
+.env-flap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 62%;
+  transform-origin: top center;
+  backface-visibility: hidden;
+  background: linear-gradient(180deg, var(--aster-elevated), var(--aster-surface));
+  border: 1px solid var(--aster-line);
+  border-radius: 0.9rem 0.9rem 0 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transition: transform 0.75s cubic-bezier(0.3, 0.8, 0.3, 1);
+  z-index: 3;
+}
+.env-flap.is-flipped {
+  transform: rotateX(-178deg);
+}
+
+/* 蜡封 */
+.env-seal {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  width: 2.4rem;
+  height: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #d98b6a, #a8553a);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, -50%);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.env-seal.is-broken {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1.8) rotate(24deg);
+}
+
+/* 信纸：从信封里升起来 */
+.env-letter {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 8%;
+  z-index: 2;
+  border-radius: 0.6rem;
+  background: #fffdf8;
+  padding: 1rem;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
+  transform: translateY(26%) scale(0.94);
+  opacity: 0.9;
+  transition: transform 0.8s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.6s ease;
+}
+.env-letter.is-out {
+  transform: translateY(-34%) scale(1);
+  opacity: 1;
+}
+
+/* 正文逐段淡入 */
+@keyframes letter-para-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.aster-letter-para {
+  animation: letter-para-in 0.7s ease-out both;
+}

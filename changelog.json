@@ -1,0 +1,203 @@
+{
+  "note": "Agent 与 AI 的改动登记表。项目里有 .git 时页面会优先读 git log，没有就用这份。",
+  "entries": [
+    {
+      "at": "2026-10-01T11:05:22.334Z",
+      "title": "体验修复：点空白关闭、背景锁定、返回不跳顶",
+      "detail": "弹层支持点空白收起并补了收起键；背景模糊/暗化/透明度默认锁定，点「调整」才可改；二级页面返回保留滚动位置 —— 顺带发现页面根部的 overflow-y-auto 其实是摆设，真正滚的是窗口，滚动记忆因此两条都挂。权限页也拆掉了白层套白层。",
+      "files": [
+        "src/lib/ux.ts",
+        "src/components/memory-view.tsx",
+        "src/components/permissions-view.tsx",
+        "src/components/me-view.tsx"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T11:05:22.322Z",
+      "title": "弹层改跟着文字颜色走，修掉白底白字",
+      "detail": "弹层底色原来取画布色，深色背景图 + 强制浅色文字时会白底白字。改成按文字亮度决定翻哪边。用截图像素实测对比度：改前 1.19:1，改后 13.03:1。",
+      "files": [
+        "src/styles.css",
+        "src/lib/store.ts",
+        "src/components/chat/composer.tsx"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T11:05:22.308Z",
+      "title": "环境自检页：把「能不能用」变成可查的事实",
+      "detail": "麦克风、摄像头、通知、Service Worker 能不能用取决于地址与外壳，不取决于代码。新增 /env 逐项报告，并给出「怎么办」。实测同一份代码：localhost 可用 7 · 受限 4 · 不可用 0；局域网 IP 可用 2 · 受限 3 · 不可用 6。",
+      "files": [
+        "src/lib/env-check.ts",
+        "src/components/env-view.tsx",
+        "src/routes/_app/env.tsx"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T11:05:22.295Z",
+      "title": "临时对话加了出口",
+      "detail": "临时对话故意不进对话列表，结果就没有退路。现在顶部有常驻提示条和「退出」，退出时丢弃全部临时会话并回到最近一次正常对话。",
+      "files": [
+        "src/components/chat/chat-view.tsx",
+        "src/lib/store.ts"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T11:05:22.235Z",
+      "title": "语音消息：录音 + 顺带转写",
+      "detail": "空输入时那个发送按钮以前是死的（空输入直接 return），现在改成真录音。录下来的原声能在气泡里播放，同时浏览器识别顺带转写，所以她收到的是文字、真的听得懂。顺带修掉一个潜伏 bug：发附件时只判断「有 dataUrl」，语音一旦接上会被当成 image_url 塞给模型。",
+      "files": [
+        "src/lib/record.ts",
+        "src/components/chat/composer.tsx",
+        "src/components/chat/chat-view.tsx",
+        "src/lib/attachments.ts",
+        "src/lib/chat-client.ts"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T18:40:00+08:00",
+      "title": "工作区页面；并把「记变更」做成一项权限交给 AI",
+      "detail": "新增 /workspace：实时扫盘出文件树，配变更时间线，点文件名可直接定位到树里。变更来源优先读 git log，没有就退回 changelog.json。另加「记录改动到工作区」权限（L2），她可以自己往时间线里写一条 —— 写入走 POST /api/workspace，落盘到 changelog.json。",
+      "files": [
+        "src/routes/api/workspace.ts",
+        "src/components/workspace-view.tsx",
+        "src/routes/_app/workspace.tsx",
+        "src/lib/permissions.ts",
+        "src/lib/actions.ts",
+        "changelog.json"
+      ],
+      "source": "changelog"
+    },
+    {
+      "at": "2026-10-01T18:05:00+08:00",
+      "title": "上下文与内存面板：预算条 · 缓存命中 · 前缀诊断",
+      "detail": "新增 /memory 页面：三段预算条、保留策略与自动折叠、上游 usage 与缓存命中率、前缀指纹变更诊断、思考链保留与清理、本地存储占用明细。",
+      "files": [
+        "src/components/memory-view.tsx",
+        "src/lib/context.ts",
+        "src/lib/tokens.ts",
+        "src/components/theme-root.tsx",
+        "src/routes/_app/memory.tsx"
+      ]
+    },
+    {
+      "at": "2026-10-01T17:52:00+08:00",
+      "title": "把易变内容挪出系统提示词，救回前缀缓存",
+      "detail": "原来时间/活动/感知都塞在系统提示词里，每轮都变，导致后面整段历史的缓存全失效。现在拆成「稳定提示词」+ 附在最后一条用户消息尾部的【此刻的情况】，并回传提示词指纹供界面诊断。",
+      "files": [
+        "src/routes/api/chat.ts",
+        "src/lib/chat-client.ts",
+        "src/components/chat/chat-view.tsx"
+      ]
+    },
+    {
+      "at": "2026-10-01T17:20:00+08:00",
+      "title": "语音模式：说话 → 文字 → 她回 → 朗读 → 继续听",
+      "detail": "免提回合制语音对话。识别失败会分类提示（权限被拒 / 没麦克风 / 连不上服务）；没听到内容时不再假装「正在听」。",
+      "files": [
+        "src/lib/voice.ts",
+        "src/components/chat/voice-mode.tsx",
+        "src/styles.css"
+      ]
+    },
+    {
+      "at": "2026-10-01T16:48:00+08:00",
+      "title": "消息附件：图片 / 文件 / 表情包",
+      "detail": "图片自动压到长边 1280，按 content parts 发送（模型支持视觉即生效）；文本与代码文件抽取正文；表情面板支持内置 emoji 与自传表情图。顺带修掉小图渲染成 1 像素的问题。",
+      "files": [
+        "src/lib/attachments.ts",
+        "src/components/chat/composer.tsx",
+        "src/components/chat/chat-view.tsx",
+        "src/lib/chat-client.ts"
+      ]
+    },
+    {
+      "at": "2026-10-01T15:30:00+08:00",
+      "title": "高危护栏：L3 强制二次确认 + L4 源头拦截",
+      "detail": "破坏性操作（删除/清空/重置）即使权限设为「直接允许」也必须再确认一次，且不提供「以后都允许」；密钥类 L4 动作在入队前就被拒，连弹窗都没有。",
+      "files": [
+        "src/components/action-gate.tsx",
+        "src/lib/actions.ts",
+        "src/lib/store.ts",
+        "src/lib/permissions.ts"
+      ]
+    },
+    {
+      "at": "2026-10-01T14:40:00+08:00",
+      "title": "权限目录成体系：65 项 · 分级 · 独立页面",
+      "detail": "权限从我的页拆成独立页，数据驱动（加一项权限＝加一行）。L0-L4 分级、六种状态徽章（已可用 / 接AI后 / 待实现 / 封装后 / 禁止授权）。",
+      "files": [
+        "src/lib/permissions.ts",
+        "src/components/permissions-view.tsx",
+        "src/routes/_app/permissions.tsx"
+      ]
+    },
+    {
+      "at": "2026-10-01T13:55:00+08:00",
+      "title": "感知层：她能看到什么，你也能看到",
+      "detail": "逐项按权限收集内容，同一个函数既生成请求体又渲染预览 —— 你看到的原文就是真正发出去的东西。关掉某项权限，那一行从请求里真的消失。",
+      "files": [
+        "src/lib/awareness.ts",
+        "src/components/permissions-view.tsx",
+        "src/routes/api/chat.ts"
+      ]
+    },
+    {
+      "at": "2026-10-01T12:30:00+08:00",
+      "title": "音乐播放器全局化：切页不停 + 锁屏控制",
+      "detail": "整个 App 只有一个 audio 元素，挂在 App Shell 上。离开音乐页继续播，MediaSession 接管锁屏，其余页面出现迷你播放条（用 --aster-mini 变量让 10 个页面自动让位）。",
+      "files": [
+        "src/lib/player.ts",
+        "src/components/player-host.tsx",
+        "src/components/play/listen-view.tsx",
+        "src/styles.css"
+      ]
+    },
+    {
+      "at": "2026-10-01T11:40:00+08:00",
+      "title": "通知体系：点开关即申请权限 + Service Worker + 本地提醒",
+      "detail": "SW 故意不注册 fetch 拦截（不缓存、不干扰平台注入）。提醒改为等 SW 真正 active 之后再检查，否则通知会退到不可点的兜底通道。",
+      "files": [
+        "public/sw.js",
+        "src/lib/notify.ts",
+        "src/components/reminder-daemon.tsx",
+        "src/routes/api/push/key.ts",
+        "src/routes/api/push/subscribe.ts"
+      ]
+    },
+    {
+      "at": "2026-10-01T10:50:00+08:00",
+      "title": "MCP 配置与真实握手；HTTP 工具面板",
+      "detail": "删掉 6 条写死的假 MCP 条目，换成真实配置 + JSON-RPC initialize 握手测试。另加 HTTP 工具页：自填地址与请求头，点一下真的发出请求。",
+      "files": [
+        "src/components/tools/mcp-servers.tsx",
+        "src/components/tools/http-tools.tsx",
+        "src/lib/mcp.ts"
+      ]
+    },
+    {
+      "at": "2026-10-01T10:10:00+08:00",
+      "title": "本地音乐库：真播放 + LRC 同步歌词",
+      "detail": "音频存进 IndexedDB（刷新不丢、不上传）；自写 ID3v2 USLT 与 m4a ©lyr 解析器读取内嵌歌词；LRC 逐行高亮并支持点行跳转。",
+      "files": [
+        "src/lib/music-db.ts",
+        "src/lib/lyrics.ts",
+        "src/components/play/listen-view.tsx"
+      ]
+    },
+    {
+      "at": "2026-10-01T09:30:00+08:00",
+      "title": "修掉手机点「添加音乐」没反应",
+      "detail": "根因有三：display:none 的 file input 在部分手机浏览器不肯打开选择器；导入过程零反馈；IndexedDB 存不下时静默中断。改成「真 input 透明铺在按钮上层」+ 全程反馈 + 内存兜底。",
+      "files": [
+        "src/components/file-button.tsx",
+        "src/lib/music-db.ts",
+        "src/lib/player.ts"
+      ]
+    }
+  ]
+}

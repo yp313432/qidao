@@ -1,0 +1,504 @@
+﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  ArrowUp,
+  AudioLines,
+  ChevronDown,
+  Mic,
+  Paperclip,
+  Plus,
+  Smile,
+  Square,
+  X,
+} from "lucide-react";
+import { FileButton } from "@/components/file-button";
+import { filesToAttachments, prettySize } from "@/lib/attachments";
+import { MODELS, QUOTA_LIMIT, getModel, type ModelId } from "@/lib/models";
+import { recordSupported, startRecording, type Recorder } from "@/lib/record";
+import { resolveAiName } from "@/lib/branding";
+import { resetLabel } from "@/lib/greeting";
+import type { Attachment } from "@/lib/types";
+import { useDismissOutside } from "@/lib/ux";
+import { cn, uid } from "@/lib/utils";
+import { usePlayer } from "@/lib/player";
+import { useApp } from "@/lib/store";
+
+/** 常用表情（本地常量，不依赖任何接口） */
+const EMOJI = [
+  "😀", "🙂", "😌", "😴", "🤔", "😮", "🥹", "😭",
+  "😂", "🙌", "👍", "👀", "✨", "🌙", "☁️", "🍃",
+  "🔥", "💧", "🌸", "🫧", "🐈", "🐟", "🍵", "📎",
+];
+
+type Props = {
+  onSend: (text: string, attachments?: Attachment[]) => void;
+  disabled?: boolean;
+  streaming?: boolean;
+};
+
+export function Composer({ onSend, disabled, streaming }: Props) {
+  const [value, setValue] = useState("");
+  const [modelOpen, setModelOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const [pending, setPending] = useState<Attachment[]>([]);
+  /** 录音中：非空表示正在录，值是已录毫秒 */
+  const [recMs, setRecMs] = useState<number | null>(null);
+  const [recErr, setRecErr] = useState("");
+  const recRef = useRef<Recorder | null>(null);
+  const ta = useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
+  const model = useApp((s) => s.model);
+  const setModel = useApp((s) => s.setModel);
+  const aiName = useApp((s) => resolveAiName(s.settings.aiName));
+  const activity = useApp((s) => s.activity);
+  const customStickers = useApp((s) => s.stickers);
+  const nowPlaying = usePlayer((s) => {
+    const t = s.tracks.find((x) => x.id === s.currentId);
+    return t ? `${t.name}${s.playing ? " · 播放中" : " · 暂停"}` : "";
+  });
+  const quota = useApp((s) => s.quota);
+  const resetAt = useApp((s) => s.quotaResetAt());
+  const usedPct = Math.min(100, Math.round((quota.used / QUOTA_LIMIT) * 100));
+  const showQuota = usedPct >= 70;
+
+  useEffect(() => {
+    const el = ta.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [value]);
+
+  function submit() {
+    const t = value.trim();
+    if ((!t && pending.length === 0) || disabled) return;
+    const atts = pending;
+    setValue("");
+    setPending([]);
+    onSend(t, atts.length ? atts : undefined);
+  }
+
+  async function pickFiles(files: File[]) {
+    setPlusOpen(false);
+    const list = await filesToAttachments(files);
+    if (list.length) setPending((p) => [...p, ...list].slice(0, 8));
+  }
+
+  async function addStickers(files: File[]) {
+    const list = await filesToAttachments(files);
+    for (const a of list) {
+      if (a.kind === "image" && a.dataUrl) useApp.getState().addSticker(a.dataUrl);
+    }
+  }
+
+  function sendSticker(dataUrl: string) {
+    if (disabled) return;
+    setStickerOpen(false);
+    const att: Attachment = {
+      id: uid("att"),
+      kind: "sticker",
+      name: "表情",
+      mime: "image/png",
+      size: 0,
+      dataUrl,
+    };
+    onSend("", [att]);
+  }
+
+  function pickModel(id: ModelId) {
+    setModel(id);
+    setModelOpen(false);
+  }
+
+  /* ---------------- 语音消息 ---------------- */
+
+  async function startRec() {
+    if (disabled || recRef.current) return;
+    setRecErr("");
+    setPlusOpen(false);
+    if (!recordSupported()) {
+      setRecErr("这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。");
+      return;
+    }
+    try {
+      const rec = await startRecording((ms) => setRecMs(ms));
+      recRef.current = rec;
+      setRecMs(0);
+    } catch (err) {
+      const name = (err as { name?: string }).name;
+      setRecErr(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "麦克风权限被拒了（也可能是 http 页面不给用）。要在浏览器设置里允许麦克风。"
+          : name === "NotFoundError"
+            ? "没找到麦克风设备。"
+            : `录音起不来：${(err as Error).message || name || "未知原因"}`,
+      );
+      setRecMs(null);
+    }
+  }
+
+  async function stopRec(send: boolean) {
+    const rec = recRef.current;
+    recRef.current = null;
+    setRecMs(null);
+    if (!rec) return;
+    if (!send) {
+      rec.cancel();
+      return;
+    }
+    const att = await rec.stop();
+    if (!att) {
+      setRecErr("没录到声音，再试一次？");
+      return;
+    }
+    onSend("", [att]);
+  }
+
+  useEffect(() => {
+    // 卸载时必须停掉，否则麦克风指示灯一直亮着
+    return () => {
+      recRef.current?.cancel();
+      recRef.current = null;
+    };
+  }, []);
+
+  function attachNote() {
+    setPlusOpen(false);
+    const name = window.prompt("给这条上下文起个标题", "附注");
+    const body = window.prompt("要附在下一条消息前的内容");
+    if (!body?.trim()) return;
+    setValue((v) => `${v}${v ? "\n\n" : ""}【${name || "附注"}】\n${body.trim()}`);
+  }
+
+  const current = getModel(model);
+
+  // 点弹层外面就收起（不用等抬手，手机上更顺手）
+  const cardRef = useRef<HTMLDivElement>(null);
+  const closeAll = useCallback(() => {
+    setPlusOpen(false);
+    setModelOpen(false);
+    setStickerOpen(false);
+  }, []);
+  useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || stickerOpen);
+
+  return (
+    <div className="px-4 pb-above-nav-lg">
+      <div ref={cardRef} className="aster-card rounded-3xl border border-line p-2">
+        {(activity || nowPlaying) && (
+          <p className="mb-1 px-1.5 text-[11px] leading-4 text-subtle">
+            {aiName} 现在知道：
+            {activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""}
+            {nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}
+          </p>
+        )}
+        {showQuota && (
+          <div className="mb-1 flex items-center justify-between rounded-2xl bg-chip px-3 py-2.5">
+            <div>
+              <p className="text-[13px] font-medium text-fg">本机计数 · 已用 {usedPct}%</p>
+              <p className="text-[12px] text-muted" suppressHydrationWarning>
+                {resetAt <= Date.now() ? "窗口已过，下次发送重新计数" : resetLabel(resetAt)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/me" })}
+              className="rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm"
+            >
+              详情
+            </button>
+          </div>
+        )}
+        {recMs !== null && (
+          <div className="mb-1.5 flex items-center gap-2.5 rounded-2xl border border-warn/40 bg-warn/10 px-3 py-2.5">
+            <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-warn" />
+            <span className="min-w-0 flex-1 text-[12px] text-fg">
+              正在录音 {Math.floor(recMs / 1000)} 秒
+              <span className="ml-1 text-muted">· 边录边转文字，他就能听懂</span>
+            </span>
+            <button
+              type="button"
+              aria-label="取消录音"
+              onClick={() => void stopRec(false)}
+              className="shrink-0 rounded-full bg-chip px-3 py-1.5 text-[12px] text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              aria-label="发送语音"
+              onClick={() => void stopRec(true)}
+              className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ink-fg"
+            >
+              发送
+            </button>
+          </div>
+        )}
+        {recErr && (
+          <p className="mb-1.5 rounded-2xl bg-warn/10 px-3 py-2 text-[11px] leading-4 text-warn">
+            {recErr}
+          </p>
+        )}
+        {pending.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap gap-2 px-1">
+            {pending.map((a) => (
+              <span
+                key={a.id}
+                className="relative flex items-center gap-2 rounded-2xl border border-line bg-chip px-2 py-1.5"
+              >
+                {a.dataUrl ? (
+                  <img src={a.dataUrl} alt={a.name} className="size-10 rounded-xl object-cover" />
+                ) : (
+                  <Paperclip className="size-4 text-muted" />
+                )}
+                <span className="max-w-28 truncate text-[11px]">{a.name}</span>
+                <span className="text-[10px] text-subtle">
+                  {a.text ? "可读正文" : prettySize(a.size)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`移除 ${a.name}`}
+                  onClick={() => setPending((p) => p.filter((x) => x.id !== a.id))}
+                  className="text-muted"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {stickerOpen && (
+          <div className="glass-menu mb-1.5 rounded-2xl border border-line p-2">
+            <div className="flex items-center justify-between px-1 pb-1.5">
+              <span className="text-[11px] text-muted">表情</span>
+              <div className="flex items-center gap-1">
+                <FileButton
+                  ariaLabel="上传表情图"
+                  accept="image/*"
+                  multiple
+                  className="text-[11px] text-muted"
+                  onPick={(files) => void addStickers(files)}
+                >
+                  ＋ 上传表情图
+                </FileButton>
+                <button
+                  type="button"
+                  aria-label="收起表情"
+                  onClick={() => setStickerOpen(false)}
+                  className="flex size-7 items-center justify-center rounded-full bg-chip text-muted"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="grid max-h-44 grid-cols-8 gap-1 overflow-y-auto">
+              {EMOJI.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  aria-label={`插入 ${e}`}
+                  onClick={() => setValue((v) => v + e)}
+                  className="rounded-xl py-1 text-xl leading-none"
+                >
+                  {e}
+                </button>
+              ))}
+              {customStickers.map((s) => (
+                <span key={s} className="relative">
+                  <button
+                    type="button"
+                    aria-label="发送表情"
+                    onClick={() => sendSticker(s)}
+                    className="block"
+                  >
+                    <img src={s} alt="自定义表情" className="size-8 rounded-lg object-cover" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="删除这个表情"
+                    onClick={() => useApp.getState().removeSticker(s)}
+                    className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-ink text-[9px] text-ink-fg"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <textarea
+          ref={ta}
+          rows={1}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => setValue(e.target.value)}
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData?.files ?? []);
+            if (files.length) {
+              e.preventDefault();
+              void pickFiles(files);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder={`和${aiName}聊聊…`}
+          className="min-h-11 w-full resize-none bg-transparent px-3 py-2.5 text-[16px] text-fg outline-none placeholder:text-subtle"
+        />
+        <div className="flex items-center gap-2 px-1 pb-1">
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="添加"
+              onClick={() => {
+                setPlusOpen((v) => !v);
+                setModelOpen(false);
+                setStickerOpen(false);
+              }}
+              className="flex size-11 items-center justify-center rounded-full bg-chip text-fg"
+            >
+              <Plus className="size-5" strokeWidth={1.75} />
+            </button>
+            {plusOpen && (
+              <div className="glass-menu absolute bottom-13 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-line py-1">
+                <FileButton
+                  ariaLabel="选择图片"
+                  accept="image/*"
+                  multiple
+                  className="w-full justify-start px-3 py-2.5 text-sm"
+                  onPick={(files) => void pickFiles(files)}
+                >
+                  图片
+                </FileButton>
+                <FileButton
+                  ariaLabel="选择文件"
+                  multiple
+                  className="w-full justify-start px-3 py-2.5 text-sm"
+                  onPick={(files) => void pickFiles(files)}
+                >
+                  文件
+                </FileButton>
+                <button
+                  type="button"
+                  aria-label="录一段语音"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+                  onClick={() => void startRec()}
+                >
+                  <Mic className="size-3.5" />
+                  录音
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+                  onClick={() => {
+                    setPlusOpen(false);
+                    setModelOpen(false);
+                    setStickerOpen((v) => !v);
+                  }}
+                >
+                  <Smile className="size-3.5" />
+                  表情
+                </button>
+                <button type="button" className="block w-full px-3 py-2.5 text-left text-sm" onClick={attachNote}>
+                  附加说明
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2.5 text-left text-sm"
+                  onClick={() => {
+                    setPlusOpen(false);
+                    void navigate({ to: "/tools" });
+                  }}
+                >
+                  插件与 MCP
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2.5 text-left text-sm"
+                  onClick={() => {
+                    setPlusOpen(false);
+                    void navigate({ to: "/tools" });
+                  }}
+                >
+                  已保存文档
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => {
+                setModelOpen((v) => !v);
+                setPlusOpen(false);
+                setStickerOpen(false);
+              }}
+              className="flex h-11 w-full items-center justify-between gap-2 rounded-full bg-chip px-4 text-[13px] font-medium"
+            >
+              <span className="truncate">{current.label}</span>
+              <ChevronDown className="size-4 text-muted" />
+            </button>
+            {modelOpen && (
+              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
+                {MODELS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => pickModel(m.id)}
+                    className={cn(
+                      "flex w-full flex-col items-start px-3 py-2.5 text-left",
+                      m.id === model && "bg-chip",
+                    )}
+                  >
+                    <span className="text-sm font-medium">{m.label}</span>
+                    <span className="text-[12px] text-muted">{m.subtitle}</span>
+                  </button>
+                ))}
+                <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
+                  以上都会映射到 grok-4.5，只是推理档位（low / medium / high）不同。
+                </p>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label={
+              recMs !== null ? "停止并发送语音" : value.trim() || pending.length ? "发送" : "录音"
+            }
+            disabled={disabled}
+            onClick={() => {
+              if (recMs !== null) void stopRec(true);
+              else if (value.trim() || pending.length) submit();
+              else void startRec();
+            }}
+            className={cn(
+              "flex size-11 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
+              recMs !== null && "bg-warn",
+            )}
+          >
+            {streaming ? (
+              <span className="size-3.5 rounded-sm bg-ink-fg" />
+            ) : recMs !== null ? (
+              <Square className="size-4 fill-current" />
+            ) : value.trim() || pending.length ? (
+              <ArrowUp className="size-5" strokeWidth={2.2} />
+            ) : (
+              <Mic className="size-5" />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type SpeechRec = {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((e: { results: Array<Array<{ transcript: string }>> }) => void) | null;
+  start: () => void;
+};

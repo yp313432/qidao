@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Aster",
+      "hasCanvas": false,
+      "bodyTextLen": 39,
+      "bodyTextHash": "649de361eb8dc061b0bcbebb47e0b5428ea90d0127264765ac90a09e84f6cf23",
+      "bodyTextPrefix": "还没睡吗, yan Sonnet 5.5 Medium 对话 工具 玩乐 我的",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Aster",
+      "hasCanvas": false,
+      "bodyTextLen": 39,
+      "bodyTextHash": "649de361eb8dc061b0bcbebb47e0b5428ea90d0127264765ac90a09e84f6cf23",
+      "bodyTextPrefix": "还没睡吗, yan Sonnet 5.5 Medium 对话 工具 玩乐 我的",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
