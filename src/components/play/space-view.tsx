@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Mail, MailOpen, Send, Sparkles } from "lucide-react";
 import { SceneBackdrop } from "@/components/background-layer";
 import { PlayHeader } from "@/components/play-header";
@@ -236,7 +236,8 @@ function LettersSection({ onOpen }: { onOpen: (l: Letter) => void }) {
       {demo && (
         <div className="rounded-3xl border border-dashed border-line px-4 py-4">
           <p className="text-[11px] leading-4 text-subtle">
-            下面是**演示**用的信 —— 内容是我写的占位文字，不是他写的，看完可以在旁边删掉。
+            下面是<span className="text-fg">演示</span>用的信 ——
+            内容是我写的占位文字，不是他写的，看完可以在旁边删掉。
           </p>
           <button
             type="button"

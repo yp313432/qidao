@@ -1,6 +1,7 @@
-﻿import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronRight, ImagePlus, Lock, SlidersHorizontal, X } from "lucide-react";
+import { BackupSection } from "@/components/backup-section";
 import {
   localNotify,
   PERMISSION_LABEL,
@@ -438,6 +439,9 @@ export function MeView() {
           onChange={(v) => patch({ background: { ...background, opacity: v } })}
         />
       </Section>
+
+      {/* 备份 / 恢复：内容只在这台设备的浏览器里，导出一份能保命 */}
+      <BackupSection />
 
       <Section title="思考链">
         <Row
