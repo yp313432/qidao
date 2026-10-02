@@ -22,8 +22,13 @@ android {
         applicationId "com.yanping.qidao"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.getenv("QIDAO_VERSION_CODE") ?: "1").toInteger()
-        versionName (System.getenv("QIDAO_VERSION_NAME") ?: "1.0")
+        // 版本号先写死：之前用 System.getenv 取值，CI 的配置阶段拿到 null，
+        // AGP 就抛 "Value is null"（而且只说这一句，完全看不出是哪一行）。
+        // 版本号本来也不影响能不能装、能不能覆盖更新 —— 签名才是关键。
+        // （android/app/build.gradle 里那个 QIDAO-DEBUG 诊断段确认了这一点：
+        //   ext 的值全都正常，只有这两个环境变量是 null。）
+        versionCode 1
+        versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
