@@ -100,8 +100,18 @@ jobs:
           QIDAO_VERSION_CODE: ${{ github.run_number }}
           QIDAO_VERSION_NAME: "1.0.${{ github.run_number }}"
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log; then
+            echo "✅ APK 打包完成"
+          else
+            # 把真正的原因变成注释 —— 否则只剩一句"退出码 1"，谁也猜不出来
+            echo "::error::Gradle 打包失败，下面是关键行"
+            grep -inE "FAILURE:|What went wrong|Caused by|^e: |error:|licen[cs]e|not accepted|Could not (find|resolve|download)|Unsupported|Execution failed|sdkmanager|platforms;android" /tmp/gradle.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            echo "----- 日志最后 60 行 -----"
+            tail -60 /tmp/gradle.log
+            exit 1
+          fi
 
       - name: 把 APK 传上来（构建完在这一页底部下载）
         uses: actions/upload-artifact@v4
