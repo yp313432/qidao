@@ -84,6 +84,14 @@ export function VoiceView() {
     setNotice("");
     setPhase("listening");
     let got = false;
+    /**
+     * 出过错就别让 onEnd 再改提示。
+     *
+     * 用户实测："报错一闪就没了，我看不到" ——
+     * 原因是 onError 刚写下真正的报错，紧接着 onEnd 就把提示**覆盖**成
+     * "没听到你说什么"，等于把诊断信息擦掉了 ✅
+     */
+    let errored = false;
     listenRef.current = startListening({
       lang: currentLang(),
       onPartial: (t) => setHeard(t),
@@ -95,6 +103,7 @@ export function VoiceView() {
         void send(t);
       },
       onError: (e) => {
+        errored = true;
         if (e === "not-allowed" || e === "service-not-allowed") {
           setPhase("unsupported");
           setNotice("麦克风权限被拒了 —— 要在浏览器/系统设置里允许。");
@@ -103,12 +112,13 @@ export function VoiceView() {
         } else if (e === "network") {
           setNotice("识别服务连不上（语音识别要联网）。");
         } else if (e !== "no-speech" && e !== "aborted") {
+          // 原来的报错**原样留着**，不再覆盖 —— 这是唯一能帮人定位的信息
           setNotice(`识别出错：${e}`);
         }
       },
       onEnd: () => {
         listenRef.current = null;
-        if (!got && aliveRef.current && phaseRef.current === "listening") {
+        if (!got && !errored && aliveRef.current && phaseRef.current === "listening") {
           setPhase("idle");
           setNotice("没听到你说什么，点麦克风继续。");
         }

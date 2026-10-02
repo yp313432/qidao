@@ -13,6 +13,7 @@ import { IS_APP } from "@/lib/platform";
 
 type SrApi = {
   available: () => Promise<{ available: boolean }>;
+  getSupportedLanguages: () => Promise<{ languages?: string[] }>;
   checkPermissions: () => Promise<{ speechRecognition?: string }>;
   requestPermissions: () => Promise<{ speechRecognition?: string }>;
   start: (o?: {
@@ -117,7 +118,21 @@ export function startNativeListening(opts: NativeListenOpts): NativeListenHandle
       }
       const text = (res?.matches?.[0] ?? partial ?? "").trim();
       if (text) opts.onFinal(text);
-      else opts.onError?.("没听到你说什么");
+      else {
+        /**
+         * 没拿到文字时，带上**足够定位的信息**。
+         * 用户之前只能看到"没听到你说什么"，看不出到底是引擎没采到、
+         * 语言不支持、还是权限问题 —— 那种提示等于没说。
+         */
+        const langs = await w.api
+          .getSupportedLanguages()
+          .then((r) => (r?.languages ?? []).slice(0, 6).join("/"))
+          .catch(() => "");
+        opts.onError?.(
+          `引擎没采到声音（语言=${opts.lang ?? "zh-CN"}${langs ? `，引擎支持：${langs}` : ""}` +
+            `，返回=${JSON.stringify(res ?? null).slice(0, 60)}）`,
+        );
+      }
       opts.onEnd?.();
     } catch (e) {
       opts.onError?.(e instanceof Error ? e.message : "识别失败");
