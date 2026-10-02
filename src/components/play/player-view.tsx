@@ -221,8 +221,9 @@ export function PlayerView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 这一页自己的背景（没设就用主页那张） */}
-      <SceneBackdrop image={settings.musicImage} />
+      {/* 这一页自己的背景；没设就跟着主页那张走 —— 和下面装饰块的配图用**同一个来源**，
+          否则会出现「换了背景只有小组件变、页面不变」的错位。 */}
+      <SceneBackdrop image={settings.musicImage || settings.background.image} />
       <header className="flex items-center gap-1 px-2 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
         <Link
           to="/play/listen"
@@ -250,10 +251,11 @@ export function PlayerView() {
                  底下那个才是真能干活的官方播放器。
                  故意**不画假按钮、假进度条** —— 按不动的东西比不好看更糟。 */}
             <div className="aster-card relative overflow-hidden rounded-[2rem] border border-line">
-              {/* 配图：优先用你自己设的背景图；没设就用服务色渐变 */}
-              {settings.background.image ? (
+              {/* 配图：和这一页的背景**同一个来源**（音乐页背景优先，否则主页背景）。
+                  以前这里只读主页背景，于是「换了音乐页背景」只有小组件变、页面不变。 */}
+              {settings.musicImage || settings.background.image ? (
                 <img
-                  src={settings.background.image}
+                  src={settings.musicImage || settings.background.image}
                   alt=""
                   className="absolute inset-0 size-full object-cover"
                   style={{ filter: "saturate(0.85)" }}

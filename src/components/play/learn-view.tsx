@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeftRight,
   ArrowRight,
@@ -15,6 +15,7 @@ import { PlayHeader } from "@/components/play-header";
 import { resolveAiName } from "@/lib/branding";
 import { DICTIONARY, READINGS, WORDS } from "@/lib/learn-data";
 import { useApp } from "@/lib/store";
+import { speakText, warmUpVoices } from "@/lib/tts";
 import { useActivity } from "@/lib/use-activity";
 import { cn } from "@/lib/utils";
 
@@ -79,10 +80,17 @@ export function LearnView() {
 function WordsTab() {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  // 读不出来时的原因（设备没装语音包之类），显示出来而不是静默失败
+  const [ttsMsg, setTtsMsg] = useState<string | null>(null);
   const customWords = useApp((s) => s.customWords);
   // 他给你加的生词排在最前面
   const list = useMemo(() => [...customWords, ...WORDS], [customWords]);
   const card = list[index % list.length]!;
+
+  // 先把语音包叫醒 —— 否则用户第一次点那个喇叭常常是哑的
+  useEffect(() => {
+    warmUpVoices();
+  }, []);
 
   function go(delta: number) {
     setFlipped(false);
@@ -96,11 +104,10 @@ function WordsTab() {
 
   function speak() {
     if (typeof window === "undefined") return;
-    const u = new SpeechSynthesisUtterance(card.word);
-    u.lang = "en-US";
-    u.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    // 走 lib/tts：语音包没加载、cancel 抢跑、卡在 paused 都由它处理；
+    // 实在读不出来（比如设备没装语音包）就把原因显示出来，别让按钮白点。
+    const r = speakText(card.word, { lang: "en-US" });
+    setTtsMsg(r.ok ? null : r.reason);
   }
 
   return (
@@ -141,6 +148,9 @@ function WordsTab() {
               <Volume2 className="size-5" strokeWidth={1.7} />
             </button>
           </div>
+
+          {/* 读不出来时如实说，而不是让按钮静默失败 */}
+          {ttsMsg && <p className="mt-2 text-right text-[11px] leading-4 text-warn">{ttsMsg}</p>}
 
           {!flipped ? (
             <div className="mt-6">

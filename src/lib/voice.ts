@@ -1,9 +1,10 @@
-﻿/**
+/**
  * 语音：识别（听你说）与合成（念给你听）的最小封装。
  *
  * 说明白边界：这是「说话 → 文字 → 他回 → 朗读」的回合制语音模式，
  * **不是把音频发给他听**。真语音需要支持音频的模型 + 实时通道。
  */
+import { speakText } from "@/lib/tts";
 
 type SpeechResultEvent = {
   resultIndex: number;
@@ -138,12 +139,9 @@ export function speak(
     opts.onEnd?.();
     return;
   }
-  const u = new SpeechSynthesisUtterance(clean);
-  u.lang = opts.lang ?? (/[\u4e00-\u9fa5]/.test(clean) ? "zh-CN" : "en-US");
-  u.onend = () => opts.onEnd?.();
-  u.onerror = () => opts.onEnd?.();
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
+  // 统一走 lib/tts —— 它处理了语音包未就绪、cancel 抢跑、卡在 paused 这些坑
+  const r = speakText(clean, { lang: opts.lang, onEnd: opts.onEnd });
+  if (!r.ok) opts.onEnd?.();
 }
 
 export function stopSpeaking(): void {

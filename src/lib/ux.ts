@@ -66,9 +66,12 @@ export function useScrollMemory(key: string) {
     }
 
     let frame = 0;
+    /** 最近一次真实读到的位置。 */
+    let last = 0;
     const onScroll = () => {
+      last = read();
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => positions.set(key, read()));
+      frame = requestAnimationFrame(() => positions.set(key, last));
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     el?.addEventListener("scroll", onScroll, { passive: true });
@@ -78,7 +81,19 @@ export function useScrollMemory(key: string) {
       el?.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(frame);
       window.clearTimeout(retry);
-      positions.set(key, read());
+
+      /**
+       * 卸载时**不要**直接 `positions.set(key, read())`。
+       *
+       * React 卸载一个页面时是**先摘掉 DOM、再跑 effect 清理**，
+       * 所以这一刻读到的 scrollTop 是假的 0 —— 用它覆盖，就等于把
+       * 用户刚才滚到的位置抹掉，返回时自然"跳回最上面"。
+       * （实测：滚到 900px → 进第二层 → 返回 → 0px。）
+       *
+       * 以 onScroll 记下的真实值为准；一次都没滚过才写 0。
+       */
+      if (last > 0) positions.set(key, last);
+      else if (!positions.has(key)) positions.set(key, 0);
     };
   }, [key]);
 

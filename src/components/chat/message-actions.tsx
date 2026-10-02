@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Bookmark, Check, Copy, RotateCw, Share2, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
+import { speakText } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -34,16 +35,9 @@ export function MessageActions({
     }
   }
 
-  async function speakText() {
-    try {
-      const u = new SpeechSynthesisUtterance(content.slice(0, 400));
-      u.lang = "zh-CN";
-      u.rate = 1.02;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    } catch {
-      /* 忽略 */
-    }
+  async function speakTextOut() {
+    // 走 lib/tts（统一处理语音包未就绪、cancel 抢跑、卡在 paused）
+    speakText(content.slice(0, 400), { lang: "zh-CN", rate: 1.02 });
   }
 
   async function share() {
@@ -67,7 +61,7 @@ export function MessageActions({
       <IconBtn label="没帮助" active={feedback === "down"} onClick={() => onFeedback("down")}>
         <ThumbsDown className="size-4" />
       </IconBtn>
-      <IconBtn label="朗读" onClick={() => void speakText()}>
+      <IconBtn label="朗读" onClick={() => void speakTextOut()}>
         <Volume2 className="size-4" />
       </IconBtn>
       <IconBtn label="分享" onClick={() => void share()}>
