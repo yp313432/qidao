@@ -336,10 +336,10 @@ export function ChatView() {
                       </div>
                     ) : (
                       <div className="min-w-0">
-                        {/* 思考链跟气泡用**同一个宽度上限**，否则右边缘对不齐
-                            （用户画了红线指出来的） */}
+                        {/* 思考链**不跟气泡对齐** —— 它内容多，所以更宽、并且居中
+                            （用户："可以拉宽一点，然后居中"，左右留白相等才整齐） */}
                         {(streaming || (settings.showThinking && m.thinking)) && (
-                          <div className="max-w-[86%]">
+                          <div className="mx-auto max-w-[97%]">
                             <ThinkingBlock
                               thinking={m.thinking}
                               durationMs={m.thinkingDurationMs}
