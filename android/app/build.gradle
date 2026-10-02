@@ -1,5 +1,20 @@
 apply plugin: 'com.android.application'
 
+// ── 临时诊断（定位 "Value is null" 用，查清后删）────────────────────────
+// 放在 android { } 之前：脚本求值到这里就会打印，即使后面炸了也能看到值。
+// CI 的日志接口匿名读不了，但 check-run 注释能读；`gradlew help` 的日志很短，
+// 这几行会完整出现在注释里。
+println "QIDAO-DEBUG ==="
+println "QIDAO-DEBUG ext.has(minSdkVersion)      = " + rootProject.ext.has("minSdkVersion")
+println "QIDAO-DEBUG ext.minSdkVersion          = " + rootProject.ext.find("minSdkVersion")
+println "QIDAO-DEBUG ext.compileSdkVersion      = " + rootProject.ext.find("compileSdkVersion")
+println "QIDAO-DEBUG ext.androidxAppCompatVer   = " + rootProject.ext.find("androidxAppCompatVersion")
+println "QIDAO-DEBUG env.QIDAO_VERSION_CODE     = " + System.getenv("QIDAO_VERSION_CODE")
+println "QIDAO-DEBUG env.QIDAO_VERSION_NAME     = " + System.getenv("QIDAO_VERSION_NAME")
+println "QIDAO-DEBUG signingConfigs.release     = " + (project.hasProperty("signingConfigs") ? "有" : "无")
+println "QIDAO-DEBUG 项目目录                    = " + project.projectDir
+println "QIDAO-DEBUG ==="
+
 android {
     namespace = "com.yanping.qidao"
     compileSdk = rootProject.ext.compileSdkVersion
