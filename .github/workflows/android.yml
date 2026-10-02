@@ -108,6 +108,23 @@ jobs:
           echo "::error::--- 根 build.gradle 是否 apply variables.gradle ---"
           grep -n "variables.gradle" android/build.gradle | while IFS= read -r l; do echo "::error::$l"; done
 
+      - name: 配置阶段自检（evaluation 错误在这里就会暴露）
+        # "A problem occurred evaluating project ':app'" 是**配置阶段**的错误 ——
+        # 跑 `help` 就够了（不编译），而且它的日志很短，整段打成注释不会被上限截掉。
+        # 完整 assembleRelease 的日志太长，真正出错那段反而被截没了。
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if ./gradlew help --no-daemon --stacktrace > /tmp/help.log 2>&1; then
+            echo "✅ 配置阶段正常（那 Value is null 出在别处）"
+          else
+            echo "::error::配置阶段失败 —— 这就是 Value is null 的真正位置"
+            tail -45 /tmp/help.log | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done
+            exit 1
+          fi
+
       - name: 打包成 APK
         working-directory: android
         env:
