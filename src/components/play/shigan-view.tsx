@@ -23,11 +23,22 @@ export function ShiganView() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(settings.shiganUrl);
 
-  const auto =
-    typeof window === "undefined"
+  /**
+   * 地址的默认值：
+   *   · **App 里**（VITE_DIRECT_UPSTREAM=1 的那种构建）→ 用**打进本地的副本**
+   *     （public/shigan/，跟 App 一起装进手机）。打开不需要网络、不需要梯子。
+   *   · **网页版** → 跟着当前主机走：电脑 localhost:8081、手机局域网IP:8081。
+   * 用户在设置里自己填过地址的话，永远以他填的为准。
+   */
+  const NATIVE = (import.meta.env?.VITE_DIRECT_UPSTREAM as string | undefined) === "1";
+  const auto = NATIVE
+    ? "shigan/index.html"
+    : typeof window === "undefined"
       ? "http://localhost:8081/"
       : `${window.location.protocol}//${window.location.hostname}:8081/`;
-  const url = (settings.shiganUrl.trim() || auto).replace(/\/?$/, "/");
+  // .html 结尾的本地路径别补斜杠，否则会变成 shigan/index.html/ 打不开
+  const raw = settings.shiganUrl.trim() || auto;
+  const url = /\.html?$/i.test(raw) ? raw : raw.replace(/\/?$/, "/");
 
   /**
    * 判断"到底打开了没有"。
