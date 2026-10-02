@@ -20,7 +20,7 @@ import { Avatar } from "@/components/avatar";
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
-import { ThinkingBlock } from "@/components/chat/thinking-block";
+import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { resolveAiName } from "@/lib/branding";
 import { greetingFor } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
@@ -37,6 +37,12 @@ export function ChatView() {
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const [menu, setMenu] = useState(false);
+  /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
+  const [thinkSheet, setThinkSheet] = useState<{
+    text: string;
+    ms?: number;
+    live?: boolean;
+  } | null>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
@@ -336,16 +342,37 @@ export function ChatView() {
                       </div>
                     ) : (
                       <div className="min-w-0">
-                        {/* 思考链**不跟气泡对齐** —— 它内容多，所以更宽、并且居中
-                            （用户："可以拉宽一点，然后居中"，左右留白相等才整齐） */}
+                        {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
+                            （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
                         {(streaming || (settings.showThinking && m.thinking)) && (
-                          <div className="mx-auto max-w-[97%]">
-                            <ThinkingBlock
-                              thinking={m.thinking}
-                              durationMs={m.thinkingDurationMs}
-                              live={streaming && !m.content}
-                            />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setThinkSheet({
+                                text: m.thinking,
+                                ms: m.thinkingDurationMs,
+                                live: Boolean(streaming && !m.content),
+                              })
+                            }
+                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted"
+                          >
+                            {streaming && !m.content ? "正在思考…" : "已思考"}
+                            {m.thinkingDurationMs && !streaming ? (
+                              <span className="text-subtle">
+                                （{Math.max(1, Math.round(m.thinkingDurationMs / 1000))} 秒）
+                              </span>
+                            ) : null}
+                            <span className="text-subtle">点开看</span>
+                          </button>
+                        )}
+                        {thinkSheet && (
+                          <ThinkingSheet
+                            open
+                            text={thinkSheet.text}
+                            durationMs={thinkSheet.ms}
+                            live={thinkSheet.live}
+                            onClose={() => setThinkSheet(null)}
+                          />
                         )}
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
