@@ -1,4 +1,4 @@
-﻿import type { PermissionMode } from "./types";
+import type { PermissionMode } from "./types";
 
 /**
  * AI 权限目录 —— 全站唯一的权限真源。
@@ -78,6 +78,13 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "scroll_to", title: "滚动定位", hint: "滚到某条消息、某段歌词", risk: "L1", status: "ready", group: "ui" },
   { id: "switch_model", title: "切模型与回复风格", hint: "改他自己的行为方式", risk: "L1", status: "ready", group: "ui" },
   { id: "state_report", title: "给自己记一笔状态", hint: "每轮回复时顺手记下心情/精力/想念（只存本机，用来画波浪线）", risk: "L0", status: "ready", group: "ui" },
+  /**
+   * 定位属于**感知**（他"看得到"），不是"动手"，所以放 sense 组。
+   * 用户问："定位权限是不是也没列出来" —— 对，之前确实不在列表里：
+   * 它原来只是「我的 → 定位」里的一个设置，AI 权限页看不到。
+   * 现在两处都能管：设置里那个开关是"要不要去拿"，这里是"要不要给他看"。
+   */
+  { id: "see_location", title: "知道你在哪", hint: "把当前位置的地名放进「此刻的情况」（会发给你接的那家 AI）", risk: "L2", status: "ready", group: "sense" },
   { id: "toggle_feature", title: "开关界面功能", hint: "思考链显示、朗读、提醒等", risk: "L1", status: "ready", group: "ui" },
   { id: "rename_chat", title: "重命名 / 置顶对话", hint: "帮你整理对话", risk: "L1", status: "ready", group: "ui" },
 

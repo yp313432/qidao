@@ -108,8 +108,9 @@ export function buildAwarenessItems(): AwarenessItem[] {
     });
   }
 
-  // 定位（用户手动开的才进这里；两小时前的就不提了，免得说"你现在在…"其实是昨天）
-  if (st.settings.geoEnabled && st.settings.geoLabel) {
+  // 定位（两道闸都要开：设置里的开关 + 权限页里的「知道你在哪」）
+  // 两小时前的就不提了，免得说"你现在在…"其实是昨天
+  if (st.settings.geoEnabled && modeOf("see_location") !== "deny" && st.settings.geoLabel) {
     const age = Date.now() - (st.settings.geoAt ?? 0);
     if (age < 2 * 3600_000) {
       out.push({
