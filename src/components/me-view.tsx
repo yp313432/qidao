@@ -18,6 +18,7 @@ import {
 import { isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
 import { currentPlace } from "@/lib/locate";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
+import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
 import type { FontId, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
@@ -86,6 +87,8 @@ const TONES: { id: TextTone; label: string }[] = [
 export function MeView() {
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
+  /** 浏览器里能选的音色（App 里由系统引擎决定，所以是空数组） */
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const settings = useApp((s) => s.settings);
   const memories = useApp((s) => s.memories);
   const tasks = useApp((s) => s.tasks);
@@ -760,6 +763,74 @@ export function MeView() {
           checked={settings.voiceReplies}
           onChange={(v) => patch({ voiceReplies: v })}
         />
+
+        {/* 音色 / 语速 / 音调 —— 用户要的"换音色和改音调" */}
+        <p className="mt-3 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>
+        <input
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.05}
+          value={settings.voiceRate}
+          onChange={(e) => patch({ voiceRate: Number(e.target.value) })}
+          className="w-full"
+        />
+        <p className="mt-3 mb-2 text-[12px] text-muted">
+          音调 {settings.voicePitch.toFixed(2)}（低一点更沉稳，高一点更年轻）
+        </p>
+        <input
+          type="range"
+          min={0.5}
+          max={1.8}
+          step={0.05}
+          value={settings.voicePitch}
+          onChange={(e) => patch({ voicePitch: Number(e.target.value) })}
+          className="w-full"
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void speakTextAsync("你好，我是" + resolveAiName(settings.aiName) + "。", {})}
+            className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-fg"
+          >
+            试听一句
+          </button>
+          {!IS_APP && (
+            <button
+              type="button"
+              onClick={() => setVoices(window.speechSynthesis?.getVoices?.() ?? [])}
+              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-fg"
+            >
+              换音色（共 {voices.length} 个）
+            </button>
+          )}
+        </div>
+        {!IS_APP && voices.length > 0 && (
+          <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-2xl bg-chip px-3 py-2">
+            {voices
+              .filter((v) => /zh|cmn|Chinese/i.test(v.lang))
+              .slice(0, 12)
+              .map((v) => (
+                <button
+                  key={v.voiceURI}
+                  type="button"
+                  onClick={() => patch({ voiceURI: v.voiceURI })}
+                  className={cn(
+                    "block w-full truncate rounded-lg px-2 py-1.5 text-left text-[12px]",
+                    settings.voiceURI === v.voiceURI ? "bg-elevated text-fg" : "text-muted",
+                  )}
+                >
+                  {v.name} · {v.lang}
+                </button>
+              ))}
+          </div>
+        )}
+        {IS_APP && (
+          <p className="mt-2 text-[11px] leading-4 text-subtle">
+            App 里的音色由<span className="text-fg">安卓系统的语音引擎</span>决定：去「系统设置 → 语音合成」里换引擎/装语音包，
+            这里调的是语速和音调。
+          </p>
+        )}
       </Section>
 
       <Section title="AI 权限">

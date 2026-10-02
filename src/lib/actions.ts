@@ -3,8 +3,9 @@ import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
+import { cancelNative } from "@/lib/notify";
 import { speakTextAsync } from "@/lib/tts";
-import type { AppAction, FeatureId, MoodId, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, Memory, MoodId, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -30,6 +31,31 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
    * 直接 .trim() 会当场抛错，把整条动作链弄崩 —— 所以统一从这里取值。
    */
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+  /**
+   * 按**内容片段**找一条。
+   *
+   * 模型不知道内部 id，所以改/删都用文字匹配；没给条件时取最近一条
+   * （列表基本是新的在前）。找不到就返回 null —— 调用方必须如实说"没找到"。
+   */
+  const findByText = <T extends { id: string }>(
+    list: T[],
+    q: string,
+    get: (x: T) => string,
+    newestFirst = false,
+  ): T | null => {
+    if (list.length === 0) return null;
+    const needle = q.trim().toLowerCase();
+    if (!needle) return (newestFirst ? list[0] : list[list.length - 1]) ?? null;
+    return list.find((x) => get(x).toLowerCase().includes(needle)) ?? null;
+  };
+
+  /** 字符串 id → 稳定的正整数（原生通知/闹钟只认数字），跟 reminder-daemon 里那套一致 */
+  const hashId = (s: string): number => {
+    let h = 7;
+    for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) % 2147483000;
+    return h || 1;
+  };
   const st = useApp.getState();
   switch (action.kind) {
     case "navigate":
@@ -187,9 +213,13 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `「${action.word.trim()}」已加进生词本`;
     }
     case "reminder.add": {
-      if (!action.text.trim()) return "提醒内容不能空着";
-      st.addReminder({ text: action.text, time: action.time });
-      return `提醒已设好${action.time ? `（每天 ${action.time}）` : "（App 开着时提醒）"}`;
+      const text = str(action.text).trim();
+      if (!text) return "提醒内容不能空着";
+      const date = str((action as { date?: unknown }).date).trim();
+      const oneOff = /^\d{4}-\d{2}-\d{2}$/.test(date);
+      st.addReminder({ text, time: action.time, ring: action.ring, date });
+      const when = action.time ? `${oneOff ? date : "每天"} ${action.time}` : "App 开着时提醒";
+      return `设好了：${when} · ${text}${action.ring ? "（会全屏响铃）" : "（只弹通知）"}`;
     }
     case "memory.add": {
       const note = str(action.note).trim();
@@ -372,6 +402,123 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       if (!body) return "信得有内容";
       useApp.getState().writeLetter(title, body);
       return `信写好了（「${title}」）—— 去「玩乐 → 动态空间 → 信」，会看到一封没拆的信`;
+    }
+
+    /* ---------------- 改与删 ----------------
+     * 用户："他没有删除修改权限……不然只能记，改不了。"
+     * 模型不知道内部 id，所以统一用**内容片段**去匹配（匹配不到就如实说没找到）。
+     */
+
+    case "memory.update": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().memories.filter((m) => m.status === "active");
+      const hit = findByText(list, q, (m) => `${m.content} ${m.tags.join(" ")}`);
+      if (!hit) return `没找到跟「${q}」对得上的记忆`;
+      const patch: Partial<Memory> = {};
+      const note = str((action as { note?: unknown }).note).trim();
+      if (note) patch.content = note;
+      if (Array.isArray((action as { tags?: unknown }).tags)) {
+        patch.tags = ((action as { tags: unknown[] }).tags)
+          .map((t) => String(t).replace(/^#/, "").trim())
+          .filter(Boolean)
+          .slice(0, 12);
+      }
+      if (Object.keys(patch).length === 0) return "没给要改的内容";
+      useApp.getState().updateMemory(hit.id, patch);
+      return `改好了：「${hit.content.slice(0, 18)}」→「${(patch.content ?? hit.content).slice(0, 18)}」`;
+    }
+
+    case "memory.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().memories.filter((m) => m.status === "active");
+      const hit = findByText(list, q, (m) => `${m.content} ${m.tags.join(" ")}`);
+      if (!hit) return `没找到跟「${q}」对得上的记忆`;
+      useApp.getState().deleteMemory(hit.id);
+      return `删掉了那条记忆：「${hit.content.slice(0, 22)}」`;
+    }
+
+    case "reminder.update": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().reminders.filter((r) => !r.done);
+      const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
+      if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      const patch: Partial<{ text: string; time: string; ring: boolean }> = {};
+      const text = str((action as { text?: unknown }).text).trim();
+      const time = str((action as { time?: unknown }).time).trim();
+      if (text) patch.text = text;
+      if (/^\d{1,2}:\d{2}$/.test(time)) patch.time = time;
+      const ring = (action as { ring?: unknown }).ring;
+      if (typeof ring === "boolean") patch.ring = ring;
+      if (Object.keys(patch).length === 0) return "没给要改的内容";
+      useApp.getState().patchReminder(hit.id, patch);
+      return `改好了：${hit.time} ${hit.text} → ${patch.time ?? hit.time} ${patch.text ?? hit.text}${
+        patch.ring === undefined ? "" : patch.ring ? "（响铃）" : "（只提醒）"
+      }`;
+    }
+
+    case "reminder.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().reminders;
+      const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
+      if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      useApp.getState().removeReminder(hit.id);
+      // 系统定时里也要撤掉（否则手机时钟还会响）
+      void cancelNative(hashId(hit.id));
+      return `删掉了闹钟：${hit.time} ${hit.text}`;
+    }
+
+    case "reminder.done": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().reminders.filter((r) => !r.done);
+      const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
+      if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      useApp.getState().toggleReminder(hit.id);
+      return `标记完成：${hit.text}`;
+    }
+
+    case "todo.done": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().todos.filter((t) => !t.done);
+      const hit = findByText(list, q, (t) => t.text);
+      if (!hit) return `没找到跟「${q}」对得上的待办`;
+      useApp.getState().toggleTodo(hit.id);
+      return `标记完成：${hit.text}`;
+    }
+
+    case "todo.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().todos;
+      const hit = findByText(list, q, (t) => t.text);
+      if (!hit) return `没找到跟「${q}」对得上的待办`;
+      useApp.getState().deleteTodo(hit.id);
+      return `删掉了待办：${hit.text}`;
+    }
+
+    case "date.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().dates;
+      const hit = findByText(list, q, (d) => d.title);
+      if (!hit) return `没找到跟「${q}」对得上的日子`;
+      useApp.getState().deleteDate(hit.id);
+      return `删掉了日子：${hit.title}`;
+    }
+
+    case "moment.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().moments;
+      const hit = findByText(list, q, (m) => m.text, true);
+      if (!hit) return q ? `没找到跟「${q}」对得上的动态` : "还没有动态";
+      useApp.getState().deleteMoment(hit.id);
+      return `删掉了动态：「${hit.text.slice(0, 22)}」`;
+    }
+
+    case "letter.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const list = useApp.getState().letters;
+      const hit = findByText(list, q, (l) => `${l.title} ${l.body}`, true);
+      if (!hit) return q ? `没找到跟「${q}」对得上的信` : "还没有信";
+      useApp.getState().deleteLetter(hit.id);
+      return `删掉了信：「${hit.title}」`;
     }
 
     case "ambience.play":

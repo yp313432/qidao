@@ -51,6 +51,17 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "todo.add": "todo_add",
   "diary.add": "diary",
   "chat.new": "chat",
+  // 改与删：落在各自功能原有的权限上（不新开权限）
+  "memory.update": "memory",
+  "memory.remove": "memory",
+  "reminder.update": "reminder",
+  "reminder.remove": "reminder",
+  "reminder.done": "reminder",
+  "todo.done": "todo_add",
+  "todo.remove": "todo_add",
+  "date.remove": "date_add",
+  "moment.remove": "moment_post",
+  "letter.remove": "letter_write",
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
@@ -168,5 +179,25 @@ export function actionTitle(action: AppAction): string {
       return `写一条日记：${action.body.slice(0, 18)}${action.body.length > 18 ? "…" : ""}`;
     case "chat.new":
       return "新建一个对话";
+    case "memory.update":
+      return `改一条记忆${action.note ? `：${action.note.slice(0, 16)}` : "的标签"}`;
+    case "memory.remove":
+      return `删掉记忆${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一条）"}`;
+    case "reminder.update":
+      return `改闹钟/提醒：${action.query.slice(0, 16)}`;
+    case "reminder.remove":
+      return `删掉闹钟/提醒：${action.query.slice(0, 16)}`;
+    case "reminder.done":
+      return `把闹钟/提醒标记为完成：${action.query.slice(0, 16)}`;
+    case "todo.done":
+      return `把待办勾掉：${action.query.slice(0, 16)}`;
+    case "todo.remove":
+      return `删掉待办：${action.query.slice(0, 16)}`;
+    case "date.remove":
+      return `删掉日子：${action.query.slice(0, 16)}`;
+    case "moment.remove":
+      return `删掉动态${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一条）"}`;
+    case "letter.remove":
+      return `删掉信${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一封）"}`;
   }
 }

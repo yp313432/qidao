@@ -294,6 +294,12 @@ export type Settings = {
    */
   maxTokens: number;
   voiceReplies: boolean;
+  /** 朗读语速（0.5~2，1 = 正常） */
+  voiceRate: number;
+  /** 朗读音调（0.5~1.8，1 = 原声；调低更沉稳，调高更年轻） */
+  voicePitch: number;
+  /** 指定的音色（浏览器里 voiceURI；留空 = 自动挑一个） */
+  voiceURI?: string;
   replyStyle: ReplyStyle;
   defaultModel: ModelId;
   customBaseUrl: string;
@@ -488,7 +494,7 @@ export type AppAction =
       example?: string;
       exampleZh?: string;
     }
-  | { kind: "reminder.add"; text: string; time?: string }
+  | { kind: "reminder.add"; text: string; time?: string; ring?: boolean; date?: string }
   /** 定时任务：到点让他自己开口（App 活着时真的会说话；关掉时靠通知兜底） */
   | { kind: "cron.add"; prompt: string; time?: string; at?: string; notify?: boolean }
   /** 他自己报一笔状态（L0，静默执行；用来画「内在」那条波浪线） */
@@ -522,7 +528,26 @@ export type AppAction =
   | { kind: "date.add"; title: string; at: string; yearly?: boolean; note?: string }
   | { kind: "todo.add"; text: string }
   | { kind: "diary.add"; body: string }
-  | { kind: "chat.new" };
+  | { kind: "chat.new" }
+  /**
+   * ——— 改与删 ———
+   *
+   * 用户的原话："他没有删除修改权限，你找找其他的功能权限，
+   * 写入和删除、更新和删除都同时要有，不然只能记，改不了。"
+   *
+   * 所以每条都能改、能删。query 是**内容片段**（模型不知道 id），
+   * 匹配不到时应该如实告诉他"没找到那条"，而不是装作改了。
+   */
+  | { kind: "memory.update"; query: string; note?: string; tags?: string[] }
+  | { kind: "memory.remove"; query: string }
+  | { kind: "reminder.update"; query: string; text?: string; time?: string; ring?: boolean }
+  | { kind: "reminder.remove"; query: string }
+  | { kind: "reminder.done"; query: string }
+  | { kind: "todo.done"; query: string }
+  | { kind: "todo.remove"; query: string }
+  | { kind: "date.remove"; query: string }
+  | { kind: "moment.remove"; query?: string }
+  | { kind: "letter.remove"; query?: string };
 
 /** 一条「用户在干什么」的记录。 */
 export type ActivityEntry = {

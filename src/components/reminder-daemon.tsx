@@ -118,6 +118,12 @@ export function ReminderDaemon() {
         if (r.done) continue;
         const isAlarm = Boolean(r.ring);
 
+        // 一次性闹钟（带了 date）：不是今天就直接跳过
+        if (r.date) {
+          const t = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+          if (r.date !== t) continue;
+        }
+
         // ① 贪睡到期：直接再响一次（不占"每天一次"的名额）
         if (r.snoozeUntil && Date.now() >= r.snoozeUntil) {
           st.patchReminder(r.id, { snoozeUntil: undefined });
@@ -135,6 +141,8 @@ export function ReminderDaemon() {
         if (localStorage.getItem(key) === today) continue;
         localStorage.setItem(key, today);
         st.fireReminder(r.id);
+        // 一次性闹钟响过就标完成，免得明天又来一次
+        if (r.date) st.patchReminder(r.id, { done: true });
         // 闹钟：通知 + **全屏响铃**（只发通知人会睡过去）
         void localNotify(isAlarm ? "栖岛 · 闹钟" : "栖岛 · 提醒", r.text);
         if (isAlarm) st.setRinging({ id: r.id, text: r.text, time: r.time });

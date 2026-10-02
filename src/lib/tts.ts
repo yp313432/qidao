@@ -18,6 +18,7 @@
  * （App 里没有 speechSynthesis，要用下面的 `speakTextAsync`。）
  */
 import { IS_APP } from "@/lib/platform";
+import { useApp } from "@/lib/store";
 
 export type SpeakResult = { ok: true } | { ok: false; reason: string };
 
@@ -77,8 +78,9 @@ export async function speakTextAsync(
       await native.api.speak({
         text: clean,
         lang: opts.lang ?? guessLang(clean),
-        rate: opts.rate ?? 0.95,
-        pitch: 1,
+        // 语速/音调从设置里读（用户在「我的 → 语音」里调过就用他的）
+        rate: opts.rate ?? useApp.getState().settings.voiceRate ?? 0.95,
+        pitch: opts.pitch ?? useApp.getState().settings.voicePitch ?? 1,
         volume: 1,
       });
     } catch (err) {
@@ -102,6 +104,8 @@ export type SpeakOptions = {
   onEnd?: () => void;
   /** 语速，默认 0.95（略慢一点更适合跟读） */
   rate?: number;
+  /** 音调，默认 1（不传就用设置里那个） */
+  pitch?: number;
 };
 
 export function ttsSupported(): boolean {
@@ -153,8 +157,14 @@ export function speakText(text: string, opts: SpeakOptions = {}): SpeakResult {
   const u = new SpeechSynthesisUtterance(clean);
   u.lang = voice?.lang ?? lang;
   if (voice) u.voice = voice;
-  u.rate = opts.rate ?? 0.95;
-  u.pitch = 1;
+  u.rate = opts.rate ?? useApp.getState().settings.voiceRate ?? 0.95;
+  u.pitch = opts.pitch ?? useApp.getState().settings.voicePitch ?? 1;
+  // 用户指定了音色就用它，否则让浏览器自己挑
+  const wantVoice = useApp.getState().settings.voiceURI;
+  if (wantVoice) {
+    const v = window.speechSynthesis.getVoices().find((x) => x.voiceURI === wantVoice);
+    if (v) u.voice = v;
+  }
   u.volume = 1;
   let ended = false;
   const done = () => {

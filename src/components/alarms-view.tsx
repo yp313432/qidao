@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { AlarmClock, Bell, BellOff, ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { resolveAiName } from "@/lib/branding";
@@ -33,6 +33,8 @@ export function AlarmsView() {
   const [text, setText] = useState("");
   const [time, setTime] = useState("07:30");
   const [ring, setRing] = useState(true);
+  /** 只响这一次的日期（空 = 每天） */
+  const [onceDate, setOnceDate] = useState("");
   const [exact, setExact] = useState<"granted" | "denied" | "unknown">("unknown");
   const [sysMsg, setSysMsg] = useState("");
 
@@ -43,7 +45,7 @@ export function AlarmsView() {
 
   function submit() {
     if (!text.trim()) return;
-    addReminder({ text, time, ring });
+    addReminder({ text, time, ring, date: onceDate || undefined });
     setText("");
     setAdding(false);
   }
@@ -142,6 +144,25 @@ export function AlarmsView() {
                 设好
               </button>
             </div>
+            {/* 空 = 每天；填了日期 = 只响这一次 */}
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[12px] text-muted">只这一次</span>
+              <input
+                type="date"
+                value={onceDate}
+                onChange={(e) => setOnceDate(e.target.value)}
+                className="h-10 rounded-2xl bg-chip px-3 text-[13px] outline-none"
+              />
+              {onceDate && (
+                <button
+                  type="button"
+                  onClick={() => setOnceDate("")}
+                  className="rounded-full bg-chip px-3 py-1.5 text-[12px] text-muted"
+                >
+                  清掉（改成每天）
+                </button>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -163,6 +184,11 @@ export function AlarmsView() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-xl">{r.time}</span>
+                    {/* "是一次还是每天"必须写清楚 —— 用户专门提过 */}
+                    <span className="text-[11px] text-subtle">
+                      {r.date ? `${r.date} 只这一次` : "每天"}
+                      {r.ring ? " · 响铃" : " · 只弹通知"}
+                    </span>
                     {r.snoozeUntil && (
                       <span className="text-[11px] text-subtle">
                         已贪睡到{" "}

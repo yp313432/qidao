@@ -109,8 +109,22 @@ async function locateOnce(): Promise<PlaceResult> {
         maximumAge: 300000,
       });
       coords = pos.coords;
-    } catch {
-      return { ok: false, reason: "定位失败（可能没开定位服务，或在室内信号不好）" };
+    } catch (e) {
+      /**
+       * 把**原始报错**一起带上。
+       *
+       * 用户实测："定位显示失败，我开了定位权限了" —— 权限只是第一步，
+       * 手机的**定位服务开关**（下拉菜单那个）常常是关着的，
+       * 这两种情况报错不一样。含糊地说"失败了"他没法判断，
+       * 所以把插件原话贴出来，他一看就知道该去开哪个开关。
+       */
+      const raw = e instanceof Error ? e.message : String(e ?? "");
+      const hint = /denied|permission/i.test(raw)
+        ? "权限被拒了：去「设置 → 应用 → 栖岛 → 权限」把位置改成「允许」"
+        : /disabled|location.*off|settings/i.test(raw)
+          ? "手机的定位服务没开：从屏幕顶端下拉，把「位置信息」打开"
+          : "可能是室内信号不好；去窗边或户外再试一次，或者先打开地图 App 定个位再来";
+      return { ok: false, reason: `定位失败：${hint}${raw ? `（原始报错：${raw.slice(0, 120)}）` : ""}` };
     }
   } else if (IS_APP) {
     /**

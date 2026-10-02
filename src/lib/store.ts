@@ -76,6 +76,8 @@ const defaultSettings: Settings = {
   chatFontSize: "normal",
   maxTokens: 0,
   voiceReplies: false,
+  voiceRate: 0.95,
+  voicePitch: 1,
   replyStyle: "default",
   defaultModel: "sonnet",
   customBaseUrl: "",
@@ -181,7 +183,8 @@ export type AppState = {
    * 返回对话 id 与消息 id，交给守护进程去流式写入。
    */
   beginScheduledReply: (prompt: string) => { conversationId: string; messageId: string } | null;
-  /** 提醒 / 闹钟（ring = 到点全屏响铃；snoozeUntil = 再响的时间点） */
+  /** 提醒 / 闹钟（ring = 到点全屏响铃；snoozeUntil = 再响的时间点）
+   *  date 只在"一次性闹钟"上用（YYYY-MM-DD）；空 = 每天都响 */
   reminders: {
     id: string;
     text: string;
@@ -190,6 +193,7 @@ export type AppState = {
     createdAt: number;
     firedAt: number;
     ring?: boolean;
+    date?: string;
     snoozeUntil?: number;
   }[];
   /** 正在响的那个闹钟（驱动全屏响铃页） */
@@ -198,7 +202,10 @@ export type AppState = {
   /** 再响 N 分钟 */
   snoozeReminder: (id: string, minutes: number) => void;
   /** 改一条提醒/闹钟的字段（守护进程用来清掉贪睡标记） */
-  patchReminder: (id: string, patch: Partial<{ ring: boolean; snoozeUntil: number | undefined; done: boolean }>) => void;
+  patchReminder: (
+    id: string,
+    patch: Partial<{ ring: boolean; date: string | undefined; text: string; time: string; snoozeUntil: number | undefined; done: boolean }>,
+  ) => void;
   /** 长期记忆（只存本机）—— 结构见 lib/types.ts 的 Memory，引擎见 lib/memory.ts */
   memories: Memory[];
   /** 用户自己传的表情图（dataURL） */
@@ -207,7 +214,7 @@ export type AppState = {
   removeSticker: (dataUrl: string) => void;
   addCustomWord: (card: Omit<WordCard, "id">) => void;
   removeCustomWord: (id: string) => void;
-  addReminder: (r: { text: string; time?: string; ring?: boolean }) => void;
+  addReminder: (r: { text: string; time?: string; ring?: boolean; date?: string }) => void;
   toggleReminder: (id: string) => void;
   removeReminder: (id: string) => void;
   fireReminder: (id: string) => void;
@@ -654,7 +661,7 @@ export const useApp = create<AppState>()(
           ),
           ringing: null,
         })),
-      addReminder: ({ text, time, ring }) =>
+      addReminder: ({ text, time, ring, date }) =>
         set((s) => ({
           reminders: [
             {
@@ -663,6 +670,7 @@ export const useApp = create<AppState>()(
               time: time || "21:00",
               done: false,
               ring: Boolean(ring),
+              date: /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") ? date : undefined,
               createdAt: Date.now(),
               firedAt: 0,
             },
