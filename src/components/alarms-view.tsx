@@ -5,6 +5,7 @@ import { resolveAiName } from "@/lib/branding";
 import { askExactAlarm, exactAlarmState } from "@/lib/notify";
 import { IS_APP } from "@/lib/platform";
 import { previewRing } from "@/lib/ring-tone";
+import { saveToSystemAlarm } from "@/lib/system-alarm";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
@@ -33,6 +34,7 @@ export function AlarmsView() {
   const [time, setTime] = useState("07:30");
   const [ring, setRing] = useState(true);
   const [exact, setExact] = useState<"granted" | "denied" | "unknown">("unknown");
+  const [sysMsg, setSysMsg] = useState("");
 
   useEffect(() => {
     if (!IS_APP) return;
@@ -100,6 +102,7 @@ export function AlarmsView() {
               没授权时闹钟可能晚几十秒到几分钟 —— 这是安卓的省电规矩，不是我们偷懒。
             </p>
           )}
+          {sysMsg && <p className="mt-2 text-[11px] leading-4 text-fg">{sysMsg}</p>}
         </div>
       </section>
 
@@ -192,6 +195,22 @@ export function AlarmsView() {
                       className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
                     >
                       {r.done ? "恢复" : "已完成"}
+                    </button>
+                    {/* 交给手机自带时钟 —— 系统闹钟连省电模式都拦不住，最可靠 */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void saveToSystemAlarm(r.time, r.text).then((res) => {
+                          setSysMsg(
+                            res.ok
+                              ? `已经把「${r.time} ${r.text}」存进手机时钟了 ✅`
+                              : `没能存进系统时钟：${res.reason}`,
+                          );
+                        });
+                      }}
+                      className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
+                    >
+                      存到手机闹钟
                     </button>
                     <button
                       type="button"
