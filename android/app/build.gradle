@@ -1,20 +1,5 @@
 apply plugin: 'com.android.application'
 
-// ── 临时诊断（定位 "Value is null" 用，查清后删）────────────────────────
-// 放在 android { } 之前：脚本求值到这里就会打印，即使后面炸了也能看到值。
-// CI 的日志接口匿名读不了，但 check-run 注释能读；`gradlew help` 的日志很短，
-// 这几行会完整出现在注释里。
-println "QIDAO-DEBUG ==="
-println "QIDAO-DEBUG ext.has(minSdkVersion)      = " + rootProject.ext.has("minSdkVersion")
-println "QIDAO-DEBUG ext.minSdkVersion          = " + rootProject.ext.find("minSdkVersion")
-println "QIDAO-DEBUG ext.compileSdkVersion      = " + rootProject.ext.find("compileSdkVersion")
-println "QIDAO-DEBUG ext.androidxAppCompatVer   = " + rootProject.ext.find("androidxAppCompatVersion")
-println "QIDAO-DEBUG env.QIDAO_VERSION_CODE     = " + System.getenv("QIDAO_VERSION_CODE")
-println "QIDAO-DEBUG env.QIDAO_VERSION_NAME     = " + System.getenv("QIDAO_VERSION_NAME")
-println "QIDAO-DEBUG signingConfigs.release     = " + (project.hasProperty("signingConfigs") ? "有" : "无")
-println "QIDAO-DEBUG 项目目录                    = " + project.projectDir
-println "QIDAO-DEBUG ==="
-
 android {
     namespace = "com.yanping.qidao"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -22,13 +7,14 @@ android {
         applicationId "com.yanping.qidao"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // 版本号先写死：之前用 System.getenv 取值，CI 的配置阶段拿到 null，
-        // AGP 就抛 "Value is null"（而且只说这一句，完全看不出是哪一行）。
-        // 版本号本来也不影响能不能装、能不能覆盖更新 —— 签名才是关键。
-        // （android/app/build.gradle 里那个 QIDAO-DEBUG 诊断段确认了这一点：
-        //   ext 的值全都正常，只有这两个环境变量是 null。）
-        versionCode 1
-        versionName "1.0"
+        // 版本号：用 -P 属性传（CI 里 ./gradlew -PqidaoVersionCode=N）。
+        //
+        // 教训：别用 System.getenv —— 配置阶段它拿到 null，AGP 只会抛一句
+        // "Value is null"，完全看不出是哪一行（我们为此折腾了 8 轮 CI）。
+        // 而且这里必须 .toString()：findProperty 返回 Object，
+        // 直接把 Object 交给 versionName(String) 同样会被判成 null。
+        versionCode (project.findProperty("qidaoVersionCode") ?: "1").toString().toInteger()
+        versionName (project.findProperty("qidaoVersionName") ?: "1.0").toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
