@@ -119,6 +119,10 @@ jobs:
             echo "✅ 配置阶段正常（那 Value is null 出在别处）"
           else
             echo "::error::配置阶段失败 —— 这就是 Value is null 的真正位置"
+            # 先把诊断行抓出来（它们在日志前部，tail 会截掉）
+            grep -a "QIDAO-DEBUG" /tmp/help.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
             tail -45 /tmp/help.log | while IFS= read -r line; do
               [ -n "$line" ] && echo "::error::$line"
             done
