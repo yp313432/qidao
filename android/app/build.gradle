@@ -7,14 +7,14 @@ android {
         applicationId "com.yanping.qidao"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // 版本号：用 -P 属性传（CI 里 ./gradlew -PqidaoVersionCode=N）。
+        // 版本号写死。
         //
-        // 教训：别用 System.getenv —— 配置阶段它拿到 null，AGP 只会抛一句
-        // "Value is null"，完全看不出是哪一行（我们为此折腾了 8 轮 CI）。
-        // 而且这里必须 .toString()：findProperty 返回 Object，
-        // 直接把 Object 交给 versionName(String) 同样会被判成 null。
-        versionCode (project.findProperty("qidaoVersionCode") ?: "1").toString().toInteger()
-        versionName (project.findProperty("qidaoVersionName") ?: "1.0").toString()
+        // 血泪教训：这里**不能**用 System.getenv，也**不要**用 findProperty ——
+        // Gradle 配置阶段它们可能拿到 null，而 AGP 对 null 只抛一句
+        // "Value is null"，不说是哪一行（我们为此折腾了 8 轮 CI 才定位到）。
+        // 版本号不影响安装和覆盖更新（**签名**才决定这个），所以不值得为它冒险。
+        versionCode 1
+        versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
