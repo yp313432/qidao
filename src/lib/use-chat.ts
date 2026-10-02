@@ -11,44 +11,125 @@ import { resolveVoiceLang, speak } from "@/lib/voice";
 /* --------------------------- 他的「动作块」协议 --------------------------- */
 
 /**
- * 模型把「要做的动作」放在一个语言标记为 qidao 的代码块里：
+ * 模型把「要做的动作」放在一个代码块里：
  *
  *   ```qidao
  *   {"kind":"navigate","path":"/play/listen"}
  *   ```
  *
- * 为什么要这样接：栖岛的动作执行（actions.ts）、权限门（ACTION_PERMISSION）、
- * 动作记录（actionLog）早就写好了，唯独「让模型发起动作」这条线没接 ——
- * 于是他只能说"系统未配置额外工具"。这里把线接上。
+ * ⚠️ 但**不能只认这一种写法**。用户实测报过："写动态和信不可以了，
+ * 他说他执行了，但是是空的" —— 模型只是把格式写偏了一点（标记大小写、
+ * 尾随逗号、中文引号、或者干脆没包代码块），旧解析器就整段丢掉，
+ * 于是什么都没发生，而它自己以为做了。
+ *
+ * 所以这里分四层兜底：严格块 → 任意代码块 → 裸 JSON → 修一遍再试。
  */
-const ACTION_BLOCK = /```qidao\s*([\s\S]*?)```/g;
+const STRICT_BLOCK = /```[ \t]*qidao[ \t]*\r?\n?([\s\S]*?)```/gi;
+/** 任意代码块（有些模型会写成 ```json 或干脆不写标记） */
+const ANY_BLOCK = /```[ \t]*[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)```/g;
 
-/** 去掉动作块（含流式期间只收到一半的），让对话里只显示正文。 */
-export function stripActions(text: string): string {
-  return text
-    .replace(ACTION_BLOCK, "")
-    .replace(/```qidao[\s\S]*$/, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+/** 常见 JSON 走样修一遍（尾随逗号 / 中文引号 / 单引号 / 字符串里的裸换行） */
+function repairJson(raw: string): string {
+  let t = raw.trim();
+  t = t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  // 去掉尾随逗号
+  t = t.replace(/,\s*([}\]])/g, "$1");
+  // 单引号当引号用
+  t = t.replace(/'([^'\\]*)'(\s*:)/g, '"$1"$2');
+  t = t.replace(/:\s*'([^'\\]*)'/g, ': "$1"');
+  // 字符串里的裸换行 → \n（模型经常在正文里换行）
+  t = t.replace(/"(?:[^"\\]|\\.)*"/g, (m) => m.replace(/\r?\n/g, "\\n"));
+  return t;
 }
 
-/** 取出回复里的动作（一个块里可以是单个对象，也可以是数组）。 */
-export function takeActions(text: string): AppAction[] {
-  const out: AppAction[] = [];
-  for (const m of text.matchAll(ACTION_BLOCK)) {
+/** 从一段文本里"扫出"所有看起来像动作的 JSON 对象（按括号配对，不靠正则贪心） */
+function scanObjects(text: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] !== "{") continue;
+    // 只看开头一小段里带 "kind" 的，避免把普通正文里的 {} 也拿来试
+    const head = text.slice(i, i + 240);
+    if (!/"kind"\s*:/.test(head)) continue;
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let j = i; j < text.length; j += 1) {
+      const c = text[j]!;
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === "\\") {
+        esc = true;
+        continue;
+      }
+      if (c === '"') inStr = !inStr;
+      if (inStr) continue;
+      if (c === "{") depth += 1;
+      else if (c === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          out.push(text.slice(i, j + 1));
+          i = j;
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function collectFrom(chunk: string, out: AppAction[]) {
+  const attempts = [chunk, repairJson(chunk)];
+  for (const raw of attempts) {
     try {
-      const parsed = JSON.parse((m[1] ?? "").trim()) as AppAction | AppAction[];
+      const parsed = JSON.parse(raw) as AppAction | AppAction[];
       const list = Array.isArray(parsed) ? parsed : [parsed];
       for (const item of list) {
         if (item && typeof item === "object" && typeof (item as { kind?: unknown }).kind === "string") {
           out.push(item);
         }
       }
+      return;
     } catch {
-      /* 坏块就跳过，别因为一个格式错误把整条回复毁掉 */
+      /* 换下一种修法 */
     }
   }
+}
+
+/** 去掉动作块（含流式期间只收到一半的），让对话里只显示正文。 */
+export function stripActions(text: string): string {
+  return text
+    .replace(STRICT_BLOCK, "")
+    .replace(/```[ \t]*qidao[\s\S]*$/i, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** 取出回复里的动作。四层兜底，尽量别把模型的动作丢掉。 */
+export function takeActions(text: string): AppAction[] {
+  const out: AppAction[] = [];
+
+  // ① 严格的 ```qidao 块
+  for (const m of text.matchAll(STRICT_BLOCK)) collectFrom((m[1] ?? "").trim(), out);
+  if (out.length) return out;
+
+  // ② 任意代码块里，只要能解析出 kind 就算
+  for (const m of text.matchAll(ANY_BLOCK)) {
+    const body = (m[1] ?? "").trim();
+    if (!/"kind"\s*:/.test(body)) continue;
+    collectFrom(body, out);
+  }
+  if (out.length) return out;
+
+  // ③ 正文里直接写的裸 JSON（没包代码块）
+  for (const obj of scanObjects(text)) collectFrom(obj, out);
   return out;
+}
+
+/** 他是不是"看起来想动手"（用来在解析失败时如实告诉用户，而不是装作没事） */
+export function looksLikeAction(text: string): boolean {
+  return /"kind"\s*:/.test(text);
 }
 
 
@@ -227,6 +308,15 @@ export function useChatStream() {
       const actions = takeActions(content);
       for (const action of actions) {
         useApp.getState().requestAction(action, "AI");
+      }
+      /**
+       * 他说要动手、却一个动作都没解析出来 —— **如实告诉他**。
+       * 用户实测报过："写动态和信不可以了，他说他执行了，但是是空的"：
+       * 模型以为做了、用户那边什么都没发生，两边对不上。
+       */
+      if (actions.length === 0 && looksLikeAction(content)) {
+        content +=
+          "\n\n（他写了个动作，但格式我没看懂，所以没执行 —— 可以点「重新生成」，或者直接跟我说要做什么。）";
       }
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
