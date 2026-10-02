@@ -33,14 +33,21 @@ type NativeTts = {
   }) => Promise<void>;
 };
 
-let nativeTtsCache: NativeTts | null | undefined;
+let nativeTtsCache: { api: NativeTts } | null | undefined;
 
-async function nativeTts(): Promise<NativeTts | null> {
+/**
+ * 拿到原生朗读插件。
+ *
+ * ⚠️ 和通知那边同一个坑：Capacitor 的插件对象是 thenable，
+ * 从一个 async 函数里直接 return 它，JS 会当 Promise 去调 `.then()` →
+ * 抛 "…then() is not implemented on web"。所以**必须包一层**。
+ */
+async function nativeTts(): Promise<{ api: NativeTts } | null> {
   if (!IS_APP) return null;
   if (nativeTtsCache !== undefined) return nativeTtsCache;
   try {
     const mod = await import("@capacitor-community/text-to-speech");
-    nativeTtsCache = mod.TextToSpeech as unknown as NativeTts;
+    nativeTtsCache = { api: mod.TextToSpeech as unknown as NativeTts };
   } catch {
     nativeTtsCache = null;
   }
@@ -67,7 +74,7 @@ export async function speakTextAsync(
   const native = await nativeTts();
   if (native) {
     try {
-      await native.speak({
+      await native.api.speak({
         text: clean,
         lang: opts.lang ?? guessLang(clean),
         rate: opts.rate ?? 0.95,

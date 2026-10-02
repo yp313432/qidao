@@ -31,8 +31,10 @@ export function ShiganView() {
    * 用户在设置里自己填过地址的话，永远以他填的为准。
    */
   const NATIVE = (import.meta.env?.VITE_DIRECT_UPSTREAM as string | undefined) === "1";
+  // 必须是**绝对**路径：相对路径会拼在当前目录后面（在 /play/shigan 这一页
+  // 会去找 /play/shigan/index.html → 404 → 白屏）。
   const auto = NATIVE
-    ? "shigan/index.html"
+    ? "/shigan/index.html"
     : typeof window === "undefined"
       ? "http://localhost:8081/"
       : `${window.location.protocol}//${window.location.hostname}:8081/`;

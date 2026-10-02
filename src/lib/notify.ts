@@ -27,11 +27,20 @@ type NativeNotify = {
   }) => Promise<unknown>;
 };
 
-async function nativeNotify(): Promise<NativeNotify | null> {
+/**
+ * 拿到原生通知模块。
+ *
+ * ⚠️ **必须包一层返回**，不能直接 return 插件对象本身 ——
+ * Capacitor 的插件对象是 thenable（带 then 方法），从一个 async 函数里
+ * 直接 return 它，JS 会把它当成 Promise 去调 `.then()`，于是当场抛
+ * `"LocalNotifications.then()" is not implemented on web`，
+ * 结果就是权限永远读不出来（界面上一直显示"读取中…"）。
+ */
+async function nativeNotify(): Promise<{ api: NativeNotify } | null> {
   if (!IS_APP) return null;
   try {
     const mod = await import("@capacitor/local-notifications");
-    return mod.LocalNotifications as unknown as NativeNotify;
+    return { api: mod.LocalNotifications as unknown as NativeNotify };
   } catch {
     return null;
   }
@@ -62,7 +71,7 @@ export async function permissionStateAsync(): Promise<NotificationPermission | "
     const n = await nativeNotify();
     if (!n) return "unsupported";
     try {
-      const r = await n.checkPermissions();
+      const r = await n.api.checkPermissions();
       if (r.display === "granted") return "granted";
       if (r.display === "denied") return "denied";
       return "default";
@@ -86,7 +95,7 @@ export async function requestPermission(): Promise<NotificationPermission | "uns
     const n = await nativeNotify();
     if (!n) return "unsupported";
     try {
-      const r = await n.requestPermissions();
+      const r = await n.api.requestPermissions();
       if (r.display === "granted") return "granted";
       if (r.display === "denied") return "denied";
       return "default";
@@ -154,12 +163,12 @@ export async function localNotify(title: string, body: string): Promise<boolean>
     if (!n) return false;
     try {
       // 权限没给过就先要一次（用户点了开关，属于合法手势）
-      const perm = await n.checkPermissions();
+      const perm = await n.api.checkPermissions();
       if (perm.display !== "granted") {
-        const asked = await n.requestPermissions();
+        const asked = await n.api.requestPermissions();
         if (asked.display !== "granted") return false;
       }
-      await n.schedule({
+      await n.api.schedule({
         notifications: [
           {
             id: Math.floor(Date.now() % 2147483647),

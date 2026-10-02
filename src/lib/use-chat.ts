@@ -4,8 +4,52 @@ import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { QUOTA_LIMIT } from "@/lib/models";
 import { useApp } from "@/lib/store";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { resolveVoiceLang, speak } from "@/lib/voice";
+
+/* --------------------------- 他的「动作块」协议 --------------------------- */
+
+/**
+ * 模型把「要做的动作」放在一个语言标记为 qidao 的代码块里：
+ *
+ *   ```qidao
+ *   {"kind":"navigate","path":"/play/listen"}
+ *   ```
+ *
+ * 为什么要这样接：栖岛的动作执行（actions.ts）、权限门（ACTION_PERMISSION）、
+ * 动作记录（actionLog）早就写好了，唯独「让模型发起动作」这条线没接 ——
+ * 于是他只能说"系统未配置额外工具"。这里把线接上。
+ */
+const ACTION_BLOCK = /```qidao\s*([\s\S]*?)```/g;
+
+/** 去掉动作块（含流式期间只收到一半的），让对话里只显示正文。 */
+export function stripActions(text: string): string {
+  return text
+    .replace(ACTION_BLOCK, "")
+    .replace(/```qidao[\s\S]*$/, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** 取出回复里的动作（一个块里可以是单个对象，也可以是数组）。 */
+export function takeActions(text: string): AppAction[] {
+  const out: AppAction[] = [];
+  for (const m of text.matchAll(ACTION_BLOCK)) {
+    try {
+      const parsed = JSON.parse((m[1] ?? "").trim()) as AppAction | AppAction[];
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of list) {
+        if (item && typeof item === "object" && typeof (item as { kind?: unknown }).kind === "string") {
+          out.push(item);
+        }
+      }
+    } catch {
+      /* 坏块就跳过，别因为一个格式错误把整条回复毁掉 */
+    }
+  }
+  return out;
+}
+
 
 /**
  * 对话发送逻辑（对话页与语音页共用）。
@@ -56,6 +100,34 @@ export function useChatStream() {
       let content = "";
       let usage: ChatMessage["usage"];
       let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
+
+      /**
+       * 流式写入**节流**。
+       *
+       * 原来模型每吐一个字就 patchMessage 一次 —— 而这一页是整块毛玻璃，
+       * 于是每吐一个字就把整页重绘一遍。手机上表现就是"卡死、像重启了一样"。
+       * 改成攒起来，最多每 100ms 写一次；结束时补最后一次。
+       */
+      let flushTimer = 0;
+      let dirty = false;
+      const flush = () => {
+        if (flushTimer) {
+          window.clearTimeout(flushTimer);
+          flushTimer = 0;
+        }
+        if (!dirty) return;
+        dirty = false;
+        // 写进消息里的是**去掉动作块**的正文 —— 否则那截 JSON 会一直显示在对话里
+        useApp.getState().patchMessage(conversationId, messageId, {
+          content: stripActions(content),
+          thinking,
+        });
+      };
+      const schedule = () => {
+        dirty = true;
+        if (!flushTimer) flushTimer = window.setTimeout(flush, 100);
+      };
+
       const tools = useApp.getState().enabledTools().map((t) => ({ name: t.name, tools: t.tools }));
       const context = buildContext();
       try {
@@ -76,18 +148,19 @@ export function useChatStream() {
           (d) => {
             if (d.error) {
               content = content || d.error;
-              useApp.getState().patchMessage(conversationId, messageId, { content });
+              schedule();
+              flush();
               return;
             }
             if (d.meta) meta = d.meta;
             if (d.usage) usage = d.usage;
             if (d.thinking) {
               thinking += d.thinking;
-              useApp.getState().patchMessage(conversationId, messageId, { thinking });
+              schedule();
             }
             if (d.content) {
               content += d.content;
-              useApp.getState().patchMessage(conversationId, messageId, { content, thinking });
+              schedule();
             }
           },
           ac.signal,
@@ -99,8 +172,23 @@ export function useChatStream() {
             "没拿到回复。可能原因：还没接入 AI 后端、地址或密钥不对、或者网络不通。接上之后这里就会有内容。";
         }
       }
+      // 收尾：把最后攒着的那一点写进去，并停掉定时器
+      if (flushTimer) {
+        window.clearTimeout(flushTimer);
+        flushTimer = 0;
+      }
+      dirty = true;
+      flush();
+
+      // 「他真的动手」这一步：解析回复里的 qidao 动作块并执行。
+      // 权限、确认弹窗、动作记录都由 store 那一侧负责（没授权的会被拦下来问用户）。
+      const actions = takeActions(content);
+      for (const action of actions) {
+        useApp.getState().requestAction(action, "AI");
+      }
+
       useApp.getState().finalizeAssistant(conversationId, messageId, {
-        content: content || "（空回复）",
+        content: stripActions(content) || "（空回复）",
         thinking,
         thinkingDurationMs: Date.now() - started,
         usage,

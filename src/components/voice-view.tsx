@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, Mic } from "lucide-react";
 import { resolveAiName } from "@/lib/branding";
@@ -23,7 +23,7 @@ const PHASE_TEXT: Record<Phase, string> = {
   listening: "听你说…",
   thinking: "他在想…",
   speaking: "他在说…",
-  unsupported: "这个浏览器不支持语音识别",
+  unsupported: "这个外壳没有语音输入功能",
 };
 
 /**
@@ -237,7 +237,8 @@ export function VoiceView() {
 
         {phase === "unsupported" && (
           <p className="max-w-sm text-[12px] leading-5 text-warn">
-            这个浏览器不给用语音识别（Chrome / Edge 可以）。你也可以只在「我的 → 语音」里开「朗读回复」。
+            这个外壳没提供语音输入接口（安卓 App 里的 WebView 不提供；桌面 Chrome / Edge 可以）。
+            你也可以只在「我的 → 语音」里开「朗读回复」，让他念给你听。
           </p>
         )}
         {notice && phase !== "unsupported" && (

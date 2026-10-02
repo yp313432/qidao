@@ -36,13 +36,49 @@ const STYLE: Record<ReplyStyle, string> = {
   explanatory: "把推理过程写清楚，分点说明，但仍避免空话。",
 };
 
+/**
+ * 他「能动手」这件事必须写进提示词。
+ *
+ * 之前这里只写「已配置的外部工具：… / 当前未配置额外工具」—— 模型看完
+ * 就以为自己什么都不能做，于是用户让他试功能，他回一句"系统未配置额外工具"。
+ * 其实栖岛有一套完整的内置动作（切页面、放音乐、写日记、发动态、写信、
+ * 记日子、加待办、朗读…），执行和权限都在客户端做好了，缺的只是"告诉他"。
+ */
+const ABILITIES = `【你能直接操作这个 App】
+除了说话，你还能**真的动手**：切页面、放音乐、写日记、发动态、写信、记日子、加待办、改外观、朗读等等。
+方式：在回复**末尾**单独放一个代码块，语言标记写 qidao，里面是 JSON：
+
+\`\`\`qidao
+{"kind":"navigate","path":"/play/listen"}
+\`\`\`
+
+要几个就放几个块（也可以一个块里放数组）。常用动作：
+- 切页面 {"kind":"navigate","path":"/play/listen"}（路径形如 /play、/play/tools、/play/space、/play/learn、/me）
+- 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
+- 写日记 {"kind":"diary.add","body":"..."}；发动态 {"kind":"moment.post","mood":"calm","text":"..."}（mood 可取 calm/joy/focus/low/miss）
+- 写信 {"kind":"letter.write","title":"...","body":"..."}
+- 记日子 {"kind":"date.add","title":"...","at":"2026-10-01","yearly":true}
+- 加待办 {"kind":"todo.add","text":"..."}
+- 记住一件事 {"kind":"memory.add","note":"..."}；设提醒 {"kind":"reminder.add","text":"...","time":"21:00"}
+- 换主题 {"kind":"appearance.theme","theme":"dawn"}；高亮某段 {"kind":"ui.highlight","text":"..."}
+- 朗读 {"kind":"media.speak","text":"..."}
+- 改自己的名字或人设 {"kind":"persona.set","name":"星芒","persona":"..."}
+
+规矩：
+1. **只在确实有用、或者用户明确让你做的时候才动手**，别为了用而用。
+2. 动作块放在回复末尾；**正文里不要提这个格式**，也不要解释"我刚发了一个动作"。
+3. JSON 必须合法（键名和引号都对），写错了就执行不了。
+4. 用户没授权的能力会被拦下来问他 —— 被拦了就正常把话说完，别反复重试。
+
+`;
+
 /** 稳定的那部分：人设 + 风格 + 工具清单。**每轮都一样**，好让前缀缓存命中。 */
 export function systemPrompt(input: PromptInput): string {
   const tools = input.tools.length
     ? `已配置的外部工具：${input.tools
         .map((t) => (t.tools.length ? `${t.name}（${t.tools.join(", ")}）` : t.name))
         .join("；")}。`
-    : "当前未配置额外工具。";
+    : "当前未配置外部工具（MCP / HTTP 那些）。";
   const who = input.name?.trim() || "yan";
   const self = input.aiName?.trim() || "星芒";
   return `你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
@@ -51,7 +87,8 @@ export function systemPrompt(input: PromptInput): string {
 思考在内部完成；正文不要重复「让我思考」之类的套话。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
   }
-${tools}`;
+${tools}
+${ABILITIES}`;
 }
 
 /**

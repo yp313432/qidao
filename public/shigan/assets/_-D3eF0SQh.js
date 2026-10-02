@@ -1,0 +1,1 @@
+import{t as e}from"./app-shell-CR_tincS.js";import{n as t}from"./index-DmkCxGiL.js";var n=t(),r=()=>(0,n.jsx)(e,{});export{r as component};
