@@ -17,3 +17,6 @@ shot*.mjs
 shots*/
 preview-shots/
 test-tone.wav
+
+# 本地测试用的临时文件（跑完就删）
+*.local.mjs

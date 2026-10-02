@@ -1,6 +1,8 @@
-﻿import type { ModelId } from "./models";
+import type { ModelId } from "./models";
+import { getModel } from "./models";
 import type { ChatMessage, ReplyStyle } from "./types";
 import { attachmentsToText } from "./attachments";
+import { assembleMessages } from "./prompt";
 import { estimateTokens } from "./tokens";
 
 export type ChatDelta = {
@@ -58,17 +60,188 @@ export type ChatRequest = {
   context?: ChatContext;
 };
 
+/**
+ * 直连模式：手机直接跟模型说话，中间不经过任何服务器。
+ *
+ * 为什么要它：封装成 APK 之后没有 `/api/chat` 这个服务端了。
+ * 而这正是**解决"要挂梯子"的关键** —— 国内接口（DeepSeek 等）允许浏览器直连
+ * （CORS 已实测放开），所以手机 ↔ 模型 是直路：又快又不用代理。
+ *
+ * 与走服务端**共用同一份提示词**（lib/prompt），所以他人设、感知层一模一样。
+ */
+async function streamDirect(
+  req: ChatRequest,
+  onDelta: (d: ChatDelta) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const base = (req.customBaseUrl ?? "").trim().replace(/\/+$/, "");
+  const key = (req.customApiKey ?? "").trim();
+  const model = (req.upstreamModel ?? "").trim();
+
+  if (!base || !key) {
+    onDelta({
+      error: "还没接模型：去「我的 → 自定义上游」填地址和密钥。",
+      done: true,
+    });
+    return;
+  }
+  if (!model) {
+    onDelta({
+      error: "还差模型名：去「我的 → 自定义上游」填（可点「拉取可用模型」问对方要列表）。",
+      done: true,
+    });
+    return;
+  }
+
+  const messages = assembleMessages(req, req.messages);
+  const maxTokens = getModel(req.model).maxTokens;
+
+  let res: Response;
+  try {
+    res = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({ model, messages, stream: true, max_tokens: maxTokens }),
+      signal,
+    });
+  } catch (err) {
+    onDelta({
+      error: `连不上上游：${(err as Error).message || "网络错误"}（检查地址、密钥、以及手机能不能上网）`,
+      done: true,
+    });
+    return;
+  }
+
+  if (!res.ok) {
+    let msg = `上游返回 ${res.status}`;
+    try {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text) as { error?: { message?: string } | string };
+        msg =
+          typeof j.error === "string"
+            ? j.error
+            : (j.error?.message ?? `${msg}：${text.slice(0, 160)}`);
+      } catch {
+        msg = `${msg}：${text.slice(0, 160)}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    onDelta({ error: msg, done: true });
+    return;
+  }
+  if (!res.body) {
+    onDelta({ error: "上游没返回内容", done: true });
+    return;
+  }
+
+  onDelta({ meta: { model } });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finished = false;
+
+  const handle = (payload: string) => {
+    if (!payload || payload === "[DONE]") {
+      if (!finished) {
+        finished = true;
+        onDelta({ done: true });
+      }
+      return;
+    }
+    try {
+      const j = JSON.parse(payload) as {
+        choices?: {
+          delta?: {
+            content?: string | null;
+            reasoning_content?: string | null;
+            reasoning?: string | null;
+          };
+        }[];
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        } | null;
+        error?: { message?: string } | string;
+      };
+      if (j.error) {
+        const m = typeof j.error === "string" ? j.error : (j.error.message ?? "上游报错");
+        onDelta({ error: m, done: true });
+        finished = true;
+        return;
+      }
+      const d = j.choices?.[0]?.delta;
+      // 思考链：DeepSeek 用 reasoning_content，个别实现用 reasoning
+      const think = d?.reasoning_content ?? d?.reasoning;
+      if (think) onDelta({ thinking: think });
+      if (d?.content) onDelta({ content: d.content });
+      if (j.usage) {
+        onDelta({
+          usage: {
+            prompt: j.usage.prompt_tokens,
+            completion: j.usage.completion_tokens,
+            total: j.usage.total_tokens,
+          },
+        });
+      }
+    } catch {
+      /* 半截帧先跳过，下一轮补全 */
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      handle(trimmed.slice(5).trim());
+    }
+  }
+  if (buf.trim().startsWith("data:")) handle(buf.trim().slice(5).trim());
+  if (!finished) onDelta({ done: true });
+}
+
+/** 构建时就定下来：给 APK 打包时设 VITE_DIRECT_UPSTREAM=1 */
+const DIRECT_BUILD = (import.meta.env?.VITE_DIRECT_UPSTREAM as string | undefined) === "1";
+
 export async function streamChat(
   req: ChatRequest,
   onDelta: (d: ChatDelta) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (DIRECT_BUILD) {
+    await streamDirect(req, onDelta, signal);
+    return;
+  }
+
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
     signal,
   });
+
+  /**
+   * 兜底：万一在没有服务端的壳里跑（比如忘了设构建标志就打了包），
+   * `/api/chat` 会返回 SPA 的 HTML 而不是事件流。认出来就改走直连 ——
+   * 否则用户会看到"发出去了、一个字都不回"这种最难查的失败。
+   */
+  const ctype = res.headers.get("content-type") ?? "";
+  if (!ctype.includes("text/event-stream")) {
+    await streamDirect(req, onDelta, signal);
+    return;
+  }
+
   if (!res.ok) {
     let msg = `请求失败 ${res.status}`;
     try {
