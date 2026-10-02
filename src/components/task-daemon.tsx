@@ -3,7 +3,7 @@ import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
-import { pickWorldEntries } from "@/lib/prompt";
+import { actionFeedback, pickWorldEntries } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 
 /**
@@ -66,6 +66,8 @@ export function TaskDaemon() {
       const { conversationId, messageId } = started;
       const s = useApp.getState();
       const world = pickWorldEntries(s.worldBook, due.prompt);
+      // 回执：他上一轮动手的结果（定时任务里也要带上，否则他不知道自己做过什么）
+      const recentActions = actionFeedback(s.actionLog, s.pendingActions.length);
       const settings = s.settings;
       const aiName = resolveAiName(settings.aiName);
       const conv = s.conversations.find((c) => c.id === conversationId);
@@ -114,6 +116,7 @@ export function TaskDaemon() {
             context: buildContext(),
             worldAlways: world.always,
             worldHit: world.hit,
+            recentActions,
             permissions: settings.permissions,
           },
           (d) => {

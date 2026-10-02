@@ -3,7 +3,7 @@ import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage, type ChatDelta } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
-import { pickWorldEntries } from "@/lib/prompt";
+import { actionFeedback, pickWorldEntries } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { resolveVoiceLang, speak } from "@/lib/voice";
@@ -222,6 +222,9 @@ export function useChatStream() {
         useApp.getState().worldBook,
         typeof lastUser?.content === "string" ? lastUser.content : "",
       );
+      // 他上一轮动手的结果（回执）—— 没有它他不知道自己到底做没做
+      const st = useApp.getState();
+      const recentActions = actionFeedback(st.actionLog, st.pendingActions.length);
       const req = {
         model,
         messages: history,
@@ -237,6 +240,7 @@ export function useChatStream() {
         context,
         worldAlways: world.always,
         worldHit: world.hit,
+        recentActions,
         permissions: settings.permissions,
       };
       const onDelta = (d: ChatDelta) => {

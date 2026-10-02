@@ -35,6 +35,14 @@ export type PromptInput = {
   /** 世界书里"这轮命中关键词"的条目（挂在最后一条用户消息尾部） */
   worldHit?: string[];
   /**
+   * 他刚才动手的**结果**（回执）。
+   *
+   * 用户报的问题："每次调用工具他说他没有回执，不知道自己到底用没用。"
+   * 根因是动作**单向**：他发出去、客户端执行，但他永远收不到结果。
+   * 这里把最近几笔结果挂在尾部回灌给他 —— 跟真实工具调用的 tool result 一个道理。
+   */
+  recentActions?: string[];
+  /**
    * 用户给它的授权（实时）。用来生成「硬要求 + 说明书」里"你现在的权限"那一节 ——
    * 用户改了权限，下一轮它就知道了。
    */
@@ -118,6 +126,15 @@ const ABILITIES = `【你能直接操作这个 App】
 3. JSON 必须合法（键名和引号都对），写错了就执行不了。
 4. 用户没授权的能力会被拦下来问他 —— 被拦了就正常把话说完，别反复重试。
 
+**关于"我做没做成"**（这条很重要）：
+· 你发出的动作，客户端会**真的执行**（没授权的会先弹卡片问他）。
+· 执行结果会在**下一轮**以「你刚才动手的结果」的形式告诉你。
+· 所以在这一轮里，**别断言"我已经做了"** —— 可以说"我发了，你看看"。
+  真想确认就直接问他一句。
+· 下一轮看到结果：成功就接着往下说；**失败或被拒绝就如实讲**，别装作没事。
+· 结果里没提到你刚做的那个动作，就是**没执行**（比如格式写错了）——
+  这时候要老实说"刚才那个没成"，而不是继续以为做过了。
+
 `;
 
 /** 稳定的那部分：人设 + 风格 + 工具清单。**每轮都一样**，好让前缀缓存命中。 */
@@ -185,6 +202,12 @@ export function perceptionBlock(input: PromptInput): string {
     input.worldHit && input.worldHit.length
       ? `【聊到了这些，用户希望你记得】\n${input.worldHit.map((c) => `- ${c}`).join("\n")}`
       : "",
+    // 他上几轮动手的结果（回执）—— 没有这一节他永远不知道自己到底做没做
+    input.recentActions && input.recentActions.length
+      ? `【你刚才动手的结果】只有下面列出来的才是**真发生了**的；没列出来就是没执行。\n${input.recentActions
+          .map((l) => `· ${l}`)
+          .join("\n")}`
+      : "",
   ].filter(Boolean);
   if (lines.length === 0) return "";
   return `\n\n---\n【此刻的情况】（只是背景，不必刻意复述）\n${lines.join("\n")}`;
@@ -210,6 +233,29 @@ export function normalizeContent(content: string | unknown[]): string | unknown[
 }
 
 export type ApiMsg = { role: string; content: string | unknown[] };
+
+/**
+ * 把他最近动手的**结果**整理成几行，回灌给下一轮。
+ *
+ * 用户的原话："每次调用工具他说他没有回执，不知道自己到底用没用。"
+ * 所以这里必须如实、简短，并且明确"没列出来 = 没执行"。
+ */
+export function actionFeedback(
+  log: { title: string; result: string; message: string; at: number }[],
+  pending: number,
+  now = Date.now(),
+): string[] {
+  const lines: string[] = [];
+  const recent = log.filter((e) => now - e.at < 15 * 60_000).slice(0, 6);
+  for (const e of recent.slice().reverse()) {
+    const verdict = e.result === "denied" ? "❌ 用户拒绝了，没执行" : "✅ 执行了";
+    lines.push(`${e.title} → ${verdict}${e.message ? `（${e.message}）` : ""}`);
+  }
+  if (pending > 0) {
+    lines.push(`还有 ${pending} 个操作在等用户点确认 —— 还没执行，别当成已经做完了。`);
+  }
+  return lines;
+}
 
 /**
  * 把历史拼成发给上游的 messages。

@@ -30,6 +30,8 @@ type Body = {
    */
   worldAlways?: string[];
   worldHit?: string[];
+  /** 他刚才动手的结果（回执）—— 由客户端算好传上来 */
+  recentActions?: string[];
   /** 用户给它的授权（客户端本地存的，所以由客户端传上来）—— 用于生成说明书里的权限一节 */
   permissions?: Record<string, PermissionMode>;
   /** 最大输出长度（0/空 = 跟随档位）—— 见 chat-client 里的说明 */
