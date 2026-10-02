@@ -1,4 +1,4 @@
-name: 构建安卓 App（栖岛）
+﻿name: 构建安卓 App（栖岛）
 
 # 你只要在 GitHub 上点一下，就能拿到装到手机上的 APK。
 #
@@ -91,7 +91,10 @@ jobs:
         run: |
           npm run build
           node scripts/copy-static.mjs
-          npx cap copy android
+          # cap sync 而不是 cap copy：copy 只搬网页资源，sync 还会生成
+          # capacitor.plugins.json / cordova 插件工程等 Gradle 求值时要用的文件
+          # （那些文件被 .gitignore 排除了，CI 上必须现生成）
+          npx cap sync android
 
       - name: 打包成 APK
         working-directory: android
