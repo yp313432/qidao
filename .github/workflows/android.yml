@@ -1,4 +1,4 @@
-﻿name: 构建安卓 App（栖岛）
+name: 构建安卓 App（栖岛）
 
 # 你只要在 GitHub 上点一下，就能拿到装到手机上的 APK。
 #
@@ -96,6 +96,18 @@ jobs:
           # （那些文件被 .gitignore 排除了，CI 上必须现生成）
           npx cap sync android
 
+      - name: 构建前自检（把事实打成注释，日志我读不到）
+        run: |
+          echo "::error::自检 ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" 2>/dev/null | while IFS= read -r l; do echo "::error::平台: $l"; done
+          for f in android/app/src/main/assets/capacitor.plugins.json android/app/src/main/assets/capacitor.config.json android/app/src/main/res/xml/config.xml android/capacitor-cordova-android-plugins/build.gradle android/qidao-release.p12; do
+            if [ -e "$f" ]; then echo "::error::✅ 在: $f"; else echo "::error::❌ 缺: $f"; fi
+          done
+          echo "::error::--- gradle.properties ---"
+          cat android/gradle.properties | while IFS= read -r l; do echo "::error::$l"; done
+          echo "::error::--- 根 build.gradle 是否 apply variables.gradle ---"
+          grep -n "variables.gradle" android/build.gradle | while IFS= read -r l; do echo "::error::$l"; done
+
       - name: 打包成 APK
         working-directory: android
         env:
@@ -108,16 +120,13 @@ jobs:
           if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log; then
             echo "✅ APK 打包完成"
           else
-            # 把真正的原因变成注释 —— 否则只剩一句"退出码 1"，谁也猜不出来。
-            # "Caused by: Value is null" 这种笼统的信息没用，要把失败那一整段打出来。
-            echo "::error::Gradle 打包失败，下面是 What went wrong 整段"
-            sed -n '/What went wrong/,/^\* Try:/p' /tmp/gradle.log | head -45 | while IFS= read -r line; do
+            # "Value is null" 只看这一句定位不了 —— 需要 at com.android.xxx 那几行
+            # 才能知道是哪一步拿到的 null。全量堆栈在日志末尾（--stacktrace）。
+            # 注释接口能匿名读、日志接口不能（403），所以把尾部逐行打成注释。
+            echo "::error::Gradle 打包失败：下面是日志尾部（含堆栈）"
+            tail -80 /tmp/gradle.log | while IFS= read -r line; do
               [ -n "$line" ] && echo "::error::$line"
             done
-            echo "----- 再抓许可/下载/构建工具相关 -----"
-            grep -inE "licen[cs]e|not accepted|Could not (find|resolve|download)|sdkmanager|platforms;android|Failed to install" /tmp/gradle.log | head -10 | while IFS= read -r line; do echo "::error::$line"; done
-            echo "----- 日志最后 60 行 -----"
-            tail -60 /tmp/gradle.log
             exit 1
           fi
 
