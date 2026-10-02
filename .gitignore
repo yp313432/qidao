@@ -20,3 +20,6 @@ test-tone.wav
 
 # 本地测试用的临时文件（跑完就删）
 *.local.mjs
+
+# npm 缓存（构建时为了绕开沙箱指到工作区里，别提交）
+.npm-cache/

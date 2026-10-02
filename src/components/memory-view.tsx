@@ -10,13 +10,11 @@ import { cn, formatClock } from "@/lib/utils";
 const BUDGET_STEPS = [2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000];
 const KEEP_STEPS = [4, 8, 12, 16, 24, 32, 40];
 const COMPACT_STEPS = [50, 60, 70, 80, 90];
-const THINKING_DAYS = [0, 7, 30, 90, 180];
 
 export function MemoryView() {
   const settings = useApp((s) => s.settings);
   const patch = useApp((s) => s.patchSettings);
   const requestLog = useApp((s) => s.requestLog);
-  const archive = useApp((s) => s.thinkingArchive);
   const conversations = useApp((s) => s.conversations);
   useActivity("在看内存设置");
   const scrollRef = useScrollMemory("memory");
@@ -28,7 +26,7 @@ export function MemoryView() {
   useEffect(() => setMounted(true), []);
   useEffect(() => {
     void computeStorage().then(setStore).catch(() => setStore(null));
-  }, [archive.length, conversations.length]);
+  }, [conversations.length]);
 
   // 预览读本地数据，等挂载后再算，避免服务端/客户端不一致
   const ctx = useMemo(() => (mounted ? computeContext() : null), [mounted, conversations, settings, requestLog]);
@@ -54,10 +52,6 @@ export function MemoryView() {
   }, [requestLog]);
 
   const hitRate = stats.prompt > 0 ? Math.round((stats.cached / stats.prompt) * 100) : 0;
-  const thinkingBytes = archive.reduce(
-    (n, t) => n + (t.thinking.length + t.title.length) * 2,
-    0,
-  );
 
   function flash(msg: string) {
     setToast(msg);
@@ -255,35 +249,8 @@ export function MemoryView() {
         </div>
       </section>
 
-      {/* 思考链 */}
-      <section className="mt-5 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">思考链</h2>
-        <div className="divide-y divide-line rounded-3xl border border-line bg-surface px-4">
-          <div className="py-3">
-            <p className="text-[13px] font-medium">已归档 {archive.length} 条</p>
-            <p className="mt-0.5 text-[11px] text-muted">约 {prettyBytes(thinkingBytes)} · 只存本机</p>
-          </div>
-          <Stepper
-            label="保留时长"
-            hint="到期自动清掉；0 表示永久保留"
-            value={settings.thinkingKeepDays === 0 ? "永久" : `${settings.thinkingKeepDays} 天`}
-            onPrev={() => patch({ thinkingKeepDays: step(THINKING_DAYS, settings.thinkingKeepDays, -1) })}
-            onNext={() => patch({ thinkingKeepDays: step(THINKING_DAYS, settings.thinkingKeepDays, 1) })}
-          />
-          <div className="py-3">
-            <button
-              type="button"
-              onClick={() => {
-                const n = useApp.getState().pruneThinking(settings.thinkingKeepDays);
-                flash(n > 0 ? `清掉了 ${n} 条` : "没有过期需要清理的");
-              }}
-              className="w-full rounded-2xl border border-dashed border-line py-2.5 text-[12px] text-muted"
-            >
-              按保留时长清理一次
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* 思考链归档已经删掉（回复时当场就能看到，再存一份纯占地方）。
+          老数据在加载时已经清空，这里不再有这一块。 */}
 
       {/* 本地存储 */}
       <section className="mt-5 px-4">

@@ -1,6 +1,20 @@
-﻿import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Ghost, Menu, Mic, Paperclip, Pause, Pin, Play, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  ChevronDown,
+  ChevronUp,
+  Ghost,
+  Menu,
+  Mic,
+  Paperclip,
+  Pause,
+  Pin,
+  Play,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { prettySize } from "@/lib/attachments";
 import { Avatar } from "@/components/avatar";
 import { Markdown } from "@/components/markdown";
@@ -13,6 +27,8 @@ import { useApp } from "@/lib/store";
 import type { Attachment } from "@/lib/types";
 import { useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
+import { MAIN_TABS } from "@/lib/tabs";
+import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 
 export function ChatView() {
@@ -21,6 +37,7 @@ export function ChatView() {
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const [menu, setMenu] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
   const conv = conversations.find((c) => c.id === activeId) ?? null;
@@ -47,6 +64,61 @@ export function ChatView() {
     el.scrollTop = el.scrollHeight;
   }, [conv?.messages, liveId]);
 
+  /** 翻上去超过一屏半就浮出「回到最新」 */
+  const [showJump, setShowJump] = useState(false);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onScroll = () => {
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowJump(gap > 420);
+    };
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [conv?.id]);
+
+  /**
+   * 对话内搜索。
+   *
+   * 用户："对话长了，最上面的消息不好翻了…塞一个简单的信息翻找"。
+   * 做法：搜正文 + 思考过程，命中数显示成 i/N，上下键逐条跳，
+   * 跳过去的那条闪一下（不然不知道跳到哪了）。
+   */
+  const [findOpen, setFindOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [hitIndex, setHitIndex] = useState(0);
+  const [flashId, setFlashId] = useState<string | null>(null);
+
+  const hits = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !conv) return [] as string[];
+    return conv.messages
+      .filter((m) => `${m.content}\n${m.thinking}`.toLowerCase().includes(q))
+      .map((m) => m.id);
+  }, [query, conv]);
+  const hitKey = hits.join(",");
+
+  /** 命中集合或游标一变，就滚过去并闪一下 */
+  useEffect(() => {
+    if (!hitKey) {
+      setFlashId(null);
+      return;
+    }
+    const ids = hitKey.split(",");
+    const id = ids[Math.min(hitIndex, ids.length - 1)]!;
+    const el = document.getElementById(`msg-${id}`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlashId(id);
+    const timer = window.setTimeout(() => setFlashId(null), 1700);
+    return () => window.clearTimeout(timer);
+  }, [hitKey, hitIndex]);
+
+  // 换关键词时游标回到第一条
+  useEffect(() => {
+    setHitIndex(0);
+  }, [query]);
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
@@ -59,6 +131,20 @@ export function ChatView() {
           <Menu className="size-6" strokeWidth={1.6} />
         </button>
         <div className="flex items-center">
+          <button
+            type="button"
+            aria-label="搜索对话内容"
+            className="flex size-11 items-center justify-center"
+            onClick={() => {
+              setFindOpen((v) => !v);
+              if (findOpen) {
+                setQuery("");
+                setFlashId(null);
+              }
+            }}
+          >
+            <Search className="size-5" strokeWidth={1.7} />
+          </button>
           <button
             type="button"
             aria-label="语音模式"
@@ -77,6 +163,63 @@ export function ChatView() {
           </button>
         </div>
       </header>
+
+      {/* 搜索条：命中数 + 上下切换（像浏览器里那个 2/2） */}
+      {findOpen && (
+        <div className="flex items-center gap-2 px-4 pb-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-chip px-3">
+            <Search className="size-3.5 shrink-0 text-muted" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && hits.length > 0) {
+                  setHitIndex((i) => (i + 1) % hits.length);
+                }
+                if (e.key === "Escape") setFindOpen(false);
+              }}
+              placeholder="在这段对话里找…（正文和思考过程都搜）"
+              className="h-9 min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+            />
+            {query.trim() && (
+              <span className="shrink-0 text-[11px] text-muted" suppressHydrationWarning>
+                {hits.length === 0 ? "没找到" : `${Math.min(hitIndex + 1, hits.length)}/${hits.length}`}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label="上一条"
+            disabled={hits.length === 0}
+            onClick={() => setHitIndex((i) => (i - 1 + hits.length) % Math.max(1, hits.length))}
+            className="flex size-9 items-center justify-center rounded-full bg-chip disabled:opacity-35"
+          >
+            <ChevronUp className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="下一条"
+            disabled={hits.length === 0}
+            onClick={() => setHitIndex((i) => (i + 1) % Math.max(1, hits.length))}
+            className="flex size-9 items-center justify-center rounded-full bg-chip disabled:opacity-35"
+          >
+            <ChevronDown className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="关闭搜索"
+            onClick={() => {
+              setFindOpen(false);
+              setQuery("");
+              setFlashId(null);
+            }}
+            className="flex size-9 items-center justify-center rounded-full bg-chip"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
 
       {/* 临时对话不在抽屉里，所以这里必须给一条明确的退路 */}
       {conv?.incognito && (
@@ -108,15 +251,29 @@ export function ChatView() {
           )}
         </div>
       ) : (
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
-          <ol className="space-y-5 px-4 py-4 pb-8">
+        /**
+         * 消息区外面包一层 relative：这样「回到最新」按钮能贴在这块区域的底部
+         * （= 输入框上方），而不是飘到输入框上面去压住它。
+         */
+        <div className="relative min-h-0 flex-1">
+          <div ref={scroller} className="h-full overflow-y-auto">
+            <ol
+              className="space-y-5 px-5 py-4 pb-8"
+              style={{ fontSize: `${chatFontPx(settings.chatFontSize)}px` }}
+            >
             {conv!.messages.map((m) => {
               const mine = m.role === "user";
               const streaming = liveId === m.id;
               return (
                 <li
                   key={m.id}
-                  className={cn("flex gap-2.5", mine ? "flex-row-reverse" : "flex-row")}
+                  id={`msg-${m.id}`}
+                  className={cn(
+                    "flex gap-2.5 rounded-3xl transition",
+                    mine ? "flex-row-reverse" : "flex-row",
+                    // 搜索跳过来的那条闪一圈，不然不知道跳到哪了
+                    flashId === m.id && "aster-highlight",
+                  )}
                 >
                   <Avatar role={mine ? "user" : "ai"} size={30} className="mt-0.5" />
 
@@ -130,12 +287,17 @@ export function ChatView() {
                       <span className="text-[13px] font-medium text-fg">
                         {mine ? settings.displayName : aiName}
                       </span>
+                      {m.scheduled && (
+                        <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
+                          定时 · 他自己说的
+                        </span>
+                      )}
                       <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
                     </div>
 
                     {mine ? (
                       <div className={cn("flex", "justify-end")}>
-                        <div className="max-w-[88%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[15px] leading-6">
+                        <div className="max-w-[86%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                           {m.attachments?.length ? (
                             <div className="flex flex-wrap gap-1.5">
                               {m.attachments.map((a) =>
@@ -181,8 +343,12 @@ export function ChatView() {
                             live={streaming && !m.content}
                           />
                         )}
+                        {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
+                            差别只在左右与一条细边框，一眼能分出谁说的。 */}
                         {m.content ? (
-                          <Markdown text={m.content} />
+                          <div className="max-w-[86%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                            <Markdown text={m.content} />
+                          </div>
                         ) : streaming ? (
                           <p className="thinking-shimmer text-sm">正在写回复…</p>
                         ) : null}
@@ -226,7 +392,23 @@ export function ChatView() {
                 </li>
               );
             })}
-          </ol>
+            </ol>
+          </div>
+
+          {/* 长对话翻上去之后，回到底部要有一键（用户："最上面的消息不好翻"）。
+              贴在消息区底部 = 输入框上方，不会压住输入框。 */}
+          {showJump && (
+            <button
+              type="button"
+              onClick={() => {
+                const el = scroller.current;
+                el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+              }}
+              className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border border-line bg-surface/92 px-3.5 py-2 text-[12px] text-fg shadow-sm backdrop-blur"
+            >
+              ↓ 回到最新
+            </button>
+          )}
         </div>
       )}
 
@@ -308,6 +490,33 @@ export function ChatView() {
                   </li>
                 ))}
             </ul>
+
+            {/* 导航搬进抽屉底部（用户："上面留对话列表，下面显示导航栏"）
+                —— 有了它，聊天页的漂浮导航就能撤掉，消息区多出 76px ✅ */}
+            <nav
+              aria-label="主导航（抽屉）"
+              className="mt-auto flex items-center gap-1 border-t border-line px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+            >
+              {MAIN_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active =
+                  tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`);
+                return (
+                  <Link
+                    key={tab.to}
+                    to={tab.to}
+                    onClick={() => setMenu(false)}
+                    className={cn(
+                      "flex flex-1 flex-col items-center gap-1 rounded-2xl py-2",
+                      active ? "text-fg" : "text-muted",
+                    )}
+                  >
+                    <Icon className="size-5" strokeWidth={1.7} />
+                    <span className="text-[11px]">{tab.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
           </aside>
         </div>
       )}

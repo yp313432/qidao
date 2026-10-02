@@ -21,10 +21,24 @@ type NativeNotify = {
       id: number;
       title: string;
       body: string;
-      schedule?: { at?: Date; allowWhileIdle?: boolean };
+      schedule?: {
+        at?: Date;
+        allowWhileIdle?: boolean;
+        /** 每天/每小时重复 */
+        repeats?: boolean;
+        every?: "year" | "month" | "two-weeks" | "week" | "day" | "hour" | "minute";
+        /** 重复时的具体时刻（配合 repeats） */
+        on?: { hour?: number; minute?: number };
+      };
       smallIcon?: string;
+      sound?: string;
     }[];
   }) => Promise<unknown>;
+  cancel: (opts: { notifications: { id: number }[] }) => Promise<void>;
+  getPending?: () => Promise<{ notifications: { id: number }[] }>;
+  /** 安卓 12+ 的"精确定时"授权（有些版本没有这个方法） */
+  checkExactNotificationSetting?: () => Promise<{ exact_alarm?: string }>;
+  changeExactNotificationSetting?: () => Promise<{ exact_alarm?: string }>;
 };
 
 /**
@@ -157,6 +171,98 @@ export async function swRegistration(): Promise<ServiceWorkerRegistration | null
 /* ------------------------------- 发通知 ------------------------------- */
 
 /** 立刻弹一条本地通知。App 里走安卓系统通知栏，网页里走 Notification / SW。 */
+/**
+ * 定时通知（闹钟用）。
+ *
+ * 跟 localNotify 的区别：这个交给**系统**去定时 —— App 关掉、被划掉也照样响 ✅
+ *   · daily: {hour, minute} → 每天这个点重复响
+ *   · at: Date             → 只响一次（用来做"5 分钟后再响"）
+ * 网页版没有这个能力（返回 false），界面会如实说明。
+ */
+export async function scheduleNative(o: {
+  id: number;
+  title: string;
+  body: string;
+  daily?: { hour: number; minute: number };
+  at?: Date;
+  sound?: boolean;
+}): Promise<boolean> {
+  const n = await nativeNotify();
+  if (!n) return false;
+  try {
+    const perm = await n.api.checkPermissions();
+    if (perm.display !== "granted") {
+      const asked = await n.api.requestPermissions();
+      if (asked.display !== "granted") return false;
+    }
+    await n.api.schedule({
+      notifications: [
+        {
+          id: o.id,
+          title: o.title,
+          body: o.body,
+          sound: o.sound === false ? undefined : "default",
+          smallIcon: "ic_stat_icon_config_sample",
+          schedule: o.daily
+            ? {
+                on: { hour: o.daily.hour, minute: o.daily.minute },
+                repeats: true,
+                every: "day",
+                allowWhileIdle: true,
+              }
+            : o.at
+              ? { at: o.at, allowWhileIdle: true }
+              : undefined,
+        },
+      ],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 撤掉某个定时通知（改时间/删闹钟时用） */
+export async function cancelNative(id: number): Promise<void> {
+  const n = await nativeNotify();
+  if (!n) return;
+  try {
+    await n.api.cancel({ notifications: [{ id }] });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 安卓 12+ 的"精确定时"授权状态。
+ * 没这个权限时系统可能把闹钟推迟几十秒到几分钟 —— 不是我们偷懒，是安卓的规矩。
+ */
+export async function exactAlarmState(): Promise<"granted" | "denied" | "unknown"> {
+  const n = await nativeNotify();
+  if (!n?.api.checkExactNotificationSetting) return "unknown";
+  try {
+    const r = await n.api.checkExactNotificationSetting();
+    const v = (r.exact_alarm ?? "").toLowerCase();
+    if (v.includes("grant")) return "granted";
+    if (v.includes("denied") || v.includes("not")) return "denied";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** 跳去系统设置里开"闹钟和提醒"（一键申请） */
+export async function askExactAlarm(): Promise<boolean> {
+  const n = await nativeNotify();
+  if (!n?.api.changeExactNotificationSetting) return false;
+  try {
+    await n.api.changeExactNotificationSetting();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function localNotify(title: string, body: string): Promise<boolean> {
   if (IS_APP) {
     const n = await nativeNotify();

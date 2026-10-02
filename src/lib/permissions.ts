@@ -77,6 +77,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "open_panel", title: "打开弹窗 / 面板", hint: "帮你打开歌词面板、对话列表", risk: "L1", status: "ready", group: "ui" },
   { id: "scroll_to", title: "滚动定位", hint: "滚到某条消息、某段歌词", risk: "L1", status: "ready", group: "ui" },
   { id: "switch_model", title: "切模型与回复风格", hint: "改他自己的行为方式", risk: "L1", status: "ready", group: "ui" },
+  { id: "state_report", title: "给自己记一笔状态", hint: "每轮回复时顺手记下心情/精力/想念（只存本机，用来画波浪线）", risk: "L0", status: "ready", group: "ui" },
   { id: "toggle_feature", title: "开关界面功能", hint: "思考链显示、朗读、提醒等", risk: "L1", status: "ready", group: "ui" },
   { id: "rename_chat", title: "重命名 / 置顶对话", hint: "帮你整理对话", risk: "L1", status: "ready", group: "ui" },
 
@@ -123,7 +124,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配的 MCP 服务器（如 Horizon）", risk: "L2", status: "partial", group: "tools" },
   { id: "web_search", title: "网页搜索 / 抓取", hint: "去外面查资料", risk: "L2", status: "todo", group: "tools" },
   { id: "own_api", title: "调用你自己的 API / 代理", hint: "你的自建服务", risk: "L2", status: "todo", group: "tools" },
-  { id: "scheduled_job", title: "定时任务", hint: "让他按时自己干活", risk: "L2", status: "todo", group: "tools" },
+  { id: "scheduled_job", title: "定时任务", hint: "让他按时自己开口（App 活着时真的会说；关着靠通知兜底）", risk: "L2", status: "partial", group: "tools" },
   { id: "workspace_fs", title: "读工作区文件", hint: "需要服务端进程", risk: "L2", status: "todo", group: "tools" },
 
   // ---------------- 破坏性与高危 ----------------

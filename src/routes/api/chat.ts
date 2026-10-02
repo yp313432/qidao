@@ -24,6 +24,12 @@ type Body = {
   aiName?: string;
   /** 他的人设/自述 */
   persona?: string;
+  /**
+   * 世界书条目（客户端本地存的，所以由客户端算好传上来）。
+   * always = 常驻（进系统提示词）；hit = 这轮命中关键词（挂最后一条用户消息尾部）。
+   */
+  worldAlways?: string[];
+  worldHit?: string[];
   /** 客户端上报的用户状态（感知层） */
   context?: {
     activity?: string;
@@ -54,6 +60,8 @@ function extractDelta(chunk: unknown): {
       total_tokens?: number;
       prompt_tokens_details?: { cached_tokens?: number };
       cached_tokens?: number;
+      /** DeepSeek 用的是这个名字（命中缓存的 token 数）—— 不读它命中率永远是 0 */
+      prompt_cache_hit_tokens?: number;
     } | null;
   };
 
@@ -69,7 +77,10 @@ function extractDelta(chunk: unknown): {
     out.usage = {
       prompt: u.prompt_tokens,
       completion: u.completion_tokens,
-      cached: u.prompt_tokens_details?.cached_tokens ?? u.cached_tokens,
+      cached:
+        u.prompt_cache_hit_tokens ??
+        u.prompt_tokens_details?.cached_tokens ??
+        u.cached_tokens,
       total: u.total_tokens,
     };
   }

@@ -2,10 +2,19 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { ACTION_PERMISSION, actionTitle } from "./action-meta";
 import { DEFAULT_MCP } from "./mcp";
-import { QUOTA_LIMIT, QUOTA_WINDOW_MS, type ModelId } from "./models";
+import { isOwnApi, QUOTA_LIMIT, QUOTA_WINDOW_MS, type ModelId } from "./models";
 import { defaultPermissions, permissionDef } from "./permissions";
 import { kindLabel, parseMusicLink } from "./music-embed";
 import { startOfDay } from "@/lib/days";
+import {
+  autoLinks,
+  confirmMemory as confirmMem,
+  fromLegacy,
+  guessKind,
+  reinforce,
+} from "@/lib/memory";
+import { autoTag } from "@/lib/synonyms";
+import { worldPresets } from "@/lib/world-presets";
 import type { WordCard } from "./learn-data";
 import { thinkingToPrune } from "./tokens";
 import type {
@@ -24,6 +33,8 @@ import type {
   Moment,
   MoodId,
   Letter,
+  Memory,
+  MemoryKind,
   PanelId,
   PendingAction,
   PermissionId,
@@ -31,7 +42,10 @@ import type {
   QuotaState,
   RequestLogEntry,
   SavedDoc,
+  ScheduledTask,
   Settings,
+  StateSample,
+  WorldEntry,
   TextTone,
   ThemeId,
 } from "./types";
@@ -43,6 +57,7 @@ const defaultSettings: Settings = {
   showThinking: true,
   saveThinking: true,
   notifications: true,
+  geoEnabled: false,
   quotaAlerts: true,
   diaryReminders: false,
   reminderTime: "21:00",
@@ -58,6 +73,7 @@ const defaultSettings: Settings = {
   musicImage: "",
   diaryImage: "",
   motion: "auto",
+  chatFontSize: "normal",
   voiceReplies: false,
   replyStyle: "default",
   defaultModel: "sonnet",
@@ -122,22 +138,91 @@ export type AppState = {
   learnStats: { seen: number; recent: string[]; lastAt: number };
   /** 他给你加的生词卡 */
   customWords: WordCard[];
-  /** 提醒 / 待办 */
-  reminders: { id: string; text: string; time: string; done: boolean; createdAt: number; firedAt: number }[];
-  /** 长期记忆（只存本机） */
-  memories: { id: string; text: string; createdAt: number }[];
+  /** 输入框草稿：按对话存，跳到别的页面再回来字还在 */
+  chatDrafts: Record<string, string>;
+  setChatDraft: (id: string, text: string) => void;
+  /**
+   * 正在打字（输入框聚焦 / 键盘弹起）。
+   *
+   * 用途：把底部导航收起来 —— 用户反馈"导航和输入框加起来占了快半个屏幕，
+   * 打字时看不到几条消息"。不收起来就没地方给消息。
+   * 这是瞬时状态，**不持久化**。
+   */
+  keyboardUp: boolean;
+  setKeyboardUp: (v: boolean) => void;
+  /** 定时任务：到点让他自己开口 */
+  tasks: ScheduledTask[];
+  /**
+   * 他的内在状态采样（「内在」页那条波浪线）。
+   * 由他自己每轮回报（state.report，L0 静默），只存本机，只留最近这些。
+   */
+  stateSamples: StateSample[];
+  addStateSample: (s: Omit<StateSample, "id" | "at">) => void;
+  /** 世界书 / 思考引导（默认只留几条关着的预设，用户自己开） */
+  worldBook: WorldEntry[];
+  addWorldEntry: (e: {
+    title?: string;
+    keywords: string[];
+    content: string;
+    position: "system" | "tail";
+  }) => string;
+  updateWorldEntry: (id: string, patch: Partial<WorldEntry>) => void;
+  removeWorldEntry: (id: string) => void;
+  toggleWorldEntry: (id: string) => void;
+  addTask: (t: { prompt: string; time?: string; at?: number; notify?: boolean }) => string;
+  updateTask: (id: string, patch: Partial<ScheduledTask>) => void;
+  removeTask: (id: string) => void;
+  toggleTask: (id: string) => void;
+  /** 记一次"今天跑过了" */
+  markTaskRun: (id: string) => void;
+  /**
+   * 开一条"他主动说的"回复：先建一条空的助手消息（带 scheduled 标记），
+   * 返回对话 id 与消息 id，交给守护进程去流式写入。
+   */
+  beginScheduledReply: (prompt: string) => { conversationId: string; messageId: string } | null;
+  /** 提醒 / 闹钟（ring = 到点全屏响铃；snoozeUntil = 再响的时间点） */
+  reminders: {
+    id: string;
+    text: string;
+    time: string;
+    done: boolean;
+    createdAt: number;
+    firedAt: number;
+    ring?: boolean;
+    snoozeUntil?: number;
+  }[];
+  /** 正在响的那个闹钟（驱动全屏响铃页） */
+  ringing: { id: string; text: string; time: string } | null;
+  setRinging: (r: { id: string; text: string; time: string } | null) => void;
+  /** 再响 N 分钟 */
+  snoozeReminder: (id: string, minutes: number) => void;
+  /** 改一条提醒/闹钟的字段（守护进程用来清掉贪睡标记） */
+  patchReminder: (id: string, patch: Partial<{ ring: boolean; snoozeUntil: number | undefined; done: boolean }>) => void;
+  /** 长期记忆（只存本机）—— 结构见 lib/types.ts 的 Memory，引擎见 lib/memory.ts */
+  memories: Memory[];
   /** 用户自己传的表情图（dataURL） */
   stickers: string[];
   addSticker: (dataUrl: string) => void;
   removeSticker: (dataUrl: string) => void;
   addCustomWord: (card: Omit<WordCard, "id">) => void;
   removeCustomWord: (id: string) => void;
-  addReminder: (r: { text: string; time?: string }) => void;
+  addReminder: (r: { text: string; time?: string; ring?: boolean }) => void;
   toggleReminder: (id: string) => void;
   removeReminder: (id: string) => void;
   fireReminder: (id: string) => void;
   addMemory: (text: string) => void;
   removeMemory: (id: string) => void;
+  /** 手动加一条（可指定类别；不指定就按内容猜） */
+  addMemoryItem: (kind: MemoryKind, content: string, extra?: Partial<Memory>) => void;
+  updateMemory: (id: string, patch: Partial<Memory>) => void;
+  archiveMemory: (id: string) => void;
+  unarchiveMemory: (id: string) => void;
+  /** 彻底删掉（连带清掉别处指向它的连线） */
+  deleteMemory: (id: string) => void;
+  /** 确认"现在还成立" —— 相当于又记了一次，会更牢 */
+  confirmMemory: (id: string) => void;
+  /** 标记"刚被想起"（加深记忆曲线，由检索那一步调用） */
+  reinforceMemory: (ids: string[]) => void;
   /** 界面效果（高亮 / 滚动），由 UiEffects 消费 */
   uiEffect: { kind: "highlight" | "scroll"; text: string; at: number } | null;
   /** 请求某个页面打开面板 / 做一步操作，由页面消费后置空 */
@@ -257,6 +342,13 @@ export const useApp = create<AppState>()(
       learnStats: { seen: 0, recent: [], lastAt: 0 },
       customWords: [],
       reminders: [],
+      ringing: null,
+      tasks: [],
+      stateSamples: [],
+      // 预设全都默认关着（用户自己开），见 lib/world-presets.ts
+      worldBook: worldPresets(),
+      keyboardUp: false,
+      chatDrafts: {},
       memories: [],
       stickers: [],
       requestLog: [],
@@ -439,10 +531,140 @@ export const useApp = create<AppState>()(
           ].slice(0, 200),
         })),
       removeCustomWord: (id) => set((s) => ({ customWords: s.customWords.filter((w) => w.id !== id) })),
-      addReminder: ({ text, time }) =>
+      setChatDraft: (id, text) =>
+        set((s) => {
+          if ((s.chatDrafts[id] ?? "") === text) return {};
+          const next = { ...s.chatDrafts };
+          if (text) next[id] = text;
+          else delete next[id];
+          return { chatDrafts: next };
+        }),
+      addWorldEntry: ({ title, keywords, content, position }) => {
+        const id = uid("wb");
+        set((s) => ({
+          worldBook: [
+            { id, title, keywords, content: content.trim(), position, enabled: true, createdAt: Date.now() },
+            ...s.worldBook,
+          ].slice(0, 60),
+        }));
+        return id;
+      },
+      updateWorldEntry: (id, patch) =>
+        set((s) => ({ worldBook: s.worldBook.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
+      removeWorldEntry: (id) => set((s) => ({ worldBook: s.worldBook.filter((e) => e.id !== id) })),
+      toggleWorldEntry: (id) =>
+        set((s) => ({
+          worldBook: s.worldBook.map((e) => (e.id === id ? { ...e, enabled: !e.enabled } : e)),
+        })),
+      addStateSample: (s) =>
+        set((st) => ({
+          // 留最近 2000 条就够画半年多的曲线了（再多纯占地方）
+          stateSamples: [{ ...s, id: uid("st"), at: Date.now() }, ...st.stateSamples].slice(0, 2000),
+        })),
+      setKeyboardUp: (v) => set((s) => (s.keyboardUp === v ? {} : { keyboardUp: v })),
+      addTask: ({ prompt, time, at, notify }) => {
+        const id = uid("task");
+        set((s) => ({
+          tasks: [
+            {
+              id,
+              prompt: prompt.trim(),
+              time: time?.trim() || undefined,
+              at,
+              enabled: true,
+              notify: notify ?? true,
+              createdAt: Date.now(),
+            },
+            ...s.tasks,
+          ].slice(0, 20),
+        }));
+        return id;
+      },
+      updateTask: (id, patch) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+      removeTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+      toggleTask: (id) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)) })),
+      markTaskRun: (id) =>
+        set((s) => {
+          const now = new Date();
+          const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === id ? { ...t, lastRunAt: Date.now(), lastRunDay: day } : t,
+            ),
+          };
+        }),
+      beginScheduledReply: (prompt) => {
+        const st = get();
+        // 优先接在最近用过的那个对话后面（上下文连着，他记得你们刚聊过什么）
+        let conversationId = st.activeId ?? st.conversations[0]?.id ?? null;
+        if (!conversationId) {
+          conversationId = uid("chat");
+          set((s) => ({
+            conversations: [
+              {
+                id: conversationId!,
+                title: "他主动说的",
+                messages: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                pinned: false,
+                incognito: false,
+              },
+              ...s.conversations,
+            ],
+            activeId: conversationId,
+          }));
+        }
+        const messageId = uid("msg");
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id !== conversationId
+              ? c
+              : {
+                  ...c,
+                  updatedAt: Date.now(),
+                  messages: [
+                    ...c.messages,
+                    {
+                      id: messageId,
+                      role: "assistant" as const,
+                      content: "",
+                      thinking: "",
+                      thinkingDurationMs: 0,
+                      createdAt: Date.now(),
+                      scheduled: true,
+                    },
+                  ],
+                },
+          ),
+        }));
+        void prompt;
+        return { conversationId, messageId };
+      },
+      setRinging: (r) => set({ ringing: r }),
+      patchReminder: (id, patch) =>
+        set((s) => ({ reminders: s.reminders.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+      snoozeReminder: (id, minutes) =>
+        set((s) => ({
+          reminders: s.reminders.map((r) =>
+            r.id === id ? { ...r, snoozeUntil: Date.now() + minutes * 60_000 } : r,
+          ),
+          ringing: null,
+        })),
+      addReminder: ({ text, time, ring }) =>
         set((s) => ({
           reminders: [
-            { id: uid("rem"), text: text.trim(), time: time || "21:00", done: false, createdAt: Date.now(), firedAt: 0 },
+            {
+              id: uid("rem"),
+              text: text.trim(),
+              time: time || "21:00",
+              done: false,
+              ring: Boolean(ring),
+              createdAt: Date.now(),
+              firedAt: 0,
+            },
             ...s.reminders,
           ].slice(0, 50),
         })),
@@ -451,10 +673,59 @@ export const useApp = create<AppState>()(
       removeReminder: (id) => set((s) => ({ reminders: s.reminders.filter((r) => r.id !== id) })),
       fireReminder: (id) =>
         set((s) => ({ reminders: s.reminders.map((r) => (r.id === id ? { ...r, firedAt: Date.now() } : r)) })),
-      addMemory: (text) =>
+      addMemory: (text) => get().addMemoryItem(guessKind(text), text),
+      addMemoryItem: (kind, content, extra) =>
+        set((s) => {
+          const trimmed = content.trim();
+          if (!trimmed) return {};
+          const now = Date.now();
+          const item: Memory = {
+            id: uid("mem"),
+            kind,
+            content: trimmed,
+            source: extra?.source ?? "手动",
+            confidence: extra?.confidence ?? 0.9,
+            strength: 1,
+            status: "active",
+            mood: extra?.mood,
+            at: extra?.at,
+            // 没给标签就用同义词表自动认几个 —— 这样"好累"以后才命得中"精力低"
+            tags: extra?.tags ?? autoTag(trimmed),
+            links: [],
+            recallCount: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          // 自动连线：和已有的那几条像，就牵一条 —— 神经元就是这么长出来的
+          item.links = autoLinks(s.memories, item);
+          return { memories: [item, ...s.memories].slice(0, 400) };
+        }),
+      updateMemory: (id, patch) =>
         set((s) => ({
-          memories: [{ id: uid("mem"), text: text.trim(), createdAt: Date.now() }, ...s.memories].slice(0, 100),
+          memories: s.memories.map((m) => (m.id === id ? { ...m, ...patch, updatedAt: Date.now() } : m)),
         })),
+      archiveMemory: (id) =>
+        set((s) => ({
+          memories: s.memories.map((m) =>
+            m.id === id ? { ...m, status: "archived" as const, updatedAt: Date.now() } : m,
+          ),
+        })),
+      unarchiveMemory: (id) =>
+        set((s) => ({
+          memories: s.memories.map((m) =>
+            m.id === id ? { ...m, status: "active" as const, updatedAt: Date.now() } : m,
+          ),
+        })),
+      deleteMemory: (id) =>
+        set((s) => ({
+          // 彻底删掉，并把别处指向它的连线一起清掉（免得留下断头线）
+          memories: s.memories
+            .filter((m) => m.id !== id)
+            .map((m) => (m.links.includes(id) ? { ...m, links: m.links.filter((x) => x !== id) } : m)),
+        })),
+      confirmMemory: (id) =>
+        set((s) => ({ memories: s.memories.map((m) => (m.id === id ? confirmMem(m) : m)) })),
+      reinforceMemory: (ids) => set((s) => ({ memories: reinforce(s.memories, ids) })),
       removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
       addSticker: (dataUrl) => set((s) => ({ stickers: [dataUrl, ...s.stickers].slice(0, 60) })),
       removeSticker: (dataUrl) => set((s) => ({ stickers: s.stickers.filter((x) => x !== dataUrl) })),
@@ -556,26 +827,13 @@ export const useApp = create<AppState>()(
           ),
         })),
       finalizeAssistant: (conversationId, messageId, patch) => {
-        const saveThinking = get().settings.saveThinking;
         set((s) => {
           const conv = s.conversations.find((c) => c.id === conversationId);
           const msg = conv?.messages.find((m) => m.id === messageId);
           const thinking = patch.thinking ?? msg?.thinking ?? "";
-          const archive =
-            saveThinking && thinking.trim() && conv && !conv.incognito
-              ? [
-                  {
-                    id: uid("th"),
-                    conversationId,
-                    title: conv.title,
-                    thinking,
-                    createdAt: Date.now(),
-                  },
-                  ...s.thinkingArchive,
-                ].slice(0, 200)
-              : s.thinkingArchive;
+          // 思考链**不再归档**：回复时当场就能看到，再存一份纯占地方。
+          // 老版本存下的那些会在迁移里清掉（见 persist 的 migrate）。
           return {
-            thinkingArchive: archive,
             conversations: s.conversations.map((c) =>
               c.id !== conversationId
                 ? c
@@ -587,7 +845,9 @@ export const useApp = create<AppState>()(
                         ? {
                             ...m,
                             ...patch,
-                            thinking: saveThinking ? (patch.thinking ?? m.thinking) : m.thinking,
+                            // 思考过程**留在这一条消息里**（折叠块要靠它才展得开），
+                            // 但不再另存一份档案 —— 省掉的就是那份重复的。
+                            thinking: patch.thinking ?? m.thinking,
                           }
                         : m,
                     ),
@@ -597,7 +857,20 @@ export const useApp = create<AppState>()(
         });
       },
       bumpQuota: () => {
-        const q = rotateQuota(get().quota);
+        /**
+         * **按模式决定拦不拦**（用户提的："用 API 就算 token，用订阅就显示额度"）。
+         *
+         *   · 自己填了 key → 花的是他自己的钱 → 只计数，**永不拦** ✅
+         *   · 没填（走内置服务端）→ 花的是服务端那把 key → 按窗口上限拦一下 ✅
+         *
+         * 原来是无条件按 40/5h 拦 —— 结果他用自己 API 测试功能时被拦在门外 ✅
+         */
+        const s = get();
+        const q = rotateQuota(s.quota);
+        if (isOwnApi(s.settings)) {
+          set({ quota: { ...q, used: q.used + 1 } });
+          return true;
+        }
         if (q.used >= QUOTA_LIMIT) {
           set({ quota: q });
           return false;
@@ -751,10 +1024,44 @@ export const useApp = create<AppState>()(
       // 老快照可能缺 font / textTone / textColor / background 等新字段，
       // 用默认值补齐，避免升级后读到 undefined。
       merge: (persisted, current) => {
-        const saved = (persisted ?? {}) as Partial<AppState>;
+        const saved = (persisted ?? {}) as Partial<AppState> & { memories?: unknown };
+        /**
+         * 记忆的结构升级过：老版本存的是 { id, text, createdAt }。
+         * 这里平滑转成新结构（自动猜类别、自动找日期），**一条都不丢**。
+         */
+        const raw = Array.isArray(saved.memories) ? saved.memories : [];
+        const looksLegacy =
+          raw.length > 0 && typeof (raw[0] as { text?: unknown })?.text === "string";
+        const migrated: Memory[] = looksLegacy
+          ? fromLegacy(raw as unknown as { id: string; text: string; createdAt: number }[])
+          : (raw as Memory[]);
+        // 老记忆迁过来时没有连线 —— 按内容补一次，让它们也进"神经网络"
+        const memories: Memory[] = looksLegacy
+          ? migrated.map((m) => ({
+              ...m,
+              tags: m.tags.length ? m.tags : autoTag(m.content),
+              links: autoLinks(
+                migrated.filter((x) => x.id !== m.id),
+                m,
+              ),
+            }))
+          : migrated.map((m) => (m.tags.length ? m : { ...m, tags: autoTag(m.content) }));
+        /**
+         * 世界书是后加的：老存档没有这个字段。
+         * 这里补上预设（**全部默认关着**），用户去「我的 → 世界书」自己开。
+         */
+        const worldBook: WorldEntry[] =
+          Array.isArray(saved.worldBook) && (saved.worldBook as unknown[]).length > 0
+            ? (saved.worldBook as WorldEntry[])
+            : worldPresets();
         return {
           ...current,
           ...saved,
+          memories,
+          worldBook,
+          // 思考链已经不再归档了（存了也只看得到一次，纯占地方）——
+          // 每次加载都清空，把老版本存下的那 18.8KB 腾出来。
+          thinkingArchive: [],
           settings: { ...current.settings, ...(saved.settings ?? {}) },
         };
       },
@@ -771,6 +1078,10 @@ export const useApp = create<AppState>()(
         learnStats: s.learnStats,
         customWords: s.customWords,
         reminders: s.reminders,
+        tasks: s.tasks,
+        stateSamples: s.stateSamples,
+        worldBook: s.worldBook,
+        chatDrafts: s.chatDrafts,
         memories: s.memories,
         stickers: s.stickers,
         requestLog: s.requestLog,

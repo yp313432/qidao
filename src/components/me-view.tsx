@@ -15,7 +15,8 @@ import {
   swRegistration,
   type SwStatus,
 } from "@/lib/notify";
-import { MODELS, QUOTA_LIMIT } from "@/lib/models";
+import { isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
+import { currentPlace } from "@/lib/locate";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
@@ -27,7 +28,7 @@ import { Avatar } from "@/components/avatar";
 import { FileButton } from "@/components/file-button";
 import { DEFAULT_AI_NAME, BUILD_TAG, resolveAiName } from "@/lib/branding";
 import { permissionSummary } from "@/lib/permissions";
-import { useScrollMemory } from "@/lib/ux";
+import { useScrollMemory, CHAT_FONT_SIZES } from "@/lib/ux";
 
 const THEMES: { id: ThemeId; label: string; hint: string }[] = [
   { id: "dawn", label: "黎明", hint: "奶油纸页" },
@@ -40,6 +41,23 @@ const STYLES: { id: ReplyStyle; label: string }[] = [
   { id: "concise", label: "简洁" },
   { id: "explanatory", label: "详尽" },
 ];
+
+/** 「内在」入口上那行小字要用到的心情中文名与相对时间 */
+const MOOD_CN: Record<string, string> = {
+  calm: "平静",
+  joy: "开心",
+  focus: "专注",
+  low: "低落",
+  miss: "想念",
+};
+const moodLabel = (m: string) => MOOD_CN[m] ?? "平静";
+function relShort(ts: number): string {
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 60) return `${Math.max(1, mins)} 分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  return `${Math.floor(hours / 24)} 天前`;
+}
 
 const FONTS: { id: FontId; label: string; hint: string; stack: string }[] = [
   { id: "system", label: "默认", hint: "无衬线", stack: '"DM Sans", system-ui, sans-serif' },
@@ -66,8 +84,26 @@ const TONES: { id: TextTone; label: string }[] = [
 ];
 
 export function MeView() {
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState("");
   const settings = useApp((s) => s.settings);
+  const memories = useApp((s) => s.memories);
+  const tasks = useApp((s) => s.tasks);
+  const stateSamples = useApp((s) => s.stateSamples);
+  const worldBook = useApp((s) => s.worldBook);
+  /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
+  const requestLog = useApp((s) => s.requestLog);
+  const usageToday = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const today = requestLog.filter((r) => r.at >= start.getTime());
+    if (today.length === 0) return null;
+    const sum = (k: "prompt" | "completion" | "cached") => today.reduce((n, r) => n + (r[k] ?? 0), 0);
+    return { calls: today.length, prompt: sum("prompt"), completion: sum("completion"), cached: sum("cached") };
+  })();
   const quota = useApp((s) => s.quota);
+  /** 自己带 key → 只统计真实 token；走服务端 → 才显示窗口额度 */
+  const ownApi = isOwnApi(settings);
   const hydrationDone = useApp((s) => s.hydrated);
   // 配额重置时间是按「现在」算的 —— 服务端和客户端算出来必然不同，
   // 所以等服务端渲染过去之后再显示，避免水合失败。
@@ -183,26 +219,62 @@ export function MeView() {
         </p>
       </section>
 
-      <Section title="额度（本机计数）">
+      <Section title={ownApi ? "用量（真实统计）" : "额度（服务端）"}>
         <div className="rounded-2xl bg-chip px-4 py-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">{usedPct}% 已使用</p>
-            <p className="text-[12px] text-muted">
-              {quota.used}/{QUOTA_LIMIT}
-            </p>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-elevated">
-            <div className="h-full rounded-full bg-accent" style={{ width: `${usedPct}%` }} />
-          </div>
-          <p className="mt-2 text-[12px] text-muted" suppressHydrationWarning>
-            {hydrated
-              ? `${resetAt <= Date.now() ? "窗口已过，下次发送重新计数" : resetLabel(resetAt)} · `
-              : ""}
-            每窗口 {QUOTA_LIMIT} 次
-          </p>
-          <p className="mt-2 text-[12px] leading-5 text-muted">
-            这是本地计数器，用来防止误触刷屏；不是服务端配额，也不影响模型本身。
-          </p>
+          {ownApi ? (
+            <>
+              {usageToday ? (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm font-medium">今天 {usageToday.calls} 次请求</p>
+                    <p className="text-[12px] text-muted">
+                      输入 {usageToday.prompt.toLocaleString()} · 输出 {usageToday.completion.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-elevated">
+                    <div
+                      className="h-full bg-accent"
+                      style={{
+                        width: `${Math.round((usageToday.prompt / Math.max(1, usageToday.prompt + usageToday.completion)) * 100)}%`,
+                      }}
+                    />
+                    <div className="h-full flex-1 bg-accent/40" />
+                  </div>
+                  <p className="mt-2 text-[12px] text-muted">
+                    缓存命中 {usageToday.cached.toLocaleString()} tokens
+                    {usageToday.cached > 0 && " —— 这部分上游按更低价算，省的就是它"}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[13px] text-muted">今天还没发过消息。</p>
+              )}
+              <p className="mt-2 text-[12px] leading-5 text-muted">
+                你填了自己的 API key（花的是你的钱），所以本机<span className="text-fg">不做任何限制</span>，只如实显示上游返回的用量。
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{usedPct}% 已使用</p>
+                <p className="text-[12px] text-muted">
+                  {quota.used}/{QUOTA_LIMIT}
+                </p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-elevated">
+                <div className="h-full rounded-full bg-accent" style={{ width: `${usedPct}%` }} />
+              </div>
+              <p className="mt-2 text-[12px] text-muted" suppressHydrationWarning>
+                {hydrated
+                  ? `${resetAt <= Date.now() ? "窗口已过，下次发送重新计数" : resetLabel(resetAt)} · `
+                  : ""}
+                每窗口 {QUOTA_LIMIT} 条
+              </p>
+              <p className="mt-2 text-[12px] leading-5 text-muted">
+                你在走内置服务端（花的是服务端那把 key），所以才有这个窗口额度。
+                想不受限，去下面「自定义上游」填自己的地址和密钥即可。
+              </p>
+            </>
+          )}
         </div>
       </Section>
 
@@ -265,6 +337,24 @@ export function MeView() {
             >
               <span className="block text-[13px] font-medium">{f.label}</span>
               <span className="text-[11px] text-muted">{f.hint}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
+        <div className="flex gap-2">
+          {CHAT_FONT_SIZES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => patch({ chatFontSize: s.id })}
+              className={cn(
+                "flex-1 rounded-2xl border px-2 py-2.5 text-center",
+                settings.chatFontSize === s.id ? "border-fg" : "border-line",
+              )}
+            >
+              <span className="block text-[13px] font-medium">{s.label}</span>
+              <span className="text-[10px] text-subtle">{s.px}px</span>
             </button>
           ))}
         </div>
@@ -470,17 +560,13 @@ export function MeView() {
       <BackupSection />
 
       <Section title="思考链">
+        {/* 只留「显示」—— 「保存思考链」已去掉：
+            思考过程回复时你当场就能看到，再存一份纯占地方（用户明确要求删）。 */}
         <Row
           label="显示思考过程"
           hint="折叠块展示推理"
           checked={settings.showThinking}
           onChange={(v) => patch({ showThinking: v })}
-        />
-        <Row
-          label="保存思考链"
-          hint="写入本地思考档案，必须开启才能归档"
-          checked={settings.saveThinking}
-          onChange={(v) => patch({ saveThinking: v })}
         />
       </Section>
 
@@ -572,45 +658,71 @@ export function MeView() {
           </label>
         )}
 
-        {reminders.length > 0 && (
+        {/* 提醒/闹钟列表搬到独立页了（这页太长，而且闹钟有自己的说明要讲） */}
+        <Link
+          to="/alarms"
+          className="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">闹钟 / 提醒</span>
+            <span className="mt-0.5 block text-[11px] text-muted">
+              {reminders.length > 0
+                ? `${reminders.filter((r) => r.ring).length} 个响铃 · 共 ${reminders.length} 个`
+                : "还没设过 —— 也可以直接跟他说「明早七点半叫我」"}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              到点全屏响铃（带声音）；App 关着靠系统定时通知
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
+      </Section>
+
+      <Section title="定位">
+        <Row
+          label="让他知道你在哪"
+          hint="默认关。开了之后地名会进「此刻的情况」—— 也就是说会发给你接的那家 AI"
+          checked={settings.geoEnabled}
+          onChange={(v) => patch({ geoEnabled: v })}
+        />
+        {settings.geoEnabled && (
           <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
-            <p className="text-[12px] font-medium">提醒 / 待办</p>
-            <ul className="mt-2 space-y-2">
-              {reminders.map((r) => (
-                <li key={r.id} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={r.done}
-                    aria-label={`完成 ${r.text}`}
-                    onClick={() => useApp.getState().toggleReminder(r.id)}
-                    className={cn(
-                      "flex size-5 shrink-0 items-center justify-center rounded-full border",
-                      r.done ? "border-fg bg-ink text-ink-fg" : "border-line",
-                    )}
-                  >
-                    {r.done && <Check className="size-3" />}
-                  </button>
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 text-[12px] leading-5",
-                      r.done && "text-subtle line-through",
-                    )}
-                  >
-                    {r.text}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-muted">{r.time}</span>
-                  <button
-                    type="button"
-                    aria-label="删除提醒"
-                    onClick={() => useApp.getState().removeReminder(r.id)}
-                    className="shrink-0 text-[11px] text-subtle"
-                  >
-                    删
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 text-[12px] leading-5">
+                {settings.geoLabel ? (
+                  <>
+                    现在在<span className="text-fg">{settings.geoLabel}</span>
+                    {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
+                  </>
+                ) : (
+                  "还没定位过"
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setGeoBusy(true);
+                  void currentPlace().then((r) => {
+                    setGeoBusy(false);
+                    if (r.ok) {
+                      patch({ geoLabel: r.label, geoAt: Date.now() });
+                      setGeoMsg(`已更新：${r.label}`);
+                    } else {
+                      setGeoMsg(r.reason);
+                    }
+                  });
+                }}
+                disabled={geoBusy}
+                className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm disabled:opacity-50"
+              >
+                {geoBusy ? "定位中…" : "更新位置"}
+              </button>
+            </div>
+            {geoMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{geoMsg}</p>}
+            <p className="mt-2 text-[11px] leading-4 text-subtle">
+              地名反查用的是 OpenStreetMap（免费、不用密钥）—— 只把经纬度发过去，不发别的。
+              位置只存在这台设备上；关掉这个开关就不再进提示词。
+            </p>
           </div>
         )}
       </Section>
@@ -636,6 +748,89 @@ export function MeView() {
             </span>
             <span className="mt-0.5 block text-[11px] text-subtle">
               分级说明、他能感知到什么、动作记录都在那一页
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
+      </Section>
+
+      {/* 世界书：给他的规矩（含"别想太久"这类思考引导） */}
+      <Section title="世界书 / 思考引导">
+        <Link
+          to="/worldbook"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">给他的规矩</span>
+            <span className="mt-0.5 block text-[11px] text-muted">
+              开着 {worldBook.filter((e) => e.enabled).length} 条 / 共 {worldBook.length} 条（内置预设默认关着）
+            </span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              想让他少想一点、先给结论 → 开「别想太久」那两条
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
+      </Section>
+
+      {/* 内在：他自己报的状态，画成起伏曲线 */}
+      <Section title="内在">
+        <Link
+          to="/inner"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">他的状态起伏</span>
+            <span className="mt-0.5 block text-[11px] text-muted">
+              {stateSamples.length > 0
+                ? `最近一笔：${moodLabel(stateSamples[0]!.mood)} · ${relShort(stateSamples[0]!.at)} · 共 ${stateSamples.length} 笔`
+                : "还没报过 —— 跟他聊两句就有了"}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              精力 / 想念 / 好奇 —— 每轮他<span className="text-fg">自己报</span>的，不是估算
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
+      </Section>
+
+      {/* 记忆库：用户要求把它从权限里拉出来，当成一个重点功能 */}
+      <Section title="记忆库">
+        <Link
+          to="/memories"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3.5"
+        >
+          <span className="min-w-0">
+            <span className="block font-serif text-[15px] font-medium">他记得你什么</span>
+            <span className="mt-1 block text-[11px] text-muted">
+              {memories.filter((m) => m.status === "active").length} 条还在用 ·
+              {memories.some((m) => m.status === "archived")
+                ? ` 归档 ${memories.filter((m) => m.status === "archived").length} 条`
+                : " 会忘、会加深、会互相连着"}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              常提到的更牢 · 无关的慢慢淡出 · 相关的自动连在一起
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
+      </Section>
+
+      {/* 定时任务：让他到点自己开口 */}
+      <Section title="定时任务">
+        <Link
+          to="/tasks"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">让他按时自己开口</span>
+            <span className="mt-0.5 block text-[11px] text-muted">
+              {tasks.filter((t) => t.enabled).length > 0
+                ? `${tasks.filter((t) => t.enabled).length} 个开着`
+                : "还没设过 —— 也可以直接跟他说「每天早上八点跟我说句早安」"}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              App 开着时他真会说；关掉时靠系统通知兜底
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted" />

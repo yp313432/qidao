@@ -12,6 +12,9 @@ const WEEK = ["一", "二", "三", "四", "五", "六", "日"];
 export function ToolsDays() {
   const settings = useApp((s) => s.settings);
   const dates = useApp((s) => s.dates);
+  // 日历要把"那天所有的东西"都显示出来，不只是重要日子
+  const diary = useApp((s) => s.diary);
+  const reminders = useApp((s) => s.reminders);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -30,6 +33,12 @@ export function ToolsDays() {
       if (d.yearly) return t.getMonth() === c.getMonth() && t.getDate() === c.getDate();
       return startOfDay(d.at) === startOfDay(day);
     });
+
+  /** 这一天的日记 */
+  const diaryOn = (day: number) => diary.filter((d) => startOfDay(d.createdAt) === startOfDay(day));
+  /** 每天都会响的闹钟/提醒（不挑日子，所以每天都列出来） */
+  const dailyAlarms = reminders.filter((r) => !r.done);
+  const hasAnything = (day: number) => onDay(day).length > 0 || diaryOn(day).length > 0;
 
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   // 周一当第一列
@@ -86,7 +95,7 @@ export function ToolsDays() {
             ))}
             {cells.map((c, i) => {
               if (c === null) return <span key={`p${i}`} />;
-              const has = onDay(c).length > 0;
+              const has = hasAnything(c);
               const isToday = c === today;
               const isPicked = picked === c;
               return (
@@ -124,7 +133,7 @@ export function ToolsDays() {
               <p className="text-[12px] font-medium">
                 {new Date(picked).getMonth() + 1} 月 {new Date(picked).getDate()} 日
               </p>
-              {onDay(picked).length === 0 ? (
+              {onDay(picked).length === 0 && diaryOn(picked).length === 0 ? (
                 <p className="mt-1 text-[11px] text-muted">这天还没有记什么。</p>
               ) : (
                 <ul className="mt-1.5 space-y-1">
@@ -135,7 +144,31 @@ export function ToolsDays() {
                       {d.yearly && <span className="text-[10px] text-subtle">每年</span>}
                     </li>
                   ))}
+                  {diaryOn(picked).map((d) => (
+                    <li key={d.id} className="flex items-start gap-2 text-[12px] leading-5 text-muted">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-sky-400" />
+                      <span className="min-w-0 flex-1">
+                        日记 · {d.body.slice(0, 46)}
+                        {d.body.length > 46 ? "…" : ""}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
+              )}
+
+              {/* 闹钟是每天都响的，不挑日子，所以单独列 */}
+              {dailyAlarms.length > 0 && (
+                <div className="mt-2.5">
+                  <p className="text-[11px] font-medium text-muted">每天的闹钟</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {dailyAlarms.slice(0, 4).map((r) => (
+                      <li key={r.id} className="text-[12px] text-muted">
+                        <span className="tabular-nums">{r.time}</span> · {r.text}
+                        {r.ring ? "（响铃）" : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <button
                 type="button"

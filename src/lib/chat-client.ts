@@ -58,6 +58,10 @@ export type ChatRequest = {
   persona?: string;
   /** 用户此刻在干什么 —— 感知层 */
   context?: ChatContext;
+  /** 世界书 · 常驻条目（进系统提示词） */
+  worldAlways?: string[];
+  /** 世界书 · 这轮命中关键词的条目（挂最后一条用户消息尾部） */
+  worldHit?: string[];
 };
 
 /**
@@ -167,6 +171,9 @@ async function streamDirect(
           prompt_tokens?: number;
           completion_tokens?: number;
           total_tokens?: number;
+          /** DeepSeek 用这个字段报"命中缓存的 token 数" */
+          prompt_cache_hit_tokens?: number;
+          prompt_tokens_details?: { cached_tokens?: number };
         } | null;
         error?: { message?: string } | string;
       };
@@ -187,6 +194,11 @@ async function streamDirect(
             prompt: j.usage.prompt_tokens,
             completion: j.usage.completion_tokens,
             total: j.usage.total_tokens,
+            // 缓存命中：DeepSeek 叫 prompt_cache_hit_tokens，OpenAI 那套在
+            // prompt_tokens_details.cached_tokens —— 两个都读，否则永远是 0
+            cached:
+              j.usage.prompt_cache_hit_tokens ??
+              j.usage.prompt_tokens_details?.cached_tokens,
           },
         });
       }
@@ -195,9 +207,41 @@ async function streamDirect(
     }
   };
 
+  /**
+   * 看门狗：流式连接**长时间不吐字**绝不能无限等。
+   *
+   * 实测症状：思考链很长时，连接被中途掐断（经过代理/中转时尤其常见），
+   * 界面上就是"卡住"，最后只剩一条空回复。
+   * 这里 45 秒没有新数据就主动断开 —— 已经收到的内容全部保住，
+   * 上层会告诉用户"是断了，不是没话说"。
+   */
+  let lastAt = Date.now();
+  let stalled = false;
+  const stallTimer = window.setInterval(() => {
+    if (Date.now() - lastAt > 45_000) stalled = true;
+  }, 3000);
+  const stall = new Promise<"stall">((resolve) => {
+    const wait = window.setInterval(() => {
+      if (stalled) {
+        window.clearInterval(wait);
+        resolve("stall");
+      }
+    }, 500);
+  });
+
   while (true) {
-    const { done, value } = await reader.read();
+    const next = await Promise.race([reader.read(), stall]);
+    if (next === "stall") {
+      try {
+        await reader.cancel();
+      } catch {
+        /* ignore */
+      }
+      break;
+    }
+    const { done, value } = next;
     if (done) break;
+    lastAt = Date.now();
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split("\n");
     buf = lines.pop() ?? "";
@@ -207,6 +251,7 @@ async function streamDirect(
       handle(trimmed.slice(5).trim());
     }
   }
+  window.clearInterval(stallTimer);
   if (buf.trim().startsWith("data:")) handle(buf.trim().slice(5).trim());
   if (!finished) onDelta({ done: true });
 }

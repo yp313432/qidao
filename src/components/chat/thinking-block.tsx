@@ -2,6 +2,13 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * 思考过程。
+ *
+ * 视觉上照用户给的参照改过：**不框起来**，小字，左侧一条细线做缩进，
+ * 标题写成「已思考（用时 N 秒）」。
+ * 原来是一个带边框的块、字还跟正文一样大 —— 用户原话："不好显示"。
+ */
 export function ThinkingBlock({
   thinking,
   durationMs,
@@ -14,23 +21,23 @@ export function ThinkingBlock({
   const [open, setOpen] = useState(live ?? false);
   const secs = Math.max(1, Math.round(durationMs / 1000));
   const label = live
-    ? "正在思考"
+    ? "正在思考…"
     : thinking
-      ? `思考了 ${secs} 秒`
+      ? `已思考（用时 ${secs} 秒）`
       : "已完成内部推理";
 
   return (
-    <div className="mb-2">
+    <div className="mb-1.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[13px] text-muted"
+        className="flex items-center gap-1.5 text-[12px] text-subtle"
       >
         <span className={cn(live && "thinking-shimmer")}>{label}</span>
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-line bg-chip/60 px-3 py-2 text-[13px] leading-6 text-muted whitespace-pre-wrap">
+        <div className="mt-1.5 border-l border-line pl-3 text-[12px] leading-5 whitespace-pre-wrap text-subtle">
           {thinking || (live ? "梳理问题、组织回答…" : "模型完成了内部推理，明文思考链未返回；时长已记录。")}
         </div>
       )}

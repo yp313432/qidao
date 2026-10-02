@@ -11,14 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAlarmsRouteImport } from './routes/_app/alarms'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
+import { Route as AppInnerRouteImport } from './routes/_app/inner'
 import { Route as AppMeRouteImport } from './routes/_app/me'
+import { Route as AppMemoriesRouteImport } from './routes/_app/memories'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
 import { Route as AppPermissionsRouteImport } from './routes/_app/permissions'
 import { Route as AppPlayRouteImport } from './routes/_app/play'
+import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppToolsRouteImport } from './routes/_app/tools'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
+import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
@@ -47,14 +52,29 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAlarmsRoute = AppAlarmsRouteImport.update({
+  id: '/alarms',
+  path: '/alarms',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEnvRoute = AppEnvRouteImport.update({
   id: '/env',
   path: '/env',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInnerRoute = AppInnerRouteImport.update({
+  id: '/inner',
+  path: '/inner',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMeRoute = AppMeRouteImport.update({
   id: '/me',
   path: '/me',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMemoriesRoute = AppMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMemoryRoute = AppMemoryRouteImport.update({
@@ -72,6 +92,11 @@ const AppPlayRoute = AppPlayRouteImport.update({
   path: '/play',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTasksRoute = AppTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppToolsRoute = AppToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -85,6 +110,11 @@ const AppVoiceRoute = AppVoiceRouteImport.update({
 const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorldbookRoute = AppWorldbookRouteImport.update({
+  id: '/worldbook',
+  path: '/worldbook',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -180,14 +210,19 @@ const ApiPushSubscribeRoute = ApiPushSubscribeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/alarms': typeof AppAlarmsRoute
   '/env': typeof AppEnvRoute
+  '/inner': typeof AppInnerRoute
   '/me': typeof AppMeRoute
+  '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
   '/permissions': typeof AppPermissionsRoute
   '/play': typeof AppPlayRouteWithChildren
+  '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/voice': typeof AppVoiceRoute
   '/workspace': typeof AppWorkspaceRoute
+  '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
@@ -208,13 +243,18 @@ export interface FileRoutesByFullPath {
   '/play/': typeof AppPlayIndexRoute
 }
 export interface FileRoutesByTo {
+  '/alarms': typeof AppAlarmsRoute
   '/env': typeof AppEnvRoute
+  '/inner': typeof AppInnerRoute
   '/me': typeof AppMeRoute
+  '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
   '/permissions': typeof AppPermissionsRoute
+  '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/voice': typeof AppVoiceRoute
   '/workspace': typeof AppWorkspaceRoute
+  '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
@@ -238,14 +278,19 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/alarms': typeof AppAlarmsRoute
   '/_app/env': typeof AppEnvRoute
+  '/_app/inner': typeof AppInnerRoute
   '/_app/me': typeof AppMeRoute
+  '/_app/memories': typeof AppMemoriesRoute
   '/_app/memory': typeof AppMemoryRoute
   '/_app/permissions': typeof AppPermissionsRoute
   '/_app/play': typeof AppPlayRouteWithChildren
+  '/_app/tasks': typeof AppTasksRoute
   '/_app/tools': typeof AppToolsRoute
   '/_app/voice': typeof AppVoiceRoute
   '/_app/workspace': typeof AppWorkspaceRoute
+  '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
@@ -270,14 +315,19 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/alarms'
     | '/env'
+    | '/inner'
     | '/me'
+    | '/memories'
     | '/memory'
     | '/permissions'
     | '/play'
+    | '/tasks'
     | '/tools'
     | '/voice'
     | '/workspace'
+    | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
@@ -298,13 +348,18 @@ export interface FileRouteTypes {
     | '/play/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/alarms'
     | '/env'
+    | '/inner'
     | '/me'
+    | '/memories'
     | '/memory'
     | '/permissions'
+    | '/tasks'
     | '/tools'
     | '/voice'
     | '/workspace'
+    | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
@@ -327,14 +382,19 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/_app/alarms'
     | '/_app/env'
+    | '/_app/inner'
     | '/_app/me'
+    | '/_app/memories'
     | '/_app/memory'
     | '/_app/permissions'
     | '/_app/play'
+    | '/_app/tasks'
     | '/_app/tools'
     | '/_app/voice'
     | '/_app/workspace'
+    | '/_app/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
@@ -382,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/alarms': {
+      id: '/_app/alarms'
+      path: '/alarms'
+      fullPath: '/alarms'
+      preLoaderRoute: typeof AppAlarmsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/env': {
       id: '/_app/env'
       path: '/env'
@@ -389,11 +456,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEnvRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/inner': {
+      id: '/_app/inner'
+      path: '/inner'
+      fullPath: '/inner'
+      preLoaderRoute: typeof AppInnerRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/me': {
       id: '/_app/me'
       path: '/me'
       fullPath: '/me'
       preLoaderRoute: typeof AppMeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/memories': {
+      id: '/_app/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof AppMemoriesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/memory': {
@@ -417,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tasks': {
+      id: '/_app/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AppTasksRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tools': {
       id: '/_app/tools'
       path: '/tools'
@@ -436,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/workspace'
       fullPath: '/workspace'
       preLoaderRoute: typeof AppWorkspaceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/worldbook': {
+      id: '/_app/worldbook'
+      path: '/worldbook'
+      fullPath: '/worldbook'
+      preLoaderRoute: typeof AppWorldbookRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/chat': {
@@ -601,26 +696,36 @@ const AppPlayRouteWithChildren =
   AppPlayRoute._addFileChildren(AppPlayRouteChildren)
 
 interface AppRouteChildren {
+  AppAlarmsRoute: typeof AppAlarmsRoute
   AppEnvRoute: typeof AppEnvRoute
+  AppInnerRoute: typeof AppInnerRoute
   AppMeRoute: typeof AppMeRoute
+  AppMemoriesRoute: typeof AppMemoriesRoute
   AppMemoryRoute: typeof AppMemoryRoute
   AppPermissionsRoute: typeof AppPermissionsRoute
   AppPlayRoute: typeof AppPlayRouteWithChildren
+  AppTasksRoute: typeof AppTasksRoute
   AppToolsRoute: typeof AppToolsRoute
   AppVoiceRoute: typeof AppVoiceRoute
   AppWorkspaceRoute: typeof AppWorkspaceRoute
+  AppWorldbookRoute: typeof AppWorldbookRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAlarmsRoute: AppAlarmsRoute,
   AppEnvRoute: AppEnvRoute,
+  AppInnerRoute: AppInnerRoute,
   AppMeRoute: AppMeRoute,
+  AppMemoriesRoute: AppMemoriesRoute,
   AppMemoryRoute: AppMemoryRoute,
   AppPermissionsRoute: AppPermissionsRoute,
   AppPlayRoute: AppPlayRouteWithChildren,
+  AppTasksRoute: AppTasksRoute,
   AppToolsRoute: AppToolsRoute,
   AppVoiceRoute: AppVoiceRoute,
   AppWorkspaceRoute: AppWorkspaceRoute,
+  AppWorldbookRoute: AppWorldbookRoute,
   AppIndexRoute: AppIndexRoute,
 }
 

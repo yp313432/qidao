@@ -25,6 +25,8 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "docs.archive": "archive_chat",
   "learn.addCard": "learn_card",
   "reminder.add": "reminder",
+  "cron.add": "scheduled_job",
+  "state.report": "state_report",
   "memory.add": "memory",
   "persona.set": "persona",
   "play.gobang": "gobang_play",
@@ -105,6 +107,18 @@ export function actionTitle(action: AppAction): string {
       return `把「${action.word}」加进生词本`;
     case "reminder.add":
       return `设一个提醒：${action.text.slice(0, 16)}${action.time ? `（${action.time}）` : ""}`;
+    case "cron.add":
+      return `设一个定时任务：${action.prompt.slice(0, 14)}${action.time ? `（每天 ${action.time}）` : ""}`;
+    case "state.report": {
+      const MOOD_CN: Record<string, string> = {
+        calm: "平静",
+        joy: "开心",
+        focus: "专注",
+        low: "低落",
+        miss: "想念",
+      };
+      return `记下自己的状态：${MOOD_CN[action.mood] ?? action.mood}（精力 ${Math.round(action.energy * 100)}%）`;
+    }
     case "memory.add":
       return `记住：${action.note.slice(0, 20)}`;
     case "persona.set":

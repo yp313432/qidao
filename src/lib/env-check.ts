@@ -181,6 +181,29 @@ export async function collectEnv(): Promise<EnvItem[]> {
     fix: IS_APP ? undefined : !notifApi || perm === "denied" ? "在浏览器/系统设置里允许通知。" : undefined,
   });
 
+  /* ---------- 7.5 定位 / 闹钟 ---------- */
+  items.push({
+    id: "geo",
+    label: "定位",
+    // 默认是关的，所以这里只报"这个环境有没有这个能力"，不报"有没有授权"
+    status: IS_APP ? "ok" : hasWindow && "geolocation" in navigator ? "ok" : "no",
+    detail: IS_APP
+      ? "App 里用系统定位；默认关，去「我的 → 定位」开"
+      : hasWindow && "geolocation" in navigator
+        ? "网页版用浏览器定位（需要 HTTPS）"
+        : "这个外壳没有定位接口",
+    fix: undefined,
+  });
+  items.push({
+    id: "alarm",
+    label: "闹钟（系统定时）",
+    status: IS_APP ? "ok" : "warn",
+    detail: IS_APP
+      ? "App 关着也能响（安卓 12+ 还要单独授权「闹钟和提醒」，去「我的 → 闹钟」一键申请）"
+      : "网页版只能在页面活着时响，关掉页面就没了 —— 装成 App 才有系统级定时",
+    fix: IS_APP ? undefined : "想要「关着也响」，装 Android 版。",
+  });
+
   /* ---------- 8. Service Worker / 离线 / 推送 ---------- */
   const hasSW = hasWindow && "serviceWorker" in navigator;
   let swReady = false;

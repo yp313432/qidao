@@ -32,6 +32,18 @@ export function useDismissOutside(
 /** 每个页面记住的滚动位置。 */
 const positions = new Map<string, number>();
 
+/** 对话正文字号的四档（用户要"能调，看着大气一点"）。 */
+export const CHAT_FONT_SIZES = [
+  { id: "small", label: "小", px: 13 },
+  { id: "normal", label: "标准", px: 15 },
+  { id: "large", label: "大", px: 17 },
+  { id: "xlarge", label: "特大", px: 19 },
+] as const;
+
+export function chatFontPx(id: string | undefined): number {
+  return CHAT_FONT_SIZES.find((s) => s.id === id)?.px ?? 15;
+}
+
 /**
  * 记住滚动位置。
  *

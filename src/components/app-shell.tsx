@@ -1,24 +1,30 @@
-﻿import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Puzzle, Sparkles, UserRound } from "lucide-react";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { LetterAlert } from "@/components/letter-alert";
 import { GlassHighlight } from "@/components/glass-highlight";
 import { PlayerHost } from "@/components/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
 import { ReminderDaemon } from "@/components/reminder-daemon";
+import { AlarmOverlay } from "@/components/alarm-overlay";
+import { TaskDaemon } from "@/components/task-daemon";
 import { UiEffects } from "@/components/ui-effects";
+import { useApp } from "@/lib/store";
+import { MAIN_TABS } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { to: "/", label: "对话", icon: MessageCircle, hint: "chat" },
-  { to: "/tools", label: "工具", icon: Puzzle, hint: "tools" },
-  { to: "/play", label: "玩乐", icon: Sparkles, hint: "play" },
-  { to: "/me", label: "我的", icon: UserRound, hint: "me" },
-] as const;
+const TABS = MAIN_TABS;
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideNav = pathname.startsWith("/play/") && pathname !== "/play";
+  /**
+   * 什么时候不显示漂浮导航：
+   *   · 玩乐的子页（本来就没有）
+   *   · **对话页** —— 导航已经搬进抽屉底部了（用户的要求），
+   *     这里撤掉就能给消息让出 76px 的底部空间 ✅
+   */
+  const hideNav = (pathname.startsWith("/play/") && pathname !== "/play") || pathname === "/";
+  /** 打字中：把导航收下去，给消息让地方 */
+  const keyboardUp = useApp((s) => s.keyboardUp);
 
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，
@@ -34,6 +40,10 @@ export function AppShell() {
       <EmbedHost />
       {/* 本地提醒 + Service Worker 注册 */}
       <ReminderDaemon />
+      {/* 定时任务：到点让他自己开口（App 活着时；关掉时靠原生通知兜底） */}
+      <TaskDaemon />
+      {/* 闹钟到点：全屏响铃（只发通知的话人会睡过去） */}
+      <AlarmOverlay />
       {/* AI 请求的任何操作都要从这里过一道（询问 / 允许 / 拒绝） */}
       <ActionGate />
       {/* 他写了新信：一进前端就跳出拆信动画 */}
@@ -42,8 +52,18 @@ export function AppShell() {
         <Outlet />
       </div>
       {!hideNav && (
-        // 浮层而非占位：导航飘在背景之上，内容可以一直铺到屏幕底部。
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[max(0.9rem,env(safe-area-inset-bottom))]">
+        /**
+         * 浮层而非占位：导航飘在背景之上，内容可以一直铺到屏幕底部。
+         *
+         * 打字时**滑下去收起** —— 用户的反馈：导航 + 输入框加起来占了快半个屏幕，
+         * 键盘一弹起来就看不到几条消息了。收下去而不是拆掉，失焦就回来。
+         */
+        <div
+          className={cn(
+            "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[max(0.9rem,env(safe-area-inset-bottom))] transition-all duration-200",
+            keyboardUp && "pointer-events-none translate-y-[135%] opacity-0",
+          )}
+        >
           <nav
             className="glass-nav pointer-events-auto flex items-center gap-0.5 rounded-full border border-line p-1.5"
             aria-label="主导航"

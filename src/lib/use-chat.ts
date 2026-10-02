@@ -2,7 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
-import { QUOTA_LIMIT } from "@/lib/models";
+import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
+import { pickWorldEntries } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { resolveVoiceLang, speak } from "@/lib/voice";
@@ -130,6 +131,13 @@ export function useChatStream() {
 
       const tools = useApp.getState().enabledTools().map((t) => ({ name: t.name, tools: t.tools }));
       const context = buildContext();
+      // 世界书：常驻的进系统提示词，命中关键词的挂在最后一条用户消息尾部。
+      // 这里没有直接的 text 变量，就从历史里找最后一条用户消息来判断关键词。
+      const lastUser = [...history].reverse().find((m) => m.role === "user");
+      const world = pickWorldEntries(
+        useApp.getState().worldBook,
+        typeof lastUser?.content === "string" ? lastUser.content : "",
+      );
       try {
         await streamChat(
           {
@@ -144,6 +152,8 @@ export function useChatStream() {
             aiName,
             persona: settings.persona || undefined,
             context,
+            worldAlways: world.always,
+            worldHit: world.hit,
           },
           (d) => {
             if (d.error) {
@@ -188,7 +198,13 @@ export function useChatStream() {
       }
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
-        content: stripActions(content) || "（空回复）",
+        content:
+          stripActions(content) ||
+          // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
+          // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
+          (thinking.trim().length > 0
+            ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
+            : "（空回复）"),
         thinking,
         thinkingDurationMs: Date.now() - started,
         usage,
@@ -203,7 +219,9 @@ export function useChatStream() {
           cached: usage?.cached,
         });
       }
-      if (settings.notifications && settings.quotaAlerts) {
+      // 「本机计数快满了」只在**走服务端**时提醒（那时花的才是服务端那把 key）；
+      // 自己带 key 的用户不该被打扰 —— 他花自己的钱，本机不限制。
+      if (!isOwnApi(settings) && settings.notifications && settings.quotaAlerts) {
         const q = useApp.getState().quota;
         if (q.used / QUOTA_LIMIT >= 0.9) notifyQuota(aiName);
       }
@@ -219,9 +237,17 @@ export function useChatStream() {
 
   const send = useCallback(
     async (text: string, attachments?: Attachment[]) => {
+      /**
+       * 按模式决定拦不拦（bumpQuota 里判断）：
+       *   自己带 key → 永远返回 true（花你的钱，本机不管）✅
+       *   走服务端   → 超了窗口上限才返回 false ✅
+       */
       const ok = useApp.getState().bumpQuota();
       if (!ok) {
-        window.alert("本窗口额度已用尽，请稍后再试或到「我的」查看重置时间。");
+        window.alert(
+          "本窗口额度用尽了（你现在走的是内置服务端，花的是服务端那把 key）。\n" +
+            "想不受限：去「我的 → 自定义上游」填你自己的地址和密钥。",
+        );
         return;
       }
       const { conversationId, assistant, user } = useApp

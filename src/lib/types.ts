@@ -107,6 +107,79 @@ export type ChatMessage = {
     cached?: number;
     total?: number;
   };
+  /** 这条是**定时任务**让他主动说的，不是用户问的（聊天里会带一个小标记） */
+  scheduled?: boolean;
+};
+
+/**
+ * 世界书条目（也叫"思考引导"）。
+ *
+ * 用户的原话："把思考链做一个注入信息，像世界书一样，引导修改他的思考方式"。
+ * 于是每条 = 关键词 + 内容 + 注入位置：
+ *   · position "system"（或关键词留空）→ **每轮都进系统提示词**，
+ *     适合放"别想太久""先给结论""不确定就说不确定"这类**行为准则**
+ *   · position "tail"（关键词非空）→ 只有聊到关键词才注入，
+ *     而且挂在**最后一条用户消息的尾部**（系统提示词不动 → 前缀缓存不受影响）
+ * 默认都关着，用户自己开 —— 不然就是悄悄改他的性格。
+ */
+export type WorldEntry = {
+  id: string;
+  /** 给用户看的名字（可空，列表里会拿内容开头当标题） */
+  title?: string;
+  /** 触发关键词；留空 = 常驻 */
+  keywords: string[];
+  content: string;
+  position: "system" | "tail";
+  enabled: boolean;
+  createdAt: number;
+};
+
+/**
+ * 他的"内在状态"采样。
+ *
+ * 用户选择的做法（方案 A）：**让他每轮回复时自己报一次** ——
+ * 所以「内在」页那条波浪线是他真实的起伏，不是我拿数据拼出来的假曲线。
+ * 只存本机。
+ */
+export type StateSample = {
+  id: string;
+  at: number;
+  /** 此刻的心情 */
+  mood: MoodId;
+  /** 精力 0~1 */
+  energy: number;
+  /** 想念（有多想跟你说话）0~1 */
+  missing: number;
+  /** 好奇 0~1 */
+  curious: number;
+  /** 为什么是这个状态（他写的一句话，可选） */
+  note?: string;
+};
+
+/**
+ * 定时任务：到点让他自己醒过来说一句 / 做一件事。
+ *
+ * 说清能做到哪一层（安卓的限制）：
+ *   · App 活着（或刚打开）→ 真的到点生成一句话，发进对话 ✅
+ *   · App 完全关闭 → 由**原生通知**准时响，点开时把那句话补上 ✅
+ *     （WebView 里的 JS 被系统停掉后，没人能替它调模型 —— 这是安卓的规矩）
+ */
+export type ScheduledTask = {
+  id: string;
+  /** 让他做什么：自由描述，例如「跟我说句早安，顺便提一下今天该干的事」 */
+  prompt: string;
+  /** 每天几点（HH:MM）。空表示"一次性"，用 at 字段 */
+  time?: string;
+  /** 一次性任务的时间戳 */
+  at?: number;
+  enabled: boolean;
+  /** 要不要同时推一条系统通知 */
+  notify: boolean;
+  /** 每天最多跑几次这种护栏由守护进程统一管；这里记最后一次跑的时间 */
+  lastRunAt?: number;
+  /** 今天已经跑过的日期（YYYY-M-D），避免同一天重复触发 */
+  lastRunDay?: string;
+  createdAt: number;
 };
 
 export type Conversation = {
@@ -157,6 +230,17 @@ export type Settings = {
   showThinking: boolean;
   saveThinking: boolean;
   notifications: boolean;
+  /**
+   * 定位。默认**关**。
+   *
+   * 开了之后，地名会进"此刻的情况"给模型看 —— 也就是说会发给你接的那家 AI。
+   * 这是隐私相关的事，所以默认关、设置里随时能关，开启时界面会明确说明。
+   */
+  geoEnabled: boolean;
+  /** 最近一次拿到的地名（如「北京市朝阳区」） */
+  geoLabel?: string;
+  /** 什么时候拿到的 */
+  geoAt?: number;
   quotaAlerts: boolean;
   diaryReminders: boolean;
   /** 日记提醒时间，形如 "21:00" */
@@ -194,6 +278,13 @@ export type Settings = {
    * 系统开了「减弱动态效果」时，浏览器会把所有动画压成 0.01ms —— 那就是"看不到动态"。
    */
   motion: "auto" | "on" | "off";
+  /**
+   * 对话正文字号。
+   *
+   * 用户反馈："铺满屏幕看着局促，字大一点更大气" —— 所以给四档，
+   * 默认「标准」，想要舒展就调大（顺便留白也更好看）。
+   */
+  chatFontSize: "small" | "normal" | "large" | "xlarge";
   voiceReplies: boolean;
   replyStyle: ReplyStyle;
   defaultModel: ModelId;
@@ -209,6 +300,54 @@ export type Settings = {
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;
+};
+
+/* ------------------------------- 记忆库 ------------------------------- */
+
+/**
+ * 记忆的类别。照着用户自己的说法定的（他给的样本正好覆盖五类）：
+ *   「我叫 yan」          → profile
+ *   「你叫小克」          → relationship
+ *   「生日 3.21」         → timeline
+ *   「INFP 带点 J」       → profile
+ *   「喜欢躺平、精力低」   → preference
+ *   「最近要忙论文」       → project
+ */
+export type MemoryKind = "profile" | "preference" | "project" | "relationship" | "timeline";
+
+/**
+ * 一条记忆。
+ *
+ * 这不是"对话片段"——是一句提炼出来的事实。设计目标不是存得多，
+ * 而是**像人脑那样**：常提到的越来越牢，无关的慢慢淡出，相关的自动连在一起。
+ */
+export type Memory = {
+  id: string;
+  kind: MemoryKind;
+  /** 一句话事实，例如「喜欢躺平，精力比较低」 */
+  content: string;
+  /** 从哪来的：对话 / 手动 / 导入 */
+  source?: string;
+  /** 置信度 0~1：推断出来的不该当成确定事实 */
+  confidence: number;
+  /** 记忆强度 —— 被反复确认/唤起会变高，越大越难淡忘 */
+  strength: number;
+  status: "active" | "archived";
+  /** 情绪色彩（来自日记心情或对话语气），用于"心情一致时更容易想起" */
+  mood?: MoodId;
+  /** timeline 类专用：YYYY-MM-DD，用来做"每年自动浮现" */
+  at?: string;
+  tags: string[];
+  /** 关联的记忆 id —— 这就是"神经元之间的连线" */
+  links: string[];
+  /** 被唤起的次数（反复提到就加深） */
+  recallCount: number;
+  createdAt: number;
+  updatedAt: number;
+  /** 最后一次被确认是"现在仍然成立" */
+  lastConfirmedAt?: number;
+  /** 最后一次被唤起（塞进提示词）的时间 */
+  lastRecalledAt?: number;
 };
 
 /** MCP 传输方式：http / sse 走网络，stdio 需要服务端起子进程 */
@@ -335,7 +474,18 @@ export type AppAction =
       exampleZh?: string;
     }
   | { kind: "reminder.add"; text: string; time?: string }
-  | { kind: "memory.add"; note: string }
+  /** 定时任务：到点让他自己开口（App 活着时真的会说话；关掉时靠通知兜底） */
+  | { kind: "cron.add"; prompt: string; time?: string; at?: string; notify?: boolean }
+  /** 他自己报一笔状态（L0，静默执行；用来画「内在」那条波浪线） */
+  | {
+      kind: "state.report";
+      mood: MoodId;
+      energy: number;
+      missing: number;
+      curious: number;
+      note?: string;
+    }
+  | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
   | { kind: "play.gobang" }
   | { kind: "play.truth" }

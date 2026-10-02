@@ -2,8 +2,9 @@ import { toggleAmbience } from "@/lib/ambience";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
+import { guessKind } from "@/lib/memory";
 import { speakTextAsync } from "@/lib/tts";
-import type { AppAction, FeatureId, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, MoodId, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -24,6 +25,11 @@ function player() {
 
 /** 执行一个动作，返回一句给人看的结果说明。 */
 export async function runAction(action: AppAction, ctx: ActionContext): Promise<string> {
+  /**
+   * 模型偶尔会把字段漏写、写错名（比如给「写信」用了「动态」的 text 字段）。
+   * 直接 .trim() 会当场抛错，把整条动作链弄崩 —— 所以统一从这里取值。
+   */
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
   const st = useApp.getState();
   switch (action.kind) {
     case "navigate":
@@ -162,9 +168,14 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `提醒已设好${action.time ? `（每天 ${action.time}）` : "（App 开着时提醒）"}`;
     }
     case "memory.add": {
-      if (!action.note.trim()) return "没什么可记的";
-      st.addMemory(action.note);
-      return "记住了";
+      const note = str(action.note).trim();
+      if (!note) return "没什么可记的";
+      // 他自己给的标签优先；没给就让同义词表补（老数据也走这条路）
+      const tags = Array.isArray(action.tags)
+        ? action.tags.map((t) => String(t).replace(/^#/, "").trim()).filter(Boolean).slice(0, 8)
+        : undefined;
+      st.addMemoryItem(guessKind(note), note, { source: "对话", tags });
+      return tags?.length ? `记住了（标签：${tags.slice(0, 4).join(" ")}）` : "记住了";
     }
     case "persona.set": {
       const patch: Partial<Settings> = {};
@@ -260,7 +271,7 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return "这类操作不会交给模型执行";
 
     case "moment.post": {
-      const text = action.text.trim();
+      const text = str(action.text).trim();
       if (!text) return "动态得有内容";
       useApp.getState().addMoment(action.mood, text, "ai");
       return `已发一条动态（${text.slice(0, 16)}${text.length > 16 ? "…" : ""}）`;
@@ -268,7 +279,7 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
 
     case "date.add": {
       // 「2026-10-01」这种。不合法就退化成今天，别偷偷记错
-      const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(action.at.trim());
+      const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(str(action.at).trim());
       let at = Date.now();
       if (m) {
         const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
@@ -276,24 +287,67 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
         if (!Number.isNaN(d.getTime())) at = d.getTime();
       }
       const yearly = action.yearly ?? true;
-      useApp.getState().addDate(action.title, at, yearly, action.note);
-      return `记住了：${action.title}（${countdown(at, yearly).label}）`;
+      useApp.getState().addDate(str(action.title), at, yearly, action.note);
+      return `记住了：${str(action.title)}（${countdown(at, yearly).label}）`;
     }
 
     case "todo.add": {
-      const text = action.text.trim();
+      const text = str(action.text).trim();
       if (!text) return "待办得有内容";
       const id = useApp.getState().addTodo(text);
       if (!id) return "待办得有内容";
       return `记进待办了：${text.slice(0, 18)}`;
     }
 
+    case "state.report": {
+      // 静默执行（权限是 L0）：这是他给自己记的一笔，没有任何副作用
+      const clamp = (v: unknown) => {
+        const n = typeof v === "number" ? v : Number(v);
+        return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
+      };
+      const MOODS = ["calm", "joy", "focus", "low", "miss"];
+      const mood = MOODS.includes(str((action as { mood?: unknown }).mood))
+        ? ((action as { mood: MoodId }).mood)
+        : "calm";
+      useApp.getState().addStateSample({
+        mood,
+        energy: clamp(action.energy),
+        missing: clamp(action.missing),
+        curious: clamp(action.curious),
+        note: str((action as { note?: unknown }).note).trim().slice(0, 60) || undefined,
+      });
+      return "记下了此刻的状态";
+    }
+
+    case "cron.add": {
+      const prompt = str((action as { prompt?: unknown }).prompt).trim();
+      if (!prompt) return "定时任务得说清让他做什么";
+      let at: number | undefined;
+      if (action.at) {
+        const t = Date.parse(str(action.at));
+        if (!Number.isNaN(t)) at = t;
+      }
+      useApp.getState().addTask({
+        prompt,
+        time: action.time,
+        at,
+        notify: action.notify ?? true,
+      });
+      return action.time
+        ? `设好了：每天 ${action.time}，他会主动跟你说一句`
+        : at
+          ? `设好了：${new Date(at).toLocaleString("zh-CN", { hour12: false })} 他会主动开口`
+          : "定时任务设好了，去「我的 → 定时任务」能改时间";
+    }
+
     case "letter.write": {
-      const body = action.body.trim();
+      // 模型偶尔会把正文写成 text（跟「发动态」同一个字段名）——
+      // 兼容一下。否则这里 action.body.trim() 会直接抛错，信就没了。
+      const body = (str(action.body) || str((action as { text?: unknown }).text)).trim();
+      const title = str(action.title).trim() || "给你的信";
       if (!body) return "信得有内容";
-      const id = useApp.getState().writeLetter(action.title, body);
-      void id;
-      return "信写好了 —— 我下次打开前端时会跳出拆信动画";
+      useApp.getState().writeLetter(title, body);
+      return `信写好了（「${title}」）—— 去「玩乐 → 动态空间 → 信」，会看到一封没拆的信`;
     }
 
     case "workspace.note": {

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize } from "@/lib/attachments";
-import { QUOTA_LIMIT } from "@/lib/models";
+import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { resolveAiName } from "@/lib/branding";
 import { resetLabel } from "@/lib/greeting";
@@ -39,6 +39,62 @@ type Props = {
 
 export function Composer({ onSend, disabled, streaming }: Props) {
   const [value, setValue] = useState("");
+  const activeChatId = useApp((s) => s.activeId);
+  /**
+   * 草稿保存。
+   *
+   * 原来输入框的字只存在组件里 —— 一跳到别的页面，组件卸载，字就没了，
+   * 回来得重打。这里按对话存进 store（会跟着持久化），
+   * 改动后 300ms 写一次，**卸载前再写一次**（这才是"跳页面也不丢"的关键）。
+   */
+  /**
+   * 草稿用**固定键**。
+   *
+   * 早先按 activeId（对话 id）存，结果踩坑：新建对话时那个 id 会变，
+   * 于是"存进去的键"和"回来取的键"不是一个 —— 字看起来还是丢了，
+   * 而且卸载时还会把旧键擦成空。输入框只有一个，一份草稿就够了。
+   */
+  const draftKey = "composer";
+  /** 最新值的镜像：卸载时要用它，不能用闭包里可能已经过期的 value */
+  const valueRef = useRef("");
+  valueRef.current = value;
+
+  useEffect(() => {
+    const saved = useApp.getState().chatDrafts[draftKey] ?? "";
+    setValue(saved);
+  }, [draftKey]);
+
+  /**
+   * 节流保存。
+   *
+   * ⚠️ 清理函数里**只停定时器、不写 store**：挂载那一刻 value 还是空的，
+   * 早先版本在清理里写了一次，结果把刚存下的草稿又擦成空（实测踩过）。
+   */
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      // 空值不写 —— 否则"刚刷新、store 还没回填"的那一瞬会把草稿擦掉。
+      // 真正清空草稿只有发送之后那一条显式路径（见 send）。
+      if (value) useApp.getState().setChatDraft(draftKey, value);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [value, draftKey]);
+
+  /** 卸载（跳到别的页面）时，用 ref 里的最新值补写一次 —— 这才是"字不丢"的关键 */
+  useEffect(() => {
+    const key = draftKey;
+    return () => {
+      /**
+       * ⚠️ **不要用空值写**。
+       *
+       * React 开发模式（StrictMode）会把组件挂载两次：第一次挂载时草稿刚被
+       * 恢复进 state，紧接着就被卸载 —— 这一刻 valueRef 还是空的，
+       * 写下去就把草稿擦掉了（实测："读完立刻又被读成空"）。
+       * 真正要清空草稿只有一条路：发送之后 setValue("")，那条由节流保存负责。
+       */
+      if (valueRef.current) useApp.getState().setChatDraft(key, valueRef.current);
+    };
+  }, [draftKey]);
+
   const [modelOpen, setModelOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
@@ -60,10 +116,37 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     const t = s.tracks.find((x) => x.id === s.currentId);
     return t ? `${t.name}${s.playing ? " · 播放中" : " · 暂停"}` : "";
   });
+  /**
+   * 今天的**真实**用量（来自每条请求记录的 token）。
+   *
+   * 原来这里显示的是"本机计数已用 88%"——一个抄订阅制的假限制，
+   * 跟用户自己的 API 花费毫无关系，还把他拦在门外过（真事）。
+   * 现在只报真实数字：今天几次、输入/输出多少、缓存省了多少。
+   */
+  const requestLog = useApp((s) => s.requestLog);
+  /** 打字中：藏掉"现在知道"和用量条，只留输入框（键盘已经占掉不少了） */
+  const keyboardUp = useApp((s) => s.keyboardUp);
+  /** 自己带 key = 花自己的钱 → 只统计；走服务端 → 才有窗口额度 */
+  const ownApi = isOwnApi(settings);
   const quota = useApp((s) => s.quota);
   const resetAt = useApp((s) => s.quotaResetAt());
   const usedPct = Math.min(100, Math.round((quota.used / QUOTA_LIMIT) * 100));
-  const showQuota = usedPct >= 70;
+  const showQuota = !ownApi && usedPct >= 70;
+  const usageToday = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const today = requestLog.filter((r) => r.at >= start.getTime());
+    if (today.length === 0) return null;
+    const sum = (k: "prompt" | "completion" | "cached") =>
+      today.reduce((n, r) => n + (r[k] ?? 0), 0);
+    return {
+      calls: today.length,
+      prompt: sum("prompt"),
+      completion: sum("completion"),
+      cached: sum("cached"),
+    };
+  })();
+  const fmtTokens = (n: number) => (n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
   useEffect(() => {
     const el = ta.current;
@@ -77,6 +160,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     if ((!t && pending.length === 0) || disabled) return;
     const atts = pending;
     setValue("");
+    // 发出去了，草稿跟着清掉（这是唯一一条"主动清空草稿"的路径）
+    useApp.getState().setChatDraft(draftKey, "");
     setPending([]);
     onSend(t, atts.length ? atts : undefined);
   }
@@ -178,19 +263,43 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || stickerOpen);
 
   return (
-    <div className="px-4 pb-above-nav-lg">
+    <div className="px-4 pb-composer">
       <div ref={cardRef} className="aster-card rounded-3xl border border-line p-2">
-        {(activity || nowPlaying) && (
-          <p className="mb-1 px-1.5 text-[11px] leading-4 text-subtle">
+        {(activity || nowPlaying) && !keyboardUp && (
+          <p className="mb-1 line-clamp-1 px-1.5 text-[11px] leading-4 text-subtle">
             {aiName} 现在知道：
             {activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""}
             {nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}
           </p>
         )}
-        {showQuota && (
-          <div className="mb-1 flex items-center justify-between rounded-2xl bg-chip px-3 py-2.5">
-            <div>
-              <p className="text-[13px] font-medium text-fg">本机计数 · 已用 {usedPct}%</p>
+        {/* 自己带 key：显示真实 token 用量（本机不限制）—— 打字时先藏起来 */}
+        {ownApi && usageToday && !keyboardUp && (
+          <div className="mb-1 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-fg">
+                今天 {usageToday.calls} 次 · 输入 {fmtTokens(usageToday.prompt)} / 输出{" "}
+                {fmtTokens(usageToday.completion)}
+              </p>
+              <p className="text-[12px] text-muted">
+                {usageToday.cached > 0
+                  ? `缓存命中 ${fmtTokens(usageToday.cached)} tokens · 省钱的是这部分`
+                  : "这是你自己的 API 用量，本机只统计不限制"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/me" })}
+              className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm"
+            >
+              详情
+            </button>
+          </div>
+        )}
+        {/* 走内置服务端：这里才真的会拦（花的是服务端那把 key）—— 打字时也先藏起来 */}
+        {showQuota && !keyboardUp && (
+          <div className="mb-1 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-fg">本窗口已用 {usedPct}%</p>
               <p className="text-[12px] text-muted" suppressHydrationWarning>
                 {resetAt <= Date.now() ? "窗口已过，下次发送重新计数" : resetLabel(resetAt)}
               </p>
@@ -198,7 +307,7 @@ export function Composer({ onSend, disabled, streaming }: Props) {
             <button
               type="button"
               onClick={() => navigate({ to: "/me" })}
-              className="rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm"
+              className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm"
             >
               详情
             </button>
@@ -329,6 +438,14 @@ export function Composer({ onSend, disabled, streaming }: Props) {
           value={value}
           disabled={disabled}
           onChange={(e) => setValue(e.target.value)}
+          /**
+           * 聚焦 = 键盘要弹起来了：把底部导航收下去，给消息腾地方
+           * （用户反馈：导航 + 输入框占了快半个屏幕，打字时看不到消息）。
+           * 失焦时延迟一点再放回来 —— 点「发送」按钮的那一瞬也会失焦，
+           * 不延迟的话导航会闪一下。
+           */
+          onFocus={() => useApp.getState().setKeyboardUp(true)}
+          onBlur={() => window.setTimeout(() => useApp.getState().setKeyboardUp(false), 180)}
           onPaste={(e) => {
             const files = Array.from(e.clipboardData?.files ?? []);
             if (files.length) {

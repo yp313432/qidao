@@ -1,24 +1,22 @@
 import { useState } from "react";
-import { FileText, Puzzle, ScrollText, Trash2, Zap } from "lucide-react";
+import { FileText, Puzzle, Trash2, Zap } from "lucide-react";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
 import { useApp } from "@/lib/store";
 import { useScrollMemory } from "@/lib/ux";
 import { cn, formatDay } from "@/lib/utils";
 
+// 原来的「思考」标签已经去掉：思考链不再归档（回复时当场就能看到）
 const TABS = [
   { id: "http", label: "HTTP", icon: Zap },
   { id: "mcp", label: "MCP", icon: Puzzle },
   { id: "docs", label: "文档", icon: FileText },
-  { id: "think", label: "思考", icon: ScrollText },
 ] as const;
 
 export function ToolsView() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("http");
   const scrollRef = useScrollMemory("tools");
   const docs = useApp((s) => s.docs);
-  const archive = useApp((s) => s.thinkingArchive);
-  const [openThink, setOpenThink] = useState<string | null>(null);
   const [openDoc, setOpenDoc] = useState<string | null>(null);
 
   return (
@@ -97,33 +95,6 @@ export function ToolsView() {
           </div>
         )}
 
-        {tab === "think" && (
-          <div className="space-y-2">
-            <p className="px-1 pb-2 text-[13px] text-muted">
-              思考链随每条回复写入本地。关闭「保存思考链」后，新对话将不再归档。
-            </p>
-            {archive.length === 0 && (
-              <p className="py-10 text-center text-sm text-muted">还没有归档的思考链</p>
-            )}
-            {archive.map((t) => (
-              <article key={t.id} className="rounded-2xl border border-line bg-surface px-4 py-3">
-                <button
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => setOpenThink(openThink === t.id ? null : t.id)}
-                >
-                  <p className="font-medium">{t.title}</p>
-                  <p className="text-[12px] text-muted">{formatDay(t.createdAt)}</p>
-                </button>
-                {openThink === t.id && (
-                  <p className="mt-3 whitespace-pre-wrap text-[13px] leading-6 text-muted">
-                    {t.thinking}
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

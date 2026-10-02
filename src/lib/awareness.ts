@@ -1,4 +1,4 @@
-﻿import { ACTION_PERMISSION } from "@/lib/action-meta";
+import { ACTION_PERMISSION } from "@/lib/action-meta";
 import type { ChatContext } from "@/lib/chat-client";
 import { READINGS } from "@/lib/learn-data";
 import { MODELS } from "@/lib/models";
@@ -108,12 +108,29 @@ export function buildAwarenessItems(): AwarenessItem[] {
     });
   }
 
+  // 定位（用户手动开的才进这里；两小时前的就不提了，免得说"你现在在…"其实是昨天）
+  if (st.settings.geoEnabled && st.settings.geoLabel) {
+    const age = Date.now() - (st.settings.geoAt ?? 0);
+    if (age < 2 * 3600_000) {
+      out.push({
+        id: "geo",
+        title: "他现在在哪",
+        text: `${st.settings.geoLabel}（${Math.max(1, Math.round(age / 60000))} 分钟前定位）`,
+      });
+    }
+  }
+
   // 长期记忆是他自己写下的笔记：只要没被「直接拒绝」，就该能读到
   if (modeOf("memory") !== "deny") {
     out.push({
       id: "memory",
       title: "长期记忆",
-      text: st.memories.length ? clip(st.memories.map((m) => m.text), 6) : "（还没记过什么）",
+      text: st.memories.length
+        ? clip(
+            st.memories.filter((m) => m.status === "active").map((m) => m.content),
+            6,
+          )
+        : "（还没记过什么）",
     });
   }
 

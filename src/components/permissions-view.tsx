@@ -494,7 +494,7 @@ export function PermissionsView() {
             <ul className="space-y-2">
               {memories.map((m) => (
                 <li key={m.id} className="flex items-start justify-between gap-3">
-                  <span className="min-w-0 flex-1 text-[12px] leading-5">{m.text}</span>
+                  <span className="min-w-0 flex-1 text-[12px] leading-5">{m.content}</span>
                   <button
                     type="button"
                     aria-label="删除记忆"
