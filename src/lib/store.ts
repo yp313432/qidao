@@ -1,5 +1,22 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+/**
+ * 保存时给每个对话保留多少条消息的思考链（更老的思考会被丢掉）。
+ * 见 partialize 里的说明：思考链是本地占用的大头，老思考没人回看。
+ */
+const THINKING_KEEP = 40;
+
+/**
+ * 申请「持久化存储」。
+ *
+ * 不申请的话，浏览器在磁盘紧张时**可能自己把我们的数据清掉** ——
+ * 这个 App 里装的是用户的聊天记录、记忆、日记，丢了很要命。
+ * 申请失败也没关系（继续用，只是没那么稳），所以不 await、不报错。
+ */
+if (typeof navigator !== "undefined" && navigator.storage?.persist) {
+  void navigator.storage.persist().catch(() => undefined);
+}
 import { ACTION_PERMISSION, actionTitle } from "./action-meta";
 import { DEFAULT_MCP } from "./mcp";
 import { isOwnApi, QUOTA_LIMIT, QUOTA_WINDOW_MS, type ModelId } from "./models";
@@ -1077,7 +1094,21 @@ export const useApp = create<AppState>()(
       partialize: (s) => ({
         settings: s.settings,
         quota: s.quota,
-        conversations: s.conversations.filter((c) => !c.incognito),
+        // 聊天记录：保存时把**老消息的思考链**丢掉（只留最近 40 条）
+        //
+        // 为什么必须做：用户实测 localStorage 已占 8.66MB（上限通常 5~10MB），
+        // 而里面**思考链占最多**（一条思考经常一两千字），老思考又没人会回去看。
+        // 不清的话随时会写满 —— 而且 localStorage 写满是**静默失败**，很危险。
+        conversations: s.conversations
+          .filter((c) => !c.incognito)
+          .map((c) => ({
+            ...c,
+            messages: c.messages.map((m, i) =>
+              i >= c.messages.length - THINKING_KEEP || !m.thinking
+                ? m
+                : { ...m, thinking: "" },
+            ),
+          })),
         activeId: s.conversations.find((c) => c.id === s.activeId && !c.incognito)?.id ?? null,
         model: s.model,
         mcp: s.mcp,
