@@ -60,7 +60,27 @@ jobs:
           "$SM" "platforms;android-36"
 
       - name: 装依赖
-        run: npm ci
+        env:
+          # playwright 是本地做界面测试用的，构建 APK 完全不需要它 ——
+          # 而它的 postinstall 会去下载 ~150MB 浏览器，在 CI 上是纯粹的浪费和风险
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS: "1"
+        run: |
+          set -o pipefail
+          if npm ci --no-audit --no-fund 2>&1 | tee /tmp/npmci.log; then
+            echo "✅ 依赖安装完成"
+          else
+            # 失败时把关键信息直接打出来 —— 否则只能看到一句"进程退出 1"，
+            # 谁也猜不出真正原因（本地 npm ci --dry-run 是不跑安装脚本的，测不出来）
+            echo "::error::npm ci 失败，下面是关键行"
+            echo "----- node / npm 版本 -----"
+            node -v; npm -v
+            echo "----- 报错关键行 -----"
+            grep -inE "npm error|npm ERR|ERR!|EUSAGE|ERESOLVE|EBADENGINE|Cannot find|not found|ETARGET|ENOTFOUND|integrity|lock" /tmp/npmci.log | head -40 || true
+            echo "----- 日志最后 40 行 -----"
+            tail -40 /tmp/npmci.log
+            exit 1
+          fi
 
       - name: 构建纯前端产物（界面打进 App 本地）
         env:
