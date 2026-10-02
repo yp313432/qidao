@@ -1,4 +1,4 @@
-﻿name: 构建安卓 App（栖岛）
+name: 构建安卓 App（栖岛）
 
 # 你只要在 GitHub 上点一下，就能拿到装到手机上的 APK。
 #
@@ -131,14 +131,14 @@ jobs:
 
       - name: 打包成 APK
         working-directory: android
-        env:
-          # 每次构建递增版本号，方便你分辨装的是哪一版
-          QIDAO_VERSION_CODE: ${{ github.run_number }}
-          QIDAO_VERSION_NAME: "1.0.${{ github.run_number }}"
         run: |
           set -o pipefail
           chmod +x gradlew
-          if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log; then
+          # 版本号用 -P 属性传（不用环境变量：Gradle 配置阶段读 env 会拿到 null，
+          # AGP 只会抛一句 "Value is null"，为此折腾了 8 轮 CI 才定位到）
+          if ./gradlew assembleRelease --no-daemon --stacktrace \
+               -PqidaoVersionCode=${{ github.run_number }} \
+               -PqidaoVersionName=1.0.${{ github.run_number }} 2>&1 | tee /tmp/gradle.log; then
             echo "✅ APK 打包完成"
           else
             # "Value is null" 只看这一句定位不了 —— 需要 at com.android.xxx 那几行
