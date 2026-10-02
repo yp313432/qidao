@@ -27,6 +27,17 @@
     -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
+    <!--
+      安卓 11+ 的包可见性：不声明这一段，应用**查不到**系统的语音识别服务，
+      原生语音识别会直接报"没有可用的识别引擎"。
+      （用户实测：语音页一直"识别不到你的声音"、转文字是空的。）
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

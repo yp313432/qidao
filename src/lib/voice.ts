@@ -4,6 +4,8 @@
  * 说明白边界：这是「说话 → 文字 → 他回 → 朗读」的回合制语音模式，
  * **不是把音频发给他听**。真语音需要支持音频的模型 + 实时通道。
  */
+import { startNativeListening } from "@/lib/asr";
+import { IS_APP } from "@/lib/platform";
 import { speakTextAsync } from "@/lib/tts";
 
 type SpeechResultEvent = {
@@ -34,6 +36,8 @@ function RecognitionCtor(): (new () => SpeechRec) | null {
 }
 
 export function sttSupported(): boolean {
+  // App 里走**原生**识别（安卓 WebView 没有 SpeechRecognition），所以照样算支持
+  if (IS_APP) return true;
   return Boolean(RecognitionCtor());
 }
 
@@ -51,6 +55,16 @@ export function startListening(opts: {
   onEnd?: () => void;
   onError?: (err: string) => void;
 }): ListenHandle | null {
+  /**
+   * ⚠️ App 里先走**原生**识别。
+   *
+   * 安卓 WebView 没有 SpeechRecognition —— 用户实测："语音总说识别不到我的声音，
+   * 转文字也是空的，语音条也不可以"，全都是这个原因。
+   * 保持这个函数签名不变，调用方（语音页、语音条）就一起修好了。
+   */
+  const native = startNativeListening(opts);
+  if (native) return native;
+
   const Ctor = RecognitionCtor();
   if (!Ctor) return null;
   const rec = new Ctor();

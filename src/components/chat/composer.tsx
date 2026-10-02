@@ -16,6 +16,9 @@ import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize } from "@/lib/attachments";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
+import { startNativeListening } from "@/lib/asr";
+import { IS_APP } from "@/lib/platform";
+import { resolveVoiceLang } from "@/lib/voice";
 import { resolveAiName } from "@/lib/branding";
 import { resetLabel } from "@/lib/greeting";
 import type { Attachment } from "@/lib/types";
@@ -103,6 +106,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const [recMs, setRecMs] = useState<number | null>(null);
   const [recErr, setRecErr] = useState("");
   const recRef = useRef<Recorder | null>(null);
+  /** App 里用原生识别时，这里是它的句柄（跟录音二选一） */
+  const asrRef = useRef<{ stop: () => void } | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
   const model = useApp((s) => s.model);
@@ -196,9 +201,42 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   /* ---------------- 语音消息 ---------------- */
 
   async function startRec() {
-    if (disabled || recRef.current) return;
+    if (disabled || recRef.current || asrRef.current) return;
     setRecErr("");
     setPlusOpen(false);
+
+    /**
+     * App 里走**原生语音识别**。
+     *
+     * 安卓 WebView 没有 SpeechRecognition，原来那条路永远拿不到文字 ——
+     * 用户实测："语音条也不可以、转文字是空的"。
+     * 另外安卓不允许"识别"和"录音"同时占麦克风，所以这里只做识别：
+     * 识别出来的文字直接写进输入框，你确认（或改一下）再发。
+     */
+    if (IS_APP) {
+      const handle = startNativeListening({
+        lang: resolveVoiceLang(settings.voiceLang),
+        onFinal: (text) =>
+          setValue((v) => (v ? `${v}${/\s$/.test(v) ? "" : " "}${text}` : text)),
+        onEnd: () => {
+          asrRef.current = null;
+          setRecMs(null);
+        },
+        onError: (msg) => {
+          setRecErr(msg);
+          asrRef.current = null;
+          setRecMs(null);
+        },
+      });
+      if (!handle) {
+        setRecErr("这个版本没接上语音识别，装最新版再试。");
+        return;
+      }
+      asrRef.current = handle;
+      setRecMs(0);
+      return;
+    }
+
     if (!recordSupported()) {
       setRecErr("这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。");
       return;
@@ -221,6 +259,13 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   }
 
   async function stopRec(send: boolean) {
+    // App 里"停止"= 结束识别；文字已经写进输入框了，不用再发音频
+    if (asrRef.current) {
+      asrRef.current.stop();
+      asrRef.current = null;
+      setRecMs(null);
+      return;
+    }
     const rec = recRef.current;
     recRef.current = null;
     setRecMs(null);

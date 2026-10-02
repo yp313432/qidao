@@ -96,16 +96,16 @@ export async function collectEnv(): Promise<EnvItem[]> {
   items.push({
     id: "stt",
     label: "语音识别（说话转文字）",
-    // App 里的安卓 WebView 没有这个接口 —— 这是环境事实，不是坏了。
-    // 文案必须说清楚"去哪能用"，而不是含糊地让人以为功能没做。
-    status: IS_APP ? "warn" : hasSR && secure ? "ok" : hasSR ? "warn" : "no",
+    // App 里现在走**原生**识别（安卓系统引擎），所以是 ✅；
+    // 之前这里判的是浏览器接口 —— 安卓 WebView 没有它，所以总是 ❌（用户实测就是这个问题）。
+    status: IS_APP ? "ok" : hasSR && secure ? "ok" : hasSR ? "warn" : "no",
     detail: IS_APP
-      ? "App 里暂时没有语音输入（安卓 WebView 不提供语音识别接口）"
+      ? "App 里走安卓系统自带的识别引擎（依赖手机装的语音服务，通常是 Google 或厂商自带）"
       : hasSR
         ? "接口可用（识别过程在云端，要联网）"
         : "这个外壳没提供语音识别",
     fix: IS_APP
-      ? "想用语音输入：用手机浏览器（Chrome / Edge）打开网页版；或者等我们接入安卓原生识别。"
+      ? undefined
       : hasSR && secure
         ? undefined
         : hasSR
