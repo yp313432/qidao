@@ -1,4 +1,4 @@
-import type { PermissionMode } from "./types";
+﻿import type { PermissionMode } from "./types";
 
 /**
  * AI 权限目录 —— 全站唯一的权限真源。
@@ -90,7 +90,6 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "reminder", title: "创建提醒 / 待办", hint: "到点提醒你（App 开着时）", risk: "L2", status: "ready", group: "write" },
   { id: "memory", title: "长期记忆", hint: "记住你的偏好与项目上下文（只存本机）", risk: "L2", status: "ready", group: "write" },
   { id: "persona", title: "修改他自己的人设", hint: "改他自己的名字与自述", risk: "L2", status: "ready", group: "write" },
-  { id: "changelog", title: "记录改动到工作区", hint: "把改动写进变更时间线，方便回头纠错", risk: "L2", status: "ready", group: "write" },
   { id: "moment_post", title: "发布动态", hint: "在「动态空间」里发一条此刻的心情", risk: "L2", status: "ready", group: "write" },
   { id: "letter_write", title: "写信给我", hint: "写一封新的信；我下次进前端时会跳出拆信动画", risk: "L2", status: "ready", group: "write" },
   { id: "date_add", title: "记住一个重要日子", hint: "生日、纪念日、约好的那天 —— 他记下来并帮你倒数", risk: "L2", status: "ready", group: "write" },
@@ -125,7 +124,6 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "web_search", title: "网页搜索 / 抓取", hint: "去外面查资料", risk: "L2", status: "todo", group: "tools" },
   { id: "own_api", title: "调用你自己的 API / 代理", hint: "你的自建服务", risk: "L2", status: "todo", group: "tools" },
   { id: "scheduled_job", title: "定时任务", hint: "让他按时自己开口（App 活着时真的会说；关着靠通知兜底）", risk: "L2", status: "partial", group: "tools" },
-  { id: "workspace_fs", title: "读工作区文件", hint: "需要服务端进程", risk: "L2", status: "todo", group: "tools" },
 
   // ---------------- 破坏性与高危 ----------------
   { id: "delete_chat", title: "删除对话", hint: "删掉一个对话及其思考链", risk: "L3", status: "ready", group: "danger" },

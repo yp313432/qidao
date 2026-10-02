@@ -973,19 +973,6 @@ export function MeView() {
             </span>
             <ChevronRight className="size-4 shrink-0 text-muted" />
           </Link>
-          <Link
-            to="/workspace"
-            className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-          >
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium">工作区</span>
-              <span className="mt-0.5 block text-[11px] text-muted">文件树 + 变更时间线</span>
-              <span className="mt-0.5 block text-[11px] text-subtle">
-                实时扫盘 · 点变更里的文件名可直接定位
-              </span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-muted" />
-          </Link>
         </div>
       </Section>
 

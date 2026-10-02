@@ -350,27 +350,6 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `信写好了（「${title}」）—— 去「玩乐 → 动态空间 → 信」，会看到一封没拆的信`;
     }
 
-    case "workspace.note": {
-      const title = action.title.trim();
-      if (!title) return "记录得有标题";
-      try {
-        const res = await fetch("/api/workspace", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            title,
-            detail: action.detail ?? "",
-            files: action.files ?? [],
-          }),
-        });
-        const out = (await res.json()) as { ok?: boolean; message?: string; total?: number };
-        if (!out.ok) return out.message ?? "写记录失败";
-        return `已记下「${title}」${typeof out.total === "number" ? `（现在共 ${out.total} 条）` : ""}`;
-      } catch (err) {
-        return `写记录失败：${(err as Error).message || "网络错误"}`;
-      }
-    }
-
     case "ambience.play":
       return toggleAmbience(action.index ?? 0);
     case "media.import": {

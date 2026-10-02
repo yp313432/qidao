@@ -394,23 +394,6 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction(
                   {
-                    kind: "workspace.note",
-                    title: "试写一条变更记录",
-                    detail: "由「试一试」触发：验证权限闸门与写接口是否打通。",
-                    files: ["changelog.json"],
-                  },
-                  "试一试",
-                )
-              }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
-            >
-              试一试：记一条改动
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                useApp.getState().requestAction(
-                  {
                     kind: "moment.post",
                     mood: "joy",
                     text: "试一试：他刚发了一条动态。",

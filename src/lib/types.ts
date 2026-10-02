@@ -510,7 +510,6 @@ export type AppAction =
   | { kind: "media.clear" }
   | { kind: "data.reset" }
   | { kind: "settings.setUpstream"; baseUrl?: string; apiKey?: string }
-  | { kind: "workspace.note"; title: string; detail?: string; files?: string[] }
   | { kind: "moment.post"; mood: MoodId; text: string }
   | { kind: "letter.write"; title: string; body: string }
   | { kind: "date.add"; title: string; at: string; yearly?: boolean; note?: string }

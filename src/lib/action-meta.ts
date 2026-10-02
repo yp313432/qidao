@@ -1,4 +1,4 @@
-import type { AppAction, PermissionId } from "@/lib/types";
+﻿import type { AppAction, PermissionId } from "@/lib/types";
 
 /** 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。 */
 export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
@@ -44,7 +44,6 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "media.clear": "clear_music",
   "data.reset": "reset_all",
   "settings.setUpstream": "edit_upstream",
-  "workspace.note": "changelog",
   "moment.post": "moment_post",
   "letter.write": "letter_write",
   "date.add": "date_add",
@@ -154,8 +153,6 @@ export function actionTitle(action: AppAction): string {
       return "清空全部数据、恢复默认设置";
     case "settings.setUpstream":
       return "修改上游地址 / API Key";
-    case "workspace.note":
-      return `记一条改动：${action.title.slice(0, 20)}`;
     case "moment.post":
       return `发一条动态：${action.text.slice(0, 18)}`;
     case "letter.write":

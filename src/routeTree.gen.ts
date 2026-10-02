@@ -22,12 +22,10 @@ import { Route as AppPlayRouteImport } from './routes/_app/play'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppToolsRouteImport } from './routes/_app/tools'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
-import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
-import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
@@ -107,11 +105,6 @@ const AppVoiceRoute = AppVoiceRouteImport.update({
   path: '/voice',
   getParentRoute: () => AppRoute,
 } as any)
-const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
-  id: '/workspace',
-  path: '/workspace',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppWorldbookRoute = AppWorldbookRouteImport.update({
   id: '/worldbook',
   path: '/worldbook',
@@ -130,11 +123,6 @@ const ApiLyricsRoute = ApiLyricsRouteImport.update({
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
-  id: '/api/workspace',
-  path: '/api/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPlayIndexRoute = AppPlayIndexRouteImport.update({
@@ -221,12 +209,10 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/voice': typeof AppVoiceRoute
-  '/workspace': typeof AppWorkspaceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/workspace': typeof ApiWorkspaceRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
   '/play/gobang': typeof AppPlayGobangRoute
@@ -253,12 +239,10 @@ export interface FileRoutesByTo {
   '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/voice': typeof AppVoiceRoute
-  '/workspace': typeof AppWorkspaceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/workspace': typeof ApiWorkspaceRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -289,12 +273,10 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRoute
   '/_app/tools': typeof AppToolsRoute
   '/_app/voice': typeof AppVoiceRoute
-  '/_app/workspace': typeof AppWorkspaceRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/workspace': typeof ApiWorkspaceRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
   '/_app/play/days': typeof AppPlayDaysRoute
@@ -326,12 +308,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/tools'
     | '/voice'
-    | '/workspace'
     | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
-    | '/api/workspace'
     | '/play/add'
     | '/play/days'
     | '/play/gobang'
@@ -358,12 +338,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/tools'
     | '/voice'
-    | '/workspace'
     | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
-    | '/api/workspace'
     | '/'
     | '/play/add'
     | '/play/days'
@@ -393,12 +371,10 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/_app/tools'
     | '/_app/voice'
-    | '/_app/workspace'
     | '/_app/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
-    | '/api/workspace'
     | '/_app/'
     | '/_app/play/add'
     | '/_app/play/days'
@@ -421,7 +397,6 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
   ApiModelsRoute: typeof ApiModelsRoute
-  ApiWorkspaceRoute: typeof ApiWorkspaceRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
 }
@@ -519,13 +494,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVoiceRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/workspace': {
-      id: '/_app/workspace'
-      path: '/workspace'
-      fullPath: '/workspace'
-      preLoaderRoute: typeof AppWorkspaceRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/worldbook': {
       id: '/_app/worldbook'
       path: '/worldbook'
@@ -552,13 +520,6 @@ declare module '@tanstack/react-router' {
       path: '/api/models'
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/workspace': {
-      id: '/api/workspace'
-      path: '/api/workspace'
-      fullPath: '/api/workspace'
-      preLoaderRoute: typeof ApiWorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/play/': {
@@ -707,7 +668,6 @@ interface AppRouteChildren {
   AppTasksRoute: typeof AppTasksRoute
   AppToolsRoute: typeof AppToolsRoute
   AppVoiceRoute: typeof AppVoiceRoute
-  AppWorkspaceRoute: typeof AppWorkspaceRoute
   AppWorldbookRoute: typeof AppWorldbookRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -724,7 +684,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppTasksRoute: AppTasksRoute,
   AppToolsRoute: AppToolsRoute,
   AppVoiceRoute: AppVoiceRoute,
-  AppWorkspaceRoute: AppWorkspaceRoute,
   AppWorldbookRoute: AppWorldbookRoute,
   AppIndexRoute: AppIndexRoute,
 }
@@ -736,7 +695,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiLyricsRoute: ApiLyricsRoute,
   ApiModelsRoute: ApiModelsRoute,
-  ApiWorkspaceRoute: ApiWorkspaceRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
 }
