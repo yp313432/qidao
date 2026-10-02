@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -16,7 +16,7 @@ import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize } from "@/lib/attachments";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
-import { startNativeListening } from "@/lib/asr";
+import { startListening } from "@/lib/voice";
 import { IS_APP } from "@/lib/platform";
 import { resolveVoiceLang } from "@/lib/voice";
 import { resolveAiName } from "@/lib/branding";
@@ -214,22 +214,39 @@ export function Composer({ onSend, disabled, streaming }: Props) {
      * 识别出来的文字直接写进输入框，你确认（或改一下）再发。
      */
     if (IS_APP) {
-      const handle = startNativeListening({
+      /**
+       * 走 startListening（它内部会按情况选路）：
+       *   配了语音服务 → 自己录音 + 上传转文字（**唯一在荣耀上真能用的路** ✅）
+       *   没配 → 退回系统识别
+       *
+       * 之前这里直接调 startNativeListening，等于绕过了语音服务 ——
+       * 用户实测："语音通话欧克了，但是对话框旁边那个还是不行，录不上语音，一直是零秒" ✅
+       */
+      const t0 = Date.now();
+      const tick = window.setInterval(() => setRecMs(Date.now() - t0), 200);
+      const handle = startListening({
         lang: resolveVoiceLang(settings.voiceLang),
+        onPartial: (t) => {
+          // 服务那条路会推一句"录音中…"，当提示显示；识别到的中间结果照常显示
+          if (t && !t.startsWith("（")) setRecErr("");
+        },
         onFinal: (text) =>
           setValue((v) => (v ? `${v}${/\s$/.test(v) ? "" : " "}${text}` : text)),
         onEnd: () => {
+          window.clearInterval(tick);
           asrRef.current = null;
           setRecMs(null);
         },
         onError: (msg) => {
+          window.clearInterval(tick);
           setRecErr(msg);
           asrRef.current = null;
           setRecMs(null);
         },
       });
       if (!handle) {
-        setRecErr("这个版本没接上语音识别，装最新版再试。");
+        window.clearInterval(tick);
+        setRecErr("这个版本没接上语音，装最新版再试。");
         return;
       }
       asrRef.current = handle;
