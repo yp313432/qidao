@@ -1,5 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+﻿import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { idbStorage } from "@/lib/idb-storage";
 
 /**
  * 保存时给每个对话保留多少条消息的思考链（更老的思考会被丢掉）。
@@ -1047,6 +1048,16 @@ export const useApp = create<AppState>()(
     {
       name: "aster-app",
       version: 1,
+      /**
+       * 存到 **IndexedDB**，不是 localStorage。
+       *
+       * 用户实测 localStorage 已占 8.66MB（上限通常 5~10MB）→ 随时写满，
+       * 而 localStorage 写满是**静默失败**（新消息存不进去、界面还不报错）。
+       * IndexedDB 的额度按磁盘算（用户机器上约 131GB），换算约四百万条消息。
+       * 用户说"没啥要备份的，都是测试的记录"，所以老的 localStorage 那份
+       * 在第一次写入成功后会被删掉（见 idb-storage.ts）—— 不用做数据迁移。
+       */
+      storage: createJSONStorage(() => idbStorage),
       // 老快照可能缺 font / textTone / textColor / background 等新字段，
       // 用默认值补齐，避免升级后读到 undefined。
       merge: (persisted, current) => {
