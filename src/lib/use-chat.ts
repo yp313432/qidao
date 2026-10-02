@@ -67,6 +67,7 @@ export function useChatStream() {
             tools,
             customBaseUrl: settings.customBaseUrl || undefined,
             customApiKey: settings.customApiKey || undefined,
+            upstreamModel: settings.upstreamModel || undefined,
             name: settings.displayName,
             aiName,
             persona: settings.persona || undefined,

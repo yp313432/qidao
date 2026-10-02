@@ -1,4 +1,4 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { getModel, type ModelId, type ReasoningEffort } from "@/lib/models";
 import { estimateTokens, shortHash } from "@/lib/tokens";
 import type { ReplyStyle } from "@/lib/types";
@@ -10,6 +10,15 @@ type Body = {
   tools: { name: string; tools: string[] }[];
   customBaseUrl?: string;
   customApiKey?: string;
+  /**
+   * 自定义上游要用的**真实模型名**。
+   *
+   * 内置那三档（快答/均衡/深思）只是我们自己的推理力度分层；
+   * 换成别家（DeepSeek / 智谱 / 通义…）时，模型名得听对方的 ——
+   * 早先这里写死过一个厂商名，于是上游回来一句「不支持的模型名」，
+   * 看起来像密钥不对，其实是名字不对。
+   */
+  upstreamModel?: string;
   name: string;
   aiName?: string;
   /** 他的人设/自述 */
@@ -40,7 +49,7 @@ function systemPrompt(body: Body): string {
   const who = body.name?.trim() || "yan";
   const self = body.aiName?.trim() || "星芒";
   return `你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
-界面灵感来自 Claude 类对话产品，后端经 claude-code-proxy 风格的模型映射，实际推理模型为 grok-4.5。
+你在「栖岛」里 —— 这是用户一个人的私人空间，界面和内容都只属于他。
 用用户的语言回答。${STYLE[body.style] ?? STYLE.default}
 思考在内部完成；正文不要重复「让我思考」之类的套话。${
     body.persona?.trim() ? `\n你给自己写下的设定：${body.persona.trim()}` : ""
@@ -161,12 +170,41 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const model = getModel(body.model ?? "sonnet");
+
+        /**
+         * 上游怎么定：**不绑定任何厂商**。
+         *
+         *   ① 用户在「我的 → 自定义上游」里填了地址+密钥 → 用他的（密钥只在他设备上）
+         *   ② 否则用服务端环境变量配的那份（QIDAO_UPSTREAM_BASE / KEY / MODEL）
+         *   ③ 都没有 → 明确告诉他要配什么，而不是偷偷调某个厂商的接口
+         */
+        const builtinBase = (process.env.QIDAO_UPSTREAM_BASE ?? "").trim();
+        const builtinKey = (process.env.QIDAO_UPSTREAM_KEY ?? "").trim();
+        const builtinModel = (process.env.QIDAO_UPSTREAM_MODEL ?? "").trim();
+
         const useCustom = Boolean(body.customBaseUrl && body.customApiKey);
-        const apiKey = useCustom ? body.customApiKey : process.env.XAI_API_KEY;
-        if (!apiKey) {
-          return Response.json({ error: "当前环境暂未开通模型接口" }, { status: 503 });
+        const apiKey = useCustom ? body.customApiKey : builtinKey;
+        const base = (useCustom ? body.customBaseUrl : builtinBase)?.replace(/\/+$/, "");
+        const upstreamModel = (useCustom ? body.upstreamModel?.trim() : "") || builtinModel;
+
+        if (!apiKey || !base) {
+          return Response.json(
+            {
+              error:
+                "还没接模型：去「我的 → 自定义上游」填地址和密钥（推荐），或让服务端设 QIDAO_UPSTREAM_BASE / QIDAO_UPSTREAM_KEY。",
+            },
+            { status: 503 },
+          );
         }
-        const base = (useCustom ? body.customBaseUrl : "https://api.x.ai/v1")?.replace(/\/$/, "");
+        if (!upstreamModel) {
+          return Response.json(
+            {
+              error:
+                "还差模型名：自定义上游要填「上游模型名」（可点「拉取可用模型」问对方要列表）。",
+            },
+            { status: 400 },
+          );
+        }
 
         const staticPrompt = systemPrompt(body);
         const perception = perceptionBlock(body);
@@ -202,13 +240,16 @@ export const Route = createFileRoute("/api/chat")({
           model: body.model,
         };
 
+        // 自定义上游：模型名听对方的；没填就用服务端配的那个
         const payload: Record<string, unknown> = {
-          model: "grok-4.5",
+          model: upstreamModel,
           messages,
           stream: true,
           max_tokens: model.maxTokens,
-          reasoning_effort: model.effort as ReasoningEffort,
         };
+        // reasoning_effort 是 xAI 的参数；别家 OpenAI 兼容接口可能直接报错，
+        // 所以只有走内置时才带它。
+        if (!useCustom) payload.reasoning_effort = model.effort as ReasoningEffort;
 
         const upstream = await fetch(`${base}/chat/completions`, {
           method: "POST",

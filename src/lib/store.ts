@@ -63,6 +63,8 @@ const defaultSettings: Settings = {
   defaultModel: "sonnet",
   customBaseUrl: "",
   customApiKey: "",
+  upstreamModel: "",
+  upstreamModels: [],
   background: { image: "", blur: 24, dim: 0.15, opacity: 0.9 },
   font: "system",
   textTone: "auto",

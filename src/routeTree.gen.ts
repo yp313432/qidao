@@ -21,6 +21,7 @@ import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
+import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
@@ -94,6 +95,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
 const ApiLyricsRoute = ApiLyricsRouteImport.update({
   id: '/api/lyrics',
   path: '/api/lyrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiModelsRoute = ApiModelsRouteImport.update({
+  id: '/api/models',
+  path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/workspace': typeof AppWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
+  '/api/models': typeof ApiModelsRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/workspace': typeof AppWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
+  '/api/models': typeof ApiModelsRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/_app/workspace': typeof AppWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
+  '/api/models': typeof ApiModelsRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
@@ -271,6 +280,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/lyrics'
+    | '/api/models'
     | '/api/workspace'
     | '/play/add'
     | '/play/days'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/lyrics'
+    | '/api/models'
     | '/api/workspace'
     | '/'
     | '/play/add'
@@ -326,6 +337,7 @@ export interface FileRouteTypes {
     | '/_app/workspace'
     | '/api/chat'
     | '/api/lyrics'
+    | '/api/models'
     | '/api/workspace'
     | '/_app/'
     | '/_app/play/add'
@@ -348,6 +360,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
+  ApiModelsRoute: typeof ApiModelsRoute
   ApiWorkspaceRoute: typeof ApiWorkspaceRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
@@ -437,6 +450,13 @@ declare module '@tanstack/react-router' {
       path: '/api/lyrics'
       fullPath: '/api/lyrics'
       preLoaderRoute: typeof ApiLyricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/models': {
+      id: '/api/models'
+      path: '/api/models'
+      fullPath: '/api/models'
+      preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workspace': {
@@ -610,6 +630,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiLyricsRoute: ApiLyricsRoute,
+  ApiModelsRoute: ApiModelsRoute,
   ApiWorkspaceRoute: ApiWorkspaceRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,

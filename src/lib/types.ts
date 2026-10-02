@@ -199,6 +199,13 @@ export type Settings = {
   defaultModel: ModelId;
   customBaseUrl: string;
   customApiKey: string;
+  /** 自定义上游的真实模型名（例如 deepseek-v4-pro）；留空则用服务端配的 QIDAO_UPSTREAM_MODEL */
+  upstreamModel: string;
+  /**
+   * 上游可用的模型名列表（从 /models 拉来的）。
+   * 对话框那个模型选择器显示的就是它 —— **真实可用的名字**，不是摆设的档位。
+   */
+  upstreamModels: string[];
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;

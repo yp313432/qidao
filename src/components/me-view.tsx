@@ -85,6 +85,44 @@ export function MeView() {
   const [toast, setToast] = useState("");
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
+  // 拉取上游模型名：省得用户猜（猜错只会得到一句看不懂的英文报错）
+  const [models, setModels] = useState<string[]>([]);
+  const [modelMsg, setModelMsg] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
+
+  async function probeModels() {
+    setProbing(true);
+    setModelMsg(null);
+    setModels([]);
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: settings.customBaseUrl,
+          apiKey: settings.customApiKey,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        models?: string[];
+        message?: string;
+      };
+      if (json.ok && json.models?.length) {
+        setModels(json.models);
+        // 存进设置里 —— 对话框那个模型选择器显示的就是这份列表
+        patch({ upstreamModels: json.models });
+        setModelMsg(`上游列了 ${json.models.length} 个模型 —— 点一个就用它`);
+      } else {
+        setModelMsg(json.message ?? "没拉到模型列表，手动填吧");
+      }
+    } catch (err) {
+      setModelMsg(`请求失败：${(err as Error).message || "网络错误"}`);
+    } finally {
+      setProbing(false);
+    }
+  }
+
   const scrollRef = useScrollMemory("me");
 
   useEffect(() => {
@@ -632,11 +670,11 @@ export function MeView() {
 
       <Section title="自定义上游">
         <p className="mb-2 text-[12px] leading-5 text-muted">
-          默认走内置 xAI（grok-4.5），映射自 Haiku / Sonnet / Opus，兼容{" "}
-          <a className="underline" href="https://github.com/1rgs/claude-code-proxy" target="_blank" rel="noreferrer">
-            claude-code-proxy
-          </a>{" "}
-          的模型分层。若你自建了 OpenAI 兼容代理，可填入地址与密钥（只存在本机）。
+          栖岛不绑定任何模型厂商 —— 接哪家都行（DeepSeek、智谱、通义，或任何 OpenAI
+          兼容接口）。填三样：地址、密钥、模型名。
+          <br />
+          密钥<span className="text-fg">只存在这台设备的浏览器里</span>
+          ，不进代码、不进仓库。
         </p>
         <input
           value={settings.customBaseUrl}
@@ -651,6 +689,56 @@ export function MeView() {
           placeholder="API Key"
           className="h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none"
         />
+
+        {/* 模型名：换一家 API 最容易踩的坑 —— 名字得听对方的。
+            猜错的话上游只回一句英文报错，看起来像密钥不对，极难定位。 */}
+        <div className="mt-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={settings.upstreamModel}
+              onChange={(e) => patch({ upstreamModel: e.target.value.trim() })}
+              placeholder="上游模型名，例如 deepseek-v4-pro"
+              aria-label="上游模型名"
+              className="h-11 min-w-0 flex-1 rounded-2xl bg-chip px-3 text-sm outline-none"
+            />
+            <button
+              type="button"
+              disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
+              onClick={probeModels}
+              className="h-11 shrink-0 rounded-2xl bg-chip px-3.5 text-[12px] font-medium disabled:opacity-40"
+            >
+              {probing ? "问上游…" : "拉取可用模型"}
+            </button>
+          </div>
+
+          {modelMsg && <p className="mt-1.5 text-[11px] leading-4 text-warn">{modelMsg}</p>}
+
+          {models.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {models.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    patch({ upstreamModel: m });
+                    setModels([]);
+                    setModelMsg(`已选 ${m}`);
+                  }}
+                  className="rounded-full bg-chip px-3 py-1.5 font-mono text-[11px]"
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            用自定义地址时这一格<span className="text-fg">必须填</span>
+            —— 上面三档只是推理力度；不填就会把无效的模型名发出去，对方只会回一句英文报错。
+            <br />
+            不记得名字就点「拉取可用模型」，直接问对方要列表。
+          </p>
+        </div>
       </Section>
 
       <Section title="开发与纠错">

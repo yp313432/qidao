@@ -47,6 +47,8 @@ export type ChatRequest = {
   tools: { name: string; tools: string[] }[];
   customBaseUrl?: string;
   customApiKey?: string;
+  /** 自定义上游的真实模型名（留空则用服务端配的） */
+  upstreamModel?: string;
   name: string;
   /** AI 的名字（用户在设置里自填），用于服务端拼系统提示词 */
   aiName?: string;

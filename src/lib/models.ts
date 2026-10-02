@@ -11,30 +11,39 @@ export type ModelOption = {
   mapping: string;
 };
 
+/**
+ * 三档「推理力度」。
+ *
+ * 注意：这里的 id（haiku / sonnet / opus）只是**本地标识**，历史数据里存的就是它们，
+ * 所以别改 id；改动只发生在 label / subtitle —— 那些是给人看的。
+ *
+ * 真正的模型名**不在这里**：走哪家由用户在「我的 → 自定义上游」里填
+ * （或服务端用 QIDAO_UPSTREAM_MODEL 配）。这个文件不该出现任何厂商名。
+ */
 export const MODELS: ModelOption[] = [
   {
     id: "haiku",
-    label: "Haiku 4.5 Fast",
+    label: "快答",
     subtitle: "更快，适合日常问答",
     effort: "low",
     maxTokens: 1024,
-    mapping: "grok-4.5 · low",
+    mapping: "轻",
   },
   {
     id: "sonnet",
-    label: "Sonnet 5.5 Medium",
+    label: "均衡",
     subtitle: "均衡的思考与表达",
     effort: "medium",
     maxTokens: 2048,
-    mapping: "grok-4.5 · medium",
+    mapping: "中",
   },
   {
     id: "opus",
-    label: "Opus 4.5 High",
+    label: "深思",
     subtitle: "更深的推理链",
     effort: "high",
     maxTokens: 3072,
-    mapping: "grok-4.5 · high",
+    mapping: "深",
   },
 ];
 

@@ -1,8 +1,9 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
   AudioLines,
+  Check,
   ChevronDown,
   Mic,
   Paperclip,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize } from "@/lib/attachments";
-import { MODELS, QUOTA_LIMIT, getModel, type ModelId } from "@/lib/models";
+import { QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { resolveAiName } from "@/lib/branding";
 import { resetLabel } from "@/lib/greeting";
@@ -49,6 +50,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
   const model = useApp((s) => s.model);
+  const settings = useApp((s) => s.settings);
+  const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
   const activity = useApp((s) => s.activity);
@@ -103,11 +106,6 @@ export function Composer({ onSend, disabled, streaming }: Props) {
       dataUrl,
     };
     onSend("", [att]);
-  }
-
-  function pickModel(id: ModelId) {
-    setModel(id);
-    setModelOpen(false);
   }
 
   /* ---------------- 语音消息 ---------------- */
@@ -169,8 +167,6 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     if (!body?.trim()) return;
     setValue((v) => `${v}${v ? "\n\n" : ""}【${name || "附注"}】\n${body.trim()}`);
   }
-
-  const current = getModel(model);
 
   // 点弹层外面就收起（不用等抬手，手机上更顺手）
   const cardRef = useRef<HTMLDivElement>(null);
@@ -439,27 +435,50 @@ export function Composer({ onSend, disabled, streaming }: Props) {
               }}
               className="flex h-11 w-full items-center justify-between gap-2 rounded-full bg-chip px-4 text-[13px] font-medium"
             >
-              <span className="truncate">{current.label}</span>
+              <span className="truncate font-mono text-[12px]">
+                {settings.upstreamModel || "未选模型"}
+              </span>
               <ChevronDown className="size-4 text-muted" />
             </button>
             {modelOpen && (
               <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
-                {MODELS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => pickModel(m.id)}
-                    className={cn(
-                      "flex w-full flex-col items-start px-3 py-2.5 text-left",
-                      m.id === model && "bg-chip",
-                    )}
-                  >
-                    <span className="text-sm font-medium">{m.label}</span>
-                    <span className="text-[12px] text-muted">{m.subtitle}</span>
-                  </button>
-                ))}
+                {settings.upstreamModels.length > 0 ? (
+                  settings.upstreamModels.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        patch({ upstreamModel: m });
+                        setModelOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left",
+                        m === settings.upstreamModel && "bg-chip",
+                      )}
+                    >
+                      <span className="truncate font-mono text-[13px]">{m}</span>
+                      {m === settings.upstreamModel && <Check className="size-3.5 text-accent" />}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2.5">
+                    <p className="text-[12px] leading-5 text-muted">
+                      还没配模型 —— 要先告诉栖岛用哪家、用哪个模型。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelOpen(false);
+                        void navigate({ to: "/me" });
+                      }}
+                      className="mt-2 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium"
+                    >
+                      去「我的 → 自定义上游」配
+                    </button>
+                  </div>
+                )}
                 <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
-                  以上都会映射到 grok-4.5，只是推理档位（low / medium / high）不同。
+                  这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。
                 </p>
               </div>
             )}
