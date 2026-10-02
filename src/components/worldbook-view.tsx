@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { resolveAiName } from "@/lib/branding";
+import { buildManual } from "@/lib/manual";
+import { PERMISSIONS } from "@/lib/permissions";
 import { useApp } from "@/lib/store";
 import type { WorldEntry } from "@/lib/types";
 import { useActivity } from "@/lib/use-activity";
@@ -25,8 +27,19 @@ export function WorldbookView() {
   const update = useApp((s) => s.updateWorldEntry);
   const add = useApp((s) => s.addWorldEntry);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
+  const displayName = useApp((s) => s.settings.displayName);
+  const permissions = useApp((s) => s.settings.permissions);
+  const navigate = useNavigate();
+  /** 内置的「硬要求 + 说明书」正文（跟真正注入的**完全同一份**，所见即所发） */
+  const builtinText = buildManual({
+    permissions,
+    titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
+    displayName,
+    aiName,
+  });
 
   const [adding, setAdding] = useState(false);
+  const [showBuiltin, setShowBuiltin] = useState(false);
   const [content, setContent] = useState("");
   const [keywords, setKeywords] = useState("");
   const [position, setPosition] = useState<"system" | "tail">("system");
@@ -155,6 +168,52 @@ export function WorldbookView() {
             想让回复短一点、别想太久 → 开「别想太久」和「先给结论」那两条；
             思考链太长时，经过代理的流式连接容易被掐断，最后只剩一条空回复。
           </p>
+        </div>
+      </section>
+
+      {/* 硬要求 + 说明书：这是**内置**的，每轮都强制注入，用户改不了（故意的） */}
+      <section className="mt-3 px-4">
+        <div className="rounded-3xl border border-accent/35 bg-surface px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">硬要求 · 说明书（内置）</p>
+              <p className="mt-0.5 text-[11px] text-muted">
+                诚实第一 · 让你做事就先做再说 · 做完如实汇报 · 不许猜 · 主动用权限
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBuiltin((v) => !v)}
+              className="shrink-0 rounded-full bg-chip px-3 py-1.5 text-[12px] text-fg"
+            >
+              {showBuiltin ? "收起" : "看全文"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-subtle">
+            这份东西**每轮都塞在系统提示词最前面** —— 换模型、换上游都一样读得到。
+            你在下面「一直生效」里加的条目会接在它后面。
+          </p>
+          {showBuiltin && (
+            <pre className="mt-2.5 max-h-80 overflow-y-auto rounded-2xl bg-chip px-3 py-2.5 text-[11px] leading-5 whitespace-pre-wrap text-muted">
+              {builtinText}
+            </pre>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              // 把"检验他有没有真读"的问句塞进输入框（不自动发，你自己按发送）
+              useApp
+                .getState()
+                .setChatDraft(
+                  "composer",
+                  "请把你必须遵守的硬要求逐条复述一遍，再把你现在被允许使用的权限列出来。",
+                );
+              void navigate({ to: "/" });
+            }}
+            className="mt-2.5 h-10 w-full rounded-2xl bg-ink text-[13px] font-medium text-ink-fg"
+          >
+            换过模型后点这里 → 让他复述一遍要求
+          </button>
         </div>
       </section>
 

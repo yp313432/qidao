@@ -1,6 +1,6 @@
 import type { ModelId } from "./models";
 import { getModel } from "./models";
-import type { ChatMessage, ReplyStyle } from "./types";
+import type { ChatMessage, PermissionMode, ReplyStyle } from "./types";
 import { attachmentsToText } from "./attachments";
 import { assembleMessages } from "./prompt";
 import { estimateTokens } from "./tokens";
@@ -62,6 +62,8 @@ export type ChatRequest = {
   worldAlways?: string[];
   /** 世界书 · 这轮命中关键词的条目（挂最后一条用户消息尾部） */
   worldHit?: string[];
+  /** 用户给它的授权（实时）—— 用来生成说明书里"你现在的权限"那一节 */
+  permissions?: Record<string, PermissionMode>;
 };
 
 /**

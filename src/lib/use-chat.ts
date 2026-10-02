@@ -154,6 +154,7 @@ export function useChatStream() {
             context,
             worldAlways: world.always,
             worldHit: world.hit,
+            permissions: settings.permissions,
           },
           (d) => {
             if (d.error) {

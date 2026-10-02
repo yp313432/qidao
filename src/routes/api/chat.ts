@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getModel, type ModelId, type ReasoningEffort } from "@/lib/models";
 import { assembleMessages, systemPrompt } from "@/lib/prompt";
 import { estimateTokens, shortHash } from "@/lib/tokens";
-import type { ReplyStyle } from "@/lib/types";
+import type { PermissionMode, ReplyStyle } from "@/lib/types";
 
 type Body = {
   model: ModelId;
@@ -30,6 +30,8 @@ type Body = {
    */
   worldAlways?: string[];
   worldHit?: string[];
+  /** 用户给它的授权（客户端本地存的，所以由客户端传上来）—— 用于生成说明书里的权限一节 */
+  permissions?: Record<string, PermissionMode>;
   /** 客户端上报的用户状态（感知层） */
   context?: {
     activity?: string;

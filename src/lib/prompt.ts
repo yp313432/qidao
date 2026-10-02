@@ -1,4 +1,6 @@
-import type { ReplyStyle } from "@/lib/types";
+import { buildManual } from "@/lib/manual";
+import { PERMISSIONS } from "@/lib/permissions";
+import type { PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
  * 拼提示词的地方 —— **服务端和 App 内直连共用这一份**。
@@ -32,6 +34,11 @@ export type PromptInput = {
   worldAlways?: string[];
   /** 世界书里"这轮命中关键词"的条目（挂在最后一条用户消息尾部） */
   worldHit?: string[];
+  /**
+   * 用户给它的授权（实时）。用来生成「硬要求 + 说明书」里"你现在的权限"那一节 ——
+   * 用户改了权限，下一轮它就知道了。
+   */
+  permissions?: Record<string, PermissionMode>;
 };
 
 /**
@@ -127,7 +134,22 @@ export function systemPrompt(input: PromptInput): string {
     input.worldAlways && input.worldAlways.length
       ? `\n【用户给你定的规矩（世界书 · 一直生效）】\n${input.worldAlways.map((c) => `- ${c}`).join("\n")}`
       : "";
-  return `你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
+  /**
+   * 「硬要求 + 说明书」放**最前面**。
+   *
+   * 用户的原话："在 app 系统底层列一份要求和说明书……只要我接上了 ai
+   * 或者新换了模型之后，它都要读一遍。" 因为每轮都会发系统提示词，
+   * 换模型自然也读得到 —— 不需要额外做什么。
+   */
+  const manual = buildManual({
+    permissions: input.permissions,
+    titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
+    displayName: who,
+    aiName: self,
+  });
+  return `${manual}
+
+你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
 你在「栖岛」里 —— 这是用户一个人的私人空间，界面和内容都只属于他。
 用用户的语言回答。${STYLE[input.style] ?? STYLE.default}
 思考在内部完成；正文不要重复「让我思考」之类的套话。${

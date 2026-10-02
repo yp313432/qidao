@@ -114,6 +114,7 @@ export function TaskDaemon() {
             context: buildContext(),
             worldAlways: world.always,
             worldHit: world.hit,
+            permissions: settings.permissions,
           },
           (d) => {
             if (d.error) {
