@@ -6,7 +6,75 @@
  */
 import { startNativeListening } from "@/lib/asr";
 import { IS_APP } from "@/lib/platform";
-import { speakTextAsync } from "@/lib/tts";
+import { startRecording } from "@/lib/record";
+import { speakTextAsync, speakText } from "@/lib/tts";
+import { transcribe, voiceConfigured } from "@/lib/voice-service";
+
+/**
+ * 「自己录音 → 上传转文字」这条路。
+ *
+ * 跟别的识别实现**同一个回调接口**，所以语音页、输入框麦克风都不用改。
+ * 录多久：默认 6 秒自动停（也可以在界面上手动停）。
+ * 为什么不做"静音自动断"：那要接 AnalyserNode 判音量，代码多、还容易误判，
+ * 先用固定时长 —— 界面上有秒数，用户看得见。
+ */
+const SERVICE_RECORD_MS = 6000;
+
+function startServiceListening(opts: {
+  lang?: string;
+  onPartial?: (text: string) => void;
+  onFinal: (text: string) => void;
+  onEnd?: () => void;
+  onError?: (err: string) => void;
+}): ListenHandle | null {
+  let stopped = false;
+  let rec: { stop: () => Promise<unknown>; cancel: () => void } | null = null;
+
+  void (async () => {
+    try {
+      rec = (await startRecording(() => undefined)) as unknown as {
+        stop: () => Promise<unknown>;
+        cancel: () => void;
+      };
+      opts.onPartial?.("（录音中…说完等一下，6 秒后自动停）");
+      window.setTimeout(() => {
+        if (!stopped) void finish();
+      }, SERVICE_RECORD_MS);
+    } catch (e) {
+      opts.onError?.(`录不了音：${e instanceof Error ? e.message : "麦克风打不开"}`);
+      opts.onEnd?.();
+    }
+  })();
+
+  async function finish() {
+    if (stopped) return;
+    stopped = true;
+    const r = rec;
+    rec = null;
+    if (!r) return;
+    try {
+      const att = (await r.stop()) as { dataUrl?: string } | null;
+      if (!att?.dataUrl) {
+        opts.onError?.("没录到声音");
+        opts.onEnd?.();
+        return;
+      }
+      const blob = await (await fetch(att.dataUrl)).blob();
+      const out = await transcribe(blob);
+      if (out.ok) opts.onFinal(out.text);
+      else opts.onError?.(out.reason);
+    } catch (e) {
+      opts.onError?.(`转文字出错：${e instanceof Error ? e.message : "未知"}`);
+    }
+    opts.onEnd?.();
+  }
+
+  return {
+    stop: () => {
+      void finish();
+    },
+  };
+}
 
 type SpeechResultEvent = {
   resultIndex: number;
@@ -56,12 +124,14 @@ export function startListening(opts: {
   onError?: (err: string) => void;
 }): ListenHandle | null {
   /**
-   * ⚠️ App 里先走**原生**识别。
+   * ① 配了**语音服务**（我的 → 语音服务）→ 走"自己录音 → 上传转文字"。
    *
-   * 安卓 WebView 没有 SpeechRecognition —— 用户实测："语音总说识别不到我的声音，
-   * 转文字也是空的，语音条也不可以"，全都是这个原因。
-   * 保持这个函数签名不变，调用方（语音页、语音条）就一起修好了。
+   * 这是唯一在荣耀这类手机上真能用的路：安卓 WebView 没有 SpeechRecognition，
+   * 系统识别又被 YOYO 接管（它自己接话、不还文字，用户实测）。
    */
+  if (voiceConfigured()) return startServiceListening(opts);
+
+  // ② App 里退而求其次走原生识别（别的机型可能正常）
   const native = startNativeListening(opts);
   if (native) return native;
 

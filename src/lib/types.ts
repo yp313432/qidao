@@ -300,6 +300,21 @@ export type Settings = {
   voicePitch: number;
   /** 指定的音色（浏览器里 voiceURI；留空 = 自动挑一个） */
   voiceURI?: string;
+  /**
+   * 独立的**语音服务**（语音转文字 + 文字转语音）。
+   *
+   * 为什么需要它：安卓 WebView 没有语音识别；而荣耀手机的系统识别就是 YOYO ——
+   * 它会自己接话、不把文字还回来，等于堵死。所以改走"自己录音 → 上传转文字"。
+   * 一家（比如硅基流动）同时提供 ASR 和 TTS，所以共用一个地址 + key。
+   */
+  voiceBaseUrl?: string;
+  voiceApiKey?: string;
+  /** 转文字的模型名，如 FunAudioLLM/SenseVoiceSmall */
+  voiceAsrModel?: string;
+  /** 合成的模型名，如 FunAudioLLM/CosyVoice2-0.5B */
+  voiceTtsModel?: string;
+  /** 合成用的音色名（CosyVoice2 的叫 alex / bella 这种） */
+  voiceTtsVoice?: string;
   replyStyle: ReplyStyle;
   defaultModel: ModelId;
   customBaseUrl: string;

@@ -765,7 +765,41 @@ export function MeView() {
         />
 
         {/* 音色 / 语速 / 音调 —— 用户要的"换音色和改音调" */}
-        <p className="mt-3 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>
+        <p className="mt-4 mb-2 text-[12px] text-muted">语音服务（语音转文字 + 合成）</p>
+        <div className="rounded-2xl bg-chip px-3.5 py-3">
+          <p className="text-[11px] leading-4 text-subtle">
+            手机的系统识别就是 YOYO（它自己接话、不把文字还给栖岛）✅ 所以这里单接一家：
+            自己录音 → 上传转文字 → 语言模型回复 → 再合成语音放出来 ✅
+            <br />
+            硅基流动那家：地址填 https://api.siliconflow.cn/v1 ，
+            转文字 FunAudioLLM/SenseVoiceSmall，合成 FunAudioLLM/CosyVoice2-0.5B ✅
+          </p>
+          {[
+            { k: "voiceBaseUrl" as const, label: "地址", ph: "https://api.siliconflow.cn/v1" },
+            { k: "voiceApiKey" as const, label: "密钥", ph: "sk-…", secret: true },
+            { k: "voiceAsrModel" as const, label: "转文字模型", ph: "FunAudioLLM/SenseVoiceSmall" },
+            { k: "voiceTtsModel" as const, label: "合成模型", ph: "FunAudioLLM/CosyVoice2-0.5B" },
+            { k: "voiceTtsVoice" as const, label: "音色", ph: "alex" },
+          ].map((f) => (
+            <label key={f.k} className="mt-2 block">
+              <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+              <input
+                type={f.secret ? "password" : "text"}
+                value={(settings[f.k] as string | undefined) ?? ""}
+                onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
+                placeholder={f.ph}
+                className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+              />
+            </label>
+          ))}
+          <p className="mt-2 text-[11px] leading-4 text-subtle">
+            密钥只存在这台设备里，不进代码、不进仓库 ✅ 填了就会自动启用：
+            语音页和输入框的麦克风都改走它（YOYO 不再出现 ✅），朗读也用它家的音色 ✅
+            「试听一句」用的就是这个音色 ✅
+          </p>
+        </div>
+
+        <p className="mt-4 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>
         <input
           type="range"
           min={0.5}

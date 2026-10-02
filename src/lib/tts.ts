@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 朗读（TTS）。集中放这里，因为「点了没声」有四种不同死法，
  * 散落在各处只会一遍遍踩：
  *
@@ -19,6 +19,7 @@
  */
 import { IS_APP } from "@/lib/platform";
 import { useApp } from "@/lib/store";
+import { synthesize, voiceConfigured } from "@/lib/voice-service";
 
 export type SpeakResult = { ok: true } | { ok: false; reason: string };
 
@@ -72,6 +73,40 @@ export async function speakTextAsync(
     return { ok: false, reason: "没内容可读" };
   }
 
+  /**
+   * 配了**语音服务**就用它家的音色（我的 → 语音服务）。
+   * 好处：音色可选、声音更像真人，而且是同一家给"识别"和"合成"，
+   * 用户只要填一次地址和 key ✅
+   */
+  if (voiceConfigured()) {
+    const out = await synthesize(clean);
+    if (out.ok) {
+      try {
+        const audio = new Audio(out.url);
+        await new Promise<void>((resolve) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          void audio.play().catch(() => resolve());
+        });
+        URL.revokeObjectURL(out.url);
+        opts.onEnd?.();
+        return { ok: true };
+      } catch (e) {
+        URL.revokeObjectURL(out.url);
+        opts.onEnd?.();
+        return { ok: false, reason: e instanceof Error ? e.message : "播放失败" };
+      }
+    }
+    // 合成失败就退回系统语音，别让"点了没声" —— 但把原因带回去
+    const fallback = await speakSystem(clean, opts);
+    return fallback.ok ? fallback : { ok: false, reason: `${out.reason}；${fallback.reason}` };
+  }
+
+  return speakSystem(clean, opts);
+}
+
+/** 系统语音（安卓 TTS / 浏览器 speechSynthesis）—— 没配语音服务时走它 */
+async function speakSystem(clean: string, opts: SpeakOptions): Promise<SpeakResult> {
   const native = await nativeTts();
   if (native) {
     try {
