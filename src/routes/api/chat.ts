@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getModel, type ModelId, type ReasoningEffort } from "@/lib/models";
+import { assembleMessages, systemPrompt } from "@/lib/prompt";
 import { estimateTokens, shortHash } from "@/lib/tokens";
 import type { ReplyStyle } from "@/lib/types";
 
@@ -33,75 +34,6 @@ type Body = {
     now?: string;
   };
 };
-
-const STYLE: Record<ReplyStyle, string> = {
-  default: "语气温和、准确、留白得当，不堆砌。",
-  concise: "尽量短：先给结论，必要时再补一句理由。",
-  explanatory: "把推理过程写清楚，分点说明，但仍避免空话。",
-};
-
-function systemPrompt(body: Body): string {
-  const tools = body.tools.length
-    ? `已配置的外部工具：${body.tools
-        .map((t) => (t.tools.length ? `${t.name}（${t.tools.join(", ")}）` : t.name))
-        .join("；")}。`
-    : "当前未配置额外工具。";
-  const who = body.name?.trim() || "yan";
-  const self = body.aiName?.trim() || "星芒";
-  return `你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
-你在「栖岛」里 —— 这是用户一个人的私人空间，界面和内容都只属于他。
-用用户的语言回答。${STYLE[body.style] ?? STYLE.default}
-思考在内部完成；正文不要重复「让我思考」之类的套话。${
-    body.persona?.trim() ? `\n你给自己写下的设定：${body.persona.trim()}` : ""
-  }
-${tools}`;
-}
-
-/**
- * 每次都会变的东西（时间、在干什么、权限……）。
- *
- * **故意不放进系统提示词** —— 它一进去，系统提示词就每轮都不同，
- * 后面所有历史的前缀缓存全部失效。这里改成附在最后一条用户消息尾部。
- */
-function perceptionBlock(body: Body): string {
-  const ctx = body.context;
-  if (!ctx) return "";
-  const lines = [
-    ctx.now ? `客户端时间：${ctx.now}。` : "",
-    ctx.activity ? `用户此刻在做：${ctx.activity}。` : "",
-    ctx.nowPlaying ? `用户此刻正在听：${ctx.nowPlaying}。` : "",
-    ctx.recent && ctx.recent.length > 1
-      ? `最近的活动轨迹（新→旧）：${ctx.recent.join(" → ")}。`
-      : "",
-    ctx.granted && ctx.granted.length
-      ? `用户已授权你可以：${ctx.granted.join("、")}。`
-      : "用户还没有授权你操作 App。",
-    ctx.aware && ctx.aware.length
-      ? `用户允许你了解这些（按权限过滤过）：\n${ctx.aware.map((l) => `- ${l}`).join("\n")}`
-      : "",
-  ].filter(Boolean);
-  if (lines.length === 0) return "";
-  return `\n\n---\n【此刻的情况】（只是背景，不必刻意复述）\n${lines.join("\n")}`;
-}
-
-/**
- * 消息内容归一化：纯文本裁一段；带图片的 content parts 保留结构
- * （只裁其中的文字部分），这样支持视觉的模型就能直接看到图。
- */
-function normalizeContent(content: string | unknown[]): string | unknown[] {
-  if (typeof content === "string") return content.slice(0, 8000);
-  if (Array.isArray(content)) {
-    return content.map((part) => {
-      const p = part as { type?: string; text?: string; image_url?: { url?: string } };
-      if (p?.type === "text") return { type: "text", text: String(p.text ?? "").slice(0, 8000) };
-      if (p?.type === "image_url") {
-        return { type: "image_url", image_url: { url: p.image_url?.url ?? "" } };
-      }
-      return part;
-    });
-  }
-  return String(content ?? "");
-}
 
 function extractDelta(chunk: unknown): {
   thinking?: string;
@@ -206,34 +138,10 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
+        // 拼提示词走 lib/prompt —— 和 App 内直连上游时**同一份实现**，
+        // 否则封装成 APK 之后他的人设和感知层就丢了。
         const staticPrompt = systemPrompt(body);
-        const perception = perceptionBlock(body);
-
-        // 易变的「此刻情况」挂到最后一条用户消息上，而不是塞进系统提示词 ——
-        // 系统提示词一动，前面所有历史的前缀缓存就全废了。
-        const raw = body.messages.slice(-16);
-        let lastUser = -1;
-        for (let i = raw.length - 1; i >= 0; i -= 1) {
-          if (raw[i]!.role === "user") {
-            lastUser = i;
-            break;
-          }
-        }
-
-        const messages = [
-          { role: "system" as const, content: staticPrompt },
-          ...raw.map((m, i) => {
-            const base = normalizeContent(m.content);
-            if (i !== lastUser || !perception) return { role: m.role, content: base };
-            if (typeof base === "string") return { role: m.role, content: base + perception };
-            return {
-              role: m.role,
-              content: [...base, { type: "text", text: perception }],
-            };
-          }),
-        ];
-
-        // 前缀指纹：据此判断「缓存为什么没命中」
+        const messages = assembleMessages(body, body.messages);
         const meta = {
           promptHash: shortHash(staticPrompt),
           systemTokens: estimateTokens(staticPrompt),
