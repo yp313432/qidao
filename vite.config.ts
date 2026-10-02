@@ -145,6 +145,9 @@ function authPopupPlugin(): Plugin {
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
+/** 打包成安卓 App 的构建（纯前端 + 直连上游）。 */
+const ANDROID = process.env.QIDAO_TARGET === "android";
+
 export default defineConfig(({ command, isPreview }) => ({
   server: {
     host: "0.0.0.0",
@@ -175,7 +178,31 @@ export default defineConfig(({ command, isPreview }) => ({
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
     grokPwaPlugin(),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart(
+      /**
+       * 目标是安卓 App 时，走**纯前端（SPA）构建**。
+       *
+       * 为什么：APK 里没有服务器，界面必须是本地静态文件 ——
+       * 那样打开不需要网络、不需要梯子。网页版（Cloudflare）仍走正常构建，
+       * 所以这里用环境变量分流，互不影响。
+       *
+       * 用法：QIDAO_TARGET=android npm run build
+       */
+      ANDROID
+        ? {
+            spa: {
+              enabled: true,
+              maskPath: "/",
+              prerender: {
+                enabled: true,
+                outputPath: "/index.html",
+                crawlLinks: true,
+                retryCount: 2,
+              },
+            },
+          }
+        : {},
+    ),
     ...(command === "build" || isPreview
       ? [
           nitro({
