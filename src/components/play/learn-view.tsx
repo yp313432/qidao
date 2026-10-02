@@ -15,7 +15,7 @@ import { PlayHeader } from "@/components/play-header";
 import { resolveAiName } from "@/lib/branding";
 import { DICTIONARY, READINGS, WORDS } from "@/lib/learn-data";
 import { useApp } from "@/lib/store";
-import { speakText, warmUpVoices } from "@/lib/tts";
+import { speakTextAsync, warmUpVoices } from "@/lib/tts";
 import { useActivity } from "@/lib/use-activity";
 import { cn } from "@/lib/utils";
 
@@ -104,10 +104,11 @@ function WordsTab() {
 
   function speak() {
     if (typeof window === "undefined") return;
-    // 走 lib/tts：语音包没加载、cancel 抢跑、卡在 paused 都由它处理；
-    // 实在读不出来（比如设备没装语音包）就把原因显示出来，别让按钮白点。
-    const r = speakText(card.word, { lang: "en-US" });
-    setTtsMsg(r.ok ? null : r.reason);
+    // 走 lib/tts 的异步入口：App 里 WebView 没有 speechSynthesis，
+    // 它会落到**安卓系统的朗读引擎**上（否则只会说"这个浏览器不支持朗读"）。
+    void speakTextAsync(card.word, { lang: "en-US" }).then((r) => {
+      setTtsMsg(r.ok ? null : r.reason);
+    });
   }
 
   return (

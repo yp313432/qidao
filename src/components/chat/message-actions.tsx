@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bookmark, Check, Copy, RotateCw, Share2, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
-import { speakText } from "@/lib/tts";
+import { speakTextAsync } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -36,8 +36,8 @@ export function MessageActions({
   }
 
   async function speakTextOut() {
-    // 走 lib/tts（统一处理语音包未就绪、cancel 抢跑、卡在 paused）
-    speakText(content.slice(0, 400), { lang: "zh-CN", rate: 1.02 });
+    // 走 lib/tts 的异步入口：App 里会落到安卓系统朗读引擎上
+    await speakTextAsync(content.slice(0, 400), { lang: "zh-CN", rate: 1.02 });
   }
 
   async function share() {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, FileCode, Folder, FolderOpen, RefreshCw } from "lucide-react";
 import { useActivity } from "@/lib/use-activity";
+import { IS_APP } from "@/lib/platform";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
 import { prettyBytes } from "@/lib/tokens";
@@ -37,9 +38,24 @@ export function WorkspaceView() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // App 里没有服务端，这个接口不存在 —— 直接说明白，
+    // 别让用户看到一句 `Unexpected token '<'`（那是把 HTML 当 JSON 解析的报错）。
+    if (IS_APP) {
+      setData({
+        ok: false,
+        message: "App 里没有这个功能（工作区要看源码，需要服务端支持）。",
+      });
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/workspace");
-      setData((await res.json()) as Payload);
+      const text = await res.text();
+      try {
+        setData(JSON.parse(text) as Payload);
+      } catch {
+        setData({ ok: false, message: "这个页面拿不到工作区数据（服务端接口不在）。" });
+      }
     } catch (err) {
       setData({ ok: false, message: (err as Error).message });
     } finally {

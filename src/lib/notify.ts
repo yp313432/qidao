@@ -1,38 +1,99 @@
 /**
  * 通知能力层。
  *
- * 分四件事，按「能不能用」的层次：
- *  1. 系统通知权限（Notification.requestPermission）
- *  2. Service Worker 注册（只有 HTTPS / localhost 才允许）
- *  3. 本地通知：App 开着的时候立刻弹一条（不需要服务端）
- *  4. 后台推送订阅（Web Push）：需要 HTTPS + 服务端 VAPID 密钥
+ * **两种形态，两套路**：
+ *   · 网页版：Notification 权限 + Service Worker + （可选）Web Push 订阅
+ *   · App（安卓）：走 **Capacitor 原生通知** —— 真实出现在系统通知栏、
+ *     出现在系统设置的权限列表里，不需要 Service Worker，也不需要服务端 VAPID。
  *
- * 第 4 条是「App 关掉也能收到」的唯一正路；缺任何一环都会在界面上
- * 明确告诉你缺什么，而不是假装成功。
+ * 早先这里只有网页那一套，于是 App 里显示"这个浏览器不支持"、
+ * 系统设置里也搜不到这个 App —— 那不是 bug，是没做原生适配。
  */
 
+import { IS_APP } from "@/lib/platform";
+
+/** App 里临时拿到的原生通知模块（只在需要时动态加载，网页版不受影响）。 */
+type NativeNotify = {
+  checkPermissions: () => Promise<{ display: string }>;
+  requestPermissions: () => Promise<{ display: string }>;
+  schedule: (opts: {
+    notifications: {
+      id: number;
+      title: string;
+      body: string;
+      schedule?: { at?: Date; allowWhileIdle?: boolean };
+      smallIcon?: string;
+    }[];
+  }) => Promise<unknown>;
+};
+
+async function nativeNotify(): Promise<NativeNotify | null> {
+  if (!IS_APP) return null;
+  try {
+    const mod = await import("@capacitor/local-notifications");
+    return mod.LocalNotifications as unknown as NativeNotify;
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------- 权限状态 ------------------------------- */
+
 export function notificationSupported(): boolean {
+  if (IS_APP) return true;
   return typeof window !== "undefined" && "Notification" in window;
 }
 
 export function secureContextOk(): boolean {
+  if (IS_APP) return true; // App 里没有"不安全来源"这回事
   return typeof window !== "undefined" && window.isSecureContext;
 }
 
+/** 同步版：网页用它；App 里拿不到真值，请用下面的异步版。 */
 export function permissionState(): NotificationPermission | "unsupported" {
+  if (IS_APP) return "default";
   if (!notificationSupported()) return "unsupported";
   return Notification.permission;
 }
 
+/** 异步版：两种形态都能拿到真值（App 里问安卓系统）。 */
+export async function permissionStateAsync(): Promise<NotificationPermission | "unsupported"> {
+  if (IS_APP) {
+    const n = await nativeNotify();
+    if (!n) return "unsupported";
+    try {
+      const r = await n.checkPermissions();
+      if (r.display === "granted") return "granted";
+      if (r.display === "denied") return "denied";
+      return "default";
+    } catch {
+      return "unsupported";
+    }
+  }
+  return permissionState();
+}
+
 export const PERMISSION_LABEL: Record<string, string> = {
   granted: "已允许",
-  denied: "已被拒绝（要去浏览器设置里改）",
+  denied: "已被拒绝（要去系统设置里改）",
   default: "还没决定",
-  unsupported: "这个浏览器不支持",
+  unsupported: "这个设备不支持通知",
 };
 
 /** 申请通知权限 —— 由用户点击开关时调用，所以是合法的用户手势。 */
 export async function requestPermission(): Promise<NotificationPermission | "unsupported"> {
+  if (IS_APP) {
+    const n = await nativeNotify();
+    if (!n) return "unsupported";
+    try {
+      const r = await n.requestPermissions();
+      if (r.display === "granted") return "granted";
+      if (r.display === "denied") return "denied";
+      return "default";
+    } catch {
+      return "unsupported";
+    }
+  }
   if (!notificationSupported()) return "unsupported";
   if (Notification.permission === "granted" || Notification.permission === "denied") {
     return Notification.permission;
@@ -44,11 +105,17 @@ export async function requestPermission(): Promise<NotificationPermission | "uns
   }
 }
 
+/* ---------------------------- Service Worker ---------------------------- */
+
 export type SwStatus = { ok: boolean; message: string };
 
 let swReg: ServiceWorkerRegistration | null = null;
 
 export async function registerServiceWorker(): Promise<SwStatus> {
+  if (IS_APP) {
+    // App 里不用 Service Worker —— 通知走安卓系统，别让面板显示得像是缺了什么
+    return { ok: true, message: "App 里用安卓系统通知，不需要 Service Worker" };
+  }
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
     return { ok: false, message: "这个浏览器不支持 Service Worker" };
   }
@@ -67,6 +134,7 @@ export async function registerServiceWorker(): Promise<SwStatus> {
 }
 
 export async function swRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (IS_APP) return null;
   if (swReg) return swReg;
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
@@ -77,12 +145,39 @@ export async function swRegistration(): Promise<ServiceWorkerRegistration | null
   return swReg;
 }
 
-/** 立刻弹一条本地通知（App 开着的时候用）。 */
+/* ------------------------------- 发通知 ------------------------------- */
+
+/** 立刻弹一条本地通知。App 里走安卓系统通知栏，网页里走 Notification / SW。 */
 export async function localNotify(title: string, body: string): Promise<boolean> {
+  if (IS_APP) {
+    const n = await nativeNotify();
+    if (!n) return false;
+    try {
+      // 权限没给过就先要一次（用户点了开关，属于合法手势）
+      const perm = await n.checkPermissions();
+      if (perm.display !== "granted") {
+        const asked = await n.requestPermissions();
+        if (asked.display !== "granted") return false;
+      }
+      await n.schedule({
+        notifications: [
+          {
+            id: Math.floor(Date.now() % 2147483647),
+            title,
+            body,
+            smallIcon: "ic_stat_icon_config_sample",
+          },
+        ],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   if (!notificationSupported() || Notification.permission !== "granted") return false;
 
   // 优先走 Service Worker：这样通知可点、能被 getNotifications() 统计。
-  // 刚启动时 SW 可能还没 active，所以等一下它，别急着退到兜底方案。
   let reg = await swRegistration();
   if (!reg && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
     reg = await Promise.race([
@@ -125,18 +220,30 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 export type PushStatus = { ok: boolean; message: string };
 
-/** 查询服务端有没有配 VAPID 公钥（没配就没法订阅）。 */
+/** 查询服务端有没有配 VAPID 公钥（没配就没法订阅）。App 里没有这回事。 */
 export async function pushKeyConfigured(): Promise<boolean> {
+  if (IS_APP) return false;
   try {
     const res = await fetch("/api/push/key");
-    const json = (await res.json()) as { configured?: boolean };
-    return Boolean(json.configured);
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text) as { configured?: boolean };
+      return Boolean(json.configured);
+    } catch {
+      return false;
+    }
   } catch {
     return false;
   }
 }
 
 export async function subscribePush(): Promise<PushStatus> {
+  if (IS_APP) {
+    return {
+      ok: false,
+      message: "App 里用安卓系统通知就够了，不需要后台推送订阅。",
+    };
+  }
   if (!secureContextOk()) {
     return { ok: false, message: "后台推送必须跑在 HTTPS 上（localhost 也行）。" };
   }

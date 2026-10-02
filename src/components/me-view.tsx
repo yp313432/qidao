@@ -6,6 +6,7 @@ import {
   localNotify,
   PERMISSION_LABEL,
   permissionState,
+  permissionStateAsync,
   pushKeyConfigured,
   registerServiceWorker,
   requestPermission,
@@ -15,6 +16,7 @@ import {
   type SwStatus,
 } from "@/lib/notify";
 import { MODELS, QUOTA_LIMIT } from "@/lib/models";
+import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
 import type { FontId, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
@@ -94,39 +96,25 @@ export function MeView() {
     setProbing(true);
     setModelMsg(null);
     setModels([]);
-    try {
-      const res = await fetch("/api/models", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: settings.customBaseUrl,
-          apiKey: settings.customApiKey,
-        }),
-      });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        models?: string[];
-        message?: string;
-      };
-      if (json.ok && json.models?.length) {
-        setModels(json.models);
-        // 存进设置里 —— 对话框那个模型选择器显示的就是这份列表
-        patch({ upstreamModels: json.models });
-        setModelMsg(`上游列了 ${json.models.length} 个模型 —— 点一个就用它`);
-      } else {
-        setModelMsg(json.message ?? "没拉到模型列表，手动填吧");
-      }
-    } catch (err) {
-      setModelMsg(`请求失败：${(err as Error).message || "网络错误"}`);
-    } finally {
-      setProbing(false);
+    // 走 lib/platform：App 里没有 /api/models 这个服务端接口，
+    // 它会直接问上游（否则拿到 HTML，报一句看不懂的 Unexpected token '<'）。
+    const json = await probeUpstreamModels(settings.customBaseUrl, settings.customApiKey);
+    if (json.ok && json.models?.length) {
+      setModels(json.models);
+      // 存进设置里 —— 对话框那个模型选择器显示的就是这份列表
+      patch({ upstreamModels: json.models });
+      setModelMsg(`上游列了 ${json.models.length} 个模型 —— 点一个就用它`);
+    } else {
+      setModelMsg(json.message ?? "没拉到模型列表，手动填吧");
     }
+    setProbing(false);
   }
 
   const scrollRef = useScrollMemory("me");
 
   useEffect(() => {
-    setPerm(permissionState());
+    // App 里权限要去问安卓系统，所以是异步的（同步版只会给个占位值）
+    void permissionStateAsync().then(setPerm);
     setSecure(secureContextOk());
     void (async () => {
       const reg = await swRegistration();
@@ -532,8 +520,12 @@ export function MeView() {
           </p>
           <p>
             后台推送：
-            <span className={pushReady ? "text-ok" : "text-warn"}>
-              {pushReady ? "服务端已配好，可订阅" : "服务端还没配 VAPID 密钥"}
+            <span className={IS_APP || pushReady ? "text-ok" : "text-warn"}>
+              {IS_APP
+                ? "App 里用安卓系统通知，不用它"
+                : pushReady
+                  ? "服务端已配好，可订阅"
+                  : "服务端还没配 VAPID 密钥"}
             </span>
           </p>
         </div>

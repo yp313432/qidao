@@ -2,7 +2,7 @@ import { toggleAmbience } from "@/lib/ambience";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
-import { speakText } from "@/lib/tts";
+import { speakTextAsync } from "@/lib/tts";
 import type { AppAction, FeatureId, Settings } from "@/lib/types";
 
 /**
@@ -204,7 +204,7 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       if (!text) return "没内容可读";
       // 统一走 lib/tts：它处理了「语音包没加载 / cancel 抢跑 / 卡在 paused」这些坑，
       // 并且失败时给得出原因（而不是让用户对着一个不响的按钮反复点）
-      const r = speakText(text, { rate: 1 });
+      const r = await speakTextAsync(text, { rate: 1 });
       if (!r.ok) return `读不出来：${r.reason}`;
       return `开始朗读「${text.slice(0, 12)}」`;
     }
