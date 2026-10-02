@@ -27,7 +27,9 @@ export function ThinkingBlock({
       : "已完成内部推理";
 
   return (
-    <div className="mt-1 mb-1.5">
+    // px-3.5 跟气泡一致；外面在 chat-view 里还会套一层 max-w-[86%]，
+    // 这样思考链跟气泡的**左右两条边**都对得上（用户反馈过对不齐）
+    <div className="mt-1 mb-1.5 px-3.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -336,12 +336,16 @@ export function ChatView() {
                       </div>
                     ) : (
                       <div className="min-w-0">
+                        {/* 思考链跟气泡用**同一个宽度上限**，否则右边缘对不齐
+                            （用户画了红线指出来的） */}
                         {(streaming || (settings.showThinking && m.thinking)) && (
-                          <ThinkingBlock
-                            thinking={m.thinking}
-                            durationMs={m.thinkingDurationMs}
-                            live={streaming && !m.content}
-                          />
+                          <div className="max-w-[86%]">
+                            <ThinkingBlock
+                              thinking={m.thinking}
+                              durationMs={m.thinkingDurationMs}
+                              live={streaming && !m.content}
+                            />
+                          </div>
                         )}
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
