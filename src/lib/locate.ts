@@ -16,6 +16,8 @@ type GeoPlugin = {
   getCurrentPosition: (opts?: {
     enableHighAccuracy?: boolean;
     timeout?: number;
+    /** 接受多久以内的缓存位置（毫秒）—— 加上它定位快很多 */
+    maximumAge?: number;
   }) => Promise<{ coords: { latitude: number; longitude: number } }>;
 };
 
@@ -64,7 +66,29 @@ export type PlaceResult =
   | { ok: true; label: string; lat: number; lon: number }
   | { ok: false; reason: string };
 
+/**
+ * 拿当前位置。
+ *
+ * **总超时 20 秒**：不管哪条路卡住，一定有结果 ——
+ * 界面上绝不能一直停在"定位中"（用户实测遇到过：授权了、但一直没结果）。
+ */
 export async function currentPlace(): Promise<PlaceResult> {
+  return await Promise.race([
+    locateOnce(),
+    new Promise<PlaceResult>((resolve) =>
+      window.setTimeout(
+        () =>
+          resolve({
+            ok: false,
+            reason: "定位超时了：可能是手机没开定位服务，或者室内信号不好",
+          }),
+        20000,
+      ),
+    ),
+  ]);
+}
+
+async function locateOnce(): Promise<PlaceResult> {
   const g = await geoPlugin();
   let coords: { latitude: number; longitude: number } | null = null;
 
@@ -77,11 +101,26 @@ export async function currentPlace(): Promise<PlaceResult> {
       }
     }
     try {
-      const pos = await g.api.getCurrentPosition({ enableHighAccuracy: false, timeout: 12000 });
+      // maximumAge：5 分钟内的缓存位置直接用 —— 安卓首次定位（尤其室内）
+      // 可能要十几秒甚至更久，用户会以为卡住了（实测反馈过）
+      const pos = await g.api.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: 12000,
+        maximumAge: 300000,
+      });
       coords = pos.coords;
     } catch {
       return { ok: false, reason: "定位失败（可能没开定位服务，或在室内信号不好）" };
     }
+  } else if (IS_APP) {
+    /**
+     * ⚠️ App 里**不要**退回浏览器的 navigator.geolocation。
+     *
+     * WebView 的定位要宿主自己处理权限请求；没处理的话那个回调**永远不会回来**，
+     * 界面就一直卡在"定位中"（用户实测就是这样：系统里授权了、但没结果）。
+     * 宁可如实说"没接上"，也别让他干等。
+     */
+    return { ok: false, reason: "这个版本里没接上系统定位，装最新版再试" };
   } else {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       return { ok: false, reason: "这个环境不支持定位" };

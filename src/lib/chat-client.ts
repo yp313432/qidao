@@ -64,6 +64,13 @@ export type ChatRequest = {
   worldHit?: string[];
   /** 用户给它的授权（实时）—— 用来生成说明书里"你现在的权限"那一节 */
   permissions?: Record<string, PermissionMode>;
+  /**
+   * 最大输出长度（token）。0 / 留空 = 跟随所选档位的默认值。
+   *
+   * 用户实测：思考链一长就被掐断、只剩空回复。有些网关把**思考也算进 max_tokens**，
+   * 所以调大它能缓解；但调太大某些模型会直接报错 —— 所以做成可调，默认跟随档位。
+   */
+  maxTokens?: number;
 };
 
 /**
@@ -100,7 +107,8 @@ async function streamDirect(
   }
 
   const messages = assembleMessages(req, req.messages);
-  const maxTokens = getModel(req.model).maxTokens;
+  // 0 / 空 = 跟随档位；用户在设置里调过就用他的
+  const maxTokens = req.maxTokens && req.maxTokens > 0 ? req.maxTokens : getModel(req.model).maxTokens;
 
   let res: Response;
   try {

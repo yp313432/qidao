@@ -74,6 +74,7 @@ const defaultSettings: Settings = {
   diaryImage: "",
   motion: "auto",
   chatFontSize: "normal",
+  maxTokens: 0,
   voiceReplies: false,
   replyStyle: "default",
   defaultModel: "sonnet",

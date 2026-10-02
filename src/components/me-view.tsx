@@ -341,6 +341,32 @@ export function MeView() {
           ))}
         </div>
 
+        <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { v: 0, label: "跟随档位" },
+            { v: 8192, label: "8192" },
+            { v: 16384, label: "16384" },
+            { v: 32768, label: "32768" },
+          ].map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => patch({ maxTokens: o.v })}
+              className={cn(
+                "rounded-2xl border px-3 py-2 text-[12px]",
+                settings.maxTokens === o.v ? "border-fg" : "border-line",
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
+          但调太大某些模型会直接报错 —— 所以默认「跟随档位」。断线现在已经会自动重试一次。
+        </p>
+
         <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
         <div className="flex gap-2">
           {CHAT_FONT_SIZES.map((s) => (

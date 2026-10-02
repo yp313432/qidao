@@ -32,6 +32,8 @@ type Body = {
   worldHit?: string[];
   /** 用户给它的授权（客户端本地存的，所以由客户端传上来）—— 用于生成说明书里的权限一节 */
   permissions?: Record<string, PermissionMode>;
+  /** 最大输出长度（0/空 = 跟随档位）—— 见 chat-client 里的说明 */
+  maxTokens?: number;
   /** 客户端上报的用户状态（感知层） */
   context?: {
     activity?: string;
@@ -166,7 +168,7 @@ export const Route = createFileRoute("/api/chat")({
           model: upstreamModel,
           messages,
           stream: true,
-          max_tokens: model.maxTokens,
+          max_tokens: body.maxTokens && body.maxTokens > 0 ? body.maxTokens : model.maxTokens,
         };
         // reasoning_effort 是 xAI 的参数；别家 OpenAI 兼容接口可能直接报错，
         // 所以只有走内置时才带它。

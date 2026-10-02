@@ -285,6 +285,14 @@ export type Settings = {
    * 默认「标准」，想要舒展就调大（顺便留白也更好看）。
    */
   chatFontSize: "small" | "normal" | "large" | "xlarge";
+  /**
+   * 最大输出长度（token）。0 = 跟随所选档位的默认值。
+   *
+   * 用户报过两次"思考链太长被掐断、只剩空回复"。
+   * 有些网关把思考也算进这个额度，所以调大能缓解；
+   * 但调太大某些模型会直接报错，所以做成可调、默认跟随档位。
+   */
+  maxTokens: number;
   voiceReplies: boolean;
   replyStyle: ReplyStyle;
   defaultModel: ModelId;

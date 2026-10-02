@@ -33,7 +33,9 @@ function inline(text: string, key: string) {
 export function Markdown({ text, className }: { text: string; className?: string }) {
   const blocks = text.split(/```/);
   return (
-    <div className={cn("space-y-3 text-[15px] leading-7 text-fg", className)}>
+    // 用 1em / 相对行高，跟着聊天页的字号设置走 ——
+    // 早先这里写死 15px，所以只有用户那条气泡会变、AI 的回复不变（实测踩到）
+    <div className={cn("space-y-3 text-[1em] leading-[1.75] text-fg", className)}>
       {blocks.map((block, i) => {
         if (i % 2 === 1) {
           const nl = block.indexOf("\n");

@@ -18,6 +18,14 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      往系统时钟里写闹钟需要的权限。
+      用户实测（荣耀/Honor）报错：
+        Permission Denial: starting Intent { act=android.intent.action.SET_ALARM ... }
+        requires com.android.alarm.permission.SET_ALARM
+      —— 这个权限不在 android.permission 命名空间下，是时钟 App 自己声明的，得原样写。
+    -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
     <application
         android:allowBackup="true"

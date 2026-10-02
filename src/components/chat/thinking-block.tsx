@@ -27,17 +27,19 @@ export function ThinkingBlock({
       : "已完成内部推理";
 
   return (
-    <div className="mb-1.5">
+    <div className="mt-1 mb-1.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[12px] text-subtle"
+        // 不加左内缩：整块（含下面那条竖线）跟气泡的左边缘对齐成一条线 ——
+        // 原来这里多缩进了一点，看起来跟气泡错位（用户实测反馈）
+        className="flex items-center gap-1.5 text-[0.8em] text-subtle"
       >
         <span className={cn(live && "thinking-shimmer")}>{label}</span>
         <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="mt-1.5 border-l border-line pl-3 text-[12px] leading-5 whitespace-pre-wrap text-subtle">
+        <div className="mt-1.5 border-l border-line pl-3 text-[0.8em] leading-[1.7] whitespace-pre-wrap text-subtle">
           {thinking || (live ? "梳理问题、组织回答…" : "模型完成了内部推理，明文思考链未返回；时长已记录。")}
         </div>
       )}

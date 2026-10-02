@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
-import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
+import { historyForApi, streamChat, type ApiMessage, type ChatDelta } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { pickWorldEntries } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
@@ -99,6 +99,9 @@ export function useChatStream() {
       abortRef.current = ac;
       let thinking = "";
       let content = "";
+      /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
+      let hadContent = false;
+      let hadError = false;
       let usage: ChatMessage["usage"];
       let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
 
@@ -138,50 +141,78 @@ export function useChatStream() {
         useApp.getState().worldBook,
         typeof lastUser?.content === "string" ? lastUser.content : "",
       );
-      try {
-        await streamChat(
-          {
-            model,
-            messages: history,
-            style: settings.replyStyle,
-            tools,
-            customBaseUrl: settings.customBaseUrl || undefined,
-            customApiKey: settings.customApiKey || undefined,
-            upstreamModel: settings.upstreamModel || undefined,
-            name: settings.displayName,
-            aiName,
-            persona: settings.persona || undefined,
-            context,
-            worldAlways: world.always,
-            worldHit: world.hit,
-            permissions: settings.permissions,
-          },
-          (d) => {
-            if (d.error) {
-              content = content || d.error;
-              schedule();
-              flush();
-              return;
-            }
-            if (d.meta) meta = d.meta;
-            if (d.usage) usage = d.usage;
-            if (d.thinking) {
-              thinking += d.thinking;
-              schedule();
-            }
-            if (d.content) {
-              content += d.content;
-              schedule();
-            }
-          },
-          ac.signal,
-        );
-      } catch (err) {
-        if ((err as { name?: string }).name !== "AbortError") {
-          content =
-            content ||
-            "没拿到回复。可能原因：还没接入 AI 后端、地址或密钥不对、或者网络不通。接上之后这里就会有内容。";
+      const req = {
+        model,
+        messages: history,
+        style: settings.replyStyle,
+        tools,
+        customBaseUrl: settings.customBaseUrl || undefined,
+        customApiKey: settings.customApiKey || undefined,
+        upstreamModel: settings.upstreamModel || undefined,
+        maxTokens: settings.maxTokens,
+        name: settings.displayName,
+        aiName,
+        persona: settings.persona || undefined,
+        context,
+        worldAlways: world.always,
+        worldHit: world.hit,
+        permissions: settings.permissions,
+      };
+      const onDelta = (d: ChatDelta) => {
+        if (d.error) {
+          hadError = true;
+          content = content || d.error;
+          schedule();
+          flush();
+          return;
         }
+        if (d.meta) meta = d.meta;
+        if (d.usage) usage = d.usage;
+        if (d.thinking) {
+          thinking += d.thinking;
+          schedule();
+        }
+        if (d.content) {
+          hadContent = true;
+          content += d.content;
+          schedule();
+        }
+      };
+
+      /**
+       * 断线自动重试（最多两次）。
+       *
+       * 实测：思考链很长时，经过代理的流式连接容易被中途掐断，
+       * 结果是一条**只有思考、没有正文**的空回复（用户报过两次）。
+       * 与其让他手动点「重新生成」，不如自己再试一遍 ——
+       * 重试时把上一次的思考和错误文本都丢掉，免得两次内容混在一起。
+       */
+      let lastErr: unknown = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        hadContent = false;
+        hadError = false;
+        try {
+          await streamChat(req, onDelta, ac.signal);
+          lastErr = null;
+        } catch (err) {
+          lastErr = err;
+        }
+        if (ac.signal.aborted) break;
+        // 判定标准是"**真的拿到了正文**"：只有思考、或者只是一个错误提示，
+        // 都不算成功 —— 那种情况值得自动再来一次。
+        if (hadContent) break;
+        if (attempt === 2) break;
+        content = "";
+        thinking = "";
+        usage = undefined;
+        dirty = true;
+        flush();
+        await new Promise((r) => window.setTimeout(r, 350));
+      }
+      if (!hadContent && (lastErr || hadError) && (lastErr as { name?: string } | null)?.name !== "AbortError") {
+        content =
+          "没拿到正文。可能是：连接被掐断（思考链太长时容易这样），地址/密钥不对，或者网络不通。\n\n" +
+          "已经自动重试过一次了。可以再点「重新生成」，或者跟他说「想短一点、先给结论」。";
       }
       // 收尾：把最后攒着的那一点写进去，并停掉定时器
       if (flushTimer) {
