@@ -459,6 +459,13 @@ export type AppAction =
   | { kind: "media.volume"; value: number }
   | { kind: "media.seek"; seconds: number }
   | { kind: "media.playTrack"; query: string }
+  /**
+   * 播外链音乐（用户自己加过的那些）。
+   *
+   * 外链是别人网站 iframe 里的播放器，**同源限制下我们控制不了它内部**
+   * （不能暂停/切歌/调音量）—— 能做的只是"挑一条开始播"。
+   */
+  | { kind: "media.playEmbed"; query?: string }
   | { kind: "appearance.theme"; theme: ThemeId }
   | { kind: "appearance.font"; font: FontId }
   | { kind: "appearance.textColor"; color: string }

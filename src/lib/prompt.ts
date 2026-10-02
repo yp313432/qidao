@@ -95,6 +95,10 @@ const ABILITIES = `【你能直接操作这个 App】
 要几个就放几个块（也可以一个块里放数组）。常用动作：
 - 切页面 {"kind":"navigate","path":"/play/listen"}（路径形如 /play、/play/tools、/play/space、/play/learn、/me）
 - 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
+- **外链音乐**（用户自己粘进来的网易云/QQ/YouTube 那种）{"kind":"media.playEmbed","query":"歌名或平台"}
+  ⚠️ 说清边界：外链是**别人网站里的小窗口**，我们**碰不到它内部** ——
+  不能暂停、不能切歌、不能调音量。你能做的只有"从用户加过的外链里挑一条开始播 / 把它停掉"。
+  他问"你怎么控制不了"，就如实解释这一点，别含糊、也别假装能控制。
 - **三种"写下来"别混**（用户实测过一次"信落到动态里"，就是这里选错了）：
   · 写日记 {"kind":"diary.add","body":"..."} —— 记录今天发生的事，带心情、按天归档
   · 发动态 {"kind":"moment.post","mood":"calm","text":"..."} —— 一句短感受，进动态流（mood 取 calm/joy/focus/low/miss）

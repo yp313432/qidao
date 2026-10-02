@@ -1,4 +1,4 @@
-﻿import type { AppAction, PermissionId } from "@/lib/types";
+import type { AppAction, PermissionId } from "@/lib/types";
 
 /** 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。 */
 export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
@@ -10,6 +10,7 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "media.volume": "media_volume",
   "media.seek": "media_seek",
   "media.playTrack": "media_search",
+  "media.playEmbed": "media_play",
   "appearance.theme": "appearance",
   "appearance.font": "appearance",
   "appearance.textColor": "appearance",
@@ -76,6 +77,8 @@ export function actionTitle(action: AppAction): string {
     }
     case "media.playTrack":
       return `播放「${action.query}」`;
+    case "media.playEmbed":
+      return `播外链音乐${action.query ? `（找「${action.query}」）` : ""}`;
     case "appearance.theme":
       return `把主题换成「${THEME_LABEL[action.theme] ?? action.theme}」`;
     case "appearance.font":

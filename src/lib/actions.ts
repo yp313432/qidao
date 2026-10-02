@@ -72,6 +72,30 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       p.seek(action.seconds);
       return "已跳到指定位置";
     }
+    case "media.playEmbed": {
+      /**
+       * 从用户已经加过的外链里挑一条开始播。
+       *
+       * 为什么只有这一步：外链是网易云/QQ/YouTube 自己的 iframe，
+       * 同源限制下**碰不到它内部** —— 不能暂停、切歌、调音量。
+       * 但"挑哪一条开始播"是我们能做的，之前连这个动作都没有，
+       * 所以他说"外链音乐控制不了 / 是空的"（用户实测反馈）。
+       */
+      const q = str((action as { query?: unknown }).query).trim().toLowerCase();
+      const list = useApp.getState().musicEmbeds;
+      if (list.length === 0) {
+        return "还没有加过外链音乐。让用户去「玩乐 → 加音乐」把链接粘进来，之后你就能选它了";
+      }
+      const hit =
+        (q
+          ? list.find((e) =>
+              `${e.serviceLabel} ${e.kind} ${e.sourceUrl} ${e.embedUrl}`.toLowerCase().includes(q),
+            )
+          : undefined) ?? list[0]!;
+      useApp.getState().setCurrentEmbed(hit.id);
+      return `开始播外链：${hit.serviceLabel} · ${hit.kind}（注意：外链播放器内部我控制不了，只能选它/停它）`;
+    }
+
     case "media.playTrack":
       return usePlayer.getState().playByQuery(action.query);
 

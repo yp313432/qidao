@@ -103,11 +103,16 @@ export function PlayerHost() {
   const onMusicPage = pathname === "/play/listen" || pathname === "/play/player";
   const showMini = Boolean(current) && !onMusicPage && (playing || time > 0);
 
-  // 让所有页面底部留白自动给迷你播放条让位（styles.css 里的 .pb-above-nav 用它）
+  /**
+   * 迷你播放条从底部搬到**顶部**。
+   *
+   * 用户反馈："他会挡到输入框，放顶上吧，或者做成可折叠的。"
+   * 底部那块地方现在要留给输入框（还有空状态的大标题），顶上是空闲的。
+   */
   useEffect(() => {
     const root = document.documentElement;
-    if (showMini) root.style.setProperty("--aster-mini", "3.4rem");
-    else root.style.removeProperty("--aster-mini");
+    // 不再需要给底部预留高度了（条子在顶上）
+    root.style.removeProperty("--aster-mini");
     return () => {
       root.style.removeProperty("--aster-mini");
     };
@@ -119,7 +124,7 @@ export function PlayerHost() {
 
       {/* 迷你播放条：证明播放器是全局的，别的页面也能控制 */}
       {showMini && current && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.9rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-3">
+        <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.4rem)] z-30 flex justify-center px-3">
           <div className="glass-nav pointer-events-auto flex w-full max-w-md items-center gap-1 rounded-full border border-line px-3 py-1.5">
             <Link to="/play/listen" className="min-w-0 flex-1 truncate py-1 text-[12px]">
               <span className="text-muted">{playing ? "♪ " : "❚❚ "}</span>
