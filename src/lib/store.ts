@@ -486,7 +486,7 @@ export const useApp = create<AppState>()(
           };
           return {
             pendingActions: s.pendingActions.filter((p) => p.id !== id),
-            actionLog: [entry, ...s.actionLog].slice(0, 30),
+            actionLog: [entry, ...s.actionLog.filter((e) => Date.now() - e.at < 7 * 864e5)].slice(0, 30),
             settings: remember
               ? {
                   ...s.settings,

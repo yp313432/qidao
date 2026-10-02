@@ -107,7 +107,7 @@ export function PermissionsView() {
       {/* 感知：他实际能看到什么 */}
       <section className="mt-4 px-4">
         <h2 className="mb-2 flex items-center justify-between px-1 text-[12px] tracking-wide text-muted">
-          <span>他现在能看到的原文</span>
+          <span>他现在知道的</span>
           <span className="text-subtle">{aware.length} 项</span>
         </h2>
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
@@ -129,6 +129,16 @@ export function PermissionsView() {
               ))}
             </ul>
           )}
+          {/*
+            自检按钮 —— **默认折叠**。
+            用户："那排试一试也没必要，我对着权限列表也能让他一个一个测"。
+            直接删掉有点可惜（它们不经过模型、直接触发动作，是查权限闸门最快的办法），
+            所以收进"开发者自检"里，平时不占地方 ✅
+          */}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-[11px] text-subtle">
+              开发者自检（不走模型，直接触发动作 —— 想省事就对着权限列表让他自己做）
+            </summary>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
@@ -459,11 +469,14 @@ export function PermissionsView() {
               试一试：帮我记一件待办
             </button>
           </div>
+          </details>
         </div>
       </section>
 
-      {/* 他记住的事 */}
-      <section className="mt-4 px-4">
+      {/* 他记住的事 —— **已隐藏**：它和「记忆库」是同一份数据（就是长期记忆的最近几条），
+          留着只会让人以为有两套。记忆库才是完整视图（能看、能改、能删）✅
+          保留代码是为了万一以后想改回"这里显示最近几条"的形态。 */}
+      <section className="mt-4 hidden px-4">
         <h2 className="mb-2 flex items-center justify-between px-1 text-[12px] tracking-wide text-muted">
           <span>他记住的事</span>
           <span className="text-subtle">{memories.length} 条</span>

@@ -254,7 +254,7 @@ export function MemoryView() {
 
       {/* 本地存储 */}
       <section className="mt-5 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">本地存储占用</h2>
+        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">网页数据占用</h2>
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
           {!store ? (
             <p className="text-[12px] text-subtle">统计中…</p>
