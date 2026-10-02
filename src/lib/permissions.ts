@@ -94,7 +94,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "docs_write", title: "新建 / 编辑文档", hint: "帮你写笔记", risk: "L2", status: "ready", group: "write" },
   { id: "archive_chat", title: "把对话存成文档", hint: "归档一段对话", risk: "L2", status: "ready", group: "write" },
   { id: "learn_card", title: "生成学习卡片", hint: "给你加生词进词库", risk: "L2", status: "ready", group: "write" },
-  { id: "reminder", title: "创建提醒 / 待办", hint: "到点提醒你（App 开着时）", risk: "L2", status: "ready", group: "write" },
+  { id: "reminder", title: "创建提醒 / 闹钟", hint: "到点提醒或全屏响铃（可设一次或每天）", risk: "L2", status: "ready", group: "write" },
   { id: "memory", title: "长期记忆", hint: "记住你的偏好与项目上下文（只存本机）", risk: "L2", status: "ready", group: "write" },
   { id: "persona", title: "修改他自己的人设", hint: "改他自己的名字与自述", risk: "L2", status: "ready", group: "write" },
   { id: "moment_post", title: "发布动态", hint: "在「动态空间」里发一条此刻的心情", risk: "L2", status: "ready", group: "write" },

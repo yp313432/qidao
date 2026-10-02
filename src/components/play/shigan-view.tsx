@@ -27,17 +27,18 @@ export function ShiganView() {
    * 地址的默认值：
    *   · **App 里**（VITE_DIRECT_UPSTREAM=1 的那种构建）→ 用**打进本地的副本**
    *     （public/shigan/，跟 App 一起装进手机）。打开不需要网络、不需要梯子。
-   *   · **网页版** → 跟着当前主机走：电脑 localhost:8081、手机局域网IP:8081。
-   * 用户在设置里自己填过地址的话，永远以他填的为准。
+   *   · **网页版** → 也走同一个副本 `/shigan/index.html`。
+   *
+   * 为什么网页版不再指向 :8081：那个端口要求"另外开一个时感的 dev server"，
+   * 部署到云端根本没有它 —— 用户点开就是白屏。
+   * 而 public/shigan/ 这 16 个文件**两个构建都会带上**（Vite 会拷 public/），
+   * 所以同一个域名下就能取到。实测 /shigan/index.html 返回的确实是时感那一页
+   * （标题「时感」、资源在 /shigan/assets/ 下），静态文件优先于路由兜底，不会打架。
+   * 想指回别处（比如局域网另一台机器）仍然可以在设置里自己填地址。
    */
-  const NATIVE = (import.meta.env?.VITE_DIRECT_UPSTREAM as string | undefined) === "1";
   // 必须是**绝对**路径：相对路径会拼在当前目录后面（在 /play/shigan 这一页
   // 会去找 /play/shigan/index.html → 404 → 白屏）。
-  const auto = NATIVE
-    ? "/shigan/index.html"
-    : typeof window === "undefined"
-      ? "http://localhost:8081/"
-      : `${window.location.protocol}//${window.location.hostname}:8081/`;
+  const auto = "/shigan/index.html";
   // .html 结尾的本地路径别补斜杠，否则会变成 shigan/index.html/ 打不开
   const raw = settings.shiganUrl.trim() || auto;
   const url = /\.html?$/i.test(raw) ? raw : raw.replace(/\/?$/, "/");
