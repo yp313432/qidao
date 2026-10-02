@@ -41,8 +41,23 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: 装 Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 备好 Android SDK 组件
+        # 不用 android-actions/setup-android：GitHub 的机器本来就预装了 Android SDK，
+        # 那个 action 反而会因为它自己要和最新 runner 对齐而失败（第一次就是这样失败的）。
+        # 这里只用 sdkmanager 补齐工程真正需要的平台版本。
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "SDK 目录: $SDK"
+          echo "--- 已有的平台 ---"
+          ls "$SDK/platforms" 2>/dev/null || true
+          echo "--- 已有的 build-tools ---"
+          ls "$SDK/build-tools" 2>/dev/null || true
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SM" ]; then SM="$(command -v sdkmanager || true)"; fi
+          echo "sdkmanager: $SM"
+          yes | "$SM" --licenses > /dev/null 2>&1 || true
+          # 工程要 compileSdk 36；build-tools 交给 Gradle 自己下（许可已接受）
+          "$SM" "platforms;android-36"
 
       - name: 装依赖
         run: npm ci
