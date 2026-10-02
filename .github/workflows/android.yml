@@ -1,0 +1,77 @@
+name: 构建安卓 App（栖岛）
+
+# 你只要在 GitHub 上点一下，就能拿到装到手机上的 APK。
+#
+# 为什么在 GitHub 上构建而不是在你自己电脑上：
+#   安卓打包需要 JDK + Android SDK + Gradle 一整套环境（好几个 G）。
+#   GitHub 的机器上现成都有，而且免费 —— 你的电脑什么都不用装。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "android/**"
+      - "scripts/**"
+      - "capacitor.config.ts"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android.yml"
+  # 也可以手动点「Run workflow」触发
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 装 Java 21（安卓打包要用）
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: 装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 装依赖
+        run: npm ci
+
+      - name: 构建纯前端产物（界面打进 App 本地）
+        env:
+          # 目标=安卓：走 SPA 构建；直连上游：App 里不经服务器直接跟模型说话
+          QIDAO_TARGET: android
+          VITE_DIRECT_UPSTREAM: "1"
+          VITE_AUTH_ENABLED: "false"
+        run: |
+          npm run build
+          node scripts/copy-static.mjs
+          npx cap copy android
+
+      - name: 打包成 APK
+        working-directory: android
+        env:
+          # 每次构建递增版本号，方便你分辨装的是哪一版
+          QIDAO_VERSION_CODE: ${{ github.run_number }}
+          QIDAO_VERSION_NAME: "1.0.${{ github.run_number }}"
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: 把 APK 传上来（构建完在这一页底部下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: 栖岛-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 90

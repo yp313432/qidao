@@ -7,8 +7,8 @@ android {
         applicationId "com.yanping.qidao"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode (System.getenv("QIDAO_VERSION_CODE") ?: "1").toInteger()
+        versionName (System.getenv("QIDAO_VERSION_NAME") ?: "1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,34 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /**
+     * 固定签名。
+     *
+     * 为什么必须固定：安卓按「包名 + 签名」认应用。签名一变，装新版就得先卸载，
+     * 而卸载会清掉 App 内部数据（日记、信、设置）。签名固定 → 覆盖安装 → 数据保留。
+     *
+     * 签名文件由 scripts/make-keystore.mjs 生成（本机没有 Java，用 node-forge 写 PKCS#12）。
+     * 口令是公开的：这不是需要保密的钥匙，是「个人自用、不上架商店」的签名。
+     * 想换成自己的，用 QIDAO_KEYSTORE / QIDAO_KEYSTORE_PASSWORD 覆盖即可。
+     */
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("QIDAO_KEYSTORE") ?: "../qidao-release.p12")
+            storePassword System.getenv("QIDAO_KEYSTORE_PASSWORD") ?: "qidao-release-2026"
+            keyAlias System.getenv("QIDAO_KEYSTORE_ALIAS") ?: "qidao"
+            keyPassword System.getenv("QIDAO_KEYSTORE_PASSWORD") ?: "qidao-release-2026"
+            storeType "PKCS12"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            // 调试包也用同一个签名 —— 这样从调试包换到正式包不用卸载（数据不丢）
+            signingConfig signingConfigs.release
         }
     }
 }
