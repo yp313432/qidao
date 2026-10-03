@@ -15,7 +15,7 @@ import {
 import { FileButton } from "@/components/file-button";
 import { countdown, sortDates } from "@/lib/days";
 import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/play-photos-db";
-import { ButterflyWings, ClipStamp, Flower } from "@/components/play/note-decor";
+import { ButterflyWings, ClipStamp } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { resolveAiName } from "@/lib/branding";
@@ -396,10 +396,6 @@ function NowNote() {
 
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.5rem] border border-line p-3">
-      {/*
-        时间下面：一朵**小花**（用户："贝壳算了，你也画不好……画一朵小花"）。
-      */}
-      <Flower className="right-3 bottom-3 h-[5.5rem] w-[5.5rem] opacity-90" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">right now</p>
       <p
         className="relative font-serif text-[2.1rem] leading-none font-medium tabular-nums"
@@ -416,6 +412,20 @@ function NowNote() {
         </p>
       )}
       <NowPlayingLine />
+
+      {/*
+        时间下面那句话 —— 代替原来那块装饰。
+        用户："花也去掉吧，你加一个句子进去，让它显得没那么空就行"。
+        字体跟玩乐区顶部那几句**同一套**（Cormorant 斜体），
+        这样整页的文字装饰是一个体系，不会多出一个字体角色。
+      */}
+      <p
+        className="relative mt-4 pr-1 text-right text-[13px] leading-6 text-muted/90"
+        style={{ fontFamily: "var(--font-script)", fontStyle: "italic" }}
+      >
+        <span className="mr-1 text-accent opacity-70">✦</span>
+        quiet hours, softly kept
+      </p>
     </section>
   );
 }

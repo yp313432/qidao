@@ -89,5 +89,68 @@ await page.waitForTimeout(2200);
 const hasSetting = await page.evaluate(() => document.body.innerText.includes("认识的日子"));
 console.log(`  「我的空间」里有认识的日子设置: ${hasSetting ? "✅" : "❌"}`);
 
+// 真机没照片时看不到"拍立得倾斜"的效果 —— 塞一张进那个 IndexedDB 再验一次
+console.log("\n=== 塞一张照片，验拍立得倾斜 ===");
+const photoInfo = await page.evaluate(async () => {
+  const db = await new Promise((res, rej) => {
+    const r = indexedDB.open("qidao-play-photos", 1);
+    r.onupgradeneeded = () => {
+      if (!r.result.objectStoreNames.contains("photos")) r.result.createObjectStore("photos", { keyPath: "id" });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  // 一张很小的测试图（纯色 canvas 转 blob）
+  const c = document.createElement("canvas");
+  c.width = 200;
+  c.height = 200;
+  const g = c.getContext("2d");
+  const grd = g.createLinearGradient(0, 0, 200, 200);
+  grd.addColorStop(0, "#9ec9d8");
+  grd.addColorStop(1, "#e8c9b8");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 200, 200);
+  const blob = await new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.7));
+  const thumb = c.toDataURL("image/jpeg", 0.7);
+  await new Promise((res) => {
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").put({ id: "test1", name: "t.jpg", thumb, addedAt: Date.now(), blob });
+    tx.oncomplete = res;
+  });
+  return { ok: true };
+});
+// 注意：前面为了查「认识的日子」设置已经跳到 /space 了，
+// 这里必须**先回 /play** 再 reload —— 否则刷的是设置页（第一次就踩了这个坑）。
+await page.goto(BASE + "/play", { waitUntil: "commit", timeout: 30000 });
+await page.waitForTimeout(2800);
+const tilt = await page.evaluate(() => {
+  const img = document.querySelector('img[alt=""]');
+  if (!img) return { found: false };
+  // 往上找出所有祖先，看谁带 rotate 类、谁的 computed transform 是真的
+  const chain = [];
+  let el = img;
+  for (let i = 0; i < 5 && el; i++) {
+    const cs = getComputedStyle(el);
+    chain.push({
+      tag: el.tagName.toLowerCase(),
+      cls: (el.className || "").toString().slice(0, 90),
+      transform: cs.transform,
+      rotate: cs.rotate,
+    });
+    el = el.parentElement;
+  }
+  return { found: true, chain };
+});
+console.log(`  找到照片: ${tilt.found ? "✅" : "❌"}`);
+for (const c of tilt.chain ?? []) {
+  console.log(`   <${c.tag}> rotate=${c.rotate} transform=${c.transform}`);
+  console.log(`      class="${c.cls}"`);
+}
+const tilted = (tilt.chain ?? []).some(
+  (c) => c.transform !== "none" || (c.rotate && c.rotate !== "none"),
+);
+console.log(`  真的倾斜了: ${tilted ? "✅" : "❌ 没有一层带旋转"}`);
+await page.screenshot({ path: `${OUT}/play-hub-with-photo.png`, timeout: 60000 });
+
 console.log("\n控制台错误:", errors.length ? [...new Set(errors)].join(" | ") : "(none)");
 await browser.close();

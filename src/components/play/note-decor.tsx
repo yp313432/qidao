@@ -17,62 +17,6 @@ import { cn } from "@/lib/utils";
  *   · 全部 `pointer-events-none`；靠 html[data-motion] 自动降级
  */
 
-/**
- * 一朵**小花**（替换贝壳）。
- *
- * 用户："那个贝壳算了，你也画不好，你就在我那个时间组件里的画的那个圆上
- * 画一朵小花，这个你总会画吧"。
- *
- * 材质改成跟蝴蝶**同一套**（用户："花朵材质和效果改成和蝴蝶一样的就行，
- * 渐变的，中心最亮，到边缘渐渐虚散"）：
- *   · 用一个**从花心发散的径向渐变**（不是每瓣各填一块平色）
- *     中心白亮 → 中段过渡到装饰色 → 边缘几乎透明
- *   · 花瓣**不描边**（描边会产生硬轮廓，就"虚散"不掉了）
- *   · 花心再叠一层柔光，强化"中心最亮"
- */
-export function Flower({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      aria-hidden="true"
-      className={cn("pointer-events-none absolute", className)}
-    >
-      <defs>
-        {/*
-          跟蝴蝶翅膀同一个思路：**一个**径向渐变，所有花瓣共用。
-          这样整朵花才是"从中心亮起来、往边缘散掉"的一团光，
-          而不是五片各自独立的花瓣。
-        */}
-        <radialGradient id="flowerG" cx="50%" cy="50%" r="52%">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0.92" />
-          <stop offset="22%" stopColor="#fff" stopOpacity="0.6" />
-          <stop offset="45%" stopColor="var(--decor)" stopOpacity="0.34" />
-          <stop offset="72%" stopColor="var(--decor)" stopOpacity="0.14" />
-          <stop offset="100%" stopColor="var(--decor)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      <g className="aster-flower-breathe">
-        {/* 五片花瓣：绕中心均分。**不描边**，靠渐变自己散掉 */}
-        {[0, 72, 144, 216, 288].map((deg) => (
-          <ellipse
-            key={deg}
-            cx="50"
-            cy="28"
-            rx="13.5"
-            ry="21.5"
-            fill="url(#flowerG)"
-            transform={`rotate(${deg} 50 50)`}
-          />
-        ))}
-        {/* 花心那团亮（中心最亮） */}
-        <circle cx="50" cy="50" r="9" fill="url(#flowerG)" opacity="0.7" />
-        {/* 一点柔光核，比花瓣更白 */}
-        <circle cx="50" cy="50" r="4" fill="#fff" opacity="0.35" />
-      </g>
-    </svg>
-  );
-}
 
 export function ButterflyWings({ className }: { className?: string }) {
   const wings = `
