@@ -62,48 +62,67 @@ export function AppShell() {
       </div>
       {!hideNav && (
         /**
-         * 浮层而非占位：导航飘在背景之上，内容可以一直铺到屏幕底部。
+         * 底部导航：**全宽 + 贴着屏幕下边缘**的一层薄玻璃。
          *
-         * 打字时**滑下去收起** —— 用户的反馈：导航 + 输入框加起来占了快半个屏幕，
-         * 键盘一弹起来就看不到几条消息了。收下去而不是拆掉，失焦就回来。
+         * 用户的要求（对着抖音那张参考图提的）：
+         *   · "导航栏可以压在最底部"
+         *   · "那个方形改成圆形，撑满左右边框"
+         *   · "质感还是要透玻璃的"
+         *
+         * 所以从原来的「居中胶囊 + 两侧各留 69px + 浮起 12px」改成
+         * 「左边缘贯到右边缘、紧贴屏幕底」。省下来的那 12px 浮起，
+         * 让给了输入框和导航之间的**呼吸缝**（见 .pb-composer）——
+         * 总占用没变，但两块玻璃不再贴在一起。
+         *
+         * 背景保持透明（只留一层渐变把文字托住），让用户自己那张背景图
+         * 透上来；真正的"玻璃"落在激活项那个圆上。
+         *
+         * z-[60]：必须高于对话抽屉（z-50）。抽屉只占左边 84% 宽，
+         * 导航在右边一直露着，用户才能一边看列表一边切页。
          */
         <div
           className={cn(
-            // z-[60]：必须高于对话抽屉（z-50）。抽屉自带的那套四项导航撤掉之后，
-            // 底部这个胶囊就是**唯一**的导航入口 —— 抽屉只占左边 84% 宽，
-            // 胶囊在右边还露得出来，用户才能一边看列表一边切页。
-            "pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-200",
+            "pointer-events-none fixed inset-x-0 bottom-0 z-[60] transition-all duration-200",
             keyboardUp && "pointer-events-none translate-y-[135%] opacity-0",
           )}
         >
           <nav
-            className="glass-nav pointer-events-auto flex items-center gap-0.5 rounded-full border border-line p-1"
             aria-label="主导航"
+            className="glass-nav-bar pointer-events-auto flex w-full items-stretch"
           >
-            {TABS.map((tab) => {
-              const active = tabOwning(pathname) === tab.to;
-              const Icon = tab.icon;
-              return (
-                <Link
-                  key={tab.to}
-                  to={tab.to}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    // 尺寸照示例图收过：胶囊高 63 → 48px，底部留白 77 → 62px。
-                    // 用户的要求是"放下面，但是还要省空间"。
-                    "flex min-w-[56px] flex-col items-center gap-px rounded-full px-3 py-1 text-[10px] font-medium tracking-wide transition-colors",
-                    active ? "glass-active text-fg" : "text-muted",
-                  )}
-                >
-                  <Icon
-                    className="size-[1.15rem]"
-                    strokeWidth={active ? 2.2 : 1.7}
-                    aria-hidden="true"
-                  />
-                  {tab.label}
-                </Link>
-              );
-            })}
+            {/* 四项平分，但整体限宽居中 —— 否则 390px 上四项会被拉散、飘在两头 */}
+            <div className="mx-auto flex w-full max-w-sm items-stretch">
+              {TABS.map((tab) => {
+                const active = tabOwning(pathname) === tab.to;
+                const Icon = tab.icon;
+                return (
+                  <Link
+                    key={tab.to}
+                    to={tab.to}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-w-0 flex-1 flex-col items-center pt-1 pb-1 text-[10px] font-medium tracking-wide transition-colors",
+                      active ? "text-fg" : "text-muted",
+                    )}
+                  >
+                    {/* 圆形：激活时这个圆变成一块玻璃高亮，图标变实 */}
+                    <span
+                      className={cn(
+                        "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+                        active ? "glass-active" : "",
+                      )}
+                    >
+                      <Icon
+                        className="size-[1.3rem]"
+                        strokeWidth={active ? 2.2 : 1.7}
+                        aria-hidden="true"
+                      />
+                    </span>
+                    {tab.label}
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
         </div>
       )}

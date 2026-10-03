@@ -273,7 +273,8 @@ html[data-motion="off"] *::after {
     var(--aster-shadow);
 }
 
-/* 底部导航：悬浮椭圆胶囊玻璃。 */
+/* 底部导航：悬浮椭圆胶囊玻璃。
+   （旧样式，仍给迷你播放条 player-host 用） */
 .glass-nav {
   background-color: color-mix(in oklab, var(--aster-canvas) 22%, transparent);
   background-image:
@@ -320,6 +321,39 @@ html[data-motion="off"] *::after {
 .glass-active {
   background-color: color-mix(in oklab, var(--aster-glass-highlight) 42%, transparent);
   box-shadow: inset 0 1px 0 0 var(--aster-glass-highlight);
+}
+
+/* ------------------------------------------------------------------
+ * 底部主导航：全宽、贴着屏幕下边缘的一层薄玻璃。
+ *
+ * 用户对着图片提的要求："导航栏可以压在最底部"、"那个方形改成圆形，
+ * 撑满左右边框"、"质感还是要透玻璃的"。
+ *
+ * 做法：**背景几乎透明**，只留两条极轻的渐变当"雾面"，让用户自己那张
+ * 背景图透上来；真正的玻璃质感落在**激活项那个圆**上（.glass-active）。
+ * 所以这里不用 .glass-nav（那是给迷你播放条的实心胶囊用的）。
+ *
+ * 高度：--aster-nav-h 是内容高度（不含安全区），全局只此一处定义，
+ * 所有"给导航让位"的留白都引用它 —— 改高度只改这一个数。
+ * ------------------------------------------------------------------ */
+.glass-nav-bar {
+  --aster-nav-h: 3.5rem;
+  background-color: color-mix(in oklab, var(--aster-canvas) 14%, transparent);
+  background-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in oklab, var(--aster-canvas) 34%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  /* 顶上一条极淡的分界线，让它跟内容分开；不用重阴影，避免"塑料感" */
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* 内容区高度：圆 36 + 上下留白 + 文字。实测总高 56px（见 --aster-nav-h）。 */
+.glass-nav-bar > * > a {
+  min-height: var(--aster-nav-h);
 }
 
 /* ——— 组件级高光 ———
@@ -408,11 +442,14 @@ html[data-motion="off"] *::after {
  * 出现迷你播放条时给它让位 —— PlayerHost 会把 --aster-mini 设成
  * 那一条的高度，没有播放条时它是 0，完全不影响布局。
  *
- * 4.75rem → 3.875rem：导航胶囊按示例图收矮了（高 63 → 48px），
- * 留白跟着收，正好省出 14px 内容区。用户的要求是"还要省空间"。
+ * 导航现在贴在屏幕下边缘（不再浮起 12px），所以留白 =
+ *   导航内容高（3.5rem）
+ * + 呼吸缝（1rem）—— 让上面那块玻璃跟导航分开、不贴在一起
+ * + 安全区
+ * = 4.5rem（72px，实测导航 61px + 缝 11px）。改导航高度时这两处要一起改。
  * ------------------------------------------------------------------ */
 .pb-above-nav {
-  padding-bottom: calc(3.875rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
+  padding-bottom: calc(4.5rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
 }
 
 .pb-above-nav-lg {
@@ -421,11 +458,17 @@ html[data-motion="off"] *::after {
 
 /* ------------------------------------------------------------------
  * 对话页的输入框底部留白。
- * 导航已经搬进抽屉（用户要求），这一页不再有漂浮导航，
- * 所以只留一点点 + 迷你播放条的高度 + 安全区 —— 省下约 72px 给消息。
+ *
+ * 原来这里只留 0.75rem —— 因为那时对话页**没有**底部导航（导航在抽屉里）。
+ * 后来导航统一挪到底部胶囊、抽屉那套撤掉了，这个留白却没跟着改，
+ * 结果导航直接**压住输入框卡片最底下 52px**（就是「+ / 模型 / 表情 / 发送」
+ * 那一排工具栏）。实测：导航 y 780–832，输入框卡片 y 695–832，重叠 52px。
+ *
+ * 所以现在跟别的页面一样给导航留位（4.5rem = 72px = 导航 61 + 呼吸缝 11）。
+ * 打字时导航会收下去（keyboardUp），多出来的留白落在键盘后面，看不见。
  * ------------------------------------------------------------------ */
 .pb-composer {
-  padding-bottom: calc(0.75rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
+  padding-bottom: calc(4.5rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
 }
 /* ------------------------------------------------------------------
  * 「她高亮这里」用的一圈光晕。几秒后自动褪掉，不常驻、不改结构。

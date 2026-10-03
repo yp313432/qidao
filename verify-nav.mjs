@@ -17,16 +17,34 @@ const measure = () =>
     const nav = document.querySelector('nav[aria-label="主导航"]');
     const items = nav ? [...nav.querySelectorAll("a")] : [];
     const tab = items[0];
-    const label = tab?.querySelector("span");
     const pad = document.querySelector(".pb-above-nav");
+    const active = nav?.querySelector('a[aria-current="page"]');
+    // 激活项里那个"圆"
+    const circle = active?.querySelector("span");
+    const cs = circle ? getComputedStyle(circle) : null;
+    const nr = r(nav);
     return {
       navCount: document.querySelectorAll("nav").length,
       navLabels: [...document.querySelectorAll("nav")].map((n) => n.getAttribute("aria-label")),
-      pillH: nav ? Math.round(r(nav).height) : null,
-      pillW: nav ? Math.round(r(nav).width) : null,
-      tabH: tab ? Math.round(r(tab).height) : null,
+      navW: nr ? Math.round(nr.width) : null,
+      navH: nr ? Math.round(nr.height) : null,
+      navTop: nr ? Math.round(nr.top) : null,
+      navBottom: nr ? Math.round(nr.bottom) : null,
+      navLeft: nr ? Math.round(nr.left) : null,
+      navRight: nr ? Math.round(nr.right) : null,
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      tabW: tab ? Math.round(r(tab).width) : null,
       icon: tab?.querySelector("svg") ? Math.round(r(tab.querySelector("svg")).width) : null,
-      labelFont: label ? getComputedStyle(label).fontSize : null,
+      // 圆：宽高相等 + 圆角半径等于一半 → 真圆
+      circle: circle
+        ? {
+            w: Math.round(r(circle).width),
+            h: Math.round(r(circle).height),
+            radius: cs?.borderRadius,
+            bg: cs?.backgroundColor,
+          }
+        : null,
       reserved: pad ? getComputedStyle(pad).paddingBottom : null,
     };
   });
@@ -36,15 +54,39 @@ await page.goto(BASE + "/me", { waitUntil: "commit", timeout: 30000 });
 await page.waitForTimeout(2200);
 let m = await measure();
 console.log(JSON.stringify(m, null, 2));
-console.log(`  目标（示例图换算）：胶囊高约 48px、宽约 251px`);
-console.log(`  实测：高 ${m.pillH}px、宽 ${m.pillW}px  → ${Math.abs(m.pillH - 48) <= 6 ? "✅ 跟图一个量级" : "⚠️ 差得多"}`);
+
+const fullWidth = m.navW === m.viewportW && m.navLeft === 0;
+const flush = m.navBottom === m.viewportH;
+const isRound =
+  m.circle && m.circle.w === m.circle.h && parseFloat(m.circle.radius) >= m.circle.w / 2 - 0.5;
+console.log(`  撑满左右（宽 ${m.navW} = 屏宽 ${m.viewportW}）: ${fullWidth ? "✅" : "❌"}`);
+console.log(`  贴着底边（底 ${m.navBottom} = 屏高 ${m.viewportH}）: ${flush ? "✅" : "❌"}`);
+console.log(
+  `  激活态是圆（${m.circle?.w}x${m.circle?.h}，圆角 ${m.circle?.radius}）: ${isRound ? "✅" : "❌"}`,
+);
+console.log(`  玻璃高亮底（非透明）: ${m.circle?.bg && m.circle.bg !== "rgba(0, 0, 0, 0)" ? "✅ " + m.circle.bg : "❌ 没有玻璃底"}`);
 
 console.log("\n=== /（对话页）—— 以前这页没有底部导航 ===");
 await page.goto(BASE + "/", { waitUntil: "commit", timeout: 30000 });
 await page.waitForTimeout(2500);
 m = await measure();
 console.log(`  nav 数量: ${m.navCount}  标签: ${JSON.stringify(m.navLabels)}`);
-console.log(`  悬浮胶囊: ${m.pillH ? `高 ${m.pillH}px` : "❌ 没显示"}  → ${m.pillH ? "✅ 现在对话页也有底部导航了" : "❌"}`);
+console.log(
+  `  底部导航: ${m.navH ? `高 ${m.navH}px、宽 ${m.navW}px、底边 ${m.navBottom}` : "❌ 没显示"}`,
+);
+
+// 输入框与导航之间的呼吸缝（用户要的"留白、不局促"）
+const gap = await page.evaluate(() => {
+  const nav = document.querySelector('nav[aria-label="主导航"]');
+  const card = document.querySelector(".pb-composer")?.firstElementChild;
+  if (!nav || !card) return null;
+  const nr = nav.getBoundingClientRect();
+  const cr = card.getBoundingClientRect();
+  return { gap: Math.round(nr.top - cr.bottom), cardBottom: Math.round(cr.bottom), navTop: Math.round(nr.top) };
+});
+if (gap) {
+  console.log(`  输入框 ↔ 导航的呼吸缝: ${gap.gap}px  → ${gap.gap >= 8 ? "✅ 分开了" : "❌ 贴在一起"}`);
+}
 await page.screenshot({ path: "C:\\Users\\yanping\\Desktop\\ds-workspace\\preview-shots\\nav-chat-page.png" });
 
 console.log("\n=== 打开抽屉，看还有没有第二套导航 ===");
@@ -57,19 +99,21 @@ console.log(`  nav 数量: ${m.navCount}  标签: ${JSON.stringify(m.navLabels)}
 const onlyOne = m.navCount === 1;
 console.log(`  ${onlyOne ? "✅ 全 App 只剩一个导航（抽屉那套已撤）" : "❌ 还有多套导航"}`);
 
-// 关键：抽屉开着的时候，底部胶囊是不是**真的看得见、点得到**
+// 关键：抽屉开着的时候，底部导航是不是**真的看得见、点得到**
 const overDrawer = await page.evaluate(() => {
   const nav = document.querySelector('nav[aria-label="主导航"]');
   if (!nav) return { visible: false, reason: "没有导航" };
   const r = nav.getBoundingClientRect();
-  const cx = Math.round(r.left + r.width / 2);
-  const cy = Math.round(r.top + r.height / 2);
-  const top = document.elementFromPoint(cx, cy);
+  // 取右侧那一项（抽屉只占左边 84%，右边这项应该露在外面）
+  const item = [...nav.querySelectorAll("a")].pop();
+  const ir = item?.getBoundingClientRect();
+  const top = ir
+    ? document.elementFromPoint(Math.round(ir.left + ir.width / 2), Math.round(ir.top + ir.height / 2))
+    : null;
   return {
     visible: r.height > 0,
     rect: { top: Math.round(r.top), h: Math.round(r.height) },
     zIndex: getComputedStyle(nav.parentElement).zIndex,
-    // 胶囊正中间那一点，最上层到底是谁？是导航本身就说明没被遮住
     topElementIsNav: Boolean(top && (top === nav || nav.contains(top))),
     topElement: top ? `${top.tagName.toLowerCase()}${top.getAttribute("aria-label") ? `[${top.getAttribute("aria-label")}]` : ""}` : null,
   };

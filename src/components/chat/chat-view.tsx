@@ -538,7 +538,7 @@ export function ChatView() {
               二级页不会亮）。文档第 2 条也写着"不再额外放一套永久导航"。
               所以现在留白 = 胶囊的高度，导航本身交给 AppShell。
             */}
-            <div className="h-[3.875rem] shrink-0" aria-hidden="true" />
+            <div className="h-[4.5rem] shrink-0" aria-hidden="true" />
           </aside>
         </div>
       )}
