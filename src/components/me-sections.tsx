@@ -110,7 +110,7 @@ const ME_CARDS: { to: string; label: string; hint: string }[] = [
   },
   { to: "/space", label: "我的空间", hint: "形象 · 背景空间 · 个性化" },
   { to: "/usage", label: "模型与用量", hint: "当前模型 · 用量 · 上下文与内存 · 自定义上游" },
-  { to: "/data", label: "数据与记忆", hint: "记忆库 · 世界书 · 备份与恢复" },
+  { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）" },
   { to: "/system", label: "系统", hint: "思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错" },
 ];
 
@@ -235,10 +235,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   /** 浏览器里能选的音色（App 里由系统引擎决定，所以是空数组） */
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const settings = useApp((s) => s.settings);
-  const memories = useApp((s) => s.memories);
+  // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   const tasks = useApp((s) => s.tasks);
   const stateSamples = useApp((s) => s.stateSamples);
-  const worldBook = useApp((s) => s.worldBook);
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
   const requestLog = useApp((s) => s.requestLog);
   const usageToday = (() => {
@@ -795,55 +794,15 @@ function MeSections({ tab }: { tab: MeTab }) {
     </>
   );
 
-  /* ── 数据与记忆 ── */
+  /* ── 数据（备份 / 恢复） ── */
 
-  const dataSections = (
-    <>
-      {/* 记忆库：从「我的」首页搬下来，现在正式露出来了 */}
-      <Section title="记忆库">
-        <Link
-          to="/memories"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-elevated px-3.5 py-3.5"
-        >
-          <span className="min-w-0">
-            <span className="block font-serif text-[15px] font-medium">他记得你什么</span>
-            <span className="mt-1 block text-[11px] text-muted">
-              {memories.filter((m) => m.status === "active").length} 条还在用 ·
-              {memories.some((m) => m.status === "archived")
-                ? ` 归档 ${memories.filter((m) => m.status === "archived").length} 条`
-                : " 会忘、会加深、会互相连着"}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              常提到的更牢 · 无关的慢慢淡出 · 相关的自动连在一起
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
-      </Section>
-
-      {/* 世界书：给他的规矩（含"别想太久"这类思考引导） */}
-      <Section title="世界书 / 思考引导">
-        <Link
-          to="/worldbook"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-        >
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium">给他的规矩</span>
-            <span className="mt-0.5 block text-[11px] text-muted">
-              开着 {worldBook.filter((e) => e.enabled).length} 条 / 共 {worldBook.length} 条（内置预设默认关着）
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              想让他少想一点、先给结论 → 开「别想太久」那两条
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
-      </Section>
-
-      {/* 备份 / 恢复：内容只在这台设备的浏览器里，导出一份能保命 */}
-      <BackupSection />
-    </>
-  );
+  /**
+   * 这一页**只有**备份恢复。
+   *
+   * 记忆库、世界书已经归到「AI 概览」那一层了（`/core` 的「往下看」四项），
+   * 这里不再放一份 —— 同一个入口出现两次，用户会以为是两个不同的地方。
+   */
+  const dataSections = <BackupSection bare />;
 
   /* ── 系统 ── */
 

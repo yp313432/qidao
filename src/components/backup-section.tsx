@@ -35,8 +35,11 @@ function describe(c: Counts): string {
  * 为什么要有：这些内容**只存在这台设备的浏览器里** ——
  * 换手机、清缓存、换网址（比如以后部署到线上），都会"看不见了"。
  * 导出一份存着，什么时候都能搬回来。
+ *
+ * `bare`：放进二级页时用。二级页自己已经有「数据」标题了，
+ * 这里就不再顶一个同名的小标题（否则一进页面看见两个「数据」）。
  */
-export function BackupSection() {
+export function BackupSection({ bare = false }: { bare?: boolean } = {}) {
   const hydrated = useApp((s) => s.hydrated);
   const [now, setNow] = useState<Counts | null>(null);
   const [parsed, setParsed] = useState<(Parsed & { filename: string }) | null>(null);
@@ -70,8 +73,10 @@ export function BackupSection() {
   }
 
   return (
-    <section className="mt-5">
-      <h2 className="px-1 pb-2 text-[13px] font-medium tracking-wide text-muted">数据</h2>
+    <section className={bare ? "px-4 pt-2" : "mt-5"}>
+      {!bare && (
+        <h2 className="px-1 pb-2 text-[13px] font-medium tracking-wide text-muted">数据</h2>
+      )}
       <div className="aster-card rounded-[1.6rem] border border-line px-4 py-4">
         <p className="text-[13px] font-medium">备份 / 恢复</p>
         <p className="mt-1 text-[12px] leading-5 text-muted">
