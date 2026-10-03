@@ -511,11 +511,14 @@ export function PermissionsView() {
         const list = permissionsOf(g.id);
         if (list.length === 0) return null;
         return (
-          <section key={g.id} className="mt-5 px-4">
-            <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">
+          // 每组做成**可折叠**的：默认收起，点开才看细项
+          //（用户："分级权限做成折叠的，每一级展开看有啥的，单列着太长了"）
+          <details key={g.id} className="mt-5 px-4">
+            <summary className="mb-2 flex cursor-pointer list-none items-center px-1 text-[12px] tracking-wide text-muted">
               {g.title}
               <span className="ml-2 text-subtle">{list.length} 项</span>
-            </h2>
+              <span className="ml-auto text-[11px] text-subtle">点开 ▾</span>
+            </summary>
             {g.note && <p className="mb-2 px-1 text-[11px] leading-4 text-subtle">{g.note}</p>}
             <div className="divide-y divide-line rounded-3xl border border-line bg-surface px-4">
               {list.map((p) => {
@@ -575,7 +578,7 @@ export function PermissionsView() {
                 );
               })}
             </div>
-          </section>
+          </details>
         );
       })}
 
