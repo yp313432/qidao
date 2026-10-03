@@ -19,7 +19,7 @@ import {
   ButterflyRibbon,
   CandyJar,
   ClipStamp,
-  CornerBracket,
+  WavyFrame,
 } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -154,12 +154,12 @@ function TogetherCard() {
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-5 py-6">
       {/*
-        左上 + 右下各一道**横折半包**（横着来、拐直角、竖着收掉）。
-        用户："有一道波纹就行了，我是想做横折一样的半包" ——
-        每个角只画一道，不是三条波。
+        四周一圈**波浪细边框**。
+        用户："我说的横折只是他的走向，还是要用波浪，而且不是做边框吗，
+        你为啥反着包？" —— 上一版我只画了两个角、还是反的；
+        正解是一条波浪线**绕卡片一圈**（四个圆角都包上）。
       */}
-      <CornerBracket corner="tl" className="top-2 left-2 h-11 w-16" />
-      <CornerBracket corner="br" className="right-2 bottom-2 h-11 w-16" />
+      <WavyFrame />
 
       <div className="relative flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center">
@@ -327,9 +327,13 @@ function PhotoNote() {
   const title = latest?.thumb;
 
   return (
-    <section className="aster-card relative overflow-hidden rounded-[1.5rem] border border-line p-3">
-      {/* 回形针：放大一圈，摆到**正好咬住卡片右上角**（用户："正好卡到右上角去"） */}
-      <ClipStamp className="-top-2 -right-2 h-20 w-[4.25rem] opacity-75" />
+    // 注意：这一块**故意不加 overflow-hidden**。
+    // 回形针要"真卡在角上"，就必须有一半**伸到卡片外面**（出画），
+    // overflow-hidden 会把它裁掉，看着又变成一个躺在卡里的图标。
+    // 用户原话："回形针要真卡在组件角上，后面还有个正方形色块"。
+    <section className="aster-card relative rounded-[1.5rem] border border-line p-3">
+      {/* 回形针 + 它压着的那张方纸：一起骑在卡片右上角上 */}
+      <ClipStamp className="-top-4 -right-5 h-24 w-[5.5rem] opacity-80" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">our photos</p>
 
       {title ? (
