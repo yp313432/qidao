@@ -314,10 +314,34 @@ export function DrawerCosmos() {
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.14" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </radialGradient>
+          {/* 环的颜色：中间实、两端淡（0.06 → 0.62），比原来亮不少 ——
+              用户："星环太淡了" */}
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.06" />
-            <stop offset="50%" stopColor="currentColor" stopOpacity="0.46" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.06" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
+            <stop offset="22%" stopColor="currentColor" stopOpacity="0.5" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.62" />
+            <stop offset="78%" stopColor="currentColor" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.08" />
+          </linearGradient>
+
+          {/*
+            后半个环的遮罩：**挡掉行星轮廓以内的那一段**。
+            用户："背后的应该是被遮住，看不到星环了，透视要搞一下" ——
+            原来后弧是整条画出来的，穿过球体的部分照样显示，所以"透"得不对。
+            白色 = 保留，黑色 = 遮住（就是行星那个圆）。
+          */}
+          <mask id="behindMask">
+            <rect x="0" y="0" width="300" height="150" fill="#fff" />
+            <circle cx="204" cy="76" r="29" fill="#000" />
+            <circle cx="64" cy="44" r="12.5" fill="#000" />
+          </mask>
+          {/* 前段环两端淡出，避免两端"啪"地截断。
+              峰值压到 0.55：0.8 太重，横过球面那段会像一根深色绳 */}
+          <linearGradient id="frontFade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="30%" stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="70%" stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -340,16 +364,14 @@ export function DrawerCosmos() {
             （顺带也跟土星那个经典角度一致）。
           */}
           <g transform="rotate(-18 204 76)">
-            {/* ① 后半个环。
-                环的比例按 r_y/r_x = 0.44 来（22/50）—— 开始写的是 15/54=0.28，
-                太扁了，前弧会浅浅地横切球面、看着像条纹。0.44 这个角度下
-                前弧能落到球体下缘之外，才是"环绕过去"的样子。 */}
+            {/* ① 后半个环 —— 套 behindMask：行星轮廓以内被遮住，
+                只在球体两侧露出来（这才是真的"藏在后面"） */}
             <path
               d="M254 76 A50 22 0 0 0 154 76"
               fill="none"
               stroke="url(#ringGrad)"
-              strokeWidth="1.6"
-              opacity="0.9"
+              strokeWidth="2.2"
+              mask="url(#behindMask)"
             />
 
             {/* ② 玻璃球本体 */}
@@ -366,13 +388,12 @@ export function DrawerCosmos() {
             />
             <ellipse cx="193" cy="65" rx="9" ry="6.5" fill="url(#spec)" opacity="0.85" />
 
-            {/* ③ 前段环（下弧中间 60%） */}
+            {/* ③ 前段环：加粗、两端淡出（frontFade），压住行星下缘 */}
             <path
               d="M179.0 93.9 A50 22 0 0 0 229.0 93.9"
               fill="none"
-              stroke="url(#ringGrad)"
-              strokeWidth="1.8"
-              opacity="0.95"
+              stroke="url(#frontFade)"
+              strokeWidth="2.6"
             />
           </g>
         </g>
@@ -380,12 +401,13 @@ export function DrawerCosmos() {
         {/* 第二个带环的玻璃行星（左上，中号）—— 同样倾斜 22° */}
         <g className="aster-orbit">
           <g transform="rotate(22 64 44)">
+            {/* 后弧：同样套遮罩，行星轮廓以内遮掉 */}
             <path
               d="M87 44 A23 6.4 0 0 0 41 44"
               fill="none"
               stroke="url(#ringGrad)"
-              strokeWidth="0.9"
-              opacity="0.85"
+              strokeWidth="1.6"
+              mask="url(#behindMask)"
             />
             <circle cx="64" cy="44" r="12.5" fill="url(#glassMid)" />
             <circle cx="64" cy="44" r="12.1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
@@ -393,9 +415,8 @@ export function DrawerCosmos() {
             <path
               d="M77.5 48.7 A23 6.4 0 0 0 50.5 48.7"
               fill="none"
-              stroke="url(#ringGrad)"
-              strokeWidth="1.2"
-              opacity="0.9"
+              stroke="url(#frontFade)"
+              strokeWidth="1.9"
             />
           </g>
         </g>
