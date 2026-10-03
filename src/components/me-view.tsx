@@ -234,6 +234,18 @@ export function MeView() {
             他是谁、能知道什么、怎么和你相处、现在什么状态、记得你什么 —— 都在这里。
           </p>
         </div>
+        <Link
+          to="/core"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">AI 概览</span>
+            <span className="mt-0.5 block text-[11px] text-subtle">
+              一眼看他现在什么样（感知 / 状态 / 记忆）
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted" />
+        </Link>
         <div className="mt-2 space-y-2">
           {[
             { to: "/permissions", label: "感知权限", hint: "他能知道什么（能随时收紧）" },

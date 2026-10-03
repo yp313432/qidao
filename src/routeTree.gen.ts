@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAlarmsRouteImport } from './routes/_app/alarms'
+import { Route as AppCoreRouteImport } from './routes/_app/core'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
 import { Route as AppInnerRouteImport } from './routes/_app/inner'
 import { Route as AppMeRouteImport } from './routes/_app/me'
@@ -53,6 +54,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppAlarmsRoute = AppAlarmsRouteImport.update({
   id: '/alarms',
   path: '/alarms',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCoreRoute = AppCoreRouteImport.update({
+  id: '/core',
+  path: '/core',
   getParentRoute: () => AppRoute,
 } as any)
 const AppEnvRoute = AppEnvRouteImport.update({
@@ -199,6 +205,7 @@ const ApiPushSubscribeRoute = ApiPushSubscribeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/alarms': typeof AppAlarmsRoute
+  '/core': typeof AppCoreRoute
   '/env': typeof AppEnvRoute
   '/inner': typeof AppInnerRoute
   '/me': typeof AppMeRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/alarms': typeof AppAlarmsRoute
+  '/core': typeof AppCoreRoute
   '/env': typeof AppEnvRoute
   '/inner': typeof AppInnerRoute
   '/me': typeof AppMeRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_app/alarms': typeof AppAlarmsRoute
+  '/_app/core': typeof AppCoreRoute
   '/_app/env': typeof AppEnvRoute
   '/_app/inner': typeof AppInnerRoute
   '/_app/me': typeof AppMeRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/alarms'
+    | '/core'
     | '/env'
     | '/inner'
     | '/me'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/alarms'
+    | '/core'
     | '/env'
     | '/inner'
     | '/me'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/_app/alarms'
+    | '/_app/core'
     | '/_app/env'
     | '/_app/inner'
     | '/_app/me'
@@ -422,6 +434,13 @@ declare module '@tanstack/react-router' {
       path: '/alarms'
       fullPath: '/alarms'
       preLoaderRoute: typeof AppAlarmsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/core': {
+      id: '/_app/core'
+      path: '/core'
+      fullPath: '/core'
+      preLoaderRoute: typeof AppCoreRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/env': {
@@ -658,6 +677,7 @@ const AppPlayRouteWithChildren =
 
 interface AppRouteChildren {
   AppAlarmsRoute: typeof AppAlarmsRoute
+  AppCoreRoute: typeof AppCoreRoute
   AppEnvRoute: typeof AppEnvRoute
   AppInnerRoute: typeof AppInnerRoute
   AppMeRoute: typeof AppMeRoute
@@ -674,6 +694,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlarmsRoute: AppAlarmsRoute,
+  AppCoreRoute: AppCoreRoute,
   AppEnvRoute: AppEnvRoute,
   AppInnerRoute: AppInnerRoute,
   AppMeRoute: AppMeRoute,
