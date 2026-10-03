@@ -29,7 +29,16 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap",
+        /*
+         * Cormorant Garamond（斜体）是**玩乐区首页那几句英文装饰**专用的。
+         *
+         * 用户要的是"飘逸那种的，这个和系统字体不一样，只作为装饰"。
+         * 它跟正文完全分开：只在 `--font-script` 里用，正文一个字都不碰。
+         *
+         * ⚠️ 它从 Google Fonts 拉。断网时浏览器会回退到下一个候选（衬线），
+         *    那几行还是能看，只是没有飘逸感 —— 不会白屏或报错。
+         */
+        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Cormorant+Garamond:ital,wght@1,300;1,400;0,300&display=swap",
       },
     ],
   }),

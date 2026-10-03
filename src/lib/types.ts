@@ -241,9 +241,18 @@ export type Settings = {
   font: FontId;
   textTone: TextTone;
   textColor: string;
-  /** 小宇宙里行星/星环的颜色（跟文字色独立，见 PlanetTone 的说明） */
+  /**
+   * 小宇宙里行星/星环的颜色（跟文字色独立，见 PlanetTone 的说明）
+   */
   planetTone: PlanetTone;
   planetColor: string;
+  /**
+   * 「认识的日子」—— 玩乐区首页那个 `NNN DAYS TOGETHER` 用它算天数。
+   *
+   * 用户自己填（"用户自己填日子"）。格式 YYYY-MM-DD，空表示没填 ——
+   * 那时卡片会显示一句"去我的空间填个日子"，而不是编一个数字出来。
+   */
+  togetherSince: string;
   showThinking: boolean;
   saveThinking: boolean;
   notifications: boolean;

@@ -675,6 +675,32 @@ function MeSections({ tab }: { tab: MeTab }) {
           只影响对话抽屉下面那个小宇宙里的行星和星环，<span className="text-fg">不影响文字</span>。
           选「跟随文字」时会随你换背景、改文字色一起变，不会出现背景暗了、星球还亮的问题。
         </p>
+
+        {/*
+          认识的日子 —— 玩乐区首页那个「NNN DAYS TOGETHER」用它算天数。
+          用户："可以来个组件，上面是两个的名字或头像，写着认识多久了"、
+          "用户自己填日子"。填了才显示，没填就提示来这儿填，不编数字。
+        */}
+        <p className="mt-4 mb-2 text-[12px] text-muted">认识的日子</p>
+        <label className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3">
+          <span className="min-w-0 text-[12px] leading-4 text-muted">
+            玩乐区首页会显示
+            <br />
+            「一起多少天」
+          </span>
+          <input
+            type="date"
+            value={settings.togetherSince}
+            onChange={(e) => patch({ togetherSince: e.target.value })}
+            aria-label="认识的日子"
+            className="shrink-0 bg-transparent font-mono text-[13px] outline-none"
+          />
+        </label>
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          {settings.togetherSince
+            ? "留空就不显示那个数字。"
+            : "还没填 —— 填上之后，玩乐区首页就会替你数着。"}
+        </p>
         <p className="mt-2 text-[12px] leading-5 text-muted">
           深色背景图下小字看不清时，把它换成浅色字就行。
         </p>

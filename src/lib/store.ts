@@ -108,6 +108,7 @@ const defaultSettings: Settings = {
   textColor: "#1c1917",
   planetTone: "auto",
   planetColor: "#7fa8b8",
+  togetherSince: "",
   aiAvatar: "",
   persona: "",
   userAvatar: "",
