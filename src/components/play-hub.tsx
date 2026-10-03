@@ -16,10 +16,11 @@ import { FileButton } from "@/components/file-button";
 import { countdown, sortDates } from "@/lib/days";
 import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/play-photos-db";
 import {
-  ButterflyRibbon,
-  CandyJar,
+  ButterflyWings,
   ClipStamp,
   CornerWave,
+  Shell,
+  TopWaveLine,
 } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -153,13 +154,14 @@ function TogetherCard() {
 
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-5 py-6">
+      {/* 左上角那道波浪（保留） */}
+      <CornerWave corner="tl" className="top-1.5 left-1.5 h-[4.5rem] w-[5.5rem]" />
       {/*
-        **半包**：只包左上 + 右下两个角，线本身是波浪。
-        用户："半包啊D老师，不是全边框，左上和右下有就行了，而且波纹太细了"。
-        （第一版画成直角折线、第二版画成绕一圈的全边框，都不对。）
+        顶边那道**横向波浪线** —— 就是用户画橙色横线的位置。
+        用户："你在我画横线的这个地方加一条波浪线，现在这个厚度材质就行，
+        不用再纠结半包边框了"。
       */}
-      <CornerWave corner="tl" className="top-1 left-1 h-20 w-28" />
-      <CornerWave corner="br" className="right-1 bottom-1 h-20 w-28" />
+      <TopWaveLine className="top-0 inset-x-6 h-3" />
 
       <div className="relative flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center">
@@ -254,10 +256,10 @@ function ShowcaseGrid() {
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-3 py-4">
       {/*
-        左上角蝴蝶丝带（照着参考图重画成渐变+翅脉+发光边，整只向左微斜）。
-        丝带的尾巴控制在组件内，不要拖出卡片外。
+        左上角**只留翅膀**的蝴蝶。
+        用户："把他的身子，也就是那三条线给去了，飘带也去了，就留翅膀"。
       */}
-      <ButterflyRibbon className="top-0 -left-2 h-24 w-28 opacity-90" />
+      <ButterflyWings className="-top-1 -left-3 h-[5.5rem] w-[7rem] opacity-90" />
       <p className="relative mb-3 text-center text-[10px] tracking-[0.3em] text-subtle uppercase">
         our little things
       </p>
@@ -408,11 +410,9 @@ function NowNote() {
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.5rem] border border-line p-3">
       {/*
-        时间下面那块空白：一个装糖果的玻璃罐 + 旁边散落的几颗糖。
-        用户："咱们画一个装糖果的玻璃罐，旁边还散落着几颗糖果。"
-        （上一版我看成了"玻璃管"，画了根棍子 😅）
+        时间下面：一个**贝壳**（用户："那个玻璃罐删了，你弄个贝壳替代吧"）。
       */}
-      <CandyJar className="right-1 bottom-1 h-32 w-[6.25rem] opacity-85" />
+      <Shell className="right-1 bottom-1 h-[7.5rem] w-[7.5rem] opacity-85" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">right now</p>
       <p
         className="relative font-serif text-[2.1rem] leading-none font-medium tabular-nums"
