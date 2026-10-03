@@ -309,14 +309,15 @@ export function DrawerCosmos() {
             <stop offset="60%" stopColor="#fff" stopOpacity="0.12" />
             <stop offset="100%" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
-          {/* 环的颜色：中间实、两端淡（0.08 → 0.62），比原来亮不少 ——
-              用户："星环太淡了" */}
+          {/* 环的颜色：中间实、两端淡。
+              用户最后一条："线弄淡一点，细一点，就是有一种氛围感，
+              不要太实，虚一点的那种" —— 峰值从 0.62 收到 0.4 */}
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
-            <stop offset="22%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="50%" stopColor="currentColor" stopOpacity="0.62" />
-            <stop offset="78%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.08" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.05" />
+            <stop offset="22%" stopColor="currentColor" stopOpacity="0.32" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.4" />
+            <stop offset="78%" stopColor="currentColor" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
           </linearGradient>
 
           {/*
@@ -337,11 +338,12 @@ export function DrawerCosmos() {
             淡出必须在这个很窄的区间里完成。上一版 stops 写 30%/70%，
             淡出被摊到 40~160 这么宽，弧在行星下缘那一段（x≈180/230）
             正好被淡掉了，看着又像断开。
+            峰值 0.62 → 0.42：要氛围感，不要一根实线。
           */}
           <linearGradient id="frontFade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="86%" stopColor="currentColor" stopOpacity="0.62" />
-            <stop offset="87%" stopColor="currentColor" stopOpacity="0.62" />
+            <stop offset="86%" stopColor="currentColor" stopOpacity="0.42" />
+            <stop offset="87%" stopColor="currentColor" stopOpacity="0.42" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
@@ -371,7 +373,7 @@ export function DrawerCosmos() {
               d="M254 76 A50 22 0 0 0 154 76"
               fill="none"
               stroke="url(#ringGrad)"
-              strokeWidth="2.2"
+              strokeWidth="1.5"
               mask="url(#behindMask)"
             />
 
@@ -405,7 +407,7 @@ export function DrawerCosmos() {
               d="M154 76 A50 22 0 0 0 254 76"
               fill="none"
               stroke="url(#frontFade)"
-              strokeWidth="2.6"
+              strokeWidth="1.7"
             />
           </g>
         </g>
@@ -418,7 +420,7 @@ export function DrawerCosmos() {
               d="M87 44 A23 6.4 0 0 0 41 44"
               fill="none"
               stroke="url(#ringGrad)"
-              strokeWidth="1.6"
+              strokeWidth="1.1"
               mask="url(#behindMask)"
             />
             <circle cx="64" cy="44" r="12.5" fill="url(#glassMid)" />
@@ -428,7 +430,7 @@ export function DrawerCosmos() {
               d="M41 44 A23 6.4 0 0 0 87 44"
               fill="none"
               stroke="url(#frontFade)"
-              strokeWidth="1.9"
+              strokeWidth="1.2"
             />
           </g>
         </g>
