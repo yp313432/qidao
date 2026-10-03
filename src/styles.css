@@ -416,20 +416,23 @@ html[data-drawer-open] .glass-nav-bar {
   transform-origin: center;
 }
 
-/* 月亮：柔光晕，很慢地明暗（不闪） */
+/* 月亮那层柔光。
+   用户反馈："那个弯月后面的棕色特效怎么一闪一闪的，怪怪的" ——
+   原来这里给整组加了 `drop-shadow` 呼吸动画：每帧都要重算滤镜，
+   投射色又掺着暖橘强调色，于是**棕色的圈在明暗脉动**。
+   现在只留一个极轻的透明度呼吸，不加任何滤镜
+   （发光交给组件里那层模糊月牙，它是静态的，不会闪）。 */
 @keyframes aster-moon-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--decor) 34%, transparent));
+    opacity: 1;
   }
   50% {
-    filter: drop-shadow(0 0 10px color-mix(in oklab, var(--decor) 55%, transparent));
+    opacity: 0.93;
   }
 }
-/* 月亮：做成"透光玻璃"—— 边缘光 + 偏心高光（都画在 SVG 里），
-   这里只负责那层柔和的呼吸光晕（明暗很缓，不是闪）。 */
 .aster-moon {
-  animation: aster-moon-glow 6.5s ease-in-out infinite;
+  animation: aster-moon-glow 7s ease-in-out infinite;
 }
 
 /* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */
