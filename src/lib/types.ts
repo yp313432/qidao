@@ -200,6 +200,20 @@ export type FontId = "system" | "serif" | "kai" | "mono";
 /** 文字颜色：auto 跟随主题，dark/light 强制明暗，custom 用 textColor */
 export type TextTone = "auto" | "dark" | "light" | "custom";
 
+/**
+ * 小宇宙里行星/星环的颜色。
+ *
+ * 跟**文字色**是两回事 —— 用户："球体颜色和字体颜色做个切割吧，
+ * 她两分开，不放一起，不然不好同时兼顾"。
+ *
+ *   auto   跟随文字色（默认）—— 换深色背景时不会出现"背景黑了、行星还黄"
+ *   mist   冷薄荷青（跟视觉 Skill 的"冷薄荷青为主"一致）
+ *   violet 雾紫（Skill 里的辅色）
+ *   gold   暖金（Skill 里的点缀色）
+ *   custom 自定义，用 planetColor
+ */
+export type PlanetTone = "auto" | "mist" | "violet" | "gold" | "custom";
+
 export type BackgroundSettings = {
   /** 用户上传的自定义背景图（dataURL，空字符串表示未上传） */
   image: string;
@@ -227,6 +241,9 @@ export type Settings = {
   font: FontId;
   textTone: TextTone;
   textColor: string;
+  /** 小宇宙里行星/星环的颜色（跟文字色独立，见 PlanetTone 的说明） */
+  planetTone: PlanetTone;
+  planetColor: string;
   showThinking: boolean;
   saveThinking: boolean;
   notifications: boolean;

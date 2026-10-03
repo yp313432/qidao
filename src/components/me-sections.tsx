@@ -33,7 +33,7 @@ import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
-import type { FontId, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
+import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Avatar } from "@/components/avatar";
@@ -109,6 +109,22 @@ const TONES: { id: TextTone; label: string }[] = [
   { id: "auto", label: "跟随主题" },
   { id: "dark", label: "深色字" },
   { id: "light", label: "浅色字" },
+  { id: "custom", label: "自定义" },
+];
+
+/**
+ * 小宇宙里行星/星环的预设色。
+ *
+ * 跟「文字颜色」是**两个独立的开关**（用户："球体颜色和字体颜色做个切割吧，
+ * 她两分开，不放一起，不然不好同时兼顾"）。
+ * 三个色取自视觉 Skill 的配色原则：冷薄荷青为主 + 雾紫为辅 + 暖金点缀。
+ * swatch 只用来画那个小圆点，真实取值在 store.ts 的 PLANET_COLORS。
+ */
+const PLANET_TONES: { id: PlanetTone; label: string; swatch?: string }[] = [
+  { id: "auto", label: "跟随文字" },
+  { id: "mist", label: "冷薄荷青", swatch: "#7fa8b8" },
+  { id: "violet", label: "雾紫", swatch: "#9a8cba" },
+  { id: "gold", label: "暖金", swatch: "#c9a227" },
   { id: "custom", label: "自定义" },
 ];
 
@@ -613,6 +629,52 @@ function MeSections({ tab }: { tab: MeTab }) {
             <span className="text-[12px] text-muted">自定义颜色 {settings.textColor}</span>
           </div>
         )}
+
+        {/*
+          星球颜色 —— 跟「文字颜色」**分开**的一个开关。
+          用户："球体颜色和字体颜色做个切割吧，她两分开，不放一起，
+          不然不好同时兼顾。"
+          所以这里单独给一组：跟随文字 / 冷薄荷青 / 雾紫 / 暖金 / 自定义。
+        */}
+        <p className="mt-4 mb-2 text-[12px] text-muted">小宇宙的星球颜色</p>
+        <div className="flex flex-wrap gap-2">
+          {PLANET_TONES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => patch({ planetTone: t.id })}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
+                settings.planetTone === t.id ? "bg-ink text-ink-fg" : "bg-chip",
+              )}
+            >
+              {t.swatch && (
+                <span
+                  className="size-3 rounded-full border border-line/60"
+                  style={{ background: t.swatch }}
+                  aria-hidden="true"
+                />
+              )}
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {settings.planetTone === "custom" && (
+          <div className="mt-3 flex items-center gap-3 px-1">
+            <input
+              type="color"
+              value={settings.planetColor}
+              onChange={(e) => patch({ planetColor: e.target.value })}
+              className="size-9 rounded-full border border-line bg-transparent"
+              aria-label="自定义星球颜色"
+            />
+            <span className="text-[12px] text-muted">自定义星球色 {settings.planetColor}</span>
+          </div>
+        )}
+        <p className="mt-2 text-[12px] leading-5 text-muted">
+          只影响对话抽屉下面那个小宇宙里的行星和星环，<span className="text-fg">不影响文字</span>。
+          选「跟随文字」时会随你换背景、改文字色一起变，不会出现背景暗了、星球还亮的问题。
+        </p>
         <p className="mt-2 text-[12px] leading-5 text-muted">
           深色背景图下小字看不清时，把它换成浅色字就行。
         </p>

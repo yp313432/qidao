@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { idbStorage } from "@/lib/idb-storage";
 
@@ -106,6 +106,8 @@ const defaultSettings: Settings = {
   font: "system",
   textTone: "auto",
   textColor: "#1c1917",
+  planetTone: "auto",
+  planetColor: "#7fa8b8",
   aiAvatar: "",
   persona: "",
   userAvatar: "",
@@ -1169,6 +1171,18 @@ const TONE_COLORS: Record<"dark" | "light", string> = {
 };
 
 /**
+ * 行星/星环的预设颜色。
+ *
+ * 取自视觉 Skill 的配色原则："冷薄荷青为主 + 雾紫为辅 + 暖金点缀"。
+ * 都是中间调，亮主题暗主题都看得见（默认的「跟随文字」则完全随主题走）。
+ */
+const PLANET_COLORS: Record<"mist" | "violet" | "gold", string> = {
+  mist: "#7fa8b8", // 冷薄荷青
+  violet: "#9a8cba", // 雾紫
+  gold: "#c9a227", // 暖金
+};
+
+/**
  * 弹层底色要**跟着文字颜色走**，不能跟着主题走。
  *
  * 典型翻车现场：深色背景图 + 强制浅色文字 —— 画布色还是浅的，
@@ -1204,6 +1218,24 @@ export function applyAppearance(settings: Settings) {
   root.dataset.font = settings.font ?? "system";
   // 动画开关：auto 时由 CSS 里的 prefers-reduced-motion 决定，on/off 由这里强制定
   root.dataset.motion = settings.motion ?? "auto";
+
+  /**
+   * 行星/星环的颜色 —— 跟文字色**独立**。
+   *
+   * auto（默认）就把覆盖撤掉，让它回到 CSS 里那条
+   * `--decor-planet: color-mix(文字色 78%, 强调色 22%)`，也就是跟着文字走；
+   * 其余预设/自定义直接给一个固定色。这样调球色永远不会牵动正文文字。
+   */
+  const planetTone = settings.planetTone ?? "auto";
+  if (planetTone === "auto") {
+    root.style.removeProperty("--decor-planet");
+  } else {
+    const color =
+      planetTone === "custom"
+        ? settings.planetColor || PLANET_COLORS.mist
+        : PLANET_COLORS[planetTone];
+    root.style.setProperty("--decor-planet", color);
+  }
 
   const tone = settings.textTone ?? "auto";
   if (tone === "auto") {

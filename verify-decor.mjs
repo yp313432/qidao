@@ -120,8 +120,45 @@ for (const [theme, tone] of [["dawn", "dark"], ["ink", "light"]]) {
   await page.screenshot({ path: `${OUT}/decor2-theme-${theme}.png` });
 }
 
-// 关键：单独改球体色，正文文字不能受影响
-console.log("\n=== 单独改球体色，正文文字应不受影响 ===");
+// 界面上那个「小宇宙的星球颜色」开关：点了要真的生效，且不动正文
+console.log("\n=== 界面开关：小宇宙的星球颜色 ===");
+await page.goto(BASE + "/me", { waitUntil: "commit", timeout: 30000 });
+await page.waitForTimeout(2200);
+// 进「我的空间」（个性化在那里）
+await page.getByRole("link", { name: /我的空间/ }).first().click();
+await page.waitForTimeout(1500);
+const hasControl = await page.evaluate(() =>
+  document.body.innerText.includes("小宇宙的星球颜色"),
+);
+console.log(`  「我的空间」里有这个开关: ${hasControl ? "✅" : "❌"}`);
+
+const readPlanet = () =>
+  page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--decor-planet)";
+    probe.style.display = "none";
+    document.body.appendChild(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return c;
+  });
+
+if (hasControl) {
+  const before = await readPlanet();
+  console.log(`  默认（跟随文字）: ${before}`);
+  // 点「冷薄荷青」
+  await page.getByRole("button", { name: "冷薄荷青" }).first().click();
+  await page.waitForTimeout(600);
+  const after = await readPlanet();
+  const bodyColor = await page.evaluate(() => getComputedStyle(document.body).color);
+  console.log(`  点「冷薄荷青」后: ${after}`);
+  console.log(`  生效了: ${after !== before ? "✅" : "❌"}`);
+  console.log(`  正文文字没被牵动: ${bodyColor === "rgb(28, 25, 23)" || bodyColor.includes("28") ? "✅" : `⚠️ ${bodyColor}`}`);
+  await page.screenshot({
+    path: `${OUT}/planet-tone-control.png`,
+    fullPage: false,
+  });
+}
 const split = await page.evaluate(() => {
   const r = document.documentElement;
   const before = getComputedStyle(document.body).color;
