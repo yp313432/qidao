@@ -17,9 +17,11 @@ import { cn } from "@/lib/utils";
  *   · "下面……不要有线，看着割裂" → 去掉那条分隔线
  *   · "粒子特效可以再闪一点""行星再加点、放大点，看着好空"
  *
- * 颜色：**跟着 --decor（由文字色推出来）走**，不用强调色。
- * 用户原话："我换背景他们也会跟着统一吧，不能我背景是深色的，
- * 行星还是黄色的吧" —— 深色背景配浅色文字时，星月自动变浅。
+ * 颜色：分成两个独立变量（用户："球体颜色和字体颜色做个切割吧，她两分开，
+ * 不放一起，不然不好同时兼顾"）：
+ *   --decor        星野：细线 / 星星 / 月亮 / 粒子
+ *   --decor-planet 小宇宙：行星 / 星环  ← 想单独换球色只改这个，不动正文
+ * 两个默认都跟着文字色走（亮背景→深、暗背景→浅），换背景不会撞色。
  */
 
 /** 用户把系统的"减弱动态效果"关掉了动画？ */
@@ -273,12 +275,18 @@ export function DrawerSky() {
 export function DrawerCosmos() {
   return (
     <div aria-hidden="true" className="relative h-[150px] shrink-0 overflow-hidden">
+      {/* 粒子跟星野共用 --decor（细闪那部分） */}
       <Sparkles count={30} />
 
+      {/*
+        行星与星环用**独立的** --decor-planet ——
+        用户："球体颜色和字体颜色做个切割吧，她两分开，不放一起，
+        不然不好同时兼顾"。这样单独调球色不会牵动正文文字。
+      */}
       <svg
         viewBox="0 0 300 150"
         className="absolute inset-0 size-full"
-        style={{ color: "var(--decor)" }}
+        style={{ color: "var(--decor-planet)" }}
         aria-hidden="true"
       >
         <defs>

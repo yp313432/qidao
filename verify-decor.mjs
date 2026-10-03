@@ -79,22 +79,24 @@ if (box) {
 }
 
 // 换主题：装饰颜色必须跟着变（用户最在意的一条）
-console.log("\n=== 换主题，装饰颜色是否跟着统一 ===");
+// 另加：球体色与文字色**互相独立**（用户："球体颜色和字体颜色做个切割"）
+console.log("\n=== 换主题，装饰颜色是否跟着统一（球体色要独立可调）===");
 const sample = async (theme) => {
   await page.evaluate((t) => {
     document.documentElement.dataset.theme = t;
   }, theme);
   await page.waitForTimeout(500);
   return page.evaluate(() => {
-    const el = document.querySelector("aside [aria-hidden='true'].absolute svg") ?? document.querySelector("aside svg");
-    const cs = el ? getComputedStyle(el) : null;
-    const probe = document.createElement("span");
-    probe.style.color = "var(--decor)";
-    probe.style.display = "none";
-    document.body.appendChild(probe);
-    const rgb = getComputedStyle(probe).color;
-    probe.remove();
-    return { 装饰色: rgb, 文字色: getComputedStyle(document.documentElement).getPropertyValue("--aster-fg").trim() };
+    const probe = (v) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${v})`;
+      el.style.display = "none";
+      document.body.appendChild(el);
+      const rgb = getComputedStyle(el).color;
+      el.remove();
+      return rgb;
+    };
+    return { 星野色: probe("--decor"), 球体色: probe("--decor-planet") };
   });
 };
 // 深色主题要同时把文字色翻成浅色（等价于用户在「文字颜色」里调浅）
@@ -114,9 +116,32 @@ for (const [theme, tone] of [["dawn", "dark"], ["ink", "light"]]) {
   }, { t: theme, tone });
   await page.waitForTimeout(600);
   const s = await sample(theme);
-  console.log(`  theme=${theme.padEnd(5)} 文字色=${s.文字色.padEnd(8)} → 装饰色 ${s.装饰色}`);
+  console.log(`  theme=${theme.padEnd(5)} 星野色 ${s.星野色}  球体色 ${s.球体色}`);
   await page.screenshot({ path: `${OUT}/decor2-theme-${theme}.png` });
 }
+
+// 关键：单独改球体色，正文文字不能受影响
+console.log("\n=== 单独改球体色，正文文字应不受影响 ===");
+const split = await page.evaluate(() => {
+  const r = document.documentElement;
+  const before = getComputedStyle(document.body).color;
+  r.style.setProperty("--decor-planet", "#3f7f9f"); // 故意换个冷青
+  const probe = document.createElement("span");
+  probe.style.color = "var(--decor-planet)";
+  probe.style.display = "none";
+  document.body.appendChild(probe);
+  const planet = getComputedStyle(probe).color;
+  probe.remove();
+  const after = getComputedStyle(document.body).color;
+  const svg = document.querySelector("aside .aster-orbit-slow")
+    ? getComputedStyle(document.querySelector("aside .aster-orbit-slow").closest("svg")).color
+    : null;
+  return { 正文前: before, 正文后: after, 球体色: planet, 画布取到: svg };
+});
+console.log(JSON.stringify(split, null, 2));
+console.log(`  正文文字没被牵动: ${split.正文前 === split.正文后 ? "✅ 切开了" : "❌ 还是联动"}`);
+console.log(`  球体 SVG 拿到新色: ${split.画布取到 === split.球体色 ? "✅" : `❌ (${split.画布取到})`}`);
+await page.screenshot({ path: `${OUT}/decor2-planet-split.png` });
 
 console.log("\n控制台错误:", errors.length ? [...new Set(errors)].join(" | ") : "(none)");
 await browser.close();
