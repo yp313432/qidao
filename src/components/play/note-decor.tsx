@@ -18,84 +18,90 @@ import { cn } from "@/lib/utils";
  */
 
 /**
- * 卡片四周那圈**波浪细边框**。
+ * 卡片角上那道**波浪半包**（只包左上 + 右下两个角）。
  *
- * 用户："我说的横折只是他的**走向**，还是要用波浪，而且**不是做边框吗**，
- * 你为啥反着包？"
- * → 我上一版理解错了：画成了只有两个角的直角折线，而且方向还反了。
- *   正解是**一条波浪线绕着卡片走一圈**（四个圆角都包上），
- *   "横折"只是说它沿边走、拐弯，线本身要保持波浪。
+ * 用户（改了第三版才对）："**半包**啊D老师，不是全边框，左上和右下有就行了，
+ * 而且**波纹太细了**"。
  *
- * 做法：一条带波浪段的闭合圆角路径 + `vector-effect: non-scaling-stroke`
- * （这样拉伸到任意卡片尺寸时，线宽都保持 pt 级粗细，不会被拉粗）。
+ * 之前的两次错误：
+ *   第一版 → 画成了直角折线（他说"要波浪"）
+ *   第二版 → 画成了**绕一圈的全边框**（他说"半包就行"）
+ * 正解：一条**波浪线**，从角上探进去、拐个弯再收掉，**只覆盖一段**。
+ *
+ * 线也加粗了（原来 0.7 / 0.3 太细看不出来），现在 1.6 / 0.5。
+ * 用 `non-scaling-stroke` 保证拉到任何卡片尺寸都不被拉粗。
  */
-export function WavyFrame({ className }: { className?: string }) {
+export function CornerWave({
+  className,
+  corner = "tl",
+}: {
+  className?: string;
+  corner?: "tl" | "br";
+}) {
+  /** 一段波浪：`from`→`to` 沿主轴，`at` 是另一轴的位置，`amp` 是波幅 */
+  const wave = (from: number, to: number, at: number, amp: number, horiz: boolean) => {
+    const steps = 4;
+    const len = (to - from) / steps;
+    let d = "";
+    for (let i = 0; i < steps; i++) {
+      const a = from + len * i;
+      const b = a + len;
+      // 两段 C 拼一个完整的波峰 + 波谷（半个波长一段）
+      const c1 = a + len * 0.35;
+      const c2 = b - len * 0.35;
+      const dy = i % 2 === 0 ? -amp : amp;
+      if (horiz) {
+        d += ` C ${c1.toFixed(1)} ${(at + dy).toFixed(1)}, ${c2.toFixed(1)} ${(at + dy).toFixed(1)}, ${b.toFixed(1)} ${at}`;
+      } else {
+        d += ` C ${(at + dy).toFixed(1)} ${c1.toFixed(1)}, ${(at + dy).toFixed(1)} ${c2.toFixed(1)}, ${at} ${b.toFixed(1)}`;
+      }
+    }
+    return d;
+  };
+
   /*
-    一条"波浪 + 圆角"的闭合路径。
-    每边用两段小 S 弯（C 曲线）拼出起伏，四个角用 A 圆弧过渡，
-    这样既有波浪又有圆角，一整圈连下来不接头。
-    viewBox 100×100 靠 preserveAspectRatio="none" 拉满整张卡片。
+    viewBox 120×96，只画左上那一块：
+      横边从左往右（y≈8，波幅 6）到 x≈72 → 圆角拐弯 → 竖边往下（x≈112，波幅 6）到 y≈88
+    右下角靠 scale(-1,-1) 镜像，不用画两份。
   */
-  const d = [
-    // 上边：从左到右，两个起伏
-    "M 6 3.2",
-    "C 14 0.6, 20 5.4, 28 3.0",
-    "C 36 0.6, 42 5.4, 50 3.0",
-    "C 58 0.6, 64 5.4, 72 3.0",
-    "C 80 0.6, 86 5.0, 94 3.2",
-    // 右上圆角
-    "A 4 4 0 0 1 96.8 6",
-    // 右边
-    "C 99.4 14, 94.6 20, 97 28",
-    "C 99.4 36, 94.6 42, 97 50",
-    "C 99.4 58, 94.6 64, 97 72",
-    "C 99.4 80, 95 86, 96.8 94",
-    // 右下圆角
-    "A 4 4 0 0 1 94 96.8",
-    // 下边（从右往左）
-    "C 86 99.4, 80 94.6, 72 97",
-    "C 64 99.4, 58 94.6, 50 97",
-    "C 42 99.4, 36 94.6, 28 97",
-    "C 20 99.4, 14 95, 6 96.8",
-    // 左下圆角
-    "A 4 4 0 0 1 3.2 94",
-    // 左边（从下往上）
-    "C 0.6 86, 5.4 80, 3.0 72",
-    "C 0.6 64, 5.4 58, 3.0 50",
-    "C 0.6 42, 5.4 36, 3.0 28",
-    "C 0.6 20, 5.0 14, 3.2 6",
-    // 左上圆角
-    "A 4 4 0 0 1 6 3.2",
-    "Z",
-  ].join(" ");
+  const d =
+    `M 8 8` +
+    wave(8, 72, 8, 5.5, true) +
+    // 转角（往内收一点，像"包"过来的感觉）
+    ` C 84 8, 92 12, 98 18` +
+    wave(20, 86, 112, 5.5, false);
+
+  const transform = corner === "br" ? "scale(-1,-1) translate(-120 -96)" : undefined;
 
   return (
     <svg
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
+      viewBox="0 0 120 96"
       aria-hidden="true"
-      className={cn("pointer-events-none absolute inset-0 size-full text-[color:var(--decor)]", className)}
+      className={cn("pointer-events-none absolute text-[color:var(--decor)]", className)}
     >
-      <path
-        d={d}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="0.7"
-        strokeOpacity="0.3"
-        vectorEffect="non-scaling-stroke"
-        strokeLinejoin="round"
-      />
-      {/* 第二圈：错开半拍、更淡 —— 让"波浪"更明显，也有一点厚度感 */}
-      <path
-        d={d}
-        fill="none"
-        stroke="#fff"
-        strokeWidth="0.5"
-        strokeOpacity="0.2"
-        vectorEffect="non-scaling-stroke"
-        strokeLinejoin="round"
-        transform="translate(0.6 0.6)"
-      />
+      <g transform={transform}>
+        {/* 主波浪：加粗到 1.6，透明度 0.5 */}
+        <path
+          d={d}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeOpacity="0.5"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* 内侧再跟一条更淡更细的，做出"丝带"的厚度感 */}
+        <path
+          d={d}
+          fill="none"
+          stroke="#fff"
+          strokeWidth="0.9"
+          strokeOpacity="0.3"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+          transform="translate(2.2 2.2)"
+        />
+      </g>
     </svg>
   );
 }
@@ -117,100 +123,113 @@ export function WavyFrame({ className }: { className?: string }) {
 export function ButterflyRibbon({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 170 150"
+      viewBox="0 0 180 150"
       aria-hidden="true"
       className={cn("pointer-events-none absolute", className)}
     >
       <defs>
-        <linearGradient id="bwLong" x1="0.9" y1="0.8" x2="0.1" y2="0">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0.85" />
-          <stop offset="28%" stopColor="#fff" stopOpacity="0.5" />
-          <stop offset="65%" stopColor="var(--decor)" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.08" />
-        </linearGradient>
-        <linearGradient id="bwShort" x1="0.9" y1="0.2" x2="0.1" y2="1">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0.7" />
-          <stop offset="40%" stopColor="var(--decor)" stopOpacity="0.26" />
+        {/*
+          渐变全部**从身体附近向外**发散 —— 这是关键：
+          上一版四片各用一条线性渐变，结果四片颜色/走向都不一样，
+          看着就是"四个独立的水滴"。现在统一从根部（右上）出发，
+          四片才是**同一只蝴蝶的翅膀**。
+        */}
+        <radialGradient id="wingG" cx="72%" cy="52%" r="72%">
+          <stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
+          <stop offset="26%" stopColor="#fff" stopOpacity="0.52" />
+          <stop offset="58%" stopColor="var(--decor)" stopOpacity="0.3" />
           <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.06" />
-        </linearGradient>
+        </radialGradient>
       </defs>
 
-      {/*
-        整只向左微斜 + 一点点横向压扁 —— 这就是"侧面飞过来"的透视，
-        四片翅膀也因此有远近差异（不压扁时四片一样大，就平了）。
-      */}
-      <g transform="rotate(-14 85 70) skewY(-3) scale(0.97 1)">
-        {/* 长长的丝带：从翅下拖出去，两条交叠（透视上一条在另一条后面） */}
+      {/* 向左微斜 + 一点点侧身的透视 */}
+      <g transform="rotate(-13 88 70) skewY(-2.5)">
+        {/* 丝带（在最后面） */}
         <g fill="none" stroke="var(--decor)" strokeLinecap="round" className="aster-drift">
-          {/* 后面那条 */}
-          <path d="M74 92 C60 108, 38 114, 24 130" strokeWidth="0.6" opacity="0.16" />
-          {/* 前面那条（更清楚一点） */}
-          <path
-            d="M78 94 C66 112, 44 120, 32 138 C28 144, 32 147, 40 144"
-            strokeWidth="0.85"
-            opacity="0.3"
-          />
-        </g>
-
-        {/* 散落的微粒（参考图那种星尘感） */}
-        <g fill="#fff">
-          <circle cx="118" cy="26" r="1.3" opacity="0.5" />
-          <circle cx="139" cy="52" r="0.9" opacity="0.38" />
-          <circle cx="34" cy="42" r="1.1" opacity="0.4" />
-          <circle cx="22" cy="74" r="0.8" opacity="0.3" />
-          <circle cx="128" cy="98" r="1" opacity="0.34" />
+          <path d="M80 96 C66 112, 44 120, 30 136" strokeWidth="0.9" opacity="0.26" />
+          <path d="M86 98 C74 116, 54 126, 44 142" strokeWidth="0.6" opacity="0.16" />
         </g>
 
         <g className="aster-flutter">
-          {/* 左上：细长水滴，最先扬起来 */}
+          {/*
+            **一整块连体的翅膀轮廓**（不是四片分开的 path）。
+            从身体根部出发：左上翅 → 收回来 → 左下翅 → 回到根部 →
+            右下翅 → 收回来 → 右上翅 → 闭合。
+            这样轮廓是一整条，翅膀之间没有缝，就不像"四个水滴"了。
+          */}
           <path
-            d="M78 66 C58 30, 22 8, 10 22 C-1 35, 40 62, 78 66 Z"
-            fill="url(#bwLong)"
+            d="
+              M 84 62
+              C 74 34, 46 14, 24 14
+              C 8 14, 6 30, 18 44
+              C 26 53, 40 60, 50 64
+              C 34 70, 18 82, 22 96
+              C 26 110, 46 106, 62 94
+              C 72 87, 80 76, 84 66
+              L 92 66
+              C 96 76, 104 87, 114 94
+              C 130 106, 150 110, 154 96
+              C 158 82, 142 70, 126 64
+              C 136 60, 150 53, 158 44
+              C 170 30, 168 14, 152 14
+              C 130 14, 102 34, 92 62
+              Z
+            "
+            fill="url(#wingG)"
           />
-          {/* 左下：带尾尖的后翅 */}
+          {/* 翅膀边缘一圈极淡的亮线 = 发光边（也是把整体"框住"，更像一只） */}
           <path
-            d="M78 72 C56 86, 28 104, 24 92 C20 80, 52 68, 78 72 Z"
-            fill="url(#bwShort)"
-          />
-          {/* 右下：镜像的后翅（尾尖往下拖） */}
-          <path
-            d="M92 72 C114 86, 142 106, 146 93 C150 80, 118 68, 92 72 Z"
-            fill="url(#bwShort)"
-          />
-          {/* 右上：最长的一片，往上扬 */}
-          <path
-            d="M92 66 C112 28, 150 6, 162 20 C173 33, 130 62, 92 66 Z"
-            fill="url(#bwLong)"
+            d="
+              M 84 62
+              C 74 34, 46 14, 24 14
+              C 8 14, 6 30, 18 44
+              C 26 53, 40 60, 50 64
+              C 34 70, 18 82, 22 96
+              C 26 110, 46 106, 62 94
+              C 72 87, 80 76, 84 66
+              L 92 66
+              C 96 76, 104 87, 114 94
+              C 130 106, 150 110, 154 96
+              C 158 82, 142 70, 126 64
+              C 136 60, 150 53, 158 44
+              C 170 30, 168 14, 152 14
+              C 130 14, 102 34, 92 62
+              Z
+            "
+            fill="none"
+            stroke="#fff"
+            strokeWidth="0.8"
+            opacity="0.4"
           />
 
-          {/* 翅脉：从根部散出去的曲线，末端收细（不是直线） */}
+          {/*
+            翅脉：**减少到 4 条**，而且都从根部一点散出去。
+            上一版 8 条线各画各的 → 看着就是"三条线"。
+          */}
           <g fill="none" stroke="#fff" strokeLinecap="round">
-            <path d="M80 64 C64 46, 42 30, 24 22" strokeWidth="0.8" opacity="0.45" />
-            <path d="M80 66 C64 54, 44 44, 26 40" strokeWidth="0.6" opacity="0.32" />
-            <path d="M90 64 C106 46, 128 30, 146 24" strokeWidth="0.8" opacity="0.4" />
-            <path d="M90 66 C106 54, 126 46, 144 42" strokeWidth="0.6" opacity="0.3" />
-            <path d="M80 72 C66 78, 46 84, 32 86" strokeWidth="0.55" opacity="0.26" />
-            <path d="M90 72 C104 78, 124 86, 138 88" strokeWidth="0.55" opacity="0.24" />
-            {/* 根部那圈浅纹（"里面还有一层"的感觉） */}
-            <path d="M78 62 C68 56, 58 52, 48 50" strokeWidth="1.3" opacity="0.28" />
-            <path d="M92 62 C102 56, 112 52, 122 50" strokeWidth="1.3" opacity="0.24" />
+            <path d="M84 62 C64 48, 40 30, 22 22" strokeWidth="0.9" opacity="0.42" />
+            <path d="M84 64 C62 66, 38 76, 26 88" strokeWidth="0.8" opacity="0.34" />
+            <path d="M92 62 C112 48, 136 30, 154 22" strokeWidth="0.9" opacity="0.38" />
+            <path d="M92 64 C114 66, 138 76, 150 88" strokeWidth="0.8" opacity="0.3" />
           </g>
+
+          {/* 根部一层柔光，把四片"粘"在身体上 */}
+          <ellipse cx="88" cy="64" rx="16" ry="12" fill="#fff" opacity="0.2" />
         </g>
 
-        {/* 身体：细，根部亮（不是粗黑条） */}
-        <path d="M85 54 V82" stroke="#fff" strokeWidth="1.5" opacity="0.55" strokeLinecap="round" />
-        <path d="M85 54 V82" stroke="var(--decor)" strokeWidth="0.6" opacity="0.35" strokeLinecap="round" />
-        {/* 触角：细长、往外弯 */}
+        {/* 身体：细长一点，不再是粗线 */}
+        <path d="M88 48 C86 58, 86 70, 88 82" stroke="#fff" strokeWidth="1.6" opacity="0.55" fill="none" strokeLinecap="round" />
+        <path d="M88 48 C86 58, 86 70, 88 82" stroke="var(--decor)" strokeWidth="0.6" opacity="0.4" fill="none" strokeLinecap="round" />
+        {/* 触角 */}
         <path
-          d="M85 54 C80 42, 72 34, 62 30 M85 54 C90 42, 98 34, 108 30"
+          d="M88 48 C83 36, 76 28, 67 24 M88 48 C93 36, 100 28, 109 24"
           fill="none"
           stroke="var(--decor)"
           strokeWidth="0.6"
-          opacity="0.38"
+          opacity="0.4"
           strokeLinecap="round"
         />
-        {/* 根部发光核 */}
-        <circle cx="85" cy="66" r="4" fill="#fff" opacity="0.28" />
+        <circle cx="88" cy="62" r="3.4" fill="#fff" opacity="0.3" />
       </g>
     </svg>
   );
@@ -235,7 +254,10 @@ export function ClipStamp({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn("pointer-events-none absolute text-[color:var(--decor)]", className)}
     >
-      {/* 底下那张纸（正方形色块），比夹子大、略微歪 */}
+      {/* 底下那张纸：**浅色**，不要用装饰色铺满 ——
+          用户说"回形针后面还是有个大方块，棕色的"，
+          因为纸是用 currentColor（深灰棕）铺的，一铺满就是个棕方块。
+          现在改成"很淡的纸 + 一道很轻的边"，才像纸不像块。 */}
       <g transform="rotate(-9 52 52)">
         <rect
           x="16"
@@ -243,29 +265,25 @@ export function ClipStamp({ className }: { className?: string }) {
           width="66"
           height="66"
           rx="3"
-          fill="currentColor"
-          opacity="0.11"
+          fill="#fff"
+          opacity="0.22"
           stroke="currentColor"
-          strokeWidth="0.7"
-          strokeOpacity="0.3"
+          strokeWidth="0.6"
+          strokeOpacity="0.22"
         />
         {/* 纸上几行"手写" */}
-        <g stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" opacity="0.3">
+        <g stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" opacity="0.22">
           <path d="M26 34 H70" />
           <path d="M26 44 H64" />
           <path d="M26 54 H52" />
         </g>
-        {/* 纸的投影：往下偏移一点、更淡，做出"纸是浮在卡上"的层次 */}
-        <rect
-          x="18"
-          y="20"
-          width="66"
-          height="66"
-          rx="3"
+        {/* 纸右下那点投影：纸是"浮"在卡上的（近处深、远处淡） */}
+        <path
+          d="M18 80 C40 84, 66 84, 80 78"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.6"
-          strokeOpacity="0.07"
+          strokeWidth="2.4"
+          opacity="0.08"
         />
       </g>
 
@@ -379,68 +397,85 @@ export function CandyJar({ className }: { className?: string }) {
       </defs>
 
       {/* 罐子的接触投影 —— 它"坐"在卡片上 */}
-      <ellipse cx="78" cy="141" rx="42" ry="6.5" fill="var(--decor)" opacity="0.12" />
+      <ellipse cx="78" cy="141" rx="44" ry="6.5" fill="var(--decor)" opacity="0.12" />
 
       <g className="aster-breathe">
-        {/* 盖子：顶面是个**椭圆**（这就是俯视透视），侧面一条窄带，下面一圈厚沿 */}
-        <ellipse cx="78" cy="24" rx="27" ry="6" fill="var(--decor)" opacity="0.14" />
+        {/*
+          **圆柱罐 + 盖**（用户："玻璃罐改成圆柱那种吧，上面是盖子"）。
+          圆柱的关键就是：**上下两个椭圆 + 两条直的侧壁**。
+          上一版罐身在腰部鼓出来（像个坛子），所以看着还是怪。
+        */}
+        {/* 盖：顶面椭圆 + 一圈侧沿 + 一个小提钮 */}
+        <ellipse cx="78" cy="20" rx="30" ry="7" fill="var(--decor)" opacity="0.13" />
         <path
-          d="M51 24 V31 C51 34.5, 63 37, 78 37 C93 37, 105 34.5, 105 31 V24 Z"
+          d="M48 20 V30 C48 34, 62 37, 78 37 C94 37, 108 34, 108 30 V20 Z"
           fill="var(--decor)"
-          opacity="0.1"
+          opacity="0.09"
         />
         <ellipse
           cx="78"
-          cy="24"
-          rx="27"
-          ry="6"
+          cy="20"
+          rx="30"
+          ry="7"
           fill="none"
           stroke="var(--decor)"
-          strokeWidth="0.7"
-          strokeOpacity="0.3"
+          strokeWidth="0.8"
+          strokeOpacity="0.34"
         />
         <ellipse
           cx="78"
-          cy="35"
+          cy="30"
           rx="30"
-          ry="6.5"
-          fill="var(--decor)"
-          opacity="0.1"
+          ry="7"
+          fill="none"
           stroke="var(--decor)"
-          strokeWidth="0.7"
-          strokeOpacity="0.26"
+          strokeWidth="0.8"
+          strokeOpacity="0.3"
+        />
+        {/* 提钮 */}
+        <ellipse cx="78" cy="14" rx="7" ry="3.4" fill="var(--decor)" opacity="0.16" />
+        <ellipse
+          cx="78"
+          cy="14"
+          rx="7"
+          ry="3.4"
+          fill="none"
+          stroke="var(--decor)"
+          strokeWidth="0.6"
+          strokeOpacity="0.32"
         />
 
-        {/* 罐身：口沿椭圆 → 收一点腰 → 肚子最鼓 → 平底（上窄下圆，矮胖） */}
+        {/* 罐身：**两条直侧壁** + 底部椭圆（圆柱） */}
         <path
-          d="M48 38 C48 38, 42 56, 42 82 C42 108, 49 128, 60 133 C68 136.5, 88 136.5, 96 133 C107 128, 114 108, 114 82 C114 56, 108 38, 108 38"
+          d="M48 34 V124 C48 131, 61 136, 78 136 C95 136, 108 131, 108 124 V34"
           fill="url(#jarBody)"
           stroke="var(--decor)"
           strokeWidth="1"
           strokeOpacity="0.34"
         />
-        {/* 底沿：一条略弯的厚边（玻璃的厚度） */}
+        {/* 底部椭圆：圆柱的底（透视） */}
         <path
-          d="M55 129 C64 134, 92 134, 101 129"
+          d="M48 124 C48 131, 61 136, 78 136 C95 136, 108 131, 108 124"
           fill="none"
           stroke="var(--decor)"
-          strokeWidth="1.6"
-          opacity="0.22"
+          strokeWidth="1.5"
+          opacity="0.2"
         />
+        {/* 罐口椭圆 */}
         <ellipse
           cx="78"
-          cy="38"
+          cy="34"
           rx="30"
-          ry="5"
+          ry="6"
           fill="none"
           stroke="var(--decor)"
           strokeWidth="0.7"
-          strokeOpacity="0.24"
+          strokeOpacity="0.26"
         />
 
-        {/* 内壁高光：左边一条长白，右边一小段（光从左上来） */}
-        <path d="M52 56 V116" stroke="#fff" strokeWidth="3" opacity="0.32" strokeLinecap="round" />
-        <path d="M104 70 V98" stroke="#fff" strokeWidth="1.4" opacity="0.16" strokeLinecap="round" />
+        {/* 圆柱内壁的两条竖向高光（左长右短，光从左上来） */}
+        <path d="M55 52 V118" stroke="#fff" strokeWidth="3" opacity="0.32" strokeLinecap="round" />
+        <path d="M101 64 V100" stroke="#fff" strokeWidth="1.4" opacity="0.16" strokeLinecap="round" />
 
         {/*
           罐里的糖果：**从下往上堆**，越上面的越小、越靠后（就是透视）——

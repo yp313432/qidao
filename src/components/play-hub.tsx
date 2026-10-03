@@ -19,7 +19,7 @@ import {
   ButterflyRibbon,
   CandyJar,
   ClipStamp,
-  WavyFrame,
+  CornerWave,
 } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -154,12 +154,12 @@ function TogetherCard() {
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-5 py-6">
       {/*
-        四周一圈**波浪细边框**。
-        用户："我说的横折只是他的走向，还是要用波浪，而且不是做边框吗，
-        你为啥反着包？" —— 上一版我只画了两个角、还是反的；
-        正解是一条波浪线**绕卡片一圈**（四个圆角都包上）。
+        **半包**：只包左上 + 右下两个角，线本身是波浪。
+        用户："半包啊D老师，不是全边框，左上和右下有就行了，而且波纹太细了"。
+        （第一版画成直角折线、第二版画成绕一圈的全边框，都不对。）
       */}
-      <WavyFrame />
+      <CornerWave corner="tl" className="top-1 left-1 h-20 w-28" />
+      <CornerWave corner="br" className="right-1 bottom-1 h-20 w-28" />
 
       <div className="relative flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center">
