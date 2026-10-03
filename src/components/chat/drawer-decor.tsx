@@ -199,12 +199,20 @@ export function DrawerSky() {
           ))}
         </g>
 
-        {/* 月亮：柔光晕。
+        {/* 月亮：透光玻璃 —— 主体 + 边缘光 + 偏心高光，外面套一层呼吸光晕。
             位置挑在左中部：右上角是「关闭」按钮、中间偏下是「新对话」按钮，
             月亮压到它们身上就糊成一团（截图里撞过两次）。 */}
-        <g>
-          <circle cx="188" cy="86" r="9.5" fill="currentColor" opacity="0.26" />
-          <circle cx="191" cy="83.5" r="7.8" fill="var(--aster-canvas)" opacity="0.45" />
+        <g className="aster-moon">
+          <circle cx="188" cy="86" r="10" fill="currentColor" opacity="0.2" />
+          <circle cx="188" cy="86" r="10" fill="none" stroke="currentColor" strokeWidth="0.9" opacity="0.45" />
+          <ellipse cx="184" cy="82" rx="3.2" ry="2.6" fill="url(#spec2)" opacity="0.9" />
+          <path
+            d="M191 78 A10 10 0 0 1 191 94"
+            fill="none"
+            stroke="var(--aster-canvas)"
+            strokeWidth="3"
+            opacity="0.35"
+          />
         </g>
 
         {/* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */}
@@ -216,6 +224,12 @@ export function DrawerSky() {
             <stop offset="0%" stopColor="var(--decor)" stopOpacity="0" />
             <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.75" />
           </linearGradient>
+          {/* 月亮上那点偏心反光（id 跟小宇宙那边错开，SVG 的 id 是全文档唯一的） */}
+          <radialGradient id="spec2" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.6" />
+            <stop offset="60%" stopColor="#fff" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
         </defs>
       </svg>
 
@@ -268,47 +282,139 @@ export function DrawerCosmos() {
         aria-hidden="true"
       >
         <defs>
-          <radialGradient id="planetBody" cx="36%" cy="30%" r="78%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.6" />
-            <stop offset="55%" stopColor="currentColor" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.1" />
+          {/*
+            「透光玻璃」不是填个色就有的，要三层叠：
+              ① 主体：中心偏上一点点的高光 → 往外变淡（透明度都低，才透）
+              ② 边缘：一圈稍亮的描边 = 玻璃的厚度边缘光
+              ③ 高光：偏心的小亮点 + 内阴影（左下）—— 玻璃反光的那个感觉
+          */}
+          <radialGradient id="glassBig" cx="34%" cy="26%" r="82%">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.42" />
+            <stop offset="42%" stopColor="currentColor" stopOpacity="0.2" />
+            <stop offset="72%" stopColor="currentColor" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.2" />
           </radialGradient>
-          <radialGradient id="planetSmall" cx="34%" cy="28%" r="80%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.14" />
+          <radialGradient id="glassMid" cx="34%" cy="26%" r="82%">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
+            <stop offset="45%" stopColor="currentColor" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.16" />
+          </radialGradient>
+          <radialGradient id="glassSmall" cx="34%" cy="26%" r="84%">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.15" />
+          </radialGradient>
+          {/* 右上角那点反光 */}
+          <radialGradient id="spec" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.55" />
+            <stop offset="60%" stopColor="#fff" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
+          {/* 内阴影：玻璃下缘那圈暗，让球体有厚度（压得很轻，重了就不透） */}
+          <radialGradient id="glassShade" cx="72%" cy="78%" r="58%">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.07" />
-            <stop offset="50%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.07" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.06" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.46" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.06" />
           </linearGradient>
         </defs>
 
-        {/* 主角：带星环的大行星（放大了一档） */}
+        {/*
+          主角：带星环的大玻璃行星。
+
+          环要"绕"过去，必须分三段画 —— 直接画整个椭圆会得到一道横切
+          行星的条纹，看着像环把行星劈开了（这个坑试了两版才想明白）：
+            ① 环在行星**后面**的那半（上弧）
+            ② 行星本体（玻璃球）
+            ③ 环在行星**前面**的那段（下弧中间 60%）—— 只有这段该压住行星，
+               两端留在行星轮廓外，才不会连成一条线
+        */}
         <g className="aster-orbit-slow">
-          <ellipse cx="204" cy="78" rx="52" ry="14" fill="none" stroke="url(#ringGrad)" strokeWidth="1.6" />
-          <circle cx="204" cy="78" r="28" fill="url(#planetBody)" />
-          <path
-            d="M152 78 A52 14 0 0 0 256 78"
-            fill="none"
-            stroke="url(#ringGrad)"
-            strokeWidth="1.8"
-            opacity="0.95"
-          />
+          {/*
+            整组绕行星中心转 -18°。
+            为什么必须转：环是很扁的椭圆（ry 15 对 r29 的球），
+            水平放的话前弧一定会横着穿过球体下半部，看着就是一条条纹。
+            倾斜之后前弧从右下绕到左下、两端露在球外，才有"环绕过行星"的感觉
+            （顺带也跟土星那个经典角度一致）。
+          */}
+          <g transform="rotate(-18 204 76)">
+            {/* ① 后半个环。
+                环的比例按 r_y/r_x = 0.44 来（22/50）—— 开始写的是 15/54=0.28，
+                太扁了，前弧会浅浅地横切球面、看着像条纹。0.44 这个角度下
+                前弧能落到球体下缘之外，才是"环绕过去"的样子。 */}
+            <path
+              d="M254 76 A50 22 0 0 0 154 76"
+              fill="none"
+              stroke="url(#ringGrad)"
+              strokeWidth="1.6"
+              opacity="0.9"
+            />
+
+            {/* ② 玻璃球本体 */}
+            <circle cx="204" cy="76" r="29" fill="url(#glassBig)" />
+            <circle cx="204" cy="76" r="29" fill="url(#glassShade)" />
+            <circle
+              cx="204"
+              cy="76"
+              r="28.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.9"
+              opacity="0.42"
+            />
+            <ellipse cx="193" cy="65" rx="9" ry="6.5" fill="url(#spec)" opacity="0.85" />
+
+            {/* ③ 前段环（下弧中间 60%） */}
+            <path
+              d="M179.0 93.9 A50 22 0 0 0 229.0 93.9"
+              fill="none"
+              stroke="url(#ringGrad)"
+              strokeWidth="1.8"
+              opacity="0.95"
+            />
+          </g>
         </g>
 
-        {/* 第二个带环的小行星（左上） */}
+        {/* 第二个带环的玻璃行星（左上，中号）—— 同样倾斜 22° */}
         <g className="aster-orbit">
-          <ellipse cx="66" cy="46" rx="22" ry="6" fill="none" stroke="url(#ringGrad)" strokeWidth="1" />
-          <circle cx="66" cy="46" r="11.5" fill="url(#planetSmall)" />
-          <path d="M44 46 A22 6 0 0 0 88 46" fill="none" stroke="url(#ringGrad)" strokeWidth="1.2" opacity="0.9" />
+          <g transform="rotate(22 64 44)">
+            <path
+              d="M87 44 A23 6.4 0 0 0 41 44"
+              fill="none"
+              stroke="url(#ringGrad)"
+              strokeWidth="0.9"
+              opacity="0.85"
+            />
+            <circle cx="64" cy="44" r="12.5" fill="url(#glassMid)" />
+            <circle cx="64" cy="44" r="12.1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
+            <ellipse cx="59" cy="39" rx="4" ry="3" fill="url(#spec)" opacity="0.8" />
+            <path
+              d="M77.5 48.7 A23 6.4 0 0 0 50.5 48.7"
+              fill="none"
+              stroke="url(#ringGrad)"
+              strokeWidth="1.2"
+              opacity="0.9"
+            />
+          </g>
+        </g>
+
+        {/* 第三颗玻璃行星（右中偏下）—— 用户："再加一个小行星吧，两个太空了" */}
+        <g className="aster-orbit-slow">
+          <circle cx="246" cy="118" r="8.5" fill="url(#glassSmall)" />
+          <circle cx="246" cy="118" r="8.2" fill="none" stroke="currentColor" strokeWidth="0.7" opacity="0.34" />
+          <ellipse cx="243" cy="115" rx="2.8" ry="2.2" fill="url(#spec)" opacity="0.75" />
         </g>
 
         {/* 小卫星们 */}
-        <circle cx="132" cy="112" r="6.5" fill="url(#planetSmall)" className="aster-orbit" />
-        <circle cx="258" cy="128" r="4.2" fill="url(#planetSmall)" className="aster-orbit-slow" />
-        <circle cx="34" cy="104" r="3.4" fill="currentColor" opacity="0.32" />
-        <circle cx="168" cy="34" r="3" fill="currentColor" opacity="0.28" />
+        <g className="aster-orbit">
+          <circle cx="132" cy="112" r="6" fill="url(#glassSmall)" />
+          <circle cx="132" cy="112" r="5.8" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+        </g>
+        <circle cx="34" cy="104" r="3.4" fill="url(#glassSmall)" />
+        <circle cx="168" cy="34" r="3" fill="url(#glassSmall)" />
+        <circle cx="104" cy="72" r="2.2" fill="currentColor" opacity="0.3" />
 
         {/* 星尘 */}
         <g fill="currentColor">
@@ -316,12 +422,13 @@ export function DrawerCosmos() {
             [40, 128, 1.0, 0.26],
             [96, 24, 0.8, 0.24],
             [140, 72, 0.9, 0.22],
-            [166, 120, 0.8, 0.24],
+            [166, 122, 0.8, 0.24],
             [246, 30, 1.0, 0.26],
             [22, 44, 0.8, 0.2],
             [112, 62, 0.7, 0.2],
-            [282, 78, 0.8, 0.22],
-            [196, 138, 0.7, 0.2],
+            [284, 76, 0.8, 0.22],
+            [196, 140, 0.7, 0.2],
+            [272, 96, 0.7, 0.2],
           ].map(([x, y, r, o]) => (
             <circle key={`${x}-${y}`} cx={x} cy={y} r={r} opacity={o} />
           ))}

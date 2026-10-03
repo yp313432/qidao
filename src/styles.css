@@ -422,10 +422,10 @@ html[data-drawer-open] .glass-nav-bar {
     filter: drop-shadow(0 0 10px color-mix(in oklab, var(--decor) 55%, transparent));
   }
 }
+/* 月亮：做成"透光玻璃"—— 边缘光 + 偏心高光（都画在 SVG 里），
+   这里只负责那层柔和的呼吸光晕（明暗很缓，不是闪）。 */
 .aster-moon {
-  background: color-mix(in oklab, var(--decor) 46%, transparent);
   animation: aster-moon-glow 6.5s ease-in-out infinite;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--decor) 28%, transparent);
 }
 
 /* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */
@@ -450,18 +450,20 @@ html[data-drawer-open] .glass-nav-bar {
   animation: aster-meteor 14s cubic-bezier(0.3, 0, 0.7, 1) infinite;
 }
 
-/* 小宇宙里的行星：非常慢的漂移（有惯性，不是机械摆动） */
+/* 小宇宙里的行星：很慢的漂移（有惯性，不是机械摆动）。
+   用户："他俩运动加快一点点" —— 9s/12s 收到 6.5s/8.5s。
+   幅度也稍微大一点（3,4 → 4,5），快起来才看得出来在动。 */
 @keyframes aster-orbit {
   0%,
   100% {
     transform: translate(0, 0);
   }
   50% {
-    transform: translate(3px, -4px);
+    transform: translate(4px, -5px);
   }
 }
 .aster-orbit {
-  animation: aster-orbit 9s ease-in-out infinite;
+  animation: aster-orbit 6.5s ease-in-out infinite;
 }
 
 @keyframes aster-orbit-slow {
@@ -470,11 +472,11 @@ html[data-drawer-open] .glass-nav-bar {
     transform: translate(0, 0);
   }
   50% {
-    transform: translate(-4px, 3px);
+    transform: translate(-5px, 4px);
   }
 }
 .aster-orbit-slow {
-  animation: aster-orbit-slow 12s ease-in-out infinite;
+  animation: aster-orbit-slow 8.5s ease-in-out infinite;
 }
 
 /* ——— 组件级高光 ———   点按/悬停哪一块玻璃，就只有那一块自己扫过一道柔光（1.1s 一次），
