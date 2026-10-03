@@ -222,6 +222,40 @@ export function MeView() {
         </p>
       </section>
 
+      {/*
+        「AI 核心」—— 新版「我的」的**第一入口**（视觉设计 Skill v1.0 + AI核心说明）。
+        文档说：我的 = AI 控制中枢，先分 5 个大类再进二级，不要一长串平铺。
+        这里把已经做好的四个二级入口收进一个归口，点进去才是细节 ✅
+        （纯入口整理，功能一点没动 ✅）
+      */}
+      <Section title="AI 核心">
+        <div className="rounded-3xl border border-line bg-elevated px-3.5 py-3">
+          <p className="text-[12px] leading-5 text-muted">
+            他是谁、能知道什么、怎么和你相处、现在什么状态、记得你什么 —— 都在这里。
+          </p>
+        </div>
+        <div className="mt-2 space-y-2">
+          {[
+            { to: "/permissions", label: "感知权限", hint: "他能知道什么（能随时收紧）" },
+            { to: "/worldbook", label: "怎么和你相处", hint: "给他的规矩 · 说话风格 · 思考引导" },
+            { to: "/inner", label: "他的状态", hint: "他最近的情绪与状态（标注来源）" },
+            { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图" },
+          ].map((it) => (
+            <Link
+              key={it.to}
+              to={it.to}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+            >
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium">{it.label}</span>
+                <span className="mt-0.5 block text-[11px] text-subtle">{it.hint}</span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </Link>
+          ))}
+        </div>
+      </Section>
+
       <Section title={ownApi ? "用量（真实统计）" : "额度（服务端）"}>
         <div className="rounded-2xl bg-chip px-4 py-3">
           {ownApi ? (
