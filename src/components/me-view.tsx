@@ -901,7 +901,8 @@ export function MeView() {
         )}
       </Section>
 
-      <Section title="AI 权限">
+      {/* 已归到上面「AI 核心」里了 —— 这里收起，免得「我的」又长又重复 */}
+      <Section title="AI 权限" hidden>
         <Link
           to="/permissions"
           className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
@@ -920,7 +921,7 @@ export function MeView() {
       </Section>
 
       {/* 世界书：给他的规矩（含"别想太久"这类思考引导） */}
-      <Section title="世界书 / 思考引导">
+      <Section title="世界书 / 思考引导" hidden>
         <Link
           to="/worldbook"
           className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
@@ -939,7 +940,7 @@ export function MeView() {
       </Section>
 
       {/* 内在：他自己报的状态，画成起伏曲线 */}
-      <Section title="内在">
+      <Section title="内在" hidden>
         <Link
           to="/inner"
           className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
@@ -960,7 +961,7 @@ export function MeView() {
       </Section>
 
       {/* 记忆库：用户要求把它从权限里拉出来，当成一个重点功能 */}
-      <Section title="记忆库">
+      <Section title="记忆库" hidden>
         <Link
           to="/memories"
           className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3.5"
@@ -1220,7 +1221,18 @@ function ImageRow({
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  hidden,
+}: {
+  title: string;
+  children: ReactNode;
+  /** 暂时收起这一块（内容已经归到别处了，但代码先留着） */
+  hidden?: boolean;
+}) {
+  // 收起的块直接不渲染（代码留着，随时能放回来）
+  if (hidden) return null;
   return (
     <section className="mt-6 px-4">
       <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">{title}</h2>
