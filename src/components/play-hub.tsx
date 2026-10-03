@@ -19,8 +19,8 @@ import {
   ButterflyWings,
   ClipStamp,
   CornerWave,
-  Shell,
-  TopWaveLine,
+  Flower,
+  TopLine,
 } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -157,11 +157,10 @@ function TogetherCard() {
       {/* 左上角那道波浪（保留） */}
       <CornerWave corner="tl" className="top-1.5 left-1.5 h-[4.5rem] w-[5.5rem]" />
       {/*
-        顶边那道**横向波浪线** —— 就是用户画橙色横线的位置。
-        用户："你在我画横线的这个地方加一条波浪线，现在这个厚度材质就行，
-        不用再纠结半包边框了"。
+        顶边那条**直线** —— 位置和长度对着用户画的那道橙线来。
+        用户："我也不要求波浪了……就加一条横线就行了，材质和厚度如上"。
       */}
-      <TopWaveLine className="top-0 inset-x-6 h-3" />
+      <TopLine className="top-2 left-14 right-3 h-2" />
 
       <div className="relative flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center">
@@ -334,8 +333,8 @@ function PhotoNote() {
     // overflow-hidden 会把它裁掉，看着又变成一个躺在卡里的图标。
     // 用户原话："回形针要真卡在组件角上，后面还有个正方形色块"。
     <section className="aster-card relative rounded-[1.5rem] border border-line p-3">
-      {/* 回形针 + 它压着的那张方纸：一起骑在卡片右上角上 */}
-      <ClipStamp className="-top-4 -right-5 h-24 w-[5.5rem] opacity-80" />
+      {/* 回形针 + 它压着的那张方纸：一起骑在卡片右上角上。角度/大小按用户圈的椭圆。 */}
+      <ClipStamp className="-top-3 -right-4 h-[5.25rem] w-[4.75rem] opacity-80" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">our photos</p>
 
       {title ? (
@@ -410,9 +409,9 @@ function NowNote() {
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.5rem] border border-line p-3">
       {/*
-        时间下面：一个**贝壳**（用户："那个玻璃罐删了，你弄个贝壳替代吧"）。
+        时间下面：一朵**小花**（用户："贝壳算了，你也画不好……画一朵小花"）。
       */}
-      <Shell className="right-1 bottom-1 h-[7.5rem] w-[7.5rem] opacity-85" />
+      <Flower className="right-3 bottom-3 h-[5.5rem] w-[5.5rem] opacity-90" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">right now</p>
       <p
         className="relative font-serif text-[2.1rem] leading-none font-medium tabular-nums"

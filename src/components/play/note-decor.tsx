@@ -118,26 +118,13 @@ export function CornerWave({
 }
 
 /**
- * 卡片顶边那条**横向波浪线**（在用户画的那道橙线位置）。
+ * 卡片顶边那条**直线**（在用户画橙色横线的位置）。
  *
- * 用户："你在我画横线的这个地方加一条波浪线，现在这个厚度材质就行，
- * 不用再纠结半包边框了"。
- *
- * 所以就一条横线、波浪、贴边上沿、厚度跟角上那条一致（1.5 / 0.5）。
+ * 用户："第一个现在我也不要求波浪了，你看我画的黄色的那条线……你就在我画的
+ * 横线上加一条横线就行了，位置和大小我也画好了，材质和厚度如上"。
+ * —— 所以不要波浪，就一条直的；长度和位置对着他画的那条来。
  */
-export function TopWaveLine({ className }: { className?: string }) {
-  // 4 个完整波长铺满 viewBox 宽度
-  const steps = 4;
-  const seg = 100 / steps;
-  let d = "M 0 6";
-  for (let i = 0; i < steps; i++) {
-    const a = seg * i;
-    const b = a + seg;
-    // 每段一个波峰（单向），连起来就是均匀的波浪
-    d += ` C ${(a + seg * 0.35).toFixed(2)} 0, ${(b - seg * 0.35).toFixed(2)} 0, ${b.toFixed(2)} 6`;
-    if (i < steps - 1) d += ` C ${(b + seg * 0.35).toFixed(2)} 12, ${(b + seg * 0.65).toFixed(2)} 12, ${(b + seg).toFixed(2)} 6`;
-  }
-
+export function TopLine({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 100 12"
@@ -146,7 +133,7 @@ export function TopWaveLine({ className }: { className?: string }) {
       className={cn("pointer-events-none absolute text-[color:var(--decor)]", className)}
     >
       <path
-        d={d}
+        d="M 0 6 H 100"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
@@ -154,106 +141,80 @@ export function TopWaveLine({ className }: { className?: string }) {
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
+      {/* 内侧跟一条更淡更细的，厚度感跟角上那条一致 */}
       <path
-        d={d}
+        d="M 0 8 H 100"
         fill="none"
         stroke="#fff"
         strokeWidth="0.8"
         strokeOpacity="0.28"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
-        transform="translate(0 2)"
       />
     </svg>
   );
 }
 
 /**
- * 贝壳（替代原来那个玻璃罐）。
+ * 一朵**小花**（替换贝壳）。
  *
- * 画法（扇贝）：**铰合部在一端 + 扇形放射肋 + 波浪形边缘**。
- * 用 rotate(180) 让铰合部朝上、扇面朝下 —— 这是贝壳最常见的展示角度。
- * 底下加一条接触投影，跟其它装饰一样"坐"在卡片上。
+ * 用户："那个贝壳算了，你也画不好，你就在我那个时间组件里的画的那个圆上
+ * 画一朵小花，这个你总会画吧"。
+ *
+ * 五瓣花：每瓣一个椭圆，绕中心均分 72°；花心一个小圆 + 一点点花蕊。
+ * 不追求写实，简单干净就好 —— 反正是装饰。
  */
-export function Shell({ className }: { className?: string }) {
-  /*
-    扇贝的关键比例（第一版画成了圆鼓鼓的像个气球）：
-      · **宽 > 高**（约 88 : 70）—— 是扇子不是球
-      · 顶部一条**平的铰合边**（不是圆的）
-      · 外缘是一串**往外鼓的小弧**拼出来的（扇贝那种一瓣一瓣的边）
-        第一版的小弧是往里收的，所以看着像个袋子而不是贝壳
-  */
-  const outline = `
-    M 20 36
-    L 68 36
-    C 76 46, 82 58, 82 66
-    C 84 74, 88 78, 92 74
-    C 90 84, 82 88, 76 84
-    C 72 82, 68 88, 62 90
-    C 56 92, 52 86, 46 88
-    C 40 90, 36 94, 30 90
-    C 24 86, 22 78, 24 70
-    C 20 62, 16 50, 20 36
-    Z
-  `;
-
+export function Flower({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 112 108"
+      viewBox="0 0 100 100"
       aria-hidden="true"
       className={cn("pointer-events-none absolute", className)}
     >
-      <defs>
-        <radialGradient id="shellG" cx="48%" cy="92%" r="92%">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0.75" />
-          <stop offset="45%" stopColor="var(--decor)" stopOpacity="0.24" />
-          <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.09" />
-        </radialGradient>
-      </defs>
-
-      {/* 接触投影 */}
-      <ellipse cx="56" cy="98" rx="34" ry="5" fill="var(--decor)" opacity="0.12" />
-
-      {/* 扇面 */}
-      <path d={outline} fill="url(#shellG)" />
-      <path d={outline} fill="none" stroke="#fff" strokeWidth="0.9" opacity="0.45" />
-      <path d={outline} fill="none" stroke="var(--decor)" strokeWidth="0.5" opacity="0.3" />
-
-      {/* 放射肋：从铰合边中点往扇缘散开 */}
-      <g fill="none" stroke="var(--decor)" strokeLinecap="round">
-        <path d="M44 37 C34 50, 26 62, 23 72" strokeWidth="0.85" opacity="0.38" />
-        <path d="M44 37 C39 52, 34 66, 32 78" strokeWidth="0.75" opacity="0.32" />
-        <path d="M44 37 C45 54, 45 70, 45 82" strokeWidth="0.85" opacity="0.38" />
-        <path d="M44 37 C51 54, 55 68, 58 80" strokeWidth="0.75" opacity="0.32" />
-        <path d="M44 37 C56 50, 66 62, 72 72" strokeWidth="0.85" opacity="0.38" />
-        {/* 两条更短的内肋 */}
-        <path d="M44 37 C41 48, 39 56, 38 63" strokeWidth="0.5" opacity="0.2" />
-        <path d="M44 37 C49 48, 52 56, 53 63" strokeWidth="0.5" opacity="0.2" />
+      <g className="aster-flower-breathe">
+        {/* 五片花瓣：绕中心均分，从正上方开始 */}
+        {[0, 72, 144, 216, 288].map((deg) => (
+          <ellipse
+            key={deg}
+            cx="50"
+            cy="28"
+            rx="13"
+            ry="21"
+            fill="var(--decor)"
+            opacity="0.24"
+            stroke="var(--decor)"
+            strokeWidth="0.6"
+            strokeOpacity="0.3"
+            transform={`rotate(${deg} 50 50)`}
+          />
+        ))}
+        {/* 花瓣上再叠一层更小的，做出层次（像真花的内层） */}
+        {[36, 108, 180, 252, 324].map((deg) => (
+          <ellipse
+            key={`in${deg}`}
+            cx="50"
+            cy="34"
+            rx="9"
+            ry="14"
+            fill="#fff"
+            opacity="0.24"
+            transform={`rotate(${deg} 50 50)`}
+          />
+        ))}
+        {/* 花心 */}
+        <circle cx="50" cy="50" r="8" fill="var(--decor)" opacity="0.3" />
+        <circle cx="50" cy="50" r="8" fill="none" stroke="var(--decor)" strokeWidth="0.6" strokeOpacity="0.35" />
+        {/* 花蕊：几颗小点 */}
+        <g fill="#fff" opacity="0.5">
+          <circle cx="47" cy="48" r="1.2" />
+          <circle cx="53" cy="49" r="1" />
+          <circle cx="50" cy="53" r="1.1" />
+        </g>
       </g>
-
-      {/* 铰合部：平边上一个小小的梯形凸起 + 一颗小齿 */}
-      <path
-        d="M36 30 L52 30 L49 37 L39 37 Z"
-        fill="var(--decor)"
-        opacity="0.16"
-        stroke="var(--decor)"
-        strokeWidth="0.5"
-        strokeOpacity="0.32"
-      />
-      <path d="M40 33 H48" stroke="var(--decor)" strokeWidth="0.6" opacity="0.32" />
-
-      {/* 高光：左上一片柔光（光从左上来） */}
-      <ellipse cx="31" cy="55" rx="10" ry="15" fill="#fff" opacity="0.2" transform="rotate(-16 31 55)" />
     </svg>
   );
 }
 
-/**
- * 蝴蝶 —— **只留翅膀**。
- *
- * 用户："把他的身子，也就是那三条线给去了，飘带也去了，就留翅膀"。
- * 所以身体、触角、发光核、丝带全部删掉，只保留那一整块连体翅形 + 翅脉。
- */
 export function ButterflyWings({ className }: { className?: string }) {
   const wings = `
     M 84 62
@@ -361,8 +322,8 @@ export function ClipStamp({ className }: { className?: string }) {
       </g>
 
       {/* 回形针：骑在纸片和卡片边缘上。
-          用户："回形针往左斜一点" → 从 -4° 改到 -11°。 */}
-      <g fill="none" strokeLinecap="round" transform="rotate(-11 48 52)">
+          用户按他圈的**黄色椭圆**给了角度 —— 比他之前说的"往左斜一点"更斜。 */}
+      <g fill="none" strokeLinecap="round" transform="rotate(-20 48 52)">
         <path
           d="M40 2 C28 2, 22 10, 22 22 V58 C22 71, 31 78, 40 78 C49 78, 58 71, 58 58 V25 C58 17, 53 12, 47 12 C41 12, 36 17, 36 25 V56"
           stroke="currentColor"
