@@ -15,13 +15,7 @@ import {
 import { FileButton } from "@/components/file-button";
 import { countdown, sortDates } from "@/lib/days";
 import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/play-photos-db";
-import {
-  ButterflyWings,
-  ClipStamp,
-  CornerWave,
-  Flower,
-  TopLine,
-} from "@/components/play/note-decor";
+import { ButterflyWings, ClipStamp, Flower } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { resolveAiName } from "@/lib/branding";
@@ -154,13 +148,7 @@ function TogetherCard() {
 
   return (
     <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-5 py-6">
-      {/* 左上角那道波浪（保留） */}
-      <CornerWave corner="tl" className="top-1.5 left-1.5 h-[4.5rem] w-[5.5rem]" />
-      {/*
-        顶边那条**直线** —— 位置和长度对着用户画的那道橙线来。
-        用户："我也不要求波浪了……就加一条横线就行了，材质和厚度如上"。
-      */}
-      <TopLine className="top-2 left-14 right-3 h-2" />
+      {/* 用户："头像那个组件不加任何装饰了" —— 所以这里一个装饰都不挂 */}
 
       <div className="relative flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center">

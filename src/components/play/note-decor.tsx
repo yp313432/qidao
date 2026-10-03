@@ -18,151 +18,17 @@ import { cn } from "@/lib/utils";
  */
 
 /**
- * 卡片角上那道**波浪半包**（只包左上 + 右下两个角）。
- *
- * ── 用户拿手绘给我讲明白的（第四版才对）────────────────────────
- *
- * "边框不应该**包住**组件里面的东西吗，你反着来，不就像一个正 C 和一个反 C 吗，
- *  我们要的不应该是**两个 C 能合起来**吗，不然为啥叫边框"
- *
- * 两个错误：
- *   ① **朝向全反了**。正解：
- *        左上 —— 从左边过来 → 沿**上边往右**走，再沿**左边往下**走
- *        右下 —— 从右边过来 → 沿**下边往左**走，再沿**右边往上**走
- *      也就是两个 C 的**胳膊朝内对着伸**，合起来围成一圈。
- *      我之前是往外甩的（正 C / 反 C）。
- *   ② **没贴边**。线要**贴着组件边沿**走（"包住"），不是飘在卡片里面。
- *
- * 所以这里把锚点放在 (0,0)：波浪的外侧正好落在卡片边上，
- * 波峰只往**内**鼓（不往外），右下角靠 scale(-1,-1) 镜像。
- */
-export function CornerWave({
-  className,
-  corner = "tl",
-}: {
-  className?: string;
-  corner?: "tl" | "br";
-}) {
-  /** 一段波浪：`from`→`to` 沿主轴，`at` 是另一轴的位置（0 = 贴边），`amp` 往内鼓 */
-  const wave = (from: number, to: number, at: number, amp: number, horiz: boolean) => {
-    const steps = 3;
-    const len = (to - from) / steps;
-    let d = "";
-    for (let i = 0; i < steps; i++) {
-      const a = from + len * i;
-      const b = a + len;
-      const c1 = a + len * 0.35;
-      const c2 = b - len * 0.35;
-      // 单向鼓包（都在 at 的同一侧 = 往内），不是来回摆 —— 来回摆就成了"蚯蚓"
-      const off = at + amp;
-      if (horiz) {
-        d += ` C ${c1.toFixed(1)} ${off.toFixed(1)}, ${c2.toFixed(1)} ${off.toFixed(1)}, ${b.toFixed(1)} ${at}`;
-      } else {
-        d += ` C ${off.toFixed(1)} ${c1.toFixed(1)}, ${off.toFixed(1)} ${c2.toFixed(1)}, ${at} ${b.toFixed(1)}`;
-      }
-    }
-    return d;
-  };
-
-  /*
-    viewBox 130×104，锚点 (0,0) 就是卡片的左上角：
-      上边那条：从 (0,6) 往右到 x=78，往内鼓 7
-      转角：一条内收的弧（贴着圆角走）
-      左边那条：从 (6,26) 往下到 y=100，往内鼓 7
-  */
-  const d =
-    `M 0 6` +
-    wave(6, 78, 6, 7, true) +
-    // 贴着卡片圆角拐过去（控制点都往里收，才是"包"）
-    ` C 92 6, 102 16, 104 30` +
-    wave(30, 100, 6, 7, false);
-
-  const transform = corner === "br" ? "scale(-1,-1) translate(-130 -104)" : undefined;
-
-  return (
-    /*
-      外面再套一层：往里缩 3（用 +3 而不是负的 —— 负的会把线推到卡片外面，
-      被卡片边裁掉，第一版就是这样少了半截）。
-      线本身在 (0,0) 起步，缩 3 之后就贴着边沿了。
-    */
-    <svg
-      viewBox="-3 -3 136 110"
-      aria-hidden="true"
-      className={cn("pointer-events-none absolute text-[color:var(--decor)]", className)}
-    >
-      <g transform={transform}>
-        {/* 主波浪：贴着边、往内鼓，加粗到 1.5 */}
-        <path
-          d={d}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeOpacity="0.5"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        {/* 内侧跟一条更淡更细的，做出丝带的厚度 */}
-        <path
-          d={d}
-          fill="none"
-          stroke="#fff"
-          strokeWidth="0.8"
-          strokeOpacity="0.3"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-          transform="translate(2.4 2.4)"
-        />
-      </g>
-    </svg>
-  );
-}
-
-/**
- * 卡片顶边那条**直线**（在用户画橙色横线的位置）。
- *
- * 用户："第一个现在我也不要求波浪了，你看我画的黄色的那条线……你就在我画的
- * 横线上加一条横线就行了，位置和大小我也画好了，材质和厚度如上"。
- * —— 所以不要波浪，就一条直的；长度和位置对着他画的那条来。
- */
-export function TopLine({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 100 12"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-      className={cn("pointer-events-none absolute text-[color:var(--decor)]", className)}
-    >
-      <path
-        d="M 0 6 H 100"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeOpacity="0.5"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-      {/* 内侧跟一条更淡更细的，厚度感跟角上那条一致 */}
-      <path
-        d="M 0 8 H 100"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="0.8"
-        strokeOpacity="0.28"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
-/**
  * 一朵**小花**（替换贝壳）。
  *
  * 用户："那个贝壳算了，你也画不好，你就在我那个时间组件里的画的那个圆上
  * 画一朵小花，这个你总会画吧"。
  *
- * 五瓣花：每瓣一个椭圆，绕中心均分 72°；花心一个小圆 + 一点点花蕊。
- * 不追求写实，简单干净就好 —— 反正是装饰。
+ * 材质改成跟蝴蝶**同一套**（用户："花朵材质和效果改成和蝴蝶一样的就行，
+ * 渐变的，中心最亮，到边缘渐渐虚散"）：
+ *   · 用一个**从花心发散的径向渐变**（不是每瓣各填一块平色）
+ *     中心白亮 → 中段过渡到装饰色 → 边缘几乎透明
+ *   · 花瓣**不描边**（描边会产生硬轮廓，就"虚散"不掉了）
+ *   · 花心再叠一层柔光，强化"中心最亮"
  */
 export function Flower({ className }: { className?: string }) {
   return (
@@ -171,45 +37,38 @@ export function Flower({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn("pointer-events-none absolute", className)}
     >
+      <defs>
+        {/*
+          跟蝴蝶翅膀同一个思路：**一个**径向渐变，所有花瓣共用。
+          这样整朵花才是"从中心亮起来、往边缘散掉"的一团光，
+          而不是五片各自独立的花瓣。
+        */}
+        <radialGradient id="flowerG" cx="50%" cy="50%" r="52%">
+          <stop offset="0%" stopColor="#fff" stopOpacity="0.92" />
+          <stop offset="22%" stopColor="#fff" stopOpacity="0.6" />
+          <stop offset="45%" stopColor="var(--decor)" stopOpacity="0.34" />
+          <stop offset="72%" stopColor="var(--decor)" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="var(--decor)" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
       <g className="aster-flower-breathe">
-        {/* 五片花瓣：绕中心均分，从正上方开始 */}
+        {/* 五片花瓣：绕中心均分。**不描边**，靠渐变自己散掉 */}
         {[0, 72, 144, 216, 288].map((deg) => (
           <ellipse
             key={deg}
             cx="50"
             cy="28"
-            rx="13"
-            ry="21"
-            fill="var(--decor)"
-            opacity="0.24"
-            stroke="var(--decor)"
-            strokeWidth="0.6"
-            strokeOpacity="0.3"
+            rx="13.5"
+            ry="21.5"
+            fill="url(#flowerG)"
             transform={`rotate(${deg} 50 50)`}
           />
         ))}
-        {/* 花瓣上再叠一层更小的，做出层次（像真花的内层） */}
-        {[36, 108, 180, 252, 324].map((deg) => (
-          <ellipse
-            key={`in${deg}`}
-            cx="50"
-            cy="34"
-            rx="9"
-            ry="14"
-            fill="#fff"
-            opacity="0.24"
-            transform={`rotate(${deg} 50 50)`}
-          />
-        ))}
-        {/* 花心 */}
-        <circle cx="50" cy="50" r="8" fill="var(--decor)" opacity="0.3" />
-        <circle cx="50" cy="50" r="8" fill="none" stroke="var(--decor)" strokeWidth="0.6" strokeOpacity="0.35" />
-        {/* 花蕊：几颗小点 */}
-        <g fill="#fff" opacity="0.5">
-          <circle cx="47" cy="48" r="1.2" />
-          <circle cx="53" cy="49" r="1" />
-          <circle cx="50" cy="53" r="1.1" />
-        </g>
+        {/* 花心那团亮（中心最亮） */}
+        <circle cx="50" cy="50" r="9" fill="url(#flowerG)" opacity="0.7" />
+        {/* 一点柔光核，比花瓣更白 */}
+        <circle cx="50" cy="50" r="4" fill="#fff" opacity="0.35" />
       </g>
     </svg>
   );
