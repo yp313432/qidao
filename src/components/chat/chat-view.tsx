@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -27,7 +27,6 @@ import { useApp } from "@/lib/store";
 import type { Attachment } from "@/lib/types";
 import { useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
-import { MAIN_TABS } from "@/lib/tabs";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 
@@ -43,7 +42,6 @@ export function ChatView() {
     ms?: number;
     live?: boolean;
   } | null>(null);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
   const conv = conversations.find((c) => c.id === activeId) ?? null;
@@ -449,7 +447,12 @@ export function ChatView() {
       />
 
       {menu && (
-        <div className="fixed inset-0 z-40 flex">
+        /*
+          抽屉 z-50，底部那个漂浮导航 z-30 —— 但抽屉只占左边 84% 宽，
+          右边那条空白区域仍然能露出导航胶囊，所以用户还能在抽屉开着时切页
+          （切完 setMenu(false) 自动收起）。这样就不需要抽屉再自带一套导航了。
+        */
+        <div className="fixed inset-0 z-50 flex">
           <button
             type="button"
             aria-label="关闭"
@@ -525,32 +528,17 @@ export function ChatView() {
                 ))}
             </ul>
 
-            {/* 导航搬进抽屉底部（用户："上面留对话列表，下面显示导航栏"）
-                —— 有了它，聊天页的漂浮导航就能撤掉，消息区多出 76px ✅ */}
-            <nav
-              aria-label="主导航（抽屉）"
-              className="mt-auto flex items-center gap-1 border-t border-line px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-            >
-              {MAIN_TABS.map((tab) => {
-                const Icon = tab.icon;
-                const active =
-                  tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`);
-                return (
-                  <Link
-                    key={tab.to}
-                    to={tab.to}
-                    onClick={() => setMenu(false)}
-                    className={cn(
-                      "flex flex-1 flex-col items-center gap-1 rounded-2xl py-2",
-                      active ? "text-fg" : "text-muted",
-                    )}
-                  >
-                    <Icon className="size-5" strokeWidth={1.7} />
-                    <span className="text-[11px]">{tab.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+            {/*
+              导航搬进抽屉底部（用户："上面留对话列表，下面显示导航栏"）
+              —— 有了它，聊天页的漂浮导航就能撤掉，消息区多出 76px ✅
+
+              ⚠️ 这里**只负责给目录留出底部空间**，真正的导航是 AppShell 里
+              那个底部漂浮胶囊。以前这里自己又画了一套四项横向导航，
+              结果是两份实现、高亮规则还不一致（抽屉那套用旧的前缀比法，
+              二级页不会亮）。文档第 2 条也写着"不再额外放一套永久导航"。
+              所以现在留白 = 胶囊的高度，导航本身交给 AppShell。
+            */}
+            <div className="h-[3.875rem] shrink-0" aria-hidden="true" />
           </aside>
         </div>
       )}

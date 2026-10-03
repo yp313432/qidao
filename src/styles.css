@@ -407,9 +407,12 @@ html[data-motion="off"] *::after {
  * 导航是浮层，所以页面底部要留白。
  * 出现迷你播放条时给它让位 —— PlayerHost 会把 --aster-mini 设成
  * 那一条的高度，没有播放条时它是 0，完全不影响布局。
+ *
+ * 4.75rem → 3.875rem：导航胶囊按示例图收矮了（高 63 → 48px），
+ * 留白跟着收，正好省出 14px 内容区。用户的要求是"还要省空间"。
  * ------------------------------------------------------------------ */
 .pb-above-nav {
-  padding-bottom: calc(4.75rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
+  padding-bottom: calc(3.875rem + var(--aster-mini, 0rem) + env(safe-area-inset-bottom));
 }
 
 .pb-above-nav-lg {

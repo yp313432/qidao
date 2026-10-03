@@ -9,65 +9,29 @@ import { AlarmOverlay } from "@/components/alarm-overlay";
 import { TaskDaemon } from "@/components/task-daemon";
 import { UiEffects } from "@/components/ui-effects";
 import { useApp } from "@/lib/store";
-import { MAIN_TABS } from "@/lib/tabs";
+import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 
 const TABS = MAIN_TABS;
 
-/**
- * 二级页也算「它属于哪个 tab」。
- *
- * 为什么需要：高亮原来是拿路径前缀比的（`pathname.startsWith("/me/")`），
- * 但「我的」下面那一堆二级页都是**平级路径** —— `/core` `/space` `/usage`
- * `/data` `/system` `/permissions` `/worldbook` `/inner` `/memories` `/memory`
- * `/alarms` `/tasks` `/env`。结果点进去之后底下四个 tab **一个都不亮**，
- * 看起来像"掉出了 App"。示例图里这些页面的「我的」是保持亮着的。
- *
- * 所以这里列一份归属表：二级页 → 它父级 tab。新增二级页时记得补一行
- * （见 qidao-docs/UI统一规范.md）。
- */
-const TAB_OWNED_PATHS: Record<string, string[]> = {
-  "/me": [
-    "/core",
-    "/space",
-    "/usage",
-    "/data",
-    "/system",
-    "/permissions",
-    "/worldbook",
-    "/inner",
-    "/memories",
-    "/memory",
-    "/alarms",
-    "/tasks",
-    "/env",
-  ],
-};
-
-/** 路径属于哪个 tab（找不到就返回 null）。 */
-function tabOwning(pathname: string): string | null {
-  for (const tab of TABS) {
-    if (tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) {
-      return tab.to;
-    }
-  }
-  for (const [tabTo, owned] of Object.entries(TAB_OWNED_PATHS)) {
-    for (const p of owned) {
-      if (pathname === p || pathname.startsWith(`${p}/`)) return tabTo;
-    }
-  }
-  return null;
-}
-
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   /**
-   * 什么时候不显示漂浮导航：
-   *   · 玩乐的子页（本来就没有）
-   *   · **对话页** —— 导航已经搬进抽屉底部了（用户的要求），
-   *     这里撤掉就能给消息让出 76px 的底部空间 ✅
+   * 什么时候不显示底部导航：
+   *   · 玩乐的子页（自己带返回，本来就没有）
+   *
+   * 对话页**要显示**。以前这里把对话页也排除掉，是因为抽屉底部自带了一套
+   * 四项导航；于是全 App 出现两份导航实现，样子还不一样（抽屉那套是横向
+   * 铺满 + 分隔线，别的页面是漂浮胶囊），高亮规则也不一致。
+   *
+   * 用户的原话："底部导航栏改一下，不要放在侧边栏，就放下面，但是还要省空间"。
+   * 文档第十节：主导航保持底部四项，移动端不要移到侧边栏；二级页用左上角
+   * 返回，不再额外放一套永久导航。
+   *
+   * 所以现在**只留这一个底部胶囊**，抽屉那套撤掉了。
+   * 打字时仍然收下去给消息让地方（见下面 keyboardUp）。
    */
-  const hideNav = (pathname.startsWith("/play/") && pathname !== "/play") || pathname === "/";
+  const hideNav = pathname.startsWith("/play/") && pathname !== "/play";
   /** 打字中：把导航收下去，给消息让地方 */
   const keyboardUp = useApp((s) => s.keyboardUp);
 
@@ -105,12 +69,15 @@ export function AppShell() {
          */
         <div
           className={cn(
-            "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[max(0.9rem,env(safe-area-inset-bottom))] transition-all duration-200",
+            // z-[60]：必须高于对话抽屉（z-50）。抽屉自带的那套四项导航撤掉之后，
+            // 底部这个胶囊就是**唯一**的导航入口 —— 抽屉只占左边 84% 宽，
+            // 胶囊在右边还露得出来，用户才能一边看列表一边切页。
+            "pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-200",
             keyboardUp && "pointer-events-none translate-y-[135%] opacity-0",
           )}
         >
           <nav
-            className="glass-nav pointer-events-auto flex items-center gap-0.5 rounded-full border border-line p-1.5"
+            className="glass-nav pointer-events-auto flex items-center gap-0.5 rounded-full border border-line p-1"
             aria-label="主导航"
           >
             {TABS.map((tab) => {
@@ -122,12 +89,14 @@ export function AppShell() {
                   to={tab.to}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex min-w-[58px] flex-col items-center gap-0.5 rounded-full px-3 py-1.5 text-[10px] font-medium tracking-wide transition-colors",
+                    // 尺寸照示例图收过：胶囊高 63 → 48px，底部留白 77 → 62px。
+                    // 用户的要求是"放下面，但是还要省空间"。
+                    "flex min-w-[56px] flex-col items-center gap-px rounded-full px-3 py-1 text-[10px] font-medium tracking-wide transition-colors",
                     active ? "glass-active text-fg" : "text-muted",
                   )}
                 >
                   <Icon
-                    className="size-5"
+                    className="size-[1.15rem]"
                     strokeWidth={active ? 2.2 : 1.7}
                     aria-hidden="true"
                   />
