@@ -310,14 +310,14 @@ export function DrawerCosmos() {
             <stop offset="100%" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           {/* 环的颜色：中间实、两端淡。
-              用户最后一条："线弄淡一点，细一点，就是有一种氛围感，
-              不要太实，虚一点的那种" —— 峰值从 0.62 收到 0.4 */}
+              用户先说"星环太淡了"，后又说"不要虚" —— 所以透明度**还原成实的**
+              （峰值 0.58），要细只从 strokeWidth 上细，不靠调淡。 */}
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.05" />
-            <stop offset="22%" stopColor="currentColor" stopOpacity="0.32" />
-            <stop offset="50%" stopColor="currentColor" stopOpacity="0.4" />
-            <stop offset="78%" stopColor="currentColor" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
+            <stop offset="22%" stopColor="currentColor" stopOpacity="0.46" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.58" />
+            <stop offset="78%" stopColor="currentColor" stopOpacity="0.46" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.08" />
           </linearGradient>
 
           {/*
@@ -338,12 +338,12 @@ export function DrawerCosmos() {
             淡出必须在这个很窄的区间里完成。上一版 stops 写 30%/70%，
             淡出被摊到 40~160 这么宽，弧在行星下缘那一段（x≈180/230）
             正好被淡掉了，看着又像断开。
-            峰值 0.62 → 0.42：要氛围感，不要一根实线。
+            峰值回到 0.55（要实，不要虚），粗细上另做文章。
           */}
           <linearGradient id="frontFade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="86%" stopColor="currentColor" stopOpacity="0.42" />
-            <stop offset="87%" stopColor="currentColor" stopOpacity="0.42" />
+            <stop offset="86%" stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="87%" stopColor="currentColor" stopOpacity="0.55" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
@@ -388,13 +388,19 @@ export function DrawerCosmos() {
             换任何颜色都是"透光玻璃"而不是"珠子"。
           */}
           <circle cx="204" cy="76" r="29" fill="url(#glassBig)" />
+          {/*
+            **球体自己那圈轮廓线** —— 用户："星球体，她不是个球吗，
+            他那个线有点实，改细一点"。
+            → 从 1 收到 0.55：线要细，但**不调淡**（上一版我把透明度降了，
+              那是把"星的环"改虚了，方向错了）。
+          */}
           <circle
             cx="204"
             cy="76"
-            r="28.4"
+            r="28.6"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1"
+            strokeWidth="0.55"
             opacity="0.5"
           />
           <ellipse cx="193" cy="65" rx="9" ry="6.5" fill="url(#spec)" opacity="0.85" />
@@ -424,7 +430,8 @@ export function DrawerCosmos() {
               mask="url(#behindMask)"
             />
             <circle cx="64" cy="44" r="12.5" fill="url(#glassMid)" />
-            <circle cx="64" cy="44" r="12.1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
+            {/* 球体轮廓线：0.8 → 0.5（同上，只细不淡） */}
+            <circle cx="64" cy="44" r="12.25" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.38" />
             <ellipse cx="59" cy="39" rx="4" ry="3" fill="url(#spec)" opacity="0.8" />
             <path
               d="M41 44 A23 6.4 0 0 0 87 44"
@@ -438,14 +445,15 @@ export function DrawerCosmos() {
         {/* 第三颗玻璃行星（右中偏下）—— 用户："再加一个小行星吧，两个太空了" */}
         <g className="aster-orbit-slow">
           <circle cx="246" cy="118" r="8.5" fill="url(#glassSmall)" />
-          <circle cx="246" cy="118" r="8.2" fill="none" stroke="currentColor" strokeWidth="0.7" opacity="0.34" />
+          {/* 球体轮廓线：0.7 → 0.45 */}
+          <circle cx="246" cy="118" r="8.25" fill="none" stroke="currentColor" strokeWidth="0.45" opacity="0.34" />
           <ellipse cx="243" cy="115" rx="2.8" ry="2.2" fill="url(#spec)" opacity="0.75" />
         </g>
 
         {/* 小卫星们 */}
         <g className="aster-orbit">
           <circle cx="132" cy="112" r="6" fill="url(#glassSmall)" />
-          <circle cx="132" cy="112" r="5.8" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+          <circle cx="132" cy="112" r="5.8" fill="none" stroke="currentColor" strokeWidth="0.45" opacity="0.3" />
         </g>
         <circle cx="34" cy="104" r="3.4" fill="url(#glassSmall)" />
         <circle cx="168" cy="34" r="3" fill="url(#glassSmall)" />
