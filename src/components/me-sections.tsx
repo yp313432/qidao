@@ -1,6 +1,18 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, ImagePlus, Lock, SlidersHorizontal, X } from "lucide-react";
+import {
+  Activity,
+  ChevronRight,
+  Database,
+  ImagePlus,
+  Lock,
+  Palette,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { BackupSection } from "@/components/backup-section";
 import {
@@ -102,17 +114,34 @@ const TONES: { id: TextTone; label: string }[] = [
 
 /* ───────────────────────────── 首页：只留入口卡 ───────────────────────────── */
 
-/** 首页那 5 张入口卡（AI 概览已经做好了，这里跟它长一样）。 */
-const ME_CARDS: { to: string; label: string; hint: string }[] = [
+/**
+ * 首页那 5 张入口卡 —— 图里的构成是「图标 + 标题 + 一行短小字 + 箭头」。
+ *
+ * 图标统一放一个 `size-10` 的圆角方玻璃底、`strokeWidth 1.7` 的线性图标，
+ * **不按卡片给不同颜色** —— 文档第 7 节说要收敛"卡片之间颜色竞争"，
+ * 靠背景图那个天然渐变的圆底取色，比硬编码五个颜色自然（也不挑主题）。
+ */
+const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] = [
   {
     to: "/core",
     label: "AI 概览",
     hint: "他是谁 · 能知道什么 · 怎么和你相处 · 什么状态 · 记得你什么",
+    icon: Sparkles,
   },
-  { to: "/space", label: "我的空间", hint: "形象 · 背景空间 · 个性化" },
-  { to: "/usage", label: "模型与用量", hint: "当前模型 · 用量 · 上下文与内存 · 自定义上游" },
-  { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）" },
-  { to: "/system", label: "系统", hint: "思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错" },
+  { to: "/space", label: "我的空间", hint: "形象 · 背景空间 · 个性化", icon: Palette },
+  {
+    to: "/usage",
+    label: "模型与用量",
+    hint: "当前模型 · 用量 · 上下文与内存 · 自定义上游",
+    icon: Activity,
+  },
+  { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）", icon: Database },
+  {
+    to: "/system",
+    label: "系统",
+    hint: "思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错",
+    icon: Settings2,
+  },
 ];
 
 /**
@@ -167,19 +196,25 @@ export function MeHub() {
         （文档：「我的」= AI 控制中枢，先分类再进二级 ✅ 纯入口整理）
       */}
       <nav className="mt-6 space-y-2 px-4">
-        {ME_CARDS.map((c) => (
-          <Link
-            key={c.to}
-            to={c.to}
-            className="flex items-center justify-between gap-3 rounded-3xl border border-line bg-elevated px-4 py-4"
-          >
-            <span className="min-w-0">
-              <span className="block font-serif text-[15px]">{c.label}</span>
-              <span className="mt-1 block text-[11px] leading-4 text-subtle">{c.hint}</span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-muted" />
-          </Link>
-        ))}
+        {ME_CARDS.map((c) => {
+          const Icon = c.icon;
+          return (
+            <Link
+              key={c.to}
+              to={c.to}
+              className="flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
+                <Icon className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-serif text-[15px]">{c.label}</span>
+                <span className="mt-1 block text-[11px] leading-4 text-subtle">{c.hint}</span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
