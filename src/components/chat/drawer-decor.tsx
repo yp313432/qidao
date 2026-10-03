@@ -289,19 +289,19 @@ export function DrawerCosmos() {
               ③ 高光：偏心的小亮点 + 内阴影（左下）—— 玻璃反光的那个感觉
           */}
           <radialGradient id="glassBig" cx="34%" cy="26%" r="82%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.42" />
-            <stop offset="42%" stopColor="currentColor" stopOpacity="0.2" />
-            <stop offset="72%" stopColor="currentColor" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="42%" stopColor="currentColor" stopOpacity="0.34" />
+            <stop offset="72%" stopColor="currentColor" stopOpacity="0.26" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.3" />
           </radialGradient>
           <radialGradient id="glassMid" cx="34%" cy="26%" r="82%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
-            <stop offset="45%" stopColor="currentColor" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.16" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.52" />
+            <stop offset="45%" stopColor="currentColor" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.28" />
           </radialGradient>
           <radialGradient id="glassSmall" cx="34%" cy="26%" r="84%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.38" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.15" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.28" />
           </radialGradient>
           {/* 右上角那点反光 */}
           <radialGradient id="spec" cx="50%" cy="50%" r="50%">
@@ -309,12 +309,7 @@ export function DrawerCosmos() {
             <stop offset="60%" stopColor="#fff" stopOpacity="0.12" />
             <stop offset="100%" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
-          {/* 内阴影：玻璃下缘那圈暗，让球体有厚度（压得很轻，重了就不透） */}
-          <radialGradient id="glassShade" cx="72%" cy="78%" r="58%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.14" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </radialGradient>
-          {/* 环的颜色：中间实、两端淡（0.06 → 0.62），比原来亮不少 ——
+          {/* 环的颜色：中间实、两端淡（0.08 → 0.62），比原来亮不少 ——
               用户："星环太淡了" */}
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
@@ -335,12 +330,18 @@ export function DrawerCosmos() {
             <circle cx="204" cy="76" r="29" fill="#000" />
             <circle cx="64" cy="44" r="12.5" fill="#000" />
           </mask>
-          {/* 前段环两端淡出，避免两端"啪"地截断。
-              峰值压到 0.55：0.8 太重，横过球面那段会像一根深色绳 */}
+          {/*
+            前段环的颜色：**中间实、两端淡**。
+            要注意渐变的 x1/x2 是铺在包围盒上的，而前弧的包围盒特别宽
+            （从 -44.6 到 252.6），所以「中间 60%」的实际 x 只有 79~209 ——
+            淡出必须在这个很窄的区间里完成。上一版 stops 写 30%/70%，
+            淡出被摊到 40~160 这么宽，弧在行星下缘那一段（x≈180/230）
+            正好被淡掉了，看着又像断开。
+          */}
           <linearGradient id="frontFade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="30%" stopColor="currentColor" stopOpacity="0.55" />
-            <stop offset="70%" stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="86%" stopColor="currentColor" stopOpacity="0.62" />
+            <stop offset="87%" stopColor="currentColor" stopOpacity="0.62" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
@@ -374,23 +375,34 @@ export function DrawerCosmos() {
               mask="url(#behindMask)"
             />
 
-            {/* ② 玻璃球本体 */}
-            <circle cx="204" cy="76" r="29" fill="url(#glassBig)" />
-            <circle cx="204" cy="76" r="29" fill="url(#glassShade)" />
-            <circle
-              cx="204"
-              cy="76"
-              r="28.4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.9"
-              opacity="0.42"
-            />
-            <ellipse cx="193" cy="65" rx="9" ry="6.5" fill="url(#spec)" opacity="0.85" />
+          {/*
+            玻璃球体。
+            用户反馈："透亮的好像不行，颜色一换就变成玻璃珠了，中间的部位
+            可以再加实一点点" —— 两个原因：
+              ① 内部压了一层 glassShade（下缘那圈暗），亮色主题下它让球
+                 看起来是**实心**的 → 去掉
+              ② 主体高光太透（0.42），只剩一层轮廓 → 中心提到 0.55 加实
+            现在通体**均匀半透明**、只有边缘光和一点偏心反光，
+            换任何颜色都是"透光玻璃"而不是"珠子"。
+          */}
+          <circle cx="204" cy="76" r="29" fill="url(#glassBig)" />
+          <circle
+            cx="204"
+            cy="76"
+            r="28.4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+            opacity="0.5"
+          />
+          <ellipse cx="193" cy="65" rx="9" ry="6.5" fill="url(#spec)" opacity="0.85" />
 
-            {/* ③ 前段环：加粗、两端淡出（frontFade），压住行星下缘 */}
+            {/* ③ 前段环 = **整个下半弧**，从一侧切点 (154,76) 连到另一侧 (254,76)。
+                上一版只画了下弧中间 60%，而两侧"露头"是后弧的端点 ——
+                中间那两小段谁都没画，所以环在左右断开了（用户截图指出）。
+                整段画满，正好接上后弧露出的两端。 */}
             <path
-              d="M179.0 93.9 A50 22 0 0 0 229.0 93.9"
+              d="M154 76 A50 22 0 0 0 254 76"
               fill="none"
               stroke="url(#frontFade)"
               strokeWidth="2.6"
@@ -413,7 +425,7 @@ export function DrawerCosmos() {
             <circle cx="64" cy="44" r="12.1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
             <ellipse cx="59" cy="39" rx="4" ry="3" fill="url(#spec)" opacity="0.8" />
             <path
-              d="M77.5 48.7 A23 6.4 0 0 0 50.5 48.7"
+              d="M41 44 A23 6.4 0 0 0 87 44"
               fill="none"
               stroke="url(#frontFade)"
               strokeWidth="1.9"
