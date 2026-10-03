@@ -21,7 +21,7 @@ import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
-import { DrawerDecor } from "@/components/chat/drawer-decor";
+import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
 import { greetingFor } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
@@ -473,7 +473,11 @@ export function ChatView() {
             onClick={() => setMenu(false)}
           />
           <aside className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col pt-[max(0.75rem,env(safe-area-inset-top))]">
-            <div className="flex items-center justify-between px-4 pb-3">
+            {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
+                用户："上面那个从顶部开始，不是从我画的框开始" */}
+            <DrawerSky />
+
+            <div className="relative z-10 flex items-center justify-between px-4 pb-3">
               <p className="font-serif text-lg">对话</p>
               <button type="button" aria-label="关闭" onClick={() => setMenu(false)} className="size-10">
                 <X className="size-5" />
@@ -481,7 +485,7 @@ export function ChatView() {
             </div>
             <button
               type="button"
-              className="mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
+              className="relative z-10 mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
               onClick={() => {
                 useApp.getState().newChat();
                 setMenu(false);
@@ -491,10 +495,7 @@ export function ChatView() {
               新对话
             </button>
 
-            {/* 上：垂下来的星野（细线挂星星 + 月亮 + 偶尔一颗流星） */}
-            <DrawerDecor where="top" />
-
-            <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1">
+            <ul className="relative z-10 min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1">
               {conversations.filter((c) => !c.incognito).length === 0 && (
                 <li className="px-3 py-8 text-center text-sm text-muted">还没有保存的对话</li>
               )}
@@ -555,11 +556,12 @@ export function ChatView() {
 
             {/*
               下：小宇宙（带星环的行星 + 小卫星 + 碎钻粒子），跟上面的星月呼应。
-              这里原来是给底部导航让位的留白（h-[4.5rem]）——
-              但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
-              所以让装饰接管它。
+              · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
+                但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
+                所以让装饰接管它
+              · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
             */}
-            <DrawerDecor where="bottom" />
+            <DrawerCosmos />
           </aside>
         </div>
       )}

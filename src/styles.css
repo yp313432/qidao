@@ -20,6 +20,22 @@
   --color-warn: var(--aster-warn);
   --color-ok: var(--aster-ok);
 
+  /**
+   * 装饰色（对话抽屉的星野 / 小宇宙用它）。
+   *
+   * 用户的原话："最重要的是，我换背景他们也会跟着统一吧，
+   * 不能我背景是深色的，行星还是黄色的吧"。
+   *
+   * 所以**不用强调色**（那是暖橘，深背景上又暗又脏），改成跟着
+   * **文字色**走：文字色本来就是"亮背景→深字、暗背景→浅字"，
+   * 装饰搭同一个基调就一定看得见、也不会撞色。
+   * 用混合略微收一点亮度，星星才"细、柔"，不会糊成一片白。
+   *
+   * 想单独调装饰、不动正文文字？改这一个变量就行
+   * （或在 :root 上覆盖 --aster-decor）。
+   */
+  --decor: color-mix(in oklab, var(--aster-fg) 78%, var(--aster-accent) 22%);
+
   --radius-xs: 0.25rem;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
@@ -400,16 +416,16 @@ html[data-drawer-open] .glass-nav-bar {
 @keyframes aster-moon-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--aster-accent) 30%, transparent));
+    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--decor) 34%, transparent));
   }
   50% {
-    filter: drop-shadow(0 0 9px color-mix(in oklab, var(--aster-accent) 48%, transparent));
+    filter: drop-shadow(0 0 10px color-mix(in oklab, var(--decor) 55%, transparent));
   }
 }
 .aster-moon {
-  background: color-mix(in oklab, var(--aster-accent) 42%, transparent);
+  background: color-mix(in oklab, var(--decor) 46%, transparent);
   animation: aster-moon-glow 6.5s ease-in-out infinite;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aster-accent) 25%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--decor) 28%, transparent);
 }
 
 /* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */
