@@ -338,6 +338,8 @@ html[data-motion="off"] *::after {
  * ------------------------------------------------------------------ */
 .glass-nav-bar {
   --aster-nav-h: 3.5rem;
+  /* 上圆角下直角：贴着屏幕底边，但顶上是一条柔和的弧线，不是硬邦邦的方块 */
+  border-radius: 1.25rem 1.25rem 0 0;
   background-color: color-mix(in oklab, var(--aster-canvas) 14%, transparent);
   background-image: linear-gradient(
     180deg,
@@ -351,9 +353,20 @@ html[data-motion="off"] *::after {
     inset 0 1px 0 0 var(--aster-glass-highlight);
   padding-bottom: env(safe-area-inset-bottom);
 }
-/* 内容区高度：圆 36 + 上下留白 + 文字。实测总高 56px（见 --aster-nav-h）。 */
+/* 内容区高度：圆 36 + 上下留白 + 文字。实测总高 61px（见 --aster-nav-h）。 */
 .glass-nav-bar > * > a {
   min-height: var(--aster-nav-h);
+}
+
+/* 对话抽屉打开时，底部导航收起来 ——
+   用户反馈："展开对话列表，导航栏就不留了吧，看看这怪怪的"
+   （导航横在抽屉下沿，两层的圆角叠在一起）。抽屉关掉它自己就回来。
+
+   注意位移要用 200%：用 110% 只挪了 67px（正好是它自己的高度），
+   底下还会露出一条 67px 的边，截图里看得见。200% 保证整条离开屏幕。 */
+html[data-drawer-open] .glass-nav-bar {
+  opacity: 0;
+  transform: translateY(200%);
 }
 
 /* ——— 组件级高光 ———

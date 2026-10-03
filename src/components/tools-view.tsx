@@ -26,7 +26,10 @@ export function ToolsView() {
         <h1 className="mt-1 font-serif text-2xl font-medium">工具</h1>
       </header>
       <div className="px-4">
-        <div className="grid grid-cols-4 gap-1 rounded-full bg-chip p-1">
+        {/* 注意：这里是 3 个标签，必须 grid-cols-3。
+            原来写的是 grid-cols-4 —— 于是 3 个标签只占 3/4 宽，
+            右边空出一格，看起来"左边小、右边大"，三个也没法居中。 */}
+        <div className="grid grid-cols-3 gap-1 rounded-full bg-chip p-1">
           {TABS.map((t) => (
             <button
               key={t.id}

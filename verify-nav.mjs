@@ -118,9 +118,45 @@ const overDrawer = await page.evaluate(() => {
     topElement: top ? `${top.tagName.toLowerCase()}${top.getAttribute("aria-label") ? `[${top.getAttribute("aria-label")}]` : ""}` : null,
   };
 });
-console.log(`  抽屉开着时胶囊可见: ${overDrawer.visible ? "✅" : "❌"}  层级 z=${overDrawer.zIndex}`);
-console.log(`  胶囊中点最上层元素: ${overDrawer.topElement}  → ${overDrawer.topElementIsNav ? "✅ 没被抽屉/遮罩盖住" : "❌ 被盖住了，点不到"}`);
+// 抽屉打开时导航应该**完全收起来**（用户要求："展开对话列表，导航栏就不留了吧"）
+const hidden = await page.evaluate(() => {
+  const bar = document.querySelector(".glass-nav-bar");
+  if (!bar) return null;
+  const cs = getComputedStyle(bar);
+  const r = bar.getBoundingClientRect();
+  return { opacity: cs.opacity, top: Math.round(r.top), viewportH: window.innerHeight };
+});
+if (hidden) {
+  console.log(`  抽屉开着时导航 opacity=${hidden.opacity}`);
+  console.log(
+    `  导航是否完全离开屏幕（顶边 ${hidden.top} ≥ 屏高 ${hidden.viewportH}）: ` +
+      `${hidden.top >= hidden.viewportH ? "✅" : "❌ 底下还露一条"}`,
+  );
+}
 await page.screenshot({ path: "C:\\Users\\yanping\\Desktop\\ds-workspace\\preview-shots\\nav-drawer-open.png" });
+
+// 工具页三个标签要等宽、间距平均（用户："不要左边小，右边大那种"）
+console.log("\n=== 工具页 HTTP/MCP/文档 标签 ===");
+await page.goto(BASE + "/tools", { waitUntil: "commit", timeout: 30000 });
+await page.waitForTimeout(2000);
+const tabs = await page.evaluate(() => {
+  const btns = [...document.querySelectorAll("button")].filter((b) =>
+    ["HTTP", "MCP", "文档"].includes(b.textContent.trim()),
+  );
+  const rs = btns.map((b) => b.getBoundingClientRect());
+  const c = btns[0]?.parentElement?.getBoundingClientRect();
+  return {
+    widths: rs.map((r) => Math.round(r.width)),
+    gaps: rs.slice(1).map((r, i) => Math.round(r.left - rs[i].right)),
+    left: c ? Math.round(c.left) : null,
+    rightEmpty: c ? Math.round(window.innerWidth - c.right) : null,
+  };
+});
+const eqW = new Set(tabs.widths).size === 1;
+const sym = tabs.left !== null && Math.abs(tabs.left - tabs.rightEmpty) <= 1;
+console.log(`  三个标签等宽（${tabs.widths.join(" / ")}）: ${eqW ? "✅" : "❌"}`);
+console.log(`  整体居中（左 ${tabs.left} / 右空 ${tabs.rightEmpty}）: ${sym ? "✅" : "❌"}`);
+await page.screenshot({ path: "C:\\Users\\yanping\\Desktop\\ds-workspace\\preview-shots\\tools-tabs.png" });
 
 console.log("\n控制台错误:", errors.length ? [...new Set(errors)].join(" | ") : "(none)");
 await browser.close();

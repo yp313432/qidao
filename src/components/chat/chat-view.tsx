@@ -62,6 +62,16 @@ export function ChatView() {
     setMenu(true);
   }, [openPanel]);
 
+  // 抽屉打开时把底部导航收起来（用户在抽屉里选完会关抽屉，导航就回来）
+  useEffect(() => {
+    const root = document.documentElement;
+    if (menu) root.dataset.drawerOpen = "1";
+    else delete root.dataset.drawerOpen;
+    return () => {
+      delete root.dataset.drawerOpen;
+    };
+  }, [menu]);
+
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -448,9 +458,11 @@ export function ChatView() {
 
       {menu && (
         /*
-          抽屉 z-50，底部那个漂浮导航 z-30 —— 但抽屉只占左边 84% 宽，
-          右边那条空白区域仍然能露出导航胶囊，所以用户还能在抽屉开着时切页
-          （切完 setMenu(false) 自动收起）。这样就不需要抽屉再自带一套导航了。
+          抽屉 z-50。底部导航 z-[60] 比它高，但抽屉打开时**要把导航收起来** ——
+          用户反馈："展开对话列表，导航栏就不留了吧，看看这怪怪的"
+          （导航横在抽屉下沿，抽屉的圆角跟它叠在一起确实别扭）。
+          做法：在 <html> 上挂 data-drawer-open，由 CSS 把导航藏掉。
+          这样不用把 menu 状态提到 AppShell，也不用每帧重渲染。
         */
         <div className="fixed inset-0 z-50 flex">
           <button
@@ -477,7 +489,7 @@ export function ChatView() {
               <Plus className="size-4" />
               新对话
             </button>
-            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
               {conversations.filter((c) => !c.incognito).length === 0 && (
                 <li className="px-3 py-8 text-center text-sm text-muted">还没有保存的对话</li>
               )}
@@ -487,9 +499,17 @@ export function ChatView() {
                 .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
                 .map((c) => (
                   <li key={c.id}>
+                    {/*
+                      对话条目：用户反馈"这一整个大方块，改成柔和一点，带着边框，
+                      上下留白一些，材质要统一"。
+                      · 圆角从 rounded-full（整条胶囊，太"实"）收到 rounded-2xl
+                      · 补一条 border-line 边框 —— 跟 App 里其它卡片同一套材质
+                      · 左右内边距对称（原来左边 pl-6、右边 pr-1，文字被挤在左边）
+                      · 上下用 space-y-2.5 留白，不再一条贴一条
+                    */}
                     <div
                       className={cn(
-                        "flex items-center gap-1 rounded-full border border-line bg-chip py-0.5 pr-1 pl-6",
+                        "flex items-center gap-0.5 rounded-2xl border border-line bg-chip py-1 pr-0.5 pl-3.5",
                         c.id === activeId && "glass-active",
                       )}
                     >
