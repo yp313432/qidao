@@ -369,8 +369,99 @@ html[data-drawer-open] .glass-nav-bar {
   transform: translateY(200%);
 }
 
-/* ——— 组件级高光 ———
-   点按/悬停哪一块玻璃，就只有那一块自己扫过一道柔光（1.1s 一次），
+/* ------------------------------------------------------------------
+ * 对话抽屉上下的装饰（用户："上下加点装饰，……动态效果及粒子特效一定要细、
+ * 闪、柔和，像碎钻一样"）。
+ *
+ * 设计约束（来自视觉 Skill）：
+ *   · 慢、轻、有惯性、有呼吸；禁止弹跳/霓虹闪烁
+ *   · 只动 transform / opacity —— 走合成层，不触发布局重排
+ *   · 全部靠 html[data-motion] 那条全局规则自动降级（motion=off 时归零）
+ * ------------------------------------------------------------------ */
+
+/* 挂着的小星星：极缓的呼吸 + 一点点缩放，像碎钻反光 */
+@keyframes aster-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.06);
+  }
+}
+.aster-twinkle {
+  animation: aster-twinkle 3.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* 月亮：柔光晕，很慢地明暗（不闪） */
+@keyframes aster-moon-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--aster-accent) 30%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px color-mix(in oklab, var(--aster-accent) 48%, transparent));
+  }
+}
+.aster-moon {
+  background: color-mix(in oklab, var(--aster-accent) 42%, transparent);
+  animation: aster-moon-glow 6.5s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aster-accent) 25%, transparent);
+}
+
+/* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */
+@keyframes aster-meteor {
+  0% {
+    transform: translate(-30px, -8px);
+    opacity: 0;
+  }
+  2% {
+    opacity: 0.9;
+  }
+  9% {
+    transform: translate(300px, 62px);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(300px, 62px);
+    opacity: 0;
+  }
+}
+.aster-meteor {
+  animation: aster-meteor 14s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+}
+
+/* 小宇宙里的行星：非常慢的漂移（有惯性，不是机械摆动） */
+@keyframes aster-orbit {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(3px, -4px);
+  }
+}
+.aster-orbit {
+  animation: aster-orbit 9s ease-in-out infinite;
+}
+
+@keyframes aster-orbit-slow {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-4px, 3px);
+  }
+}
+.aster-orbit-slow {
+  animation: aster-orbit-slow 12s ease-in-out infinite;
+}
+
+/* ——— 组件级高光 ———   点按/悬停哪一块玻璃，就只有那一块自己扫过一道柔光（1.1s 一次），
    不跟指针、也不整页扫。光带定义在各玻璃类的 background-image 里，
    走在内容下面 —— 文字不会被冲淡，是玻璃本身在反光。 */
 [data-gleam="sweep"] {

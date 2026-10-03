@@ -21,6 +21,7 @@ import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
+import { DrawerDecor } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
 import { greetingFor } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
@@ -480,7 +481,7 @@ export function ChatView() {
             </div>
             <button
               type="button"
-              className="mx-4 mb-3 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
+              className="mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
               onClick={() => {
                 useApp.getState().newChat();
                 setMenu(false);
@@ -489,7 +490,11 @@ export function ChatView() {
               <Plus className="size-4" />
               新对话
             </button>
-            <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+
+            {/* 上：垂下来的星野（细线挂星星 + 月亮 + 偶尔一颗流星） */}
+            <DrawerDecor where="top" />
+
+            <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1">
               {conversations.filter((c) => !c.incognito).length === 0 && (
                 <li className="px-3 py-8 text-center text-sm text-muted">还没有保存的对话</li>
               )}
@@ -549,16 +554,12 @@ export function ChatView() {
             </ul>
 
             {/*
-              导航搬进抽屉底部（用户："上面留对话列表，下面显示导航栏"）
-              —— 有了它，聊天页的漂浮导航就能撤掉，消息区多出 76px ✅
-
-              ⚠️ 这里**只负责给目录留出底部空间**，真正的导航是 AppShell 里
-              那个底部漂浮胶囊。以前这里自己又画了一套四项横向导航，
-              结果是两份实现、高亮规则还不一致（抽屉那套用旧的前缀比法，
-              二级页不会亮）。文档第 2 条也写着"不再额外放一套永久导航"。
-              所以现在留白 = 胶囊的高度，导航本身交给 AppShell。
+              下：小宇宙（带星环的行星 + 小卫星 + 碎钻粒子），跟上面的星月呼应。
+              这里原来是给底部导航让位的留白（h-[4.5rem]）——
+              但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
+              所以让装饰接管它。
             */}
-            <div className="h-[4.5rem] shrink-0" aria-hidden="true" />
+            <DrawerDecor where="bottom" />
           </aside>
         </div>
       )}
