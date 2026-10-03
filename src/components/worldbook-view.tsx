@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, Plus, Trash2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Plus, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { resolveAiName } from "@/lib/branding";
 import { buildManual } from "@/lib/manual";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -143,20 +144,19 @@ export function WorldbookView() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/me" aria-label="返回我的" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">世界书</h1>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          aria-label="加一条"
-          className="mr-1 flex size-11 items-center justify-center rounded-full"
-        >
-          <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
-        </button>
-      </header>
+      <PageHeader
+        title="世界书"
+        right={
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            aria-label="加一条"
+            className="mr-1 flex size-11 items-center justify-center rounded-full"
+          >
+            <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
+          </button>
+        }
+      />
 
       <section className="px-4">
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">

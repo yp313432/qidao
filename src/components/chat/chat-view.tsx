@@ -365,15 +365,9 @@ export function ChatView() {
                             <span className="text-subtle">点开看</span>
                           </button>
                         )}
-                        {thinkSheet && (
-                          <ThinkingSheet
-                            open
-                            text={thinkSheet.text}
-                            durationMs={thinkSheet.ms}
-                            live={thinkSheet.live}
-                            onClose={() => setThinkSheet(null)}
-                          />
-                        )}
+                        {/* 弹层本身挂在页面根节点（见文件下方 <ThinkingSheet>）——
+                            原来写在 messages.map 里面，每条消息挂一个全屏浮层，
+                            既冗余又容易被消息区的滚动/重渲染带歪。 */}
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
                         {m.content ? (
@@ -444,6 +438,15 @@ export function ChatView() {
       )}
 
       <Composer onSend={send} disabled={busy} streaming={busy} />
+
+      {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
+      <ThinkingSheet
+        open={thinkSheet !== null}
+        text={thinkSheet?.text ?? ""}
+        durationMs={thinkSheet?.ms}
+        live={thinkSheet?.live}
+        onClose={() => setThinkSheet(null)}
+      />
 
       {menu && (
         <div className="fixed inset-0 z-40 flex">

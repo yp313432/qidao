@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, ImagePlus, Lock, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, ImagePlus, Lock, SlidersHorizontal, X } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { BackupSection } from "@/components/backup-section";
 import {
   localNotify,
@@ -206,19 +207,7 @@ export function MePage({
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="px-4 pt-3 pb-1">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/me"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
-            aria-label="返回"
-          >
-            <ChevronLeft className="size-4" />
-          </Link>
-          <h1 className="flex-1 font-serif text-lg font-medium">{title}</h1>
-        </div>
-        <p className="mt-2 px-1 text-[11px] leading-4 text-subtle">{subtitle}</p>
-      </header>
+      <PageHeader title={title} description={subtitle} />
 
       <MeSections tab={tab} />
 

@@ -14,6 +14,51 @@ import { cn } from "@/lib/utils";
 
 const TABS = MAIN_TABS;
 
+/**
+ * 二级页也算「它属于哪个 tab」。
+ *
+ * 为什么需要：高亮原来是拿路径前缀比的（`pathname.startsWith("/me/")`），
+ * 但「我的」下面那一堆二级页都是**平级路径** —— `/core` `/space` `/usage`
+ * `/data` `/system` `/permissions` `/worldbook` `/inner` `/memories` `/memory`
+ * `/alarms` `/tasks` `/env`。结果点进去之后底下四个 tab **一个都不亮**，
+ * 看起来像"掉出了 App"。示例图里这些页面的「我的」是保持亮着的。
+ *
+ * 所以这里列一份归属表：二级页 → 它父级 tab。新增二级页时记得补一行
+ * （见 qidao-docs/UI统一规范.md）。
+ */
+const TAB_OWNED_PATHS: Record<string, string[]> = {
+  "/me": [
+    "/core",
+    "/space",
+    "/usage",
+    "/data",
+    "/system",
+    "/permissions",
+    "/worldbook",
+    "/inner",
+    "/memories",
+    "/memory",
+    "/alarms",
+    "/tasks",
+    "/env",
+  ],
+};
+
+/** 路径属于哪个 tab（找不到就返回 null）。 */
+function tabOwning(pathname: string): string | null {
+  for (const tab of TABS) {
+    if (tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) {
+      return tab.to;
+    }
+  }
+  for (const [tabTo, owned] of Object.entries(TAB_OWNED_PATHS)) {
+    for (const p of owned) {
+      if (pathname === p || pathname.startsWith(`${p}/`)) return tabTo;
+    }
+  }
+  return null;
+}
+
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   /**
@@ -69,10 +114,7 @@ export function AppShell() {
             aria-label="主导航"
           >
             {TABS.map((tab) => {
-              const active =
-                tab.to === "/"
-                  ? pathname === "/"
-                  : pathname === tab.to || pathname.startsWith(`${tab.to}/`);
+              const active = tabOwning(pathname) === tab.to;
               const Icon = tab.icon;
               return (
                 <Link

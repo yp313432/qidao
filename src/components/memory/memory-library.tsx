@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { ChevronLeft, Clock, LayoutGrid, Network, Plus, Search } from "lucide-react";
+import { Clock, LayoutGrid, Network, Plus, Search } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { MemoryCard } from "@/components/memory/memory-card";
 import { MemoryDetail } from "@/components/memory/memory-detail";
 import { MemoryGraph } from "@/components/memory/memory-graph";
@@ -87,38 +87,37 @@ export function MemoryLibrary() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/me" aria-label="返回我的" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">记忆库</h1>
-        <button
-          type="button"
-          onClick={() =>
-            setView((v) => (v === "cards" ? "graph" : v === "graph" ? "timeline" : "cards"))
-          }
-          aria-label={
-            view === "cards" ? "看神经元图" : view === "graph" ? "看时间线" : "看卡片"
-          }
-          className="flex size-11 items-center justify-center rounded-full"
-        >
-          {view === "cards" ? (
-            <Network className="size-5" strokeWidth={1.7} />
-          ) : view === "graph" ? (
-            <Clock className="size-5" strokeWidth={1.7} />
-          ) : (
-            <LayoutGrid className="size-5" strokeWidth={1.7} />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          aria-label="加一条"
-          className="mr-1 flex size-11 items-center justify-center rounded-full"
-        >
-          <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
-        </button>
-      </header>
+      <PageHeader
+        title="记忆库"
+        right={
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() =>
+                setView((v) => (v === "cards" ? "graph" : v === "graph" ? "timeline" : "cards"))
+              }
+              aria-label={view === "cards" ? "看神经元图" : view === "graph" ? "看时间线" : "看卡片"}
+              className="flex size-11 items-center justify-center rounded-full"
+            >
+              {view === "cards" ? (
+                <Network className="size-5" strokeWidth={1.7} />
+              ) : view === "graph" ? (
+                <Clock className="size-5" strokeWidth={1.7} />
+              ) : (
+                <LayoutGrid className="size-5" strokeWidth={1.7} />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              aria-label="加一条"
+              className="mr-1 flex size-11 items-center justify-center rounded-full"
+            >
+              <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
+            </button>
+          </div>
+        }
+      />
 
       {/* 概况：他到底记得多少、整体还清不清晰 */}
       <section className="px-4">

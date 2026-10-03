@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { buildAwarenessItems } from "@/lib/awareness";
 import { usePlayer } from "@/lib/player";
 import {
@@ -74,15 +73,10 @@ export function PermissionsView() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/me" aria-label="返回我的" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">AI 权限</h1>
-        <span className="px-3 text-[11px] text-muted">
-          {usable}/{PERMISSIONS.length} 可用
-        </span>
-      </header>
+      <PageHeader
+        title="AI 权限"
+        right={<span className="px-3 text-[11px] text-muted">{usable}/{PERMISSIONS.length} 可用</span>}
+      />
 
       {/* 分级说明 */}
       <div className="mx-4 mt-2 rounded-3xl border border-line bg-surface px-4 py-3.5">

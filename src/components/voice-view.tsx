@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, Mic } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import { useChatStream } from "@/lib/use-chat";
@@ -165,13 +166,12 @@ export function VoiceView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/" aria-label="返回对话" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">语音对话</h1>
-        <span className="px-3 text-[11px] text-muted">{aiName}</span>
-      </header>
+      <PageHeader
+        title="语音对话"
+        to="/"
+        backLabel="返回对话"
+        right={<span className="px-3 text-[11px] text-muted">{aiName}</span>}
+      />
 
       {/* 语言与字幕 */}
       <div className="mx-4 mt-2 flex items-center gap-2">

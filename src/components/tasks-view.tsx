@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { AlarmClock, ChevronLeft, Plus, Trash2 } from "lucide-react";
+import { AlarmClock, Plus, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -44,20 +44,19 @@ export function TasksView() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/me" aria-label="返回我的" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">定时任务</h1>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          aria-label="加一个"
-          className="mr-1 flex size-11 items-center justify-center rounded-full"
-        >
-          <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
-        </button>
-      </header>
+      <PageHeader
+        title="定时任务"
+        right={
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            aria-label="加一个"
+            className="mr-1 flex size-11 items-center justify-center rounded-full"
+          >
+            <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
+          </button>
+        }
+      />
 
       <section className="px-4">
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">

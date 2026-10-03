@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -60,12 +59,7 @@ export function MemoryView() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
-        <Link to="/me" aria-label="返回我的" className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">上下文与内存</h1>
-      </header>
+      <PageHeader title="上下文与内存" />
 
       {/* 预算 */}
       <section className="mt-2 px-4">

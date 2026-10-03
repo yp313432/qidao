@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
@@ -24,16 +25,7 @@ export function CoreView() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 px-4 pt-3 pb-2">
-        <Link
-          to="/me"
-          className="flex size-9 items-center justify-center rounded-full bg-chip text-muted"
-          aria-label="返回"
-        >
-          <ChevronRight className="size-4 rotate-180" />
-        </Link>
-        <h1 className="flex-1 font-serif text-lg font-medium">AI 概览</h1>
-      </header>
+      <PageHeader title="AI 概览" />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-24">
         {/* 主卡：他现在的样子 */}
