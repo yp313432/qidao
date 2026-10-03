@@ -201,20 +201,29 @@ export function DrawerSky() {
           ))}
         </g>
 
-        {/* 月亮：透光玻璃 —— 主体 + 边缘光 + 偏心高光，外面套一层呼吸光晕。
-            位置挑在左中部：右上角是「关闭」按钮、中间偏下是「新对话」按钮，
-            月亮压到它们身上就糊成一团（截图里撞过两次）。 */}
+        {/*
+          月亮：**闪光的弯月**（原来是颗圆球）。
+          用户："上面还有一个小球一样的东西他改不了吗……把那个球体改成
+          闪光的弯月，也加上像星星一样的特效，就不用改颜色了。"
+          → 弯月 + 光晕 + 旁边几颗小星，跟星野同一套语言，
+            这样它跟着 --decor（文字色）走就够好看了，不需要单独的颜色选项。
+
+          画法：一个大圆挖掉一个偏移的小圆 = 月牙（用 mask，不需要 fill-rule）。
+          位置挑在左中部：右上角是关闭按钮、中间偏下是新对话按钮，压上去会糊。
+        */}
         <g className="aster-moon">
-          <circle cx="188" cy="86" r="10" fill="currentColor" opacity="0.2" />
-          <circle cx="188" cy="86" r="10" fill="none" stroke="currentColor" strokeWidth="0.9" opacity="0.45" />
-          <ellipse cx="184" cy="82" rx="3.2" ry="2.6" fill="url(#spec2)" opacity="0.9" />
-          <path
-            d="M191 78 A10 10 0 0 1 191 94"
-            fill="none"
-            stroke="var(--aster-canvas)"
-            strokeWidth="3"
-            opacity="0.35"
-          />
+          {/* 柔光晕：同一个弯月糊一层，当光 */}
+          <g filter="url(#moonGlow)" opacity="0.8">
+            <circle cx="183" cy="86" r="11" fill="currentColor" mask="url(#crescent)" />
+          </g>
+          {/* 月牙本体 */}
+          <circle cx="183" cy="86" r="11" fill="currentColor" mask="url(#crescent)" />
+          {/* 月亮旁边几颗小星，做出"闪光"的感觉 */}
+          <g fill="currentColor">
+            <circle cx="200" cy="76" r="0.9" opacity="0.75" />
+            <circle cx="204" cy="92" r="0.7" opacity="0.5" />
+            <circle cx="172" cy="74" r="0.7" opacity="0.45" />
+          </g>
         </g>
 
         {/* 流星：长周期划过，停很久才再来一次（安静，不抢内容） */}
@@ -226,12 +235,18 @@ export function DrawerSky() {
             <stop offset="0%" stopColor="var(--decor)" stopOpacity="0" />
             <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.75" />
           </linearGradient>
-          {/* 月亮上那点偏心反光（id 跟小宇宙那边错开，SVG 的 id 是全文档唯一的） */}
-          <radialGradient id="spec2" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#fff" stopOpacity="0.6" />
-            <stop offset="60%" stopColor="#fff" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
+          {/*
+            月牙的遮罩：大圆里挖掉一个**往右偏**的小圆 = 弯月。
+            白 = 保留，黑 = 挖掉。
+          */}
+          <mask id="crescent">
+            <circle cx="183" cy="86" r="11" fill="#fff" />
+            <circle cx="190" cy="82" r="10" fill="#000" />
+          </mask>
+          {/* 弯月外面那层柔光（把月牙糊一层做大当光晕） */}
+          <filter id="moonGlow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="2.4" />
+          </filter>
         </defs>
       </svg>
 
