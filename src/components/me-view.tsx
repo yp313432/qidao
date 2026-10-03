@@ -229,43 +229,24 @@ export function MeView() {
         （纯入口整理，功能一点没动 ✅）
       */}
       <Section title="AI 核心">
-        <div className="rounded-3xl border border-line bg-elevated px-3.5 py-3">
-          <p className="text-[12px] leading-5 text-muted">
-            他是谁、能知道什么、怎么和你相处、现在什么状态、记得你什么 —— 都在这里。
-          </p>
-        </div>
+        {/*
+          只留**一个**入口：点进去才是那些事项
+          （用户："我的主页那里直接把下面的功能页塞到第二层展示就好了，
+            只有一个 ai 概览，点进去是事项，更短"）
+          四个二级入口已经在这个页面的下一层（/core）里了，这里不再重复列一遍。
+        */}
         <Link
           to="/core"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+          className="flex items-center justify-between gap-3 rounded-3xl border border-line bg-elevated px-4 py-4"
         >
           <span className="min-w-0">
-            <span className="block text-[13px] font-medium">AI 概览</span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              一眼看他现在什么样（感知 / 状态 / 记忆）
+            <span className="block font-serif text-[15px]">AI 概览</span>
+            <span className="mt-1 block text-[11px] leading-4 text-subtle">
+              他是谁 · 能知道什么 · 怎么和你相处 · 什么状态 · 记得你什么
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted" />
         </Link>
-        <div className="mt-2 space-y-2">
-          {[
-            { to: "/permissions", label: "感知权限", hint: "他能知道什么（能随时收紧）" },
-            { to: "/worldbook", label: "怎么和你相处", hint: "给他的规矩 · 说话风格 · 思考引导" },
-            { to: "/inner", label: "他的状态", hint: "他最近的情绪与状态（标注来源）" },
-            { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图" },
-          ].map((it) => (
-            <Link
-              key={it.to}
-              to={it.to}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-            >
-              <span className="min-w-0">
-                <span className="block text-[13px] font-medium">{it.label}</span>
-                <span className="mt-0.5 block text-[11px] text-subtle">{it.hint}</span>
-              </span>
-              <ChevronRight className="size-4 shrink-0 text-muted" />
-            </Link>
-          ))}
-        </div>
       </Section>
 
       <Section title={ownApi ? "用量（真实统计）" : "额度（服务端）"}>
