@@ -212,12 +212,30 @@ export function DrawerSky() {
           位置挑在左中部：右上角是关闭按钮、中间偏下是新对话按钮，压上去会糊。
         */}
         <g className="aster-moon">
-          {/* 柔光晕：同一个弯月糊一层，当光 */}
-          <g filter="url(#moonGlow)" opacity="0.8">
-            <circle cx="183" cy="86" r="11" fill="currentColor" mask="url(#crescent)" />
+          {/*
+            柔光晕：**用纯白**，不用 currentColor。
+            用户："那个特效圈要小一点，亮一点，有点棕色了" ——
+            装饰色本身掺了 22% 暖橘强调色，糊开之后就是一层棕雾；
+            发光本来就该偏白，所以这层固定白，只有月牙本体走装饰色。
+            模糊也从 2.4 收到 1.5（圈更小更聚）。
+          */}
+          <g filter="url(#moonGlow)" opacity="0.85">
+            <circle cx="185" cy="86" r="9.5" fill="#fff" opacity="0.5" />
+            <circle cx="185" cy="86" r="9.5" fill="#fff" mask="url(#crescent)" />
           </g>
-          {/* 月牙本体 */}
-          <circle cx="183" cy="86" r="11" fill="currentColor" mask="url(#crescent)" />
+          {/* 月牙本体（朝左：亮边在左，开口朝右） */}
+          <circle cx="185" cy="86" r="9.5" fill="currentColor" mask="url(#crescent)" />
+          {/* 亮边：贴着左边缘一条细高光，让它真的像在发光。
+              用户说"有点棕色" —— 棕的是装饰色本身（掺了暖橘强调色），
+              所以发光靠这条**纯白**亮边 + 白色柔光，本体保持暗。 */}
+          <path
+            d="M178.6 79.4 A9.5 9.5 0 0 0 178.6 92.6"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="1.4"
+            opacity="0.7"
+            strokeLinecap="round"
+          />
           {/* 月亮旁边几颗小星，做出"闪光"的感觉 */}
           <g fill="currentColor">
             <circle cx="200" cy="76" r="0.9" opacity="0.75" />
@@ -236,16 +254,18 @@ export function DrawerSky() {
             <stop offset="100%" stopColor="var(--decor)" stopOpacity="0.75" />
           </linearGradient>
           {/*
-            月牙的遮罩：大圆里挖掉一个**往右偏**的小圆 = 弯月。
+            月牙的遮罩：大圆里挖掉一个偏移的小圆 = 弯月。
             白 = 保留，黑 = 挖掉。
+            用户："弯月能朝左吗" → 挖掉的那个圆**往左偏**（cx 180 < 185），
+            于是右边被吃掉、亮边留在左边，就是朝左的月牙了。
           */}
           <mask id="crescent">
-            <circle cx="183" cy="86" r="11" fill="#fff" />
-            <circle cx="190" cy="82" r="10" fill="#000" />
+            <circle cx="185" cy="86" r="9.5" fill="#fff" />
+            <circle cx="180.2" cy="82.4" r="8.6" fill="#000" />
           </mask>
           {/* 弯月外面那层柔光（把月牙糊一层做大当光晕） */}
           <filter id="moonGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="2.4" />
+            <feGaussianBlur stdDeviation="1.5" />
           </filter>
         </defs>
       </svg>
