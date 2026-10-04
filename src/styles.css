@@ -64,6 +64,14 @@
 
 :root,
 [data-theme="dawn"] {
+  /*
+    底部导航的内容高度（不含安全区）。
+    必须是**全局**变量：原来它挂在 `.glass-nav-bar` 自己身上，
+    于是只有导航的子树里能读到；思考链弹层（fixed 定位、在另一棵子树里）
+    引用 var(--aster-nav-h) 时取不到值 → padding 静默变成 0，底部文字贴边。
+    提到 :root 之后两边都能用。
+  */
+  --aster-nav-h: 3.5rem;
   --aster-canvas: #ece6dc;
   --aster-bg: #f6f3ee;
   --aster-menu: color-mix(in oklab, #fffcf8 94%, transparent);
@@ -369,7 +377,6 @@ html[data-motion="off"] *::after {
  * 所有"给导航让位"的留白都引用它 —— 改高度只改这一个数。
  * ------------------------------------------------------------------ */
 .glass-nav-bar {
-  --aster-nav-h: 3.5rem;
   /* 上圆角下直角：贴着屏幕底边，但顶上是一条柔和的弧线，不是硬邦邦的方块 */
   border-radius: 1.25rem 1.25rem 0 0;
   background-color: color-mix(in oklab, var(--aster-canvas) 14%, transparent);

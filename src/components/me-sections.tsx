@@ -557,31 +557,8 @@ function MeSections({ tab }: { tab: MeTab }) {
           ))}
         </div>
 
-        <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { v: 0, label: "跟随档位" },
-            { v: 8192, label: "8192" },
-            { v: 16384, label: "16384" },
-            { v: 32768, label: "32768" },
-          ].map((o) => (
-            <button
-              key={o.v}
-              type="button"
-              onClick={() => patch({ maxTokens: o.v })}
-              className={cn(
-                "rounded-2xl border px-3 py-2 text-[12px]",
-                settings.maxTokens === o.v ? "border-fg" : "border-line",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
-          但调太大某些模型会直接报错 —— 所以默认「跟随档位」。断线现在已经会自动重试一次。
-        </p>
+        {/* 「最大输出长度」+「回复风格」已经挪到「系统 → 思考链」（用户要求）。
+            这里不能再留一份 —— 同一个开关出现两次，改哪边都容易漏。 */}
 
         <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
         <div className="flex gap-2">
@@ -704,23 +681,6 @@ function MeSections({ tab }: { tab: MeTab }) {
         <p className="mt-2 text-[12px] leading-5 text-muted">
           深色背景图下小字看不清时，把它换成浅色字就行。
         </p>
-
-        <p className="mt-4 mb-2 text-[12px] text-muted">回复风格</p>
-        <div className="flex gap-2">
-          {STYLES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => patch({ replyStyle: s.id })}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-[13px]",
-                settings.replyStyle === s.id ? "bg-ink text-ink-fg" : "bg-chip",
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
       </Section>
     </>
   );
@@ -929,6 +889,54 @@ function MeSections({ tab }: { tab: MeTab }) {
           checked={settings.showThinking}
           onChange={(v) => patch({ showThinking: v })}
         />
+        {/*
+          这两项原来在「我的空间 → 个性化」里（最大输出长度 + 回复风格），
+          用户要求挪到思考链这边：
+          "思考链的最大输出长度和模型回复风格放思考链那里，不要放在个性化那里"。
+          它们本来就跟"思考多深 / 回答多长"是一回事，放这儿更贴。
+        */}
+        <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { v: 0, label: "跟随档位" },
+            { v: 8192, label: "8192" },
+            { v: 16384, label: "16384" },
+            { v: 32768, label: "32768" },
+          ].map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => patch({ maxTokens: o.v })}
+              className={cn(
+                "rounded-2xl border px-3 py-2 text-[12px]",
+                settings.maxTokens === o.v ? "border-fg" : "border-line",
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
+          但调太大某些模型会直接报错 —— 所以默认「跟随档位」。
+        </p>
+
+        <p className="mt-4 mb-2 text-[12px] text-muted">回复风格</p>
+        <div className="flex gap-2">
+          {STYLES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => patch({ replyStyle: s.id })}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-[13px]",
+                settings.replyStyle === s.id ? "bg-ink text-ink-fg" : "bg-chip",
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title="通知">

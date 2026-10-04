@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize } from "@/lib/attachments";
-import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
+import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { startListening } from "@/lib/voice";
 import { IS_APP } from "@/lib/platform";
@@ -99,6 +99,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   }, [draftKey]);
 
   const [modelOpen, setModelOpen] = useState(false);
+  /** 第二行「推理」的选择弹层（用户："模型和推理，点哪个弹出下一级选择"） */
+  const [reasonOpen, setReasonOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [pending, setPending] = useState<Attachment[]>([]);
@@ -168,6 +170,15 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     // 发出去了，草稿跟着清掉（这是唯一一条"主动清空草稿"的路径）
     useApp.getState().setChatDraft(draftKey, "");
     setPending([]);
+    /*
+      发出去了就把底部导航放回来。
+      用户反馈："点开对话框发完消息导航栏处于消失状态，要点一下"。
+      根因：导航的显隐是跟着 textarea 的**焦点**走的（onFocus/onBlur），
+      而发完消息焦点**仍然留在输入框里**，onBlur 不触发，
+      于是导航一直停在"打字中"的隐藏状态 —— 必须手点一下别处才回来。
+      发出去就算这一轮结束了，直接放回来（键盘还开着也显示）。
+    */
+    useApp.getState().setKeyboardUp(false);
     onSend(t, atts.length ? atts : undefined);
   }
 
@@ -320,9 +331,10 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const closeAll = useCallback(() => {
     setPlusOpen(false);
     setModelOpen(false);
+    setReasonOpen(false);
     setStickerOpen(false);
   }, []);
-  useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || stickerOpen);
+  useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || reasonOpen || stickerOpen);
 
   return (
     <div className="px-4 pb-composer">
@@ -605,20 +617,55 @@ export function Composer({ onSend, disabled, streaming }: Props) {
             )}
           </div>
           <div className="relative min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => {
-                setModelOpen((v) => !v);
-                setPlusOpen(false);
-                setStickerOpen(false);
-              }}
-              className="flex h-11 w-full items-center justify-between gap-2 rounded-full bg-chip px-4 text-[13px] font-medium"
-            >
-              <span className="truncate font-mono text-[12px]">
-                {settings.upstreamModel || "未选模型"}
-              </span>
-              <ChevronDown className="size-4 text-muted" />
-            </button>
+            {/*
+              两行选择器（用户："思考深度放在模型选择列成两行，模型和推理，
+              点哪个弹出下一级选择"）。
+
+              ⚠️ 这两行是**同一行 flex 里的两列**，不是上下堆叠 ——
+                 因为输入框本身只有一行高（h-11）。上下堆叠会让它变高、
+                 把消息区挤掉；并排放正好跟输入框齐平。
+              窄屏（390px）下自动换行，所以加了 flex-wrap。
+
+              两个弹层**共用同一个容器 relative + 同一套定位**，
+              一次只会开一个（打开一个就把另一个关掉）。
+            */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* 第一行：模型（上游真实模型名） */}
+              <button
+                type="button"
+                onClick={() => {
+                  setModelOpen((v) => !v);
+                  setReasonOpen(false);
+                  setPlusOpen(false);
+                  setStickerOpen(false);
+                }}
+                aria-label="选择模型"
+                className="flex h-8 min-w-0 flex-1 items-center justify-between gap-1 rounded-full bg-chip px-2.5 text-[11px] font-medium"
+              >
+                <span className="truncate font-mono">
+                  {settings.upstreamModel || "未选模型"}
+                </span>
+                <ChevronDown className="size-3 shrink-0 text-muted" />
+              </button>
+
+              {/* 第二行：推理（三档推理力度） */}
+              <button
+                type="button"
+                onClick={() => {
+                  setReasonOpen((v) => !v);
+                  setModelOpen(false);
+                  setPlusOpen(false);
+                  setStickerOpen(false);
+                }}
+                aria-label="选择推理力度"
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-chip px-2.5 text-[11px] font-medium"
+              >
+                <span>{getModel(model).label}</span>
+                <ChevronDown className="size-3 text-muted" />
+              </button>
+            </div>
+
+            {/* 模型弹层 */}
             {modelOpen && (
               <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
                 {settings.upstreamModels.length > 0 ? (
@@ -658,6 +705,35 @@ export function Composer({ onSend, disabled, streaming }: Props) {
                 )}
                 <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
                   这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。
+                </p>
+              </div>
+            )}
+
+            {/* 推理弹层 */}
+            {reasonOpen && (
+              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
+                {MODELS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setModel(m.id);
+                      setReasonOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left",
+                      m.id === model && "bg-chip",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium">{m.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-subtle">{m.subtitle}</span>
+                    </span>
+                    {m.id === model && <Check className="size-3.5 shrink-0 text-accent" />}
+                  </button>
+                ))}
+                <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
+                  决定想多深、以及单次最大输出。跟上面那个模型名是两件事。
                 </p>
               </div>
             )}

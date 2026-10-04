@@ -86,7 +86,15 @@ export function ThinkingSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+    /*
+      z 值必须是 70，**要压过底部导航栏**（导航是 z-[60]）。
+      用户反馈："点开一思考时，思考链界面从底部弹出，但是没有底部导航栏，
+      你看图片上是不是带着导航栏，这样很突兀，还会遮挡" ——
+      原来这里是 z-50 < 60，所以导航浮在弹层**上面**：
+      既突兀（弹层背后露一条导航），又遮挡（它盖住了弹层底部的文字）。
+      抬到 70 之后，弹层是一整层盖住全屏，导航被压在底下看不见。
+    */
+    <div className="fixed inset-0 z-70 flex flex-col justify-end" role="dialog" aria-modal="true">
       {/*
         点背景关掉。用 pointerdown/pointerup 自己判断位移，**不用 onClick** ——
         否则在遮罩上滑动、一松手会被当成点击（① 那个 bug 就是这么来的）。
@@ -135,7 +143,7 @@ export function ThinkingSheet({
             <X className="size-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(var(--aster-nav-h)+1.5rem)]">
           <p className="whitespace-pre-wrap text-[0.95em] leading-[1.85] text-muted">
             {text || "（没有思考内容）"}
             {live && <span className="ml-0.5 animate-pulse">▍</span>}

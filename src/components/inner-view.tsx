@@ -107,7 +107,7 @@ export function InnerView() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <PageHeader title="内在" />
+      <PageHeader title="内在" to="/core" backLabel="返回 AI 概览" />
 
       {samples.length === 0 ? (        <section className="px-4">
           <div className="rounded-3xl border border-line bg-surface px-4 py-6 text-center">

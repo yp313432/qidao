@@ -89,6 +89,8 @@ export function MemoryLibrary() {
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
       <PageHeader
         title="记忆库"
+        to="/core"
+        backLabel="返回 AI 概览"
         right={
           <div className="flex items-center">
             <button

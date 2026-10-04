@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageCircle, RotateCcw } from "lucide-react";
 import { PlayHeader } from "@/components/play-header";
@@ -154,6 +154,8 @@ export function GobangView() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg">
       <PlayHeader
         title="五子棋"
+        backTo="/play/tools"
+        backLabel="返回小日子"
         extra={
           <button type="button" className="px-3 text-sm text-muted" onClick={reset}>
             重开

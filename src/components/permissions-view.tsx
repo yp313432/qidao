@@ -75,6 +75,8 @@ export function PermissionsView() {
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
       <PageHeader
         title="AI 权限"
+        to="/core"
+        backLabel="返回 AI 概览"
         right={<span className="px-3 text-[11px] text-muted">{usable}/{PERMISSIONS.length} 可用</span>}
       />
 
