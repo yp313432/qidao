@@ -121,6 +121,26 @@ export function buildAwarenessItems(): AwarenessItem[] {
     }
   }
 
+  /**
+   * 天气。
+   *
+   * 跟定位同一个开关（`geoEnabled`）—— 用户开这个开关要的就是
+   * "他知道我在哪、外面什么样"，拆成两个开关反而要多想一次。
+   *
+   * 只认 **1 小时内**的天气：报"现在晴"其实是一早上的数据，比不报更糟。
+   * 权限页那边的 see_location 闸同样管着它（天气也要靠地点才查得到）。
+   */
+  if (st.settings.geoEnabled && modeOf("see_location") !== "deny" && st.settings.weatherText) {
+    const wAge = Date.now() - (st.settings.weatherAt ?? 0);
+    if (wAge < 3600_000) {
+      out.push({
+        id: "weather",
+        title: "他那边的天气",
+        text: `${st.settings.weatherText}（${Math.max(1, Math.round(wAge / 60000))} 分钟前查的）`,
+      });
+    }
+  }
+
   // 长期记忆是他自己写下的笔记：只要没被「直接拒绝」，就该能读到
   if (modeOf("memory") !== "deny") {
     out.push({
@@ -235,6 +255,22 @@ export function buildContext(): ChatContext {
       .slice(0, 6)
       .map((a) => `${a.label}${a.detail ? `（${a.detail}）` : ""}`),
     nowPlaying: t ? `${t.name}（${p.playing ? "播放中" : "暂停"}）` : undefined,
+    /**
+     * 天气**单独带一份**。
+     *
+     * 虽然 buildAwarenessItems 里也有它，但那是"允许你了解的事项"清单里的一条，
+     * 语气像资料。天气该像"此刻"——跟时间、在做什么并列，
+     * 他才会自然地说"你那边下雨了，带伞没"，而不是念一句资料。
+     *
+     * 权限跟定位同一条闸（see_location）：天气也要靠地点才查得到。
+     */
+    weather:
+      st.settings.geoEnabled &&
+      modeOf("see_location") !== "deny" &&
+      st.settings.weatherText &&
+      Date.now() - (st.settings.weatherAt ?? 0) < 3600_000
+        ? st.settings.weatherText
+        : undefined,
     granted: actionable
       .filter((id) => modeOf(id) === "allow")
       .map((id) => permissionDef(id)?.title ?? id),

@@ -36,6 +36,8 @@ export type ChatContext = {
   granted?: string[];
   /** 此刻正在播放的音乐（如果有） */
   nowPlaying?: string;
+  /** 用户那边的天气（"晴 22°C"）—— 跟此刻并列，不塞进 aware 清单 */
+  weather?: string;
   /** 逐项感知内容（已按权限过滤），每行形如「文档库：…」 */
   aware?: string[];
   /** 客户端当前时间 */

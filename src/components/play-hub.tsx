@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   BookHeart,
@@ -18,6 +18,7 @@ import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/
 import { ButterflyWings, ClipStamp } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
+import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { resolveAiName } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -391,11 +392,33 @@ function PhotoNote() {
 /** 时间便签：本机时间 + 日期，纯装饰。 */
 function NowNote() {
   const [now, setNow] = useState<Date | null>(null);
+  const weatherText = useApp((s) => s.settings.weatherText);
+  const geoEnabled = useApp((s) => s.settings.geoEnabled);
+  const weatherAt = useApp((s) => s.settings.weatherAt);
+  const refreshed = useRef(false);
+
   useEffect(() => {
     setNow(new Date());
     const t = window.setInterval(() => setNow(new Date()), 30000);
     return () => window.clearInterval(t);
   }, []);
+
+  /**
+   * 进这一页顺手刷一次地点和天气。
+   *
+   * 只在**开着开关**时刷，而且 refreshPlaceAndWeather 自己带缓存
+   * （天气 15 分钟、地点 30 分钟），所以来回切页不会反复请求 ——
+   * 这是保护和风那 5 万次免费额度的关键。
+   * refreshed 这个 ref 保证一次挂载只触发一次。
+   */
+  useEffect(() => {
+    if (!geoEnabled || refreshed.current) return;
+    refreshed.current = true;
+    void refreshPlaceAndWeather();
+  }, [geoEnabled]);
+
+  /** 天气超过 1 小时就不显示了 —— 宁可空着，也别显示旧的让人误会 */
+  const weatherFresh = weatherText && Date.now() - weatherAt < 3600_000 ? weatherText : "";
 
   const nextDate = useApp((s) => sortDates(s.dates)[0] ?? null);
   const nextLabel = nextDate
@@ -422,6 +445,17 @@ function NowNote() {
       {nextLabel && (
         <p className="relative mt-2.5 rounded-xl bg-chip px-2.5 py-2 text-[11px] leading-4 text-muted">
           {nextLabel}
+        </p>
+      )}
+      {/*
+        外面什么天气。
+        跟时间和"同行的日子"放一起 —— 这一格本来就是"此刻"。
+        拿不到就整行不显示（不写"暂无数据"那种占位，那更难看）。
+      */}
+      {weatherFresh && (
+        <p className="relative mt-2.5 flex items-center gap-1.5 rounded-xl bg-chip px-2.5 py-2 text-[11px] leading-4 text-muted">
+          <span className="text-accent opacity-80">☁</span>
+          {weatherFresh}
         </p>
       )}
       <NowPlayingLine />

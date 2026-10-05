@@ -1,4 +1,6 @@
 import { IS_APP } from "@/lib/platform";
+import { reversePlace, weatherConfigured } from "@/lib/qweather";
+import { useApp } from "@/lib/store";
 
 /**
  * 定位。
@@ -6,8 +8,18 @@ import { IS_APP } from "@/lib/platform";
  * 两件事必须说清（用户问过"定位拿来干嘛"）：
  *   · 拿到的地名会进"此刻的情况"，也就是说**会发给你接的那家 AI** ——
  *     所以默认关，开了以后设置里随时能关
- *   · 地名反查用的是 OpenStreetMap 的 Nominatim（免费、不用密钥）：
- *     只发经纬度过去，不发别的
+ *   · 反查地名现在走**和风天气的 GeoAPI**
+ *
+ * ── 为什么从 OpenStreetMap 换成和风（2026-10）────────────────────
+ *
+ * 用户实测："定位订不了"。查下来根因不在手机定位：
+ *   第 1 步 拿坐标 —— 系统给的，一直好好的
+ *   第 2 步 坐标→地名 —— 原来打的是 nominatim.openstreetmap.org，
+ *                        那个**国内经常连不上**，6 秒就放弃
+ * 所以表现就是"授权了、也开了定位，但一直没结果"。
+ *
+ * 和风是国内服务、国内可达，而且免费额度每月 5 万次，
+ * 它的 GeoAPI 正好就是"坐标 → 地名"。一次配好，定位和天气都能用。
  */
 
 type GeoPlugin = {
@@ -35,35 +47,32 @@ async function geoPlugin(): Promise<{ api: GeoPlugin } | null> {
   }
 }
 
-/** 反查地名：只把经纬度发给 OSM，换成"北京市朝阳区"这种。6 秒不通就放弃（别把界面挂住） */
-async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
-  const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), 6000);
-  try {
-    const url =
-      "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=zh-CN" +
-      `&lat=${lat}&lon=${lon}`;
-    const r = await fetch(url, { headers: { accept: "application/json" }, signal: ctrl.signal });
-    if (!r.ok) return null;
-    const j = (await r.json()) as {
-      address?: Record<string, string>;
-      display_name?: string;
+/**
+ * 反查地名：坐标 → "北京市朝阳区"。
+ *
+ * 走和风 GeoAPI（原来那个 nominatim 国内连不上，是"定位订不了"的真正原因）。
+ * 没配和风时**如实说清楚**，而不是含糊一句"失败"——
+ * 用户要知道该去配什么。
+ */
+async function reverseGeocode(
+  lat: number,
+  lon: number,
+): Promise<{ ok: true; label: string; placeId: string } | { ok: false; reason: string }> {
+  if (!weatherConfigured()) {
+    return {
+      ok: false,
+      reason:
+        "拿到了坐标，但没法翻译成地名 —— 去「我的 → 系统 → 天气与定位」填上和风天气的 Key 和 API Host。",
     };
-    const a = j.address ?? {};
-    const city = a.city ?? a.town ?? a.county ?? a.state ?? "";
-    const district = a.suburb ?? a.city_district ?? a.district ?? a.neighbourhood ?? "";
-    const label = `${city}${district}`.trim();
-    if (label) return label;
-    return j.display_name ? j.display_name.split(",").slice(0, 2).join(" ") : null;
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timer);
   }
+  const r = await reversePlace(lat, lon);
+  if (!r.ok) return { ok: false, reason: `反查地名失败：${r.reason}` };
+  // placeId 一起带回去 —— 查天气要用它，省一次搜索请求
+  return { ok: true, label: r.label, placeId: r.place.id };
 }
 
 export type PlaceResult =
-  | { ok: true; label: string; lat: number; lon: number }
+  | { ok: true; label: string; lat: number; lon: number; placeId?: string }
   | { ok: false; reason: string };
 
 /**
@@ -149,12 +158,31 @@ async function locateOnce(): Promise<PlaceResult> {
     if (!coords) return { ok: false, reason: "定位失败，或者你拒绝了浏览器的定位请求" };
   }
 
-  const label = await reverseGeocode(coords.latitude, coords.longitude);
+  const geo = await reverseGeocode(coords.latitude, coords.longitude);
+  if (!geo.ok) {
+    // 坐标拿到了，只是翻译地名失败 —— **分开报**，用户才知道卡在哪一步
+    return { ok: false, reason: geo.reason };
+  }
   return {
     ok: true,
-    // 查不到地名就退回坐标 —— 宁可给个坐标，也别让用户以为定位没成功
-    label: label ?? `坐标 ${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`,
+    label: geo.label,
     lat: coords.latitude,
     lon: coords.longitude,
+    placeId: geo.placeId,
   };
+}
+
+/**
+ * 手动指定的地点（不查坐标，直接用）。
+ *
+ * 用户："我平时打车的时候高德已经知道我身份了" —— 他其实想要的是
+ * "他聊天时知道我在哪个地方"，而那件事**填一次就够了**：
+ * 日常就在那一两个地方，比每次自动定位更准，而且**不依赖任何服务**。
+ *
+ * 所以这个入口永远可用，不要求配和风。
+ */
+export function manualPlaceResult(): PlaceResult | null {
+  const label = (useApp.getState().settings.manualPlace ?? "").trim();
+  if (!label) return null;
+  return { ok: true, label, lat: 0, lon: 0 };
 }

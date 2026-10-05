@@ -21,6 +21,14 @@ export type PromptContext = {
   nowPlaying?: string;
   aware?: string[];
   now?: string;
+  /**
+   * 用户那边的天气（"晴 22°C"）。
+   *
+   * 单独一项，不塞进 aware 清单 —— 那是"允许你了解的事项"，
+   * 读起来像资料；天气该跟时间和"在做什么"并列，属于"此刻"。
+   * 这样他才会自然地说"你那边下雨了，带伞没"。
+   */
+  weather?: string;
 };
 
 export type PromptInput = {
@@ -205,6 +213,8 @@ export function perceptionBlock(input: PromptInput): string {
   const lines = [
     ctx.now ? `客户端时间：${ctx.now}。` : "",
     ctx.activity ? `用户此刻在做：${ctx.activity}。` : "",
+    // 天气跟时间和"在做什么"并列 —— 属于"此刻"，不是资料
+    ctx.weather ? `用户那边的天气：${ctx.weather}。` : "",
     ctx.nowPlaying ? `用户此刻正在听：${ctx.nowPlaying}。` : "",
     ctx.recent && ctx.recent.length > 1
       ? `最近的活动轨迹（新→旧）：${ctx.recent.join(" → ")}。`

@@ -88,6 +88,21 @@ const defaultSettings: Settings = {
   voiceSubtitles: true,
   embedQuote: "雨落在城市的肩上，我们各自听同一首歌。",
   shiganUrl: "",
+  /*
+    和风天气 —— 一次解决「知道你在哪」和「天气」两件事。
+    （原来反查地名用的 OpenStreetMap 国内连不上，用户实测定位一直失败。）
+    key 只存这台设备，跟自定义上游的 api key 同样的处理方式。
+  */
+  qweatherKey: "",
+  qweatherHost: "",
+  /** 缓存下来的天气文字（进"此刻的情况"和首页都用它） */
+  weatherText: "",
+  /** 上面那条天气是什么时候拿的 —— 太旧就不提了 */
+  weatherAt: 0,
+  /** 手动指定的地点（不想用自动定位时填它） */
+  manualPlace: "",
+  /** 当前地点的和风编号（查天气用，省一次请求） */
+  geoPlaceId: "",
   musicImage: "",
   diaryImage: "",
   motion: "auto",

@@ -28,7 +28,7 @@ import {
   type SwStatus,
 } from "@/lib/notify";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
-import { currentPlace } from "@/lib/locate";
+import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
@@ -276,7 +276,7 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const settings = useApp((s) => s.settings);
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
-  const tasks = useApp((s) => s.tasks);
+  // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
   const stateSamples = useApp((s) => s.stateSamples);
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
   const requestLog = useApp((s) => s.requestLog);
@@ -300,7 +300,6 @@ function MeSections({ tab }: { tab: MeTab }) {
   const patch = useApp((s) => s.patchSettings);
   const background = settings.background;
   const sum = permissionSummary(settings.permissions);
-  const reminders = useApp((s) => s.reminders);
 
   // 通知相关状态（都在 effect 里读，避免 SSR / 客户端不一致）
   const [perm, setPerm] = useState<NotificationPermission | "unsupported" | "loading">("loading");
@@ -1019,52 +1018,110 @@ function MeSections({ tab }: { tab: MeTab }) {
         */}
       </Section>
 
-      <Section title="定位">
+      <Section title="天气与定位">
         <Row
-          label="让他知道你在哪"
-          hint="默认关。开了之后地名会进「此刻的情况」—— 也就是说会发给你接的那家 AI"
+          label="让他知道你在哪、外面什么天气"
+          hint="默认关。开了之后地点和天气会进「此刻的情况」—— 也就是说会发给你接的那家 AI"
           checked={settings.geoEnabled}
           onChange={(v) => patch({ geoEnabled: v })}
         />
+
         {settings.geoEnabled && (
-          <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 text-[12px] leading-5">
-                {settings.geoLabel ? (
-                  <>
-                    现在在<span className="text-fg">{settings.geoLabel}</span>
-                    {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
-                  </>
-                ) : (
-                  "还没定位过"
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setGeoBusy(true);
-                  void currentPlace().then((r) => {
-                    setGeoBusy(false);
-                    if (r.ok) {
-                      patch({ geoLabel: r.label, geoAt: Date.now() });
-                      setGeoMsg(`已更新：${r.label}`);
-                    } else {
-                      setGeoMsg(r.reason);
-                    }
-                  });
-                }}
-                disabled={geoBusy}
-                className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm disabled:opacity-50"
-              >
-                {geoBusy ? "定位中…" : "更新位置"}
-              </button>
-            </div>
-            {geoMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{geoMsg}</p>}
-            <p className="mt-2 text-[11px] leading-4 text-subtle">
-              地名反查用的是 OpenStreetMap（免费、不用密钥）—— 只把经纬度发过去，不发别的。
-              位置只存在这台设备上；关掉这个开关就不再进提示词。
+          <>
+            {/* ── 手动指定地点：不依赖任何服务，永远可用 ── */}
+            <p className="mt-3 mb-2 text-[12px] text-muted">你常待的地方</p>
+            <input
+              value={settings.manualPlace}
+              onChange={(e) => patch({ manualPlace: e.target.value })}
+              placeholder="例如 北京市朝阳区"
+              aria-label="手动指定地点"
+              className="h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none placeholder:text-subtle"
+            />
+            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+              填了就直接用它 —— <span className="text-fg">不用网络、不会失败</span>，而且日常就在那一两个地方，
+              比每次重新定位还准。想用自动定位就留空。
             </p>
-          </div>
+
+            {/* ── 和风天气：一次配好，定位（反查地名）和天气都能用 ── */}
+            <p className="mt-4 mb-2 text-[12px] text-muted">和风天气</p>
+            <input
+              value={settings.qweatherHost}
+              onChange={(e) => patch({ qweatherHost: e.target.value.trim() })}
+              placeholder="API Host，例如 abcd1234.re.qweatherapi.com"
+              aria-label="和风 API Host"
+              className="mb-2 h-11 w-full rounded-2xl bg-chip px-3 font-mono text-[12px] outline-none placeholder:text-subtle"
+            />
+            <input
+              type="password"
+              value={settings.qweatherKey}
+              onChange={(e) => patch({ qweatherKey: e.target.value.trim() })}
+              placeholder="API Key"
+              aria-label="和风 API Key"
+              className="h-11 w-full rounded-2xl bg-chip px-3 font-mono text-[12px] outline-none placeholder:text-subtle"
+            />
+            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+              在和风控制台「项目管理 → 创建项目 → 添加凭据（选 API KEY）」里拿这两样。
+              <br />
+              <span className="text-fg">API Host 每个人不一样</span>（和风早就不是统一的
+              devapi.qweather.com 了），控制台首页能看到。免费额度每月 5 万次，个人用不完。
+              <br />
+              它管两件事：把坐标翻译成地名（就是原来一直失败的那一步），以及天气。
+            </p>
+
+            {/* ── 现在在哪 / 什么天气 ── */}
+            <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 text-[12px] leading-5">
+                  {settings.manualPlace.trim() ? (
+                    <>
+                      用手动地点：<span className="text-fg">{settings.manualPlace.trim()}</span>
+                    </>
+                  ) : settings.geoLabel ? (
+                    <>
+                      现在在<span className="text-fg">{settings.geoLabel}</span>
+                      {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
+                    </>
+                  ) : (
+                    "还没定位过"
+                  )}
+                  {settings.weatherText && (
+                    <>
+                      <br />
+                      外面：<span className="text-fg">{settings.weatherText}</span>
+                      {settings.weatherAt ? ` · ${relShort(settings.weatherAt)}` : ""}
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeoBusy(true);
+                    setGeoMsg("");
+                    void refreshPlaceAndWeather(true).then((r) => {
+                      setGeoBusy(false);
+                      if (r.ok) {
+                        setGeoMsg(
+                          r.weather
+                            ? `已更新：${r.label} · ${r.weather}`
+                            : `已更新地点：${r.label}${r.note ? `（${r.note}）` : ""}`,
+                        );
+                      } else {
+                        setGeoMsg(r.reason);
+                      }
+                    });
+                  }}
+                  disabled={geoBusy}
+                  className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm disabled:opacity-50"
+                >
+                  {geoBusy ? "刷新中…" : "刷新"}
+                </button>
+              </div>
+              {geoMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{geoMsg}</p>}
+              <p className="mt-2 text-[11px] leading-4 text-subtle">
+                地点、天气、Key 都只存在这台设备上；关掉上面的开关就不再进提示词。
+              </p>
+            </div>
+          </>
         )}
       </Section>
 
