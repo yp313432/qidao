@@ -21,9 +21,11 @@ import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
+import { Ticker } from "@/components/chat/ticker";
 import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
 import { greetingFor } from "@/lib/greeting";
+import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import type { Attachment } from "@/lib/types";
 import { useChatStream } from "@/lib/use-chat";
@@ -51,9 +53,19 @@ export function ChatView() {
   const hydrated = useApp((s) => s.hydrated);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
   const { busy, liveId, send, regenerate } = useChatStream();
-
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
   useActivity("在和你聊天", conv?.title ?? "新对话");
+
+  /*
+    「他现在知道什么」——原来这句在 Composer（对话框里）占一行，
+    现在挪到**顶部栏**（用户要求："不要放在对话框占地方"）。
+    所以订阅提到这一层来，因为顶部栏在 ChatView 里。
+  */
+  const activity = useApp((s) => s.activity);
+  const nowPlaying = usePlayer((s) => {
+    const t = s.tracks.find((x) => x.id === s.currentId);
+    return t ? `${t.name}${s.playing ? " · 播放中" : " · 暂停"}` : "";
+  });
 
   // 他请求「打开对话列表」时，落到这一页
   const openPanel = useApp((s) => s.openPanel);
@@ -136,16 +148,33 @@ export function ChatView() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+      <header className="flex items-center gap-1 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
         <button
           type="button"
           aria-label="对话列表"
-          className="flex size-11 items-center justify-center"
+          className="flex size-11 shrink-0 items-center justify-center"
           onClick={() => setMenu(true)}
         >
           <Menu className="size-6" strokeWidth={1.6} />
         </button>
-        <div className="flex items-center">
+
+        {/*
+          「他现在知道什么」挪到**顶部栏中间**了。
+          用户："把小克现在知道那行字挪到顶边栏吧，不要放在对话框占地方
+                这样显得界面更宽阔一点"
+          放不下就自己往左滚（Ticker），不用点。
+        */}
+        {(activity || nowPlaying) && (
+          <Ticker
+            className="min-w-0 flex-1 px-1"
+            prefix={`${aiName} 知道`}
+            text={`${activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""}${
+              nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""
+            }`}
+          />
+        )}
+
+        <div className="flex shrink-0 items-center">
           <button
             type="button"
             aria-label="搜索对话内容"

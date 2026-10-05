@@ -8,7 +8,6 @@ import { ReminderDaemon } from "@/components/reminder-daemon";
 import { AlarmOverlay } from "@/components/alarm-overlay";
 import { TaskDaemon } from "@/components/task-daemon";
 import { UiEffects } from "@/components/ui-effects";
-import { useApp } from "@/lib/store";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 
@@ -29,11 +28,20 @@ export function AppShell() {
    * 返回，不再额外放一套永久导航。
    *
    * 所以现在**只留这一个底部胶囊**，抽屉那套撤掉了。
-   * 打字时仍然收下去给消息让地方（见下面 keyboardUp）。
+   *
+   * ── 「打字时把导航收下去」这个机制**整个删掉了**（2026-10）──────────
+   *
+   * 用户原话（说了不止一次）：
+   *   "我点开键盘之后，底部导航栏是不是没有了，中间是不是空了一块，
+   *    然后我退出键盘状态之后，要点一下界面才出现导航栏，
+   *    能不能直接就把导航栏不消失了，不用再点了"
+   *
+   * 真相是：**收下去换来的那块地方本来就是空的**（键盘上方那一段留白），
+   * 等于什么也没省，却引入了"要点一下才回来"这个毛病。
+   * 我前两次都在修"什么时候让它回来"，**方向就错了** ——
+   * 正确做法是根本不让它消失。
    */
   const hideNav = pathname.startsWith("/play/") && pathname !== "/play";
-  /** 打字中：把导航收下去，给消息让地方 */
-  const keyboardUp = useApp((s) => s.keyboardUp);
 
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，
@@ -80,12 +88,7 @@ export function AppShell() {
          * z-[60]：必须高于对话抽屉（z-50）。抽屉只占左边 84% 宽，
          * 导航在右边一直露着，用户才能一边看列表一边切页。
          */
-        <div
-          className={cn(
-            "pointer-events-none fixed inset-x-0 bottom-0 z-[60] transition-all duration-200",
-            keyboardUp && "pointer-events-none translate-y-[135%] opacity-0",
-          )}
-        >
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
           <nav
             aria-label="主导航"
             className="glass-nav-bar pointer-events-auto flex w-full items-stretch"

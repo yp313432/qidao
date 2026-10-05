@@ -1,4 +1,5 @@
 import { currentPlace, manualPlaceResult } from "@/lib/locate";
+import { locateByIpCached } from "@/lib/ip-locate";
 import { searchPlace, weatherNow, weatherLine, weatherConfigured, type GeoPlace } from "@/lib/qweather";
 import { useApp } from "@/lib/store";
 
@@ -70,15 +71,49 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
           "（这正是原来一直失败的那一步）。或者在「你常待的地方」里填一个，那样不用网络。",
       };
     }
-    const r = await currentPlace();
-    if (!r.ok) return { ok: false, reason: r.reason };
-    label = r.label;
-    locQuery = r.placeId ?? null;
-    st.patchSettings({
-      geoLabel: r.label,
-      geoAt: now,
-      ...(r.placeId ? { geoPlaceId: r.placeId } : {}),
-    });
+
+    /*
+      自动定位走**三级兜底**（用户实测：室内 GPS 定不到，"Could not obtain location in time"）：
+
+        ① 系统定位（GPS/WiFi/基站）→ 拿坐标 → 和风反查地名
+        ② 失败就用 **IP 定位** 认城市 → 照样能查天气（城市级精度够用）
+        ③ 都失败才报错，并明确告诉他"填个手动地点最省事"
+
+      之所以加 ②：手机自带天气、高德在室内也能定位，是因为它们走 WiFi/基站，
+      而 WebView 那层拿不到。IP 定位是我们在网页里能做到的等效手段。
+    */
+    const sys = await currentPlace();
+    if (sys.ok) {
+      label = sys.label;
+      locQuery = sys.placeId ?? null;
+      st.patchSettings({
+        geoLabel: sys.label,
+        geoAt: now,
+        ...(sys.placeId ? { geoPlaceId: sys.placeId } : {}),
+      });
+    } else {
+      const ip = await locateByIpCached();
+      if (!ip.ok) {
+        return {
+          ok: false,
+          reason:
+            `${sys.reason}\n\n` +
+            `按 IP 也没认出城市（${ip.reason}）。\n` +
+            `最省事的办法：在上面「你常待的地方」填一个，比如「北京市朝阳区」` +
+            `—— 那样不用定位、不用网络，点刷新立刻就出天气。`,
+        };
+      }
+      label = ip.label;
+      // IP 只给到城市，还得搜一次拿和风的编号
+      const sres = await searchPlace(ip.label);
+      if (!sres.ok) {
+        return { ok: false, reason: `按 IP 认出「${ip.label}」，但和风查不到这个地方：${sres.reason}` };
+      }
+      const p = sres.places[0]!;
+      locQuery = p.id;
+      label = niceLabel(p) || ip.label;
+      st.patchSettings({ geoLabel: label, geoAt: now, geoPlaceId: p.id });
+    }
   }
 
   /* ---------------- 没有和风：地点有了就行 ---------------- */

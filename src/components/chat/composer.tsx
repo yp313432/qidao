@@ -24,7 +24,6 @@ import { resetLabel } from "@/lib/greeting";
 import type { Attachment } from "@/lib/types";
 import { useDismissOutside } from "@/lib/ux";
 import { cn, uid } from "@/lib/utils";
-import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 
 /** 常用表情（本地常量，不依赖任何接口） */
@@ -117,43 +116,18 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
-  const activity = useApp((s) => s.activity);
   const customStickers = useApp((s) => s.stickers);
-  const nowPlaying = usePlayer((s) => {
-    const t = s.tracks.find((x) => x.id === s.currentId);
-    return t ? `${t.name}${s.playing ? " · 播放中" : " · 暂停"}` : "";
-  });
-  /**
-   * 今天的**真实**用量（来自每条请求记录的 token）。
-   *
-   * 原来这里显示的是"本机计数已用 88%"——一个抄订阅制的假限制，
-   * 跟用户自己的 API 花费毫无关系，还把他拦在门外过（真事）。
-   * 现在只报真实数字：今天几次、输入/输出多少、缓存省了多少。
-   */
-  const requestLog = useApp((s) => s.requestLog);
-  /** 打字中：藏掉"现在知道"和用量条，只留输入框（键盘已经占掉不少了） */
-  const keyboardUp = useApp((s) => s.keyboardUp);
+  /*
+    「今天 N 次 · 输入/输出 · 缓存命中率」那条**已删除**（用户要求：
+    "到时候直接上设置里看，这地方就不留了"）。
+    所以这里不再订阅 requestLog —— 完整用量在「我的 → 模型与用量」。
+  */
   /** 自己带 key = 花自己的钱 → 只统计；走服务端 → 才有窗口额度 */
   const ownApi = isOwnApi(settings);
   const quota = useApp((s) => s.quota);
   const resetAt = useApp((s) => s.quotaResetAt());
   const usedPct = Math.min(100, Math.round((quota.used / QUOTA_LIMIT) * 100));
   const showQuota = !ownApi && usedPct >= 70;
-  const usageToday = (() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const today = requestLog.filter((r) => r.at >= start.getTime());
-    if (today.length === 0) return null;
-    const sum = (k: "prompt" | "completion" | "cached") =>
-      today.reduce((n, r) => n + (r[k] ?? 0), 0);
-    return {
-      calls: today.length,
-      prompt: sum("prompt"),
-      completion: sum("completion"),
-      cached: sum("cached"),
-    };
-  })();
-  const fmtTokens = (n: number) => (n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
   useEffect(() => {
     const el = ta.current;
@@ -170,15 +144,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     // 发出去了，草稿跟着清掉（这是唯一一条"主动清空草稿"的路径）
     useApp.getState().setChatDraft(draftKey, "");
     setPending([]);
-    /*
-      发出去了就把底部导航放回来。
-      用户反馈："点开对话框发完消息导航栏处于消失状态，要点一下"。
-      根因：导航的显隐是跟着 textarea 的**焦点**走的（onFocus/onBlur），
-      而发完消息焦点**仍然留在输入框里**，onBlur 不触发，
-      于是导航一直停在"打字中"的隐藏状态 —— 必须手点一下别处才回来。
-      发出去就算这一轮结束了，直接放回来（键盘还开着也显示）。
-    */
-    useApp.getState().setKeyboardUp(false);
+    // 底部导航现在是**常驻**的（"打字时收下去"那个机制整个删了），
+    // 所以这里不需要再操心导航的显隐。
     onSend(t, atts.length ? atts : undefined);
   }
 
@@ -339,38 +306,16 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   return (
     <div className="px-4 pb-composer">
       <div ref={cardRef} className="aster-card rounded-3xl border border-line p-2">
-        {(activity || nowPlaying) && !keyboardUp && (
-          <p className="mb-1 line-clamp-1 px-1.5 text-[11px] leading-4 text-subtle">
-            {aiName} 现在知道：
-            {activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""}
-            {nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}
-          </p>
-        )}
-        {/* 自己带 key：显示真实 token 用量（本机不限制）—— 打字时先藏起来 */}
-        {ownApi && usageToday && !keyboardUp && (
-          <div className="mb-1 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium text-fg">
-                今天 {usageToday.calls} 次 · 输入 {fmtTokens(usageToday.prompt)} / 输出{" "}
-                {fmtTokens(usageToday.completion)}
-              </p>
-              <p className="text-[12px] text-muted">
-                {usageToday.cached > 0 && usageToday.prompt > 0
-                  ? `缓存命中率 ${Math.round((usageToday.cached / usageToday.prompt) * 100)}% · 省钱的是这部分`
-                  : "这是你自己的 API 用量，本机只统计不限制"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/me" })}
-              className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm"
-            >
-              详情
-            </button>
-          </div>
-        )}
+        {/*
+          「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
+          用户："不要放在对话框占地方，这样显得界面更宽阔一点"。
+
+          「今天 N 次 · 输入/输出 · 缓存命中率」那一条**整个删掉**了。
+          用户："这个也去掉吧，到时候直接上设置里看，这地方就不留了"。
+          那些数字在「我的 → 模型与用量」里本来就有完整版，这里没必要重复占地方。
+        */}
         {/* 走内置服务端：这里才真的会拦（花的是服务端那把 key）—— 打字时也先藏起来 */}
-        {showQuota && !keyboardUp && (
+        {showQuota && (
           <div className="mb-1 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-fg">本窗口已用 {usedPct}%</p>
@@ -512,14 +457,15 @@ export function Composer({ onSend, disabled, streaming }: Props) {
           value={value}
           disabled={disabled}
           onChange={(e) => setValue(e.target.value)}
-          /**
-           * 聚焦 = 键盘要弹起来了：把底部导航收下去，给消息腾地方
-           * （用户反馈：导航 + 输入框占了快半个屏幕，打字时看不到消息）。
-           * 失焦时延迟一点再放回来 —— 点「发送」按钮的那一瞬也会失焦，
-           * 不延迟的话导航会闪一下。
-           */
-          onFocus={() => useApp.getState().setKeyboardUp(true)}
-          onBlur={() => window.setTimeout(() => useApp.getState().setKeyboardUp(false), 180)}
+          /*
+            ⚠️ 这里原来挂了一对 onFocus/onBlur 去收放底部导航（keyboardUp）。
+            整个机制**已删除** —— 用户说了不止一次：
+              "我点开键盘之后导航栏没有了，中间空了一块，
+               退出键盘之后要点一下界面才出现导航栏，
+               能不能直接就让导航栏不消失"
+            真相是：收下去换来的那块地方**本来就是空的**，什么也没省。
+            现在导航栏常驻，键盘开开关关都不受影响。
+          */
           onPaste={(e) => {
             const files = Array.from(e.clipboardData?.files ?? []);
             if (files.length) {

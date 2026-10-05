@@ -57,8 +57,14 @@ export function PlayHub() {
         {/* 顶部那片：飘逸英文 + 名字 + SINCE */}
         <header className="pt-[max(1.75rem,env(safe-area-inset-top))] pb-1 text-center">
           <Phrases className="mb-3" />
+          {/*
+            顺序统一成「AI 在左、我在右」。
+            ⚠️ 上次只改了**卡片里面**那行名字（TogetherCard），漏了这里 ——
+               于是出现"上面 yan & 小克、下面 小克 & yan"对不上的情况。
+               现在两处都是 aiName 在前。
+          */}
           <h1 className="font-serif text-[1.4rem] leading-tight font-medium">
-            {myName} <span className="text-muted">&</span> {aiName}
+            {aiName} <span className="text-muted">&</span> {myName}
           </h1>
           <SinceLine />
         </header>

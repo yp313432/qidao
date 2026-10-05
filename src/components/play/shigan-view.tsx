@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useApp } from "@/lib/store";
 
 /**
@@ -13,6 +15,7 @@ import { useApp } from "@/lib/store";
  */
 export function ShiganView() {
   const settings = useApp((s) => s.settings);
+  const navigate = useNavigate();
   const [state, setState] = useState<"loading" | "ok" | "stuck">("loading");
   const [dismissed, setDismissed] = useState(false);
 
@@ -106,6 +109,30 @@ export function ShiganView() {
         }}
         className="size-full border-0 bg-white"
       />
+
+      {/*
+        ── 返回钮（**必须有**）────────────────────────────────────
+        用户实测："时感插件没做返回键，我按手机系统的侧边栏返回，直接退出应用了"。
+
+        根因：这一页是**铺满屏幕的 iframe**，里面是时感自己的页面 ——
+        它不知道栖岛的存在，也不会帮我们返回；而整页又没有栖岛的任何外框，
+        于是用户**无路可退**，只能按系统返回 → 那个动作在 WebView 里就是退出 App。
+
+        所以这里自己放一个返回钮。压在左上角、半透明黑底 ——
+        时感是深色页面，白图标在上面看得清，又不挡内容。
+      */}
+      <button
+        type="button"
+        aria-label="返回玩乐"
+        onClick={() => {
+          // 有历史就退回上一页；直接进来的（没有历史）就回玩乐首页
+          if (window.history.length > 1) window.history.back();
+          else void navigate({ to: "/play" });
+        }}
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-10 flex size-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm active:bg-black/55"
+      >
+        <ChevronLeft className="size-5" strokeWidth={2} />
+      </button>
 
       {/*
         提示一律做成**细条贴在顶上**，绝不盖住画面中间 ——

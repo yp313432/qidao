@@ -804,6 +804,34 @@ html[data-drawer-open] .glass-nav-bar {
 .aster-duet-l { animation: aster-duet-left 4.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
 .aster-duet-r { animation: aster-duet-right 4.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
 
+/* ------------------------------------------------------------------
+ * 「他现在知道」那行的跑马灯
+ *
+ * 用户："点开展示吧，或者你能做成那种滚动的吗？就是字往左滚动显示全文"
+ * 所以顶部那行放不下时**自动往左滚**，不用点。
+ *
+ * 关键点：
+ *   · 只在**溢出**时才滚（短的居中不动，免得晃眼）—— 由 JS 判断后加 .is-scrolling
+ *   · 滚动距离用 --scroll-dist（**像素**）传进来，由 JS 量出真实宽度算好；
+ *     用百分比算不准（元素宽度和容器宽度不是一回事）
+ *   · 速度恒定：时长也由 JS 按宽度算（宽 / 36px 每秒），长句子滚得久但不会更快
+ *   · 两端各停一下再往回滚（0% 停，100% 也停），比来回弹好读
+ *   · 受全局动效开关管辖（html[data-motion]）—— 关了动效就不滚
+ * ------------------------------------------------------------------ */
+@keyframes aster-marquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    transform: translateX(calc(-1 * var(--scroll-dist, 0px)));
+  }
+}
+.aster-ticker {
+  animation: aster-marquee var(--scroll-dur, 12s) linear infinite;
+}
+
 @keyframes aster-beat {
   0%   { stroke-dashoffset: 300; opacity: 0.18; }
   50%  { stroke-dashoffset: 0;   opacity: 1; }

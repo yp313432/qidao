@@ -518,6 +518,29 @@ function MeSections({ tab }: { tab: MeTab }) {
         />
       </Section>
 
+      {/*
+        时感的地址 —— 挪到这儿了。
+        原来它在「玩乐 → 时感」那一页上有条地址栏 + 「换地址」按钮；
+        但用户要求那一页"整个就是纯时感画面"，所以地址栏撤掉了。
+        设置归设置、画面归画面：换地址来这一页改。
+      */}
+      <Section title="时感">
+        <label className="block">
+          <span className="text-[12px] text-muted">时感地址</span>
+          <input
+            value={settings.shiganUrl}
+            onChange={(e) => patch({ shiganUrl: e.target.value.trim() })}
+            placeholder="/shigan/index.html"
+            aria-label="时感地址"
+            className="mt-1 w-full rounded-2xl bg-chip px-3 py-2.5 font-mono text-[12px] outline-none placeholder:text-subtle"
+          />
+        </label>
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          留空就用跟随 App 一起打包的本地副本（<span className="font-mono">/shigan/index.html</span>）——
+          不用联网、不用梯子。想把时感指到别处（比如局域网另一台机器）才需要改这里。
+        </p>
+      </Section>
+
       <Section title="个性化">
         <p className="mb-2 text-[12px] text-muted">主题</p>
         <div className="grid grid-cols-3 gap-2">
@@ -1066,6 +1089,9 @@ function MeSections({ tab }: { tab: MeTab }) {
               devapi.qweather.com 了），控制台首页能看到。免费额度每月 5 万次，个人用不完。
               <br />
               它管两件事：把坐标翻译成地名（就是原来一直失败的那一步），以及天气。
+              <br />
+              <span className="text-fg">这两栏是边打边存的</span>，不用点保存 ——
+              填完把上面的开关打开，再点下面的「刷新」。
             </p>
 
             {/* ── 现在在哪 / 什么天气 ── */}
@@ -1095,6 +1121,25 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <button
                   type="button"
                   onClick={() => {
+                    /*
+                      开关关着的时候**必须明说**，不能什么都不发生。
+                      用户实测："天气也是填完之后也没有动静，能不能调用，
+                      不清楚，也没有保存和错误提示" —— 就是这里的锅：
+                      原来 refreshPlaceAndWeather 直接返回一个 ok:false，
+                      而按钮那边对"没反应"没有任何提示，看起来就像坏了。
+                    */
+                    if (!settings.geoEnabled) {
+                      setGeoMsg(
+                        "上面那个开关是关着的 —— 先打开它，地点和天气才会去查。（关着的时候不会发任何请求）",
+                      );
+                      return;
+                    }
+                    if (!settings.manualPlace.trim() && !settings.qweatherKey.trim()) {
+                      setGeoMsg(
+                        "还没有可用的方式：要么在「你常待的地方」填一个（最简单、不用联网），要么填上和风天气的 Key 和 API Host 用自动定位。",
+                      );
+                      return;
+                    }
                     setGeoBusy(true);
                     setGeoMsg("");
                     void refreshPlaceAndWeather(true).then((r) => {

@@ -89,9 +89,12 @@ export async function currentPlace(): Promise<PlaceResult> {
         () =>
           resolve({
             ok: false,
-            reason: "定位超时了：可能是手机没开定位服务，或者室内信号不好",
+            reason:
+              "系统定位超时了（室内 GPS 信号弱时很常见 —— 这跟国内外无关）。" +
+              "别急，下面还有按 IP 认城市的兜底。",
           }),
-        20000,
+        // 要比 locateOnce 内部的 25 秒长，否则内层还没试完外层就先判超时了
+        30000,
       ),
     ),
   ]);
@@ -110,11 +113,18 @@ async function locateOnce(): Promise<PlaceResult> {
       }
     }
     try {
-      // maximumAge：5 分钟内的缓存位置直接用 —— 安卓首次定位（尤其室内）
-      // 可能要十几秒甚至更久，用户会以为卡住了（实测反馈过）
+      /*
+        maximumAge 给 5 分钟：附近有缓存位置就直接用，别重新走一遍定位。
+        timeout 给 25 秒（原来 12 秒）：室内冷启动经常要 15~30 秒，
+        12 秒太短，会误报"定位失败"。
+        enableHighAccuracy 保持 false —— 它允许系统优先用 WiFi/基站，
+        比死等卫星快得多（这也是手机自带天气在室内也能定位的原因）。
+        ⚠️ 但 WebView 里这条不一定有 WiFi 辅助，所以 **IP 定位才是室内兜底**，
+        见 where-am-i.ts 的三级兜底。
+      */
       const pos = await g.api.getCurrentPosition({
         enableHighAccuracy: false,
-        timeout: 12000,
+        timeout: 25000,
         maximumAge: 300000,
       });
       coords = pos.coords;

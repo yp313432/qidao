@@ -236,13 +236,21 @@ export function McpServers() {
             className="absolute inset-0 bg-fg/20"
             onClick={() => setDraft(null)}
           />
-          <div className="glass-panel relative z-10 max-h-[88vh] w-full overflow-y-auto rounded-t-[2.5rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            <div className="flex items-center justify-between">
+          {/*
+            跟 http-tools 同一个改法：「可滚动的字段区」+「固定在底部的按钮条」。
+            原来整块面板 overflow-y-auto、保存按钮排在最底下 ——
+            表单比屏幕高时按钮被挡在视口外，用户以为"没有保存按钮"
+            （用户实测："新建 http 工具和 mcp 没有保存按钮，怎么用？"）。
+          */}
+          <div className="glass-panel relative z-10 flex max-h-[88vh] w-full flex-col rounded-t-[2.5rem]">
+            <div className="flex items-center justify-between px-5 pt-5">
               <p className="font-serif text-lg">{draft.id ? "编辑 MCP 服务器" : "添加 MCP 服务器"}</p>
               <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
                 <X className="mx-auto size-5" />
               </button>
             </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1">
 
             <label className="mt-4 block">
               <span className="text-[12px] text-muted">名称</span>
@@ -330,7 +338,10 @@ export function McpServers() {
               />
             </label>
 
-            <div className="mt-4 flex items-center gap-2">
+            </div>
+
+            {/* 按钮条：**固定在底部**，不用滚到底去找 */}
+            <div className="flex items-center gap-2 border-t border-line px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <button
                 type="button"
                 onClick={save}
@@ -346,6 +357,7 @@ export function McpServers() {
               >
                 取消
               </button>
+              {!draft.name.trim() && <span className="text-[11px] text-subtle">还差名称</span>}
             </div>
           </div>
         </div>
