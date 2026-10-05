@@ -435,31 +435,87 @@ export type Memory = {
   lastRecalledAt?: number;
 };
 
-/** MCP 传输方式：http / sse 走网络，stdio 需要服务端起子进程 */
+/**
+ * MCP 传输方式。
+ *
+ * ⚠️ 界面现在**只提供 `http`**（Streamable HTTP）。
+ * `sse` 和 `stdio` 是历史值，只为不破坏已存的老记录而留着：
+ *   · `stdio` 要起本地进程，网页 / 手机 App 里实现不了
+ *   · `sse`（老的 HTTP+SSE）已经去掉 —— 在本机没法实测，
+ *     留着一个没验证过的传输方式就是误导
+ * 用户原话："假的和实现不了的就不留了，别误导"。
+ */
 export type McpTransport = "http" | "sse" | "stdio";
+
+/**
+ * MCP 的 OAuth 授权结果。
+ *
+ * ⚠️ 令牌就存在这里，而 `mcp` 是**整体持久化**的（store.ts 的 partialize），
+ * 所以令牌会落进 IndexedDB。个人自用可以接受，但这**不是**安全存储 ——
+ * 没有用系统钥匙串。将来要收紧，就把令牌单独挪出去。
+ */
+export type McpOAuth = {
+  /** 动态注册拿到的客户端 id（按规范，公开客户端不需要密钥） */
+  clientId: string;
+  accessToken?: string;
+  refreshToken?: string;
+  /** 过期时间戳（ms）。没有值 = 对方没说，就先用着 */
+  expiresAt?: number;
+  /** 授权服务器的 issuer（排查问题时看） */
+  issuer?: string;
+  /** 换令牌的地址 —— 续期要用它，存下来省得每次重新发现 */
+  tokenEndpoint?: string;
+  /** 授权时带的 resource 参数（规范要求 MUST 带，见 RFC 8707） */
+  resource?: string;
+  /** 授权完成时间，只在界面上展示 */
+  at?: number;
+};
+
+/**
+ * 一个 MCP 工具的定义（`tools/list` 的原样结果里我们关心的部分）。
+ *
+ * 为什么要留 `inputSchema`：光有名字，模型**没法知道该传什么参数** ——
+ * 提示词里必须把参数结构告诉它，它才可能一次调对。
+ */
+export type McpTool = {
+  name: string;
+  description?: string;
+  /** JSON Schema（服务端给的原始结构，按需压缩后再进提示词） */
+  inputSchema?: unknown;
+};
 
 /**
  * 一条真实的 MCP 服务器配置（用户自己填）。
  *
- * 注意：配置本身现在就能真实保存 / 测试握手，但**被模型调用**要等接入 AI。
+ * 配置能真实保存，也能真实握手（initialize → initialized → tools/list）；
+ * 对方要认证时还能走 OAuth（发现 → 动态注册 → PKCE → 浏览器授权 → 换令牌）；
+ * **模型也能真的调用**它的工具（`tool.call` 动作 → `tools/call`）。
  */
 export type McpServer = {
   id: string;
   name: string;
   description: string;
   transport: McpTransport;
-  /** http / sse 用 */
+  /** http 用（sse 是历史值） */
   url: string;
-  /** stdio 用：命令与参数 */
+  /** stdio 历史字段，界面已不再填写 */
   command: string;
   args: string;
   /** 每行一个 "Key: Value" */
   headersText: string;
   enabled: boolean;
-  /** 连接成功后回填的工具名 */
-  tools: string[];
+  /** 握手成功后回填的工具定义（`tools/list` 的真实结果） */
+  tools: McpTool[];
+  /** OAuth 授权结果（对方要令牌时才有） */
+  oauth?: McpOAuth;
   /** 最近一次握手结果，仅用于界面展示 */
-  status?: { ok: boolean; at: number; message: string };
+  status?: {
+    ok: boolean;
+    at: number;
+    message: string;
+    /** 对方要求认证、而且它是标准 OAuth → 界面给一个「去授权」的入口 */
+    needsAuth?: boolean;
+  };
   kind: "mcp" | "plugin";
 };
 
@@ -618,7 +674,17 @@ export type AppAction =
   | { kind: "todo.remove"; query: string }
   | { kind: "date.remove"; query: string }
   | { kind: "moment.remove"; query?: string }
-  | { kind: "letter.remove"; query?: string };
+  | { kind: "letter.remove"; query?: string }
+  /**
+   * **调用一个外部 MCP 工具**（这是让 MCP "真能用"的那一环）。
+   *
+   * 模型不知道内部 id，也用不着知道 —— 按**名字**指定就行：
+   * `server` 是服务器名、`tool` 是工具名（都来自提示词里的清单），
+   * `args` 是那个工具的参数对象（结构见提示词里给它的参数说明）。
+   *
+   * 权限落在 `mcp_tools`（L2）：默认要用户点一下确认。
+   */
+  | { kind: "tool.call"; server: string; tool: string; args?: Record<string, unknown> };
 
 /** 一条「用户在干什么」的记录。 */
 export type ActivityEntry = {

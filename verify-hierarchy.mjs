@@ -53,6 +53,8 @@ function parentOf(path) {
   if (TERTIARY_PARENT[p]) return TERTIARY_PARENT[p];
   if (ROOT_PATHS.includes(p)) return null;
   if (p.startsWith("/play/")) return "/play";
+  // 工具区的编辑器页（/tools/http 这些）→ 回工具首页
+  if (p.startsWith("/tools/")) return "/tools";
   return "/me";
 }
 
@@ -70,6 +72,10 @@ const PAGES = [
   "/memory",
   "/env",
   "/voice",
+  // 工具区三个编辑器页（独立页面，不显示底部导航）
+  "/tools/http",
+  "/tools/mcp",
+  "/tools/docs",
   "/play/listen",
   "/play/add",
   "/play/space",

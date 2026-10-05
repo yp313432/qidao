@@ -1,11 +1,12 @@
 import { toggleAmbience } from "@/lib/ambience";
+import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { speakTextAsync } from "@/lib/tts";
-import type { AppAction, FeatureId, Memory, MoodId, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, McpOAuth, Memory, MoodId, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -521,8 +522,53 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `删掉了信：「${hit.title}」`;
     }
 
+    /* ---------------- 外部 MCP 工具 ----------------
+     * 用户要的"真能调用"就落在这里：模型按**名字**提议，
+     * 这里找到对应的服务器、真的发一次 JSON-RPC `tools/call`，
+     * 把结果原样交回去（下一轮以"你刚才动手的结果"回灌给模型）。
+     */
+    case "tool.call": {
+      const serverName = str(action.server).trim();
+      const toolName = str(action.tool).trim();
+      if (!toolName) return "没说是哪个工具，调不了。";
+
+      const live = useApp.getState();
+      const usable = live.mcp.filter((m) => m.enabled);
+      const server =
+        usable.find((m) => m.name.trim().toLowerCase() === serverName.toLowerCase()) ??
+        usable.find((m) => m.tools.some((t) => t.name === toolName));
+
+      if (!server) {
+        return serverName
+          ? `没找到叫「${serverName}」的 MCP 服务器（或者它被关掉了）`
+          : `没有哪台启用的 MCP 服务器带「${toolName}」这个工具`;
+      }
+      if (!server.tools.some((t) => t.name === toolName)) {
+        const have = server.tools.map((t) => t.name).join("、");
+        return `「${server.name}」里没有叫「${toolName}」的工具。它有的是：${have || "（一个都没有——可能还没点过「测试连接」，或者对方要授权）"}`;
+      }
+
+      const args =
+        action.args && typeof action.args === "object"
+          ? (action.args as Record<string, unknown>)
+          : {};
+
+      const r = await callTool(server, toolName, args);
+
+      // 调用过程中续期出来的令牌，写回记录（否则下一轮又要续一次）
+      if (r.oauthPatch) {
+        useApp.getState().patchMcp(server.id, {
+          oauth: { ...(server.oauth ?? { clientId: "" }), ...r.oauthPatch } as McpOAuth,
+        });
+      }
+
+      if (!r.ok) return `调用「${toolName}」失败：${r.text}`;
+      return `调用「${toolName}」的结果：\n${r.text}`;
+    }
+
     case "ambience.play":
       return toggleAmbience(action.index ?? 0);
+
     case "media.import": {
       const url = action.url.trim();
       if (!/^https?:\/\//i.test(url)) return "需要一个 http(s) 开头的地址";

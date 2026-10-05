@@ -1,35 +1,22 @@
 import { useState } from "react";
-import { Loader2, Pencil, Play, Plus, Trash2, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/lib/store";
 import type { HttpTool } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type ToolDraft = Omit<HttpTool, "id"> & { id?: string };
 type Result = { status: number; ms: number; text: string; error?: string };
 
-const EMPTY: ToolDraft = {
-  name: "",
-  description: "",
-  method: "GET",
-  url: "",
-  headersText: "",
-  body: "",
-  enabled: true,
-};
-
-const METHODS: HttpTool["method"][] = ["GET", "POST", "PUT", "DELETE"];
-
 /**
- * 真的 HTTP 工具面板。
+ * HTTP 工具**列表**。
  *
- * 不是 MCP 协议（那需要 AI 才能被调用），而是「你自己配一个请求，
- * 点一下真的发出去」。现在就能用；以后接上 AI，同一份定义可以直接
- * 暴露给模型当工具。
+ * 新建 / 编辑不在这里弹层了 —— 跳到独立页面 `/tools/http`（编辑某一条带 `?id=`）。
+ * 见 `editor-page.tsx` 开头的说明：弹层会被底部导航压住，而且跟 MCP 那份
+ * 长得几乎一样却各写一遍。
  */
 export function HttpTools() {
   const tools = useApp((s) => s.httpTools);
-  const [draft, setDraft] = useState<ToolDraft | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, Result>>({});
 
@@ -66,20 +53,6 @@ export function HttpTools() {
     } finally {
       setRunning(null);
     }
-  }
-
-  function save() {
-    if (!draft) return;
-    if (!draft.name.trim() || !draft.url.trim()) return;
-    const st = useApp.getState();
-    if (draft.id) {
-      const { id, ...patch } = draft;
-      st.patchHttpTool(id, patch);
-    } else {
-      const { id: _ignored, ...rest } = draft;
-      st.addHttpTool(rest);
-    }
-    setDraft(null);
   }
 
   return (
@@ -130,14 +103,15 @@ export function HttpTools() {
                 )}
                 调用
               </button>
-              <button
-                type="button"
+              {/* 用 Link（真链接）而不是 button + navigate：能长按、能新开、无障碍也对 */}
+              <Link
+                to="/tools/http"
+                search={{ id: t.id }}
                 aria-label="编辑"
-                onClick={() => setDraft({ ...t })}
                 className="rounded-full bg-chip p-2 text-muted"
               >
                 <Pencil className="size-3.5" />
-              </button>
+              </Link>
               <button
                 type="button"
                 aria-label="删除"
@@ -162,139 +136,14 @@ export function HttpTools() {
         );
       })}
 
-      <button
-        type="button"
-        onClick={() => setDraft({ ...EMPTY })}
+      <Link
+        to="/tools/http"
+        search={{}}
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
       >
         <Plus className="size-4" />
         新建 HTTP 工具
-      </button>
-
-      {draft && (
-        <div className="fixed inset-0 z-40 flex items-end">
-          <button
-            type="button"
-            aria-label="关闭"
-            className="absolute inset-0 bg-fg/20"
-            onClick={() => setDraft(null)}
-          />
-          {/*
-            ⚠️ 结构是「可滚动的字段区」+「**固定在底部的按钮条**」。
-            原来是整块面板 `overflow-y-auto`，保存按钮排在最底下 ——
-            表单比屏幕高的时候它就**被挡在视口外**，用户以为"根本没有保存按钮"
-            （用户实测："新建 http 工具和 mcp 没有保存按钮，怎么用？"）。
-            现在按钮永远在底部看得见，不用滚到底去找。
-          */}
-          <div className="glass-panel relative z-10 flex max-h-[88vh] w-full flex-col rounded-t-[2.5rem]">
-            <div className="flex items-center justify-between gap-2 px-5 pt-5">
-              <p className="font-serif text-lg">{draft.id ? "编辑工具" : "新建 HTTP 工具"}</p>
-              <div className="flex shrink-0 items-center gap-2">
-                {/*
-                  「保存」放在**标题栏**里。
-                  原来它在面板最底下 —— 手机上键盘一弹起，面板被压矮，
-                  按钮就跑到屏幕外了（用户反复说"没有保存按钮"）。
-                  放标题栏 = 无论键盘、无论滚动位置，它永远在最上面看得见。
-                */}
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={!draft.name.trim() || !draft.url.trim()}
-                  className="rounded-full bg-ink px-4 py-1.5 text-[13px] font-medium text-ink-fg disabled:opacity-40"
-                >
-                  保存
-                </button>
-                <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
-                  <X className="mx-auto size-5" />
-                </button>
-              </div>
-            </div>
-            {(!draft.name.trim() || !draft.url.trim()) && (
-              <p className="px-5 pt-1 text-[11px] text-subtle">
-                保存需要：{draft.name.trim() ? "" : "名称"}
-                {!draft.name.trim() && !draft.url.trim() ? "、" : ""}
-                {draft.url.trim() ? "" : "地址"}
-              </p>
-            )}
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1">
-
-            <label className="mt-4 block">
-              <span className="text-[12px] text-muted">名称</span>
-              <input
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="例如：查天气"
-                className="mt-1 w-full rounded-2xl border border-line bg-chip px-4 py-2.5 text-[15px] outline-none placeholder:text-subtle"
-              />
-            </label>
-
-            <label className="mt-3 block">
-              <span className="text-[12px] text-muted">说明（可选）</span>
-              <input
-                value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                placeholder="这个工具是干什么的"
-                className="mt-1 w-full rounded-2xl border border-line bg-chip px-4 py-2.5 text-[15px] outline-none placeholder:text-subtle"
-              />
-            </label>
-
-            <div className="mt-3 flex gap-2">
-              <label className="w-28 shrink-0">
-                <span className="text-[12px] text-muted">方法</span>
-                <select
-                  value={draft.method}
-                  onChange={(e) =>
-                    setDraft({ ...draft, method: e.target.value as HttpTool["method"] })
-                  }
-                  className="mt-1 w-full rounded-2xl border border-line bg-chip px-3 py-2.5 text-[15px] outline-none"
-                >
-                  {METHODS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="min-w-0 flex-1">
-                <span className="text-[12px] text-muted">地址</span>
-                <input
-                  value={draft.url}
-                  onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                  placeholder="https://..."
-                  className="mt-1 w-full rounded-2xl border border-line bg-chip px-4 py-2.5 font-mono text-[13px] outline-none placeholder:text-subtle"
-                />
-              </label>
-            </div>
-
-            <label className="mt-3 block">
-              <span className="text-[12px] text-muted">请求头（每行一个 Key: Value）</span>
-              <textarea
-                value={draft.headersText}
-                onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
-                rows={3}
-                placeholder={"Authorization: Bearer xxx\nAccept: application/json"}
-                className="mt-1 w-full resize-none rounded-2xl border border-line bg-chip px-4 py-3 font-mono text-[12px] leading-5 outline-none placeholder:text-subtle"
-              />
-            </label>
-
-            {draft.method !== "GET" && draft.method !== "DELETE" && (
-              <label className="mt-3 block">
-                <span className="text-[12px] text-muted">请求体</span>
-                <textarea
-                  value={draft.body}
-                  onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-                  rows={4}
-                  placeholder={'{\n  "key": "value"\n}'}
-                  className="mt-1 w-full resize-none rounded-2xl border border-line bg-chip px-4 py-3 font-mono text-[12px] leading-5 outline-none placeholder:text-subtle"
-                />
-              </label>
-            )}
-
-            </div>
-          </div>
-        </div>
-      )}
+      </Link>
     </div>
   );
 }

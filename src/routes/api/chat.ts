@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getModel, type ModelId, type ReasoningEffort } from "@/lib/models";
-import { assembleMessages, systemPrompt } from "@/lib/prompt";
+import { assembleMessages, systemPrompt, type PromptTool } from "@/lib/prompt";
 import { estimateTokens, shortHash } from "@/lib/tokens";
 import type { PermissionMode, ReplyStyle } from "@/lib/types";
 
@@ -8,7 +8,7 @@ type Body = {
   model: ModelId;
   messages: { role: "user" | "assistant" | "system"; content: string | unknown[] }[];
   style: ReplyStyle;
-  tools: { name: string; tools: string[] }[];
+  tools: PromptTool[];
   customBaseUrl?: string;
   customApiKey?: string;
   /**

@@ -20,16 +20,23 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * `maximum-scale=1, user-scalable=no`。这是能改到的唯一一层，
  * 而且实测有效。
  *
- * ⚠️ 说清楚做不到的部分，免得以后有人以为这里漏配了：
- *   Capacitor 的 `android` 配置**没有**关缩放的选项。
- *   真正彻底的做法要在安卓工程里改 WebSettings：
- *       settings.setBuiltInZoomControls(false)
- *       settings.setSupportZoom(false)
- *       settings.setDisplayZoomControls(false)
- *   但 `android/` 是 `npx cap add android` 生成的、**不在这个仓库里**
- *   （靠 GitHub Actions 现场生成），所以没法在这里落。
- *   如果以后发现 viewport 那一层在某些机型上还是挡不住，
- *   就得在 CI 里对生成出来的 MainActivity 打一个补丁。
+ * ⚠️ 2026-10 更正一处**过期注释**（原来这里写着"android/ 不在仓库里、
+ *    只能靠 CI 打补丁"，那是错的，会把人带沟里）：
+ *
+ *   · `android/` **在本仓库里**，`MainActivity.java` 等 55 个文件都被 git 跟踪
+ *   · CI（.github/workflows/android.yml）跑的是 `npx cap sync android`，
+ *     也就是**同步插件配置、不会覆盖我们改过的源码文件**
+ *     （`cap add` 才会重新生成整个工程 —— 所以不能用 `cap add`）
+ *
+ *   所以想在安卓层彻底关掉缩放，**本地就能做**，在
+ *   `android/app/src/main/java/com/yanping/qidao/MainActivity.java` 里加：
+ *
+ *       WebSettings settings = getBridge().getWebView().getSettings();
+ *       settings.setBuiltInZoomControls(false);
+ *       settings.setSupportZoom(false);
+ *       settings.setDisplayZoomControls(false);
+ *
+ *   目前 viewport 那一层实测够用，所以还没动这段 Java —— 但**不是做不到**。
  */
 const config: CapacitorConfig = {
   appId: "com.yanping.qidao",

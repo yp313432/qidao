@@ -8,6 +8,7 @@ import { ReminderDaemon } from "@/components/reminder-daemon";
 import { AlarmOverlay } from "@/components/alarm-overlay";
 import { TaskDaemon } from "@/components/task-daemon";
 import { UiEffects } from "@/components/ui-effects";
+import { hidesNav } from "@/lib/nav-tree";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +17,11 @@ const TABS = MAIN_TABS;
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   /**
-   * 什么时候不显示底部导航：
+   * 什么时候不显示底部导航 —— 规则**只定义在 nav-tree.ts 一处**
+   * （`hidesNav` / `FULL_BLEED_PREFIXES`），这里不自己写路径判断：
+   *
    *   · 玩乐的子页（自己带返回，本来就没有）
+   *   · 工具区的编辑器页（/tools/http 这些）
    *
    * 对话页**要显示**。以前这里把对话页也排除掉，是因为抽屉底部自带了一套
    * 四项导航；于是全 App 出现两份导航实现，样子还不一样（抽屉那套是横向
@@ -41,7 +45,7 @@ export function AppShell() {
    * 我前两次都在修"什么时候让它回来"，**方向就错了** ——
    * 正确做法是根本不让它消失。
    */
-  const hideNav = pathname.startsWith("/play/") && pathname !== "/play";
+  const hideNav = hidesNav(pathname);
 
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，

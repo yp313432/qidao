@@ -127,7 +127,7 @@ export const PERMISSIONS: PermissionDef[] = [
 
   // ---------------- 外部工具 ----------------
   { id: "http_tools", title: "调用 HTTP 工具", hint: "你自己配的那些接口", risk: "L2", status: "partial", group: "tools" },
-  { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配的 MCP 服务器（如 Horizon）", risk: "L2", status: "partial", group: "tools" },
+  { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配的 MCP 服务器（HTTP 地址）", risk: "L2", status: "partial", group: "tools" },
   { id: "web_search", title: "网页搜索 / 抓取", hint: "去外面查资料", risk: "L2", status: "todo", group: "tools" },
   { id: "own_api", title: "调用你自己的 API / 代理", hint: "你的自建服务", risk: "L2", status: "todo", group: "tools" },
   { id: "scheduled_job", title: "定时任务", hint: "让他按时自己开口（App 活着时真的会说；关着靠通知兜底）", risk: "L2", status: "partial", group: "tools" },

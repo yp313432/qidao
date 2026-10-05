@@ -32,6 +32,37 @@ export function useDismissOutside(
 /** 每个页面记住的滚动位置。 */
 const positions = new Map<string, number>();
 
+/**
+ * 记住一小段界面状态（比如"工具页当前在哪个标签"）。
+ *
+ * 为什么需要：工具页的三个编辑器现在是**独立页面**（点新建会跳走）。
+ * 回来的时候组件重新挂载，`useState` 默认为第一项 —— 用户在 MCP 标签上
+ * 点了新建，回来却落在 HTTP 标签上，看着像"我刚才是不是点错了"。
+ *
+ * 用 **sessionStorage** 而不是模块级变量，是因为有一种情况会**整页重新加载**：
+ * OAuth 授权要把浏览器跳到授权服务器再跳回来（`/oauth/callback`），
+ * 那时候内存里什么都不剩 —— 用模块变量的话，用户授权完回来会落在 HTTP 标签上，
+ * 而不是他刚才在配的那个 MCP 服务器上。
+ * sessionStorage 只在**这个标签页**里有效、刷新不丢、关掉就清 —— 语义正合适。
+ */
+const UI_STATE_PREFIX = "qidao:ui:";
+
+export function rememberUiState(key: string, value: string) {
+  try {
+    sessionStorage.setItem(`${UI_STATE_PREFIX}${key}`, value);
+  } catch {
+    /* 隐私模式下可能不可写，记不住就算了，不影响功能 */
+  }
+}
+
+export function recallUiState(key: string): string | undefined {
+  try {
+    return sessionStorage.getItem(`${UI_STATE_PREFIX}${key}`) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** 对话正文字号的四档（用户要"能调，看着大气一点"）。 */
 export const CHAT_FONT_SIZES = [
   { id: "small", label: "小", px: 13 },

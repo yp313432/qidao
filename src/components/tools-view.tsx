@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { FileText, Puzzle, Trash2, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { FileText, Plus, Puzzle, Trash2, Zap } from "lucide-react";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
 import { useApp } from "@/lib/store";
-import { useScrollMemory } from "@/lib/ux";
+import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
 import { cn, formatDay } from "@/lib/utils";
 
 // 原来的「思考」标签已经去掉：思考链不再归档（回复时当场就能看到）
@@ -13,11 +14,38 @@ const TABS = [
   { id: "docs", label: "文档", icon: FileText },
 ] as const;
 
+type TabId = (typeof TABS)[number]["id"];
+
+/** 进编辑器（独立页面）之前，把"我现在在哪个标签"记一下，回来接着显示。 */
+const TAB_MEMORY = "tools-tab";
+
 export function ToolsView() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("http");
+  /*
+    ⚠️ 这里**不能**在 `useState` 的初始化里读 sessionStorage。
+    这是个 SSR 应用：服务端没有 sessionStorage，首帧会渲染成默认的 HTTP 标签；
+    客户端却读到了 "mcp" —— 两边对不上，React 直接报
+    "Hydration failed because the server rendered HTML didn't match"。
+    （实测踩过：一开始就是这么写的，验收脚本把这条报错抓出来了。）
+
+    正确姿势：首帧跟服务端一致（HTTP），挂载后再同步到记住的标签。
+    代价是极端情况下有一帧闪动，换来的是没有 hydration 报错。
+  */
+  const [tab, setTab] = useState<TabId>("http");
+
+  useEffect(() => {
+    const saved = recallUiState(TAB_MEMORY);
+    const found = TABS.find((t) => t.id === saved)?.id;
+    if (found) setTab(found);
+  }, []);
+
   const scrollRef = useScrollMemory("tools");
   const docs = useApp((s) => s.docs);
   const [openDoc, setOpenDoc] = useState<string | null>(null);
+
+  function pick(next: TabId) {
+    setTab(next);
+    rememberUiState(TAB_MEMORY, next);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -34,7 +62,7 @@ export function ToolsView() {
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => pick(t.id)}
               className={cn(
                 "rounded-full py-2 text-[12px] font-medium",
                 tab === t.id ? "bg-elevated text-fg shadow-sm" : "text-muted",
@@ -53,18 +81,18 @@ export function ToolsView() {
 
         {tab === "docs" && (
           <div className="space-y-2">
-            <button
-              type="button"
-              className="w-full rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
-              onClick={() => {
-                const title = window.prompt("文档标题");
-                const content = window.prompt("正文");
-                if (!title || !content) return;
-                useApp.getState().saveDoc({ title, content, source: "manual" });
-              }}
+            {/*
+              原来是 window.prompt 弹两次原生输入框（标题一次、正文一次）——
+              同一个「新建」动作，HTTP / MCP 是自绘表单，文档是浏览器弹窗，
+              就是用户说的"换一个组件又是另一套写法"。现在跳同一个编辑器页面。
+            */}
+            <Link
+              to="/tools/docs"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
             >
+              <Plus className="size-4" />
               新建文档
-            </button>
+            </Link>
             {docs.length === 0 && <p className="py-10 text-center text-sm text-muted">还没有文档</p>}
             {docs.map((d) => (
               <article key={d.id} className="rounded-2xl border border-line bg-surface px-4 py-3">

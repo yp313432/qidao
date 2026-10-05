@@ -3,6 +3,7 @@ import { getModel } from "./models";
 import type { ChatMessage, PermissionMode, ReplyStyle } from "./types";
 import { attachmentsToText } from "./attachments";
 import { assembleMessages } from "./prompt";
+import type { PromptTool } from "./prompt";
 import { estimateTokens } from "./tokens";
 
 export type ChatDelta = {
@@ -48,7 +49,7 @@ export type ChatRequest = {
   model: ModelId;
   messages: ApiMessage[];
   style: ReplyStyle;
-  tools: { name: string; tools: string[] }[];
+  tools: PromptTool[];
   customBaseUrl?: string;
   customApiKey?: string;
   /** 自定义上游的真实模型名（留空则用服务端配的） */

@@ -22,13 +22,13 @@ import { Route as AppPermissionsRouteImport } from './routes/_app/permissions'
 import { Route as AppPlayRouteImport } from './routes/_app/play'
 import { Route as AppSpaceRouteImport } from './routes/_app/space'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
-import { Route as AppToolsRouteImport } from './routes/_app/tools'
 import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
@@ -38,6 +38,10 @@ import { Route as AppPlayPlayerRouteImport } from './routes/_app/play.player'
 import { Route as AppPlayShiganRouteImport } from './routes/_app/play.shigan'
 import { Route as AppPlaySpaceRouteImport } from './routes/_app/play.space'
 import { Route as AppPlayTodoRouteImport } from './routes/_app/play.todo'
+import { Route as AppToolsIndexRouteImport } from './routes/_app/tools/index'
+import { Route as AppToolsDocsRouteImport } from './routes/_app/tools/docs'
+import { Route as AppToolsHttpRouteImport } from './routes/_app/tools/http'
+import { Route as AppToolsMcpRouteImport } from './routes/_app/tools/mcp'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscribe'
 import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
@@ -111,11 +115,6 @@ const AppSystemRoute = AppSystemRouteImport.update({
   path: '/system',
   getParentRoute: () => AppRoute,
 } as any)
-const AppToolsRoute = AppToolsRouteImport.update({
-  id: '/tools',
-  path: '/tools',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppUsageRoute = AppUsageRouteImport.update({
   id: '/usage',
   path: '/usage',
@@ -144,6 +143,11 @@ const ApiLyricsRoute = ApiLyricsRouteImport.update({
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth/callback',
+  path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPlayIndexRoute = AppPlayIndexRouteImport.update({
@@ -190,6 +194,26 @@ const AppPlayTodoRoute = AppPlayTodoRouteImport.update({
   id: '/todo',
   path: '/todo',
   getParentRoute: () => AppPlayRoute,
+} as any)
+const AppToolsIndexRoute = AppToolsIndexRouteImport.update({
+  id: '/tools/',
+  path: '/tools/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppToolsDocsRoute = AppToolsDocsRouteImport.update({
+  id: '/tools/docs',
+  path: '/tools/docs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppToolsHttpRoute = AppToolsHttpRouteImport.update({
+  id: '/tools/http',
+  path: '/tools/http',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppToolsMcpRoute = AppToolsMcpRouteImport.update({
+  id: '/tools/mcp',
+  path: '/tools/mcp',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiPushKeyRoute = ApiPushKeyRouteImport.update({
   id: '/api/push/key',
@@ -245,13 +269,13 @@ export interface FileRoutesByFullPath {
   '/play': typeof AppPlayRouteWithChildren
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
-  '/tools': typeof AppToolsRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
   '/play/learn': typeof AppPlayLearnRoute
@@ -260,9 +284,13 @@ export interface FileRoutesByFullPath {
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
+  '/tools/docs': typeof AppToolsDocsRoute
+  '/tools/http': typeof AppToolsHttpRoute
+  '/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play/': typeof AppPlayIndexRoute
+  '/tools/': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -281,13 +309,13 @@ export interface FileRoutesByTo {
   '/permissions': typeof AppPermissionsRoute
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
-  '/tools': typeof AppToolsRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -297,9 +325,13 @@ export interface FileRoutesByTo {
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
+  '/tools/docs': typeof AppToolsDocsRoute
+  '/tools/http': typeof AppToolsHttpRoute
+  '/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play': typeof AppPlayIndexRoute
+  '/tools': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -321,13 +353,13 @@ export interface FileRoutesById {
   '/_app/play': typeof AppPlayRouteWithChildren
   '/_app/space': typeof AppSpaceRoute
   '/_app/system': typeof AppSystemRoute
-  '/_app/tools': typeof AppToolsRoute
   '/_app/usage': typeof AppUsageRoute
   '/_app/voice': typeof AppVoiceRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
   '/_app/play/days': typeof AppPlayDaysRoute
@@ -337,9 +369,13 @@ export interface FileRoutesById {
   '/_app/play/shigan': typeof AppPlayShiganRoute
   '/_app/play/space': typeof AppPlaySpaceRoute
   '/_app/play/todo': typeof AppPlayTodoRoute
+  '/_app/tools/docs': typeof AppToolsDocsRoute
+  '/_app/tools/http': typeof AppToolsHttpRoute
+  '/_app/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/_app/play/': typeof AppPlayIndexRoute
+  '/_app/tools/': typeof AppToolsIndexRoute
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -362,13 +398,13 @@ export interface FileRouteTypes {
     | '/play'
     | '/space'
     | '/system'
-    | '/tools'
     | '/usage'
     | '/voice'
     | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
+    | '/oauth/callback'
     | '/play/add'
     | '/play/days'
     | '/play/learn'
@@ -377,9 +413,13 @@ export interface FileRouteTypes {
     | '/play/shigan'
     | '/play/space'
     | '/play/todo'
+    | '/tools/docs'
+    | '/tools/http'
+    | '/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play/'
+    | '/tools/'
     | '/play/games/gobang'
     | '/play/games/truth'
     | '/play/tools/alarms'
@@ -398,13 +438,13 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/space'
     | '/system'
-    | '/tools'
     | '/usage'
     | '/voice'
     | '/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
+    | '/oauth/callback'
     | '/'
     | '/play/add'
     | '/play/days'
@@ -414,9 +454,13 @@ export interface FileRouteTypes {
     | '/play/shigan'
     | '/play/space'
     | '/play/todo'
+    | '/tools/docs'
+    | '/tools/http'
+    | '/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play'
+    | '/tools'
     | '/play/games/gobang'
     | '/play/games/truth'
     | '/play/tools/alarms'
@@ -437,13 +481,13 @@ export interface FileRouteTypes {
     | '/_app/play'
     | '/_app/space'
     | '/_app/system'
-    | '/_app/tools'
     | '/_app/usage'
     | '/_app/voice'
     | '/_app/worldbook'
     | '/api/chat'
     | '/api/lyrics'
     | '/api/models'
+    | '/oauth/callback'
     | '/_app/'
     | '/_app/play/add'
     | '/_app/play/days'
@@ -453,9 +497,13 @@ export interface FileRouteTypes {
     | '/_app/play/shigan'
     | '/_app/play/space'
     | '/_app/play/todo'
+    | '/_app/tools/docs'
+    | '/_app/tools/http'
+    | '/_app/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/_app/play/'
+    | '/_app/tools/'
     | '/_app/play/games/gobang'
     | '/_app/play/games/truth'
     | '/_app/play/tools/alarms'
@@ -469,6 +517,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
 }
@@ -566,13 +615,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSystemRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/tools': {
-      id: '/_app/tools'
-      path: '/tools'
-      fullPath: '/tools'
-      preLoaderRoute: typeof AppToolsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/usage': {
       id: '/_app/usage'
       path: '/usage'
@@ -613,6 +655,13 @@ declare module '@tanstack/react-router' {
       path: '/api/models'
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/callback': {
+      id: '/oauth/callback'
+      path: '/oauth/callback'
+      fullPath: '/oauth/callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/play/': {
@@ -677,6 +726,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/play/todo'
       preLoaderRoute: typeof AppPlayTodoRouteImport
       parentRoute: typeof AppPlayRoute
+    }
+    '/_app/tools/': {
+      id: '/_app/tools/'
+      path: '/tools'
+      fullPath: '/tools/'
+      preLoaderRoute: typeof AppToolsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tools/docs': {
+      id: '/_app/tools/docs'
+      path: '/tools/docs'
+      fullPath: '/tools/docs'
+      preLoaderRoute: typeof AppToolsDocsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tools/http': {
+      id: '/_app/tools/http'
+      path: '/tools/http'
+      fullPath: '/tools/http'
+      preLoaderRoute: typeof AppToolsHttpRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tools/mcp': {
+      id: '/_app/tools/mcp'
+      path: '/tools/mcp'
+      fullPath: '/tools/mcp'
+      preLoaderRoute: typeof AppToolsMcpRouteImport
+      parentRoute: typeof AppRoute
     }
     '/api/push/key': {
       id: '/api/push/key'
@@ -788,11 +865,14 @@ interface AppRouteChildren {
   AppPlayRoute: typeof AppPlayRouteWithChildren
   AppSpaceRoute: typeof AppSpaceRoute
   AppSystemRoute: typeof AppSystemRoute
-  AppToolsRoute: typeof AppToolsRoute
   AppUsageRoute: typeof AppUsageRoute
   AppVoiceRoute: typeof AppVoiceRoute
   AppWorldbookRoute: typeof AppWorldbookRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppToolsDocsRoute: typeof AppToolsDocsRoute
+  AppToolsHttpRoute: typeof AppToolsHttpRoute
+  AppToolsMcpRoute: typeof AppToolsMcpRoute
+  AppToolsIndexRoute: typeof AppToolsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -807,11 +887,14 @@ const AppRouteChildren: AppRouteChildren = {
   AppPlayRoute: AppPlayRouteWithChildren,
   AppSpaceRoute: AppSpaceRoute,
   AppSystemRoute: AppSystemRoute,
-  AppToolsRoute: AppToolsRoute,
   AppUsageRoute: AppUsageRoute,
   AppVoiceRoute: AppVoiceRoute,
   AppWorldbookRoute: AppWorldbookRoute,
   AppIndexRoute: AppIndexRoute,
+  AppToolsDocsRoute: AppToolsDocsRoute,
+  AppToolsHttpRoute: AppToolsHttpRoute,
+  AppToolsMcpRoute: AppToolsMcpRoute,
+  AppToolsIndexRoute: AppToolsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -821,6 +904,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiLyricsRoute: ApiLyricsRoute,
   ApiModelsRoute: ApiModelsRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
 }

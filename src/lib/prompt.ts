@@ -1,6 +1,6 @@
 import { buildManual } from "@/lib/manual";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { PermissionMode, ReplyStyle } from "@/lib/types";
+import type { McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
  * 拼提示词的地方 —— **服务端和 App 内直连共用这一份**。
@@ -12,7 +12,8 @@ import type { PermissionMode, ReplyStyle } from "@/lib/types";
  * 所以：一条规则、一处实现、两边调用。
  */
 
-export type PromptTool = { name: string; tools: string[] };
+/** 一个 MCP 服务器 + 它的工具（工具定义用来生成"要什么参数"的说明） */
+export type PromptTool = { name: string; tools: McpTool[] };
 
 export type PromptContext = {
   activity?: string;
@@ -129,6 +130,15 @@ const ABILITIES = `【你能直接操作这个 App】
   {"kind":"reminder.add","text":"起来吃药","time":"07:30","ring":true}          ← 每天、响铃
   {"kind":"reminder.add","text":"十点开会","time":"10:00","date":"2026-10-05"}  ← 只这一次
   不写 ring 就只弹通知；不写 date 就每天都要。
+- **调用外部工具（MCP）** —— 这是你自己动手去外面办事的通道：
+  {"kind":"tool.call","server":"服务器名","tool":"工具名","args":{"参数名":"值"}}
+  · 有哪些服务器、每个工具是干什么的、**要传什么参数**，都在下面「已配置的外部工具」那份清单里。
+  · **只调清单里列出来的**（名字要一模一样）；参数名也要对上，不确定的参数宁可不传。
+  · 清单里没写参数的工具 = 它不需要参数（args 可以省略）。
+  · 调完的结果**下一轮**才会告诉你（跟其它动作一样），所以这一轮别说"我已经查到了"，
+    可以说"我去查一下"。下一轮拿到结果再讲给它听。
+  · 对方要认证而我们还没授权时，工具清单是空的 —— 这时候老实说"这个还没接上，
+    得先去「工具 → MCP」点一下去授权"，别硬编一个工具名去调。
 - **你不只会记，还能改和删**（这条很重要，以前你只能记、改不了）。用**内容片段**指定那一条：
   · 改记忆 {"kind":"memory.update","query":"躺平","note":"新的说法","tags":["累"]}
   · 删记忆 {"kind":"memory.remove","query":"躺平"}
@@ -162,13 +172,60 @@ const ABILITIES = `【你能直接操作这个 App】
 
 `;
 
+/**
+ * 把一个工具的 JSON Schema 压成**一行参数说明**。
+ *
+ * 为什么要压：原样塞进去动辄几百字，几个工具就把提示词撑爆了，
+ * 而且模型真正需要知道的只有"有哪些参数、哪个必填、什么类型"。
+ * 描述留 60 字以内 —— 够它判断该传什么了。
+ */
+function compactParams(schema: unknown): string {
+  const s = schema as { properties?: unknown; required?: unknown } | null | undefined;
+  const props = s?.properties;
+  if (!props || typeof props !== "object") return "";
+  const required = Array.isArray(s?.required) ? s.required.map(String) : [];
+
+  const parts: string[] = [];
+  for (const [key, raw] of Object.entries(props as Record<string, unknown>)) {
+    const p = raw as { type?: unknown; description?: unknown; enum?: unknown } | null;
+    const type = typeof p?.type === "string" ? p.type : "任意";
+    const choices = Array.isArray(p?.enum) ? `（只能是 ${p.enum.map(String).join(" / ")}）` : "";
+    const desc = typeof p?.description === "string" ? `：${p.description.slice(0, 60)}` : "";
+    parts.push(`${key}:${type}${required.includes(key) ? "" : "?"}${choices}${desc}`);
+  }
+  return parts.join("；");
+}
+
+/**
+ * 「已配置的外部工具」那份清单 —— **模型能不能一次调对，全看这段**。
+ *
+ * 只写名字是不够的（那是这轮之前的状态：模型知道有工具，但不知道要传什么，
+ * 于是要么不动手、要么瞎编参数）。所以这里把每个工具的参数结构也写上。
+ *
+ * ⚠️ 这段是**稳定的**（跟着 tools/list 的结果走，不会每轮变），
+ * 所以不影响前缀缓存 —— 别往里塞时间、随机数这类东西。
+ */
+function toolCatalog(tools: PromptTool[]): string {
+  if (!tools.length) {
+    return "已配置的外部工具：暂时没有。要连 MCP 服务器，去「工具 → MCP」加一个（HTTP 地址）。";
+  }
+  const blocks = tools.map((srv) => {
+    if (!srv.tools.length) {
+      return `· 服务器「${srv.name}」：还拿不到工具清单（多半是没点过「测试连接」，或者对方要授权还没授）。`;
+    }
+    const lines = srv.tools.map((t) => {
+      const desc = t.description ? `：${t.description.slice(0, 80)}` : "";
+      const params = compactParams(t.inputSchema);
+      return `  - ${t.name}${desc}${params ? `\n    参数：${params}` : "（不需要参数）"}`;
+    });
+    return `· 服务器「${srv.name}」：\n${lines.join("\n")}`;
+  });
+  return `已配置的外部工具（MCP，用 tool.call 调）：\n${blocks.join("\n")}`;
+}
+
 /** 稳定的那部分：人设 + 风格 + 工具清单。**每轮都一样**，好让前缀缓存命中。 */
 export function systemPrompt(input: PromptInput): string {
-  const tools = input.tools.length
-    ? `已配置的外部工具：${input.tools
-        .map((t) => (t.tools.length ? `${t.name}（${t.tools.join(", ")}）` : t.name))
-        .join("；")}。`
-    : "当前未配置外部工具（MCP / HTTP 那些）。";
+  const tools = toolCatalog(input.tools);
   const who = input.name?.trim() || "yan";
   const self = input.aiName?.trim() || "星芒";
   // 世界书里"常驻"的条目进系统提示词 —— 它们很少改动，所以不影响前缀缓存

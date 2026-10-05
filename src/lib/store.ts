@@ -19,7 +19,7 @@ if (typeof navigator !== "undefined" && navigator.storage?.persist) {
   void navigator.storage.persist().catch(() => undefined);
 }
 import { ACTION_PERMISSION, actionTitle } from "./action-meta";
-import { DEFAULT_MCP } from "./mcp";
+import { DEFAULT_MCP, normalizeTools } from "./mcp";
 import { isOwnApi, QUOTA_LIMIT, QUOTA_WINDOW_MS, type ModelId } from "./models";
 import { defaultPermissions, permissionDef } from "./permissions";
 import { kindLabel, parseMusicLink } from "./music-embed";
@@ -1109,11 +1109,26 @@ export const useApp = create<AppState>()(
           Array.isArray(saved.worldBook) && (saved.worldBook as unknown[]).length > 0
             ? (saved.worldBook as WorldEntry[])
             : worldPresets();
+        /**
+         * MCP 的 `tools` 字段升级过：老存档里是**工具名字符串数组**
+         * （`["remember","recall"]`），现在是 `McpTool[]`（带说明和参数结构）。
+         *
+         * 不转的话，老数据在界面上会渲染出一排空白、提示词里会写出一串
+         * `- undefined`，模型更调不动。**丢一条都不行**，所以在这里一次性抹平。
+         */
+        const mcp = (Array.isArray(saved.mcp) ? (saved.mcp as unknown[]) : []).map((raw) => {
+          const s = raw as McpServer & { tools?: unknown };
+          return {
+            ...(raw as McpServer),
+            tools: normalizeTools(s.tools),
+          };
+        });
         return {
           ...current,
           ...saved,
           memories,
           worldBook,
+          mcp,
           // 思考链已经不再归档了（存了也只看得到一次，纯占地方）——
           // 每次加载都清空，把老版本存下的那 18.8KB 腾出来。
           thinkingArchive: [],

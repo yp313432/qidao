@@ -33,6 +33,7 @@
  *     /system  ├ /alarms /tasks /env
  *     /play/tools ├ /play/gobang /play/days /play/todo
  *     /play/listen ├ /play/add
+ *     /tools   ├ /tools/http /tools/mcp /tools/docs（三个编辑器页）
  */
 
 /** 「我的」的五个二级板块（它们的上一级都是一级首页 /me） */
@@ -75,6 +76,15 @@ export const TERTIARY_PARENT: Record<string, string> = {
   "/play/add": "/play/listen",
 };
 
+/**
+ * 工具区的编辑器页 —— 它们的上一级是「工具」（`/tools` 那个 tab 首页）。
+ *
+ * 为什么单独列出来：`/tools/http` 这种路径走不到下面任何一条兜底规则
+ * （不是三级页表里的、不是顶级 tab、也不以 `/play/` 开头），会被兜底成
+ * `/me` —— 从「工具」进去、返回却跳到「我的」，就是用户最烦的那种错。
+ */
+const TOOLS_SUBPAGE_PREFIX = "/tools/";
+
 /** 顶级 tab（它们没有返回钮 —— 它们就是"首页"） */
 export const ROOT_PATHS = ["/", "/tools", "/play", "/me"] as const;
 
@@ -102,8 +112,29 @@ export function parentOf(path: string): string | null {
   // 3) 玩乐区的房间 → 回玩乐首页
   if (p.startsWith("/play/")) return "/play";
 
-  // 4) 其余都是「我的」的板块 → 回我的
+  // 4) 工具区的编辑器 → 回工具首页
+  if (p.startsWith(TOOLS_SUBPAGE_PREFIX)) return "/tools";
+
+  // 5) 其余都是「我的」的板块 → 回我的
   return "/me";
+}
+
+/**
+ * 哪些页面**不显示底部导航**（整屏页面）。
+ *
+ *   · 玩乐的子页 —— 自己带返回，界面要沉浸
+ *   · 工具区的编辑器（/tools/http 这些）—— 表单要整屏，
+ *     底部导航会压住最后一行（用户实测：MCP 的「请求头」输入框被导航挡住）
+ *
+ * 规则只在这里定义一处：以后再加整屏页面，往 `FULL_BLEED_PREFIXES`
+ * 补一行就行，`app-shell` 不用改。
+ */
+export const FULL_BLEED_PREFIXES = ["/play/", "/tools/"] as const;
+
+/** 这个页面该不该隐藏底部导航。 */
+export function hidesNav(path: string): boolean {
+  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+  return FULL_BLEED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 /**
@@ -129,6 +160,7 @@ export function backLabelOf(path: string): string {
     "/play/tools": "返回小日子",
     "/play/games": "返回小游戏",
     "/play/listen": "返回音乐",
+    "/tools": "返回工具",
   };
   return names[parent] ?? "返回上一级";
 }
