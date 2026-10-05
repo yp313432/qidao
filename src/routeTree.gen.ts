@@ -27,7 +27,6 @@ import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
-import { Route as ApiIpLocateRouteImport } from './routes/api/ip-locate'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
@@ -39,14 +38,14 @@ import { Route as AppPlayPlayerRouteImport } from './routes/_app/play.player'
 import { Route as AppPlayShiganRouteImport } from './routes/_app/play.shigan'
 import { Route as AppPlaySpaceRouteImport } from './routes/_app/play.space'
 import { Route as AppPlayTodoRouteImport } from './routes/_app/play.todo'
-import { Route as AppPlayToolsRouteImport } from './routes/_app/play.tools'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscribe'
 import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
 import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games.gobang'
 import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
-import { Route as AppPlayToolsAlarmsRouteImport } from './routes/_app/play.tools.alarms'
-import { Route as AppPlayToolsTasksRouteImport } from './routes/_app/play.tools.tasks'
+import { Route as AppPlayToolsIndexRouteImport } from './routes/_app/play.tools/index'
+import { Route as AppPlayToolsAlarmsRouteImport } from './routes/_app/play.tools/alarms'
+import { Route as AppPlayToolsTasksRouteImport } from './routes/_app/play.tools/tasks'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -137,11 +136,6 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiIpLocateRoute = ApiIpLocateRouteImport.update({
-  id: '/api/ip-locate',
-  path: '/api/ip-locate',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiLyricsRoute = ApiLyricsRouteImport.update({
   id: '/api/lyrics',
   path: '/api/lyrics',
@@ -197,11 +191,6 @@ const AppPlayTodoRoute = AppPlayTodoRouteImport.update({
   path: '/todo',
   getParentRoute: () => AppPlayRoute,
 } as any)
-const AppPlayToolsRoute = AppPlayToolsRouteImport.update({
-  id: '/tools',
-  path: '/tools',
-  getParentRoute: () => AppPlayRoute,
-} as any)
 const ApiPushKeyRoute = ApiPushKeyRouteImport.update({
   id: '/api/push/key',
   path: '/api/push/key',
@@ -227,15 +216,20 @@ const AppPlayGamesTruthRoute = AppPlayGamesTruthRouteImport.update({
   path: '/games/truth',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayToolsIndexRoute = AppPlayToolsIndexRouteImport.update({
+  id: '/tools/',
+  path: '/tools/',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayToolsAlarmsRoute = AppPlayToolsAlarmsRouteImport.update({
-  id: '/alarms',
-  path: '/alarms',
-  getParentRoute: () => AppPlayToolsRoute,
+  id: '/tools/alarms',
+  path: '/tools/alarms',
+  getParentRoute: () => AppPlayRoute,
 } as any)
 const AppPlayToolsTasksRoute = AppPlayToolsTasksRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
-  getParentRoute: () => AppPlayToolsRoute,
+  id: '/tools/tasks',
+  path: '/tools/tasks',
+  getParentRoute: () => AppPlayRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -256,7 +250,6 @@ export interface FileRoutesByFullPath {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/play/add': typeof AppPlayAddRoute
@@ -267,7 +260,6 @@ export interface FileRoutesByFullPath {
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
-  '/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play/': typeof AppPlayIndexRoute
@@ -276,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games/': typeof AppPlayGamesIndexRoute
+  '/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesByTo {
   '/core': typeof AppCoreRoute
@@ -293,7 +286,6 @@ export interface FileRoutesByTo {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/': typeof AppIndexRoute
@@ -305,7 +297,6 @@ export interface FileRoutesByTo {
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
-  '/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play': typeof AppPlayIndexRoute
@@ -314,6 +305,7 @@ export interface FileRoutesByTo {
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games': typeof AppPlayGamesIndexRoute
+  '/play/tools': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -334,7 +326,6 @@ export interface FileRoutesById {
   '/_app/voice': typeof AppVoiceRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/_app/': typeof AppIndexRoute
@@ -346,7 +337,6 @@ export interface FileRoutesById {
   '/_app/play/shigan': typeof AppPlayShiganRoute
   '/_app/play/space': typeof AppPlaySpaceRoute
   '/_app/play/todo': typeof AppPlayTodoRoute
-  '/_app/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/_app/play/': typeof AppPlayIndexRoute
@@ -355,6 +345,7 @@ export interface FileRoutesById {
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/_app/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/_app/play/games/': typeof AppPlayGamesIndexRoute
+  '/_app/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -376,7 +367,6 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
-    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/play/add'
@@ -387,7 +377,6 @@ export interface FileRouteTypes {
     | '/play/shigan'
     | '/play/space'
     | '/play/todo'
-    | '/play/tools'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play/'
@@ -396,6 +385,7 @@ export interface FileRouteTypes {
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games/'
+    | '/play/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/core'
@@ -413,7 +403,6 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
-    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/'
@@ -425,7 +414,6 @@ export interface FileRouteTypes {
     | '/play/shigan'
     | '/play/space'
     | '/play/todo'
-    | '/play/tools'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play'
@@ -434,6 +422,7 @@ export interface FileRouteTypes {
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games'
+    | '/play/tools'
   id:
     | '__root__'
     | '/_app'
@@ -453,7 +442,6 @@ export interface FileRouteTypes {
     | '/_app/voice'
     | '/_app/worldbook'
     | '/api/chat'
-    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/_app/'
@@ -465,7 +453,6 @@ export interface FileRouteTypes {
     | '/_app/play/shigan'
     | '/_app/play/space'
     | '/_app/play/todo'
-    | '/_app/play/tools'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/_app/play/'
@@ -474,12 +461,12 @@ export interface FileRouteTypes {
     | '/_app/play/tools/alarms'
     | '/_app/play/tools/tasks'
     | '/_app/play/games/'
+    | '/_app/play/tools/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
-  ApiIpLocateRoute: typeof ApiIpLocateRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
@@ -614,13 +601,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/ip-locate': {
-      id: '/api/ip-locate'
-      path: '/api/ip-locate'
-      fullPath: '/api/ip-locate'
-      preLoaderRoute: typeof ApiIpLocateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/lyrics': {
       id: '/api/lyrics'
       path: '/api/lyrics'
@@ -698,13 +678,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayTodoRouteImport
       parentRoute: typeof AppPlayRoute
     }
-    '/_app/play/tools': {
-      id: '/_app/play/tools'
-      path: '/tools'
-      fullPath: '/play/tools'
-      preLoaderRoute: typeof AppPlayToolsRouteImport
-      parentRoute: typeof AppPlayRoute
-    }
     '/api/push/key': {
       id: '/api/push/key'
       path: '/api/push/key'
@@ -740,36 +713,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayGamesTruthRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/tools/': {
+      id: '/_app/play/tools/'
+      path: '/tools'
+      fullPath: '/play/tools/'
+      preLoaderRoute: typeof AppPlayToolsIndexRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/tools/alarms': {
       id: '/_app/play/tools/alarms'
-      path: '/alarms'
+      path: '/tools/alarms'
       fullPath: '/play/tools/alarms'
       preLoaderRoute: typeof AppPlayToolsAlarmsRouteImport
-      parentRoute: typeof AppPlayToolsRoute
+      parentRoute: typeof AppPlayRoute
     }
     '/_app/play/tools/tasks': {
       id: '/_app/play/tools/tasks'
-      path: '/tasks'
+      path: '/tools/tasks'
       fullPath: '/play/tools/tasks'
       preLoaderRoute: typeof AppPlayToolsTasksRouteImport
-      parentRoute: typeof AppPlayToolsRoute
+      parentRoute: typeof AppPlayRoute
     }
   }
 }
-
-interface AppPlayToolsRouteChildren {
-  AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
-  AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
-}
-
-const AppPlayToolsRouteChildren: AppPlayToolsRouteChildren = {
-  AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
-  AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
-}
-
-const AppPlayToolsRouteWithChildren = AppPlayToolsRoute._addFileChildren(
-  AppPlayToolsRouteChildren,
-)
 
 interface AppPlayRouteChildren {
   AppPlayAddRoute: typeof AppPlayAddRoute
@@ -780,11 +746,13 @@ interface AppPlayRouteChildren {
   AppPlayShiganRoute: typeof AppPlayShiganRoute
   AppPlaySpaceRoute: typeof AppPlaySpaceRoute
   AppPlayTodoRoute: typeof AppPlayTodoRoute
-  AppPlayToolsRoute: typeof AppPlayToolsRouteWithChildren
   AppPlayIndexRoute: typeof AppPlayIndexRoute
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
+  AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
+  AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
   AppPlayGamesIndexRoute: typeof AppPlayGamesIndexRoute
+  AppPlayToolsIndexRoute: typeof AppPlayToolsIndexRoute
 }
 
 const AppPlayRouteChildren: AppPlayRouteChildren = {
@@ -796,11 +764,13 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayShiganRoute: AppPlayShiganRoute,
   AppPlaySpaceRoute: AppPlaySpaceRoute,
   AppPlayTodoRoute: AppPlayTodoRoute,
-  AppPlayToolsRoute: AppPlayToolsRouteWithChildren,
   AppPlayIndexRoute: AppPlayIndexRoute,
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
+  AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
+  AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
   AppPlayGamesIndexRoute: AppPlayGamesIndexRoute,
+  AppPlayToolsIndexRoute: AppPlayToolsIndexRoute,
 }
 
 const AppPlayRouteWithChildren =
@@ -849,7 +819,6 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
-  ApiIpLocateRoute: ApiIpLocateRoute,
   ApiLyricsRoute: ApiLyricsRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,

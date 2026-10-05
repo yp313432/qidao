@@ -243,12 +243,26 @@ export function McpServers() {
             （用户实测："新建 http 工具和 mcp 没有保存按钮，怎么用？"）。
           */}
           <div className="glass-panel relative z-10 flex max-h-[88vh] w-full flex-col rounded-t-[2.5rem]">
-            <div className="flex items-center justify-between px-5 pt-5">
+            <div className="flex items-center justify-between gap-2 px-5 pt-5">
               <p className="font-serif text-lg">{draft.id ? "编辑 MCP 服务器" : "添加 MCP 服务器"}</p>
-              <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
-                <X className="mx-auto size-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {/* 保存放**标题栏** —— 键盘弹起把面板压矮时它也不会跑到屏幕外 */}
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={!draft.name.trim()}
+                  className="rounded-full bg-ink px-4 py-1.5 text-[13px] font-medium text-ink-fg disabled:opacity-40"
+                >
+                  保存
+                </button>
+                <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
+                  <X className="mx-auto size-5" />
+                </button>
+              </div>
             </div>
+            {!draft.name.trim() && (
+              <p className="px-5 pt-1 text-[11px] text-subtle">保存需要：名称</p>
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1">
 
@@ -338,26 +352,6 @@ export function McpServers() {
               />
             </label>
 
-            </div>
-
-            {/* 按钮条：**固定在底部**，不用滚到底去找 */}
-            <div className="flex items-center gap-2 border-t border-line px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <button
-                type="button"
-                onClick={save}
-                disabled={!draft.name.trim()}
-                className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-ink-fg disabled:opacity-50"
-              >
-                保存
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraft(null)}
-                className="rounded-full px-4 py-2.5 text-sm text-muted"
-              >
-                取消
-              </button>
-              {!draft.name.trim() && <span className="text-[11px] text-subtle">还差名称</span>}
             </div>
           </div>
         </div>

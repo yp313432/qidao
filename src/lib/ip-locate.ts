@@ -11,55 +11,97 @@ import { reversePlace } from "@/lib/qweather";
  * 因为它们走 **WiFi + 基站**，而 WebView 那层拿不到这些。
  * 所以加一条不依赖 GPS、不依赖权限的路：连着网就能认出你在哪个城市。
  *
- * ── 两道坎，都踩过 ──────────────────────────────────────────
+ * ── 三道坎，全都踩过（这段别删，省得以后重复踩）─────────────
  *
- * ① **CORS**：直接在浏览器里 fetch 那些免费 IP 服务，**全都 Failed to fetch**
- *    （它们不返回 CORS 头，浏览器在请求发出前就拦了）。
- *    这不是"用户没网"—— 同页面里和风的请求是正常发出去的。
- *    → 所以改走 `/api/ip-locate`，让**服务端**去问。
+ * ① **CORS**：一开始选的几家（pconline / ipapi / 百度 / taobao）
+ *    **都不返回 CORS 头** → 浏览器在请求发出前就拦掉，报
+ *    `TypeError: Failed to fetch`。用户那句"我手机是有网的，为啥 IP 也不可以"
+ *    就是这个 —— 不是没网，是那几家不让网页调。
  *
- * ② **编码**：pconline 返回 **GBK**，解出来是 `ʯ��ׯ��` 这种乱码；
- *    ipapi 被 Cloudflare 挡（403 + "Just a moment"）。
- *    → 只用返回干净 UTF-8 的（ipwho.is / geojs）。
+ * ② **编码**：pconline 返回 **GBK**，解出来是 `ʯ��ׯ��` 这种乱码。
  *
- * ── 为什么不直接要城市名 ────────────────────────────────────
- * ipwho.is 给的是**英文**（"Hangzhou"、"Zhejiang Sheng"）。
- * 与其维护一张"Zhejiang Sheng → 浙江"的对照表，
- * 不如把**经纬度交给和风**反查 —— 它本来就干这个，
- * 而且反查出来的地名跟它的天气接口是同一套编号，最稳。
+ * ③ **我绕错的路**：为了躲 CORS，我一度改成走 `/api/ip-locate`（服务端代理）。
+ *    在开发环境能通，**但 APK 里根本没有服务端** ——
+ *    vite.config.ts 写着：`QIDAO_TARGET === "android"` 时走**纯前端（SPA）构建**
+ *    （见 vite.config 里 ANDROID 那段）。所以手机上那个接口不存在，等于白做。
+ *
+ * 正解：**只用 CORS 友好的**（实测过响应头）：
+ *    ipwho.is      ✅ CORS=*  UTF-8  **给坐标**
+ *    get.geojs.io  ✅ CORS=*  UTF-8  给坐标（但糙：杭州的 IP 给过郑州的坐标）
+ *    ipinfo.io     ✅ CORS=*  UTF-8  给坐标 + 城市名
+ * 这三个在**网页和 APK 里都能直接调**，不需要任何服务端。
+ *
+ * ── 为什么拿坐标而不是城市名 ────────────────────────────────
+ * 这几家给的是**英文**（"Hangzhou"、"Zhejiang Sheng"）。
+ * 与其维护"Zhejiang Sheng → 浙江"的对照表，不如把**经纬度交给和风**反查 ——
+ * 和风本来就干这个，而且反查出的地名跟它的天气接口是同一套编号，最稳。
  */
 
-type IpFix = { lat: number; lon: number; fallbackLabel?: string; via: string };
+type Fix = { lat: number; lon: number; city?: string };
 
-async function askServer(): Promise<IpFix | null> {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-    const res = await fetch("/api/ip-locate", { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const j = (await res.json()) as { ok?: boolean } & Partial<IpFix>;
-    if (j.ok && Number.isFinite(j.lat) && Number.isFinite(j.lon)) {
-      return {
-        lat: j.lat as number,
-        lon: j.lon as number,
-        fallbackLabel: j.fallbackLabel,
-        via: j.via ?? "?",
-      };
+/** 挨家问，谁先给出坐标用谁 */
+async function askProviders(): Promise<Fix | null> {
+  const providers: { name: string; url: string; pick: (j: unknown) => Fix | null }[] = [
+    {
+      name: "ipwho.is",
+      url: "https://ipwho.is/",
+      pick: (j) => {
+        const o = j as { success?: boolean; latitude?: number; longitude?: number; city?: string };
+        if (o.success === false) return null;
+        const lat = Number(o.latitude);
+        const lon = Number(o.longitude);
+        return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon, city: o.city } : null;
+      },
+    },
+    {
+      name: "ipinfo.io",
+      url: "https://ipinfo.io/json",
+      pick: (j) => {
+        const o = j as { loc?: string; city?: string };
+        // loc 形如 "30.2936,120.1614"
+        const m = /^(-?[\d.]+),(-?[\d.]+)$/.exec((o.loc ?? "").trim());
+        if (!m) return null;
+        return { lat: Number(m[1]), lon: Number(m[2]), city: o.city };
+      },
+    },
+    {
+      name: "geojs",
+      url: "https://get.geojs.io/v1/ip/geo.json",
+      pick: (j) => {
+        const o = j as { latitude?: string; longitude?: string; city?: string };
+        const lat = Number(o.latitude);
+        const lon = Number(o.longitude);
+        return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon, city: o.city } : null;
+      },
+    },
+  ];
+
+  for (const p of providers) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const res = await fetch(p.url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const fix = p.pick(await res.json());
+      if (fix) return fix;
+    } catch {
+      // 这家不行（可能又是 CORS），试下一家
     }
-    return null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
-/** 认城市：先拿坐标，再让和风反查中文地名；和风搜不动才退回英文名 */
+/** 认城市：先拿坐标，再让和风反查中文地名；和风搜不动才退回英文城市名 */
 export async function locateByIp(): Promise<
   { ok: true; label: string } | { ok: false; reason: string }
 > {
-  const fix = await askServer();
+  const fix = await askProviders();
   if (!fix) {
-    return { ok: false, reason: "按 IP 也没能认出位置（我们自己的接口没答上来）" };
+    return {
+      ok: false,
+      reason: "几个 IP 服务都没答上来（可能都没网，或者都不让网页调用）",
+    };
   }
 
   // 优先：坐标 → 和风反查中文地名
@@ -67,7 +109,7 @@ export async function locateByIp(): Promise<
   if (rev.ok) return { ok: true, label: rev.label };
 
   // 退回英文城市名（和风搜不动时至少别空手）
-  if (fix.fallbackLabel) return { ok: true, label: fix.fallbackLabel };
+  if (fix.city) return { ok: true, label: fix.city };
 
   return { ok: false, reason: `认出了坐标但翻译不出地名：${rev.reason}` };
 }

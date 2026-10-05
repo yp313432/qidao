@@ -187,12 +187,35 @@ export function HttpTools() {
             现在按钮永远在底部看得见，不用滚到底去找。
           */}
           <div className="glass-panel relative z-10 flex max-h-[88vh] w-full flex-col rounded-t-[2.5rem]">
-            <div className="flex items-center justify-between px-5 pt-5">
+            <div className="flex items-center justify-between gap-2 px-5 pt-5">
               <p className="font-serif text-lg">{draft.id ? "编辑工具" : "新建 HTTP 工具"}</p>
-              <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
-                <X className="mx-auto size-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {/*
+                  「保存」放在**标题栏**里。
+                  原来它在面板最底下 —— 手机上键盘一弹起，面板被压矮，
+                  按钮就跑到屏幕外了（用户反复说"没有保存按钮"）。
+                  放标题栏 = 无论键盘、无论滚动位置，它永远在最上面看得见。
+                */}
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={!draft.name.trim() || !draft.url.trim()}
+                  className="rounded-full bg-ink px-4 py-1.5 text-[13px] font-medium text-ink-fg disabled:opacity-40"
+                >
+                  保存
+                </button>
+                <button type="button" aria-label="关闭" onClick={() => setDraft(null)} className="size-9">
+                  <X className="mx-auto size-5" />
+                </button>
+              </div>
             </div>
+            {(!draft.name.trim() || !draft.url.trim()) && (
+              <p className="px-5 pt-1 text-[11px] text-subtle">
+                保存需要：{draft.name.trim() ? "" : "名称"}
+                {!draft.name.trim() && !draft.url.trim() ? "、" : ""}
+                {draft.url.trim() ? "" : "地址"}
+              </p>
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1">
 
@@ -268,30 +291,6 @@ export function HttpTools() {
               </label>
             )}
 
-            </div>
-
-            {/* 按钮条：**固定在底部**，不用滚到底去找（原来它被挡在视口外） */}
-            <div className="flex items-center gap-2 border-t border-line px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <button
-                type="button"
-                onClick={save}
-                disabled={!draft.name.trim() || !draft.url.trim()}
-                className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-ink-fg disabled:opacity-50"
-              >
-                保存
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraft(null)}
-                className="rounded-full px-4 py-2.5 text-sm text-muted"
-              >
-                取消
-              </button>
-              {(!draft.name.trim() || !draft.url.trim()) && (
-                <span className="text-[11px] text-subtle">
-                  还差{draft.name.trim() ? "" : "名称"}{!draft.name.trim() && !draft.url.trim() ? "和" : ""}{draft.url.trim() ? "" : "地址"}
-                </span>
-              )}
             </div>
           </div>
         </div>
