@@ -16,7 +16,7 @@ export function MusicAddView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PlayHeader title="添加音乐" backTo="/play/listen" backLabel="返回音乐列表" />
+      <PlayHeader title="添加音乐" />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-2 pb-above-nav">
         {/* 本地文件 */}

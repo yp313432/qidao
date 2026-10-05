@@ -152,10 +152,9 @@ export function GobangView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg">
+      {/* 返回目标不再手写 —— 由 nav-tree 算出（/play/gobang → /play/tools） */}
       <PlayHeader
         title="五子棋"
-        backTo="/play/tools"
-        backLabel="返回小日子"
         extra={
           <button type="button" className="px-3 text-sm text-muted" onClick={reset}>
             重开

@@ -27,7 +27,7 @@ import {
   swRegistration,
   type SwStatus,
 } from "@/lib/notify";
-import { isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
+import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { currentPlace } from "@/lib/locate";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { speakTextAsync } from "@/lib/tts";
@@ -50,7 +50,7 @@ import { useScrollMemory, CHAT_FONT_SIZES } from "@/lib/ux";
  * 现在按文档的 4 大类拆成 4 个二级页，但**区块 JSX 只写一份**：
  *   · `MeHub`   → 首页（头像 + 5 张入口卡）
  *   · `space`   → 我的空间：形象 · 背景空间 · 个性化
- *   · `usage`   → 模型与用量：用量 · 当前模型 · 上下文与内存 · 自定义上游
+ *   · `usage`   → 模型与用量：用量 · 上下文与内存 · 自定义上游
  *   · `data`    → 数据与记忆：记忆库 · 世界书 / 思考引导 · 备份恢复
  *   · `system`  → 系统：思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错
  *
@@ -148,7 +148,7 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
   {
     to: "/usage",
     label: "模型与用量",
-    hint: "当前模型 · 用量 · 上下文与内存 · 自定义上游",
+    hint: "用量 · 上下文与内存 · 自定义上游",
     icon: Activity,
   },
   { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）", icon: Database },
@@ -748,30 +748,14 @@ function MeSections({ tab }: { tab: MeTab }) {
         </div>
       </Section>
 
-      <Section title="当前模型">
-        <div className="grid gap-1">
-          {MODELS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => {
-                useApp.getState().setModel(m.id);
-                patch({ defaultModel: m.id });
-              }}
-              className={cn(
-                "flex items-center justify-between rounded-2xl px-3 py-3 text-left",
-                settings.defaultModel === m.id ? "bg-chip" : "",
-              )}
-            >
-              <span>
-                <span className="block text-sm font-medium">{m.label}</span>
-                <span className="text-[12px] text-muted">{m.mapping}</span>
-              </span>
-              {settings.defaultModel === m.id && <span className="size-2 rounded-full bg-accent" />}
-            </button>
-          ))}
-        </div>
-      </Section>
+      {/*
+        「当前模型」那一块**已删除**（用户要求）。
+        原因：对话框里已经加了推理档位选择器（快答/均衡/深思），这里再放一套就是重复的
+        —— 两处都能改，改哪儿都容易漏，而且用户根本不知道以哪个为准。
+        现在**唯一入口在对话框**（输入框右边那个「均衡 ⌄」）。
+        注意：`settings.defaultModel` 这个字段还留着（新会话会读它做默认），
+              只是不再有界面去改它；对话框改变的是当前会话用的 model。
+      */}
 
       <Section title="上下文与内存">
         <Link

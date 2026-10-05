@@ -272,8 +272,15 @@ export function ChatView() {
          */
         <div className="relative min-h-0 flex-1">
           <div ref={scroller} className="h-full overflow-y-auto">
+            {/*
+              px-2（原来 px-5）：用户说气泡"缩在中间看着太局促"，要求往两边展开。
+              实测（屏宽 390）：
+                px-5   + max-w-[86%] → 他的气泡只占屏宽 79%，右边距 27px
+                px-2   + max-w-[99%] → 他的气泡占满内容列（左右差 0/3px），右边距 10px
+              注意：**我的气泡窄是因为我字少**（气泡宽度跟着文字走），不是被挤住了。
+            */}
             <ol
-              className="space-y-5 px-5 py-4 pb-8"
+              className="space-y-5 px-2 py-4 pb-8"
               style={{ fontSize: `${chatFontPx(settings.chatFontSize)}px` }}
             >
             {conv!.messages.map((m) => {
@@ -293,10 +300,17 @@ export function ChatView() {
                   <Avatar role={mine ? "user" : "ai"} size={30} className="mt-0.5" />
 
                   <div className="min-w-0 flex-1">
+                    {/*
+                      名字 + 时间那一行。
+                      用户那侧要**整体靠右**，所以用 justify-end。
+                      ⚠️ 不能同时写 flex-row-reverse —— 它会把主轴翻过去，
+                         justify-end 于是又变回"靠左"，两者互相抵消（我踩过）。
+                      名字在 DOM 里的顺序本来就是「名字、时间」，用 justify 控制位置就够了。
+                    */}
                     <div
                       className={cn(
                         "mb-1 flex items-baseline gap-2",
-                        mine && "flex-row-reverse",
+                        mine ? "justify-end" : "justify-start",
                       )}
                     >
                       <span className="text-[13px] font-medium text-fg">
@@ -312,7 +326,7 @@ export function ChatView() {
 
                     {mine ? (
                       <div className={cn("flex", "justify-end")}>
-                        <div className="max-w-[86%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                        <div className="max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                           {m.attachments?.length ? (
                             <div className="flex flex-wrap gap-1.5">
                               {m.attachments.map((a) =>
@@ -380,7 +394,7 @@ export function ChatView() {
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
                         {m.content ? (
-                          <div className="max-w-[86%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                          <div className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                             <Markdown text={m.content} />
                           </div>
                         ) : streaming ? (
@@ -415,8 +429,15 @@ export function ChatView() {
                           <p className="mt-1 px-1 text-[10px] text-subtle">
                             {m.usage.prompt ? `输入 ${m.usage.prompt}` : ""}
                             {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
-                            {typeof m.usage.cached === "number" && m.usage.cached > 0
-                              ? ` · 缓存命中 ${m.usage.cached}`
+                            {/*
+                              缓存显示成**命中率**（用户："改成缓存命中率，
+                              比如百分之多少，方便好看一点，不然我还得自己计算"）。
+                              分母用输入 token —— 缓存本来就是"输入里有多少被命中了"。
+                            */}
+                            {typeof m.usage.cached === "number" &&
+                            m.usage.cached > 0 &&
+                            m.usage.prompt
+                              ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
                               : ""}
                           </p>
                         )}

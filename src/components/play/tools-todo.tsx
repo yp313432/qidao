@@ -25,7 +25,7 @@ export function ToolsTodo() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SceneBackdrop image={settings.diaryImage} />
-      <PlayHeader title="待办" backTo="/play/tools" />
+      <PlayHeader title="待办" />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-above-nav">
         <p className="text-center text-[10px] tracking-[0.28em] text-subtle uppercase">

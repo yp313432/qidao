@@ -146,8 +146,6 @@ export function WorldbookView() {
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
       <PageHeader
         title="世界书"
-        to="/core"
-        backLabel="返回 AI 概览"
         right={
           <button
             type="button"

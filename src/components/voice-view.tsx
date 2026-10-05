@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, Mic } from "lucide-react";
+import { Mic } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
@@ -166,10 +166,14 @@ export function VoiceView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/*
+        返回目标交给 nav-tree 算（/voice → /me）。
+        原来这里硬写着 `to="/"` + "返回对话" —— 但语音设置是从
+        **「我的 → 系统 → 语音」**进去的，回对话首页就跳过了一整级。
+        这正是"返回只能返回上一级"要治的那类 bug，脚本查出来的。
+      */}
       <PageHeader
         title="语音对话"
-        to="/"
-        backLabel="返回对话"
         right={<span className="px-3 text-[11px] text-muted">{aiName}</span>}
       />
 

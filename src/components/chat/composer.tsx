@@ -355,8 +355,8 @@ export function Composer({ onSend, disabled, streaming }: Props) {
                 {fmtTokens(usageToday.completion)}
               </p>
               <p className="text-[12px] text-muted">
-                {usageToday.cached > 0
-                  ? `缓存命中 ${fmtTokens(usageToday.cached)} tokens · 省钱的是这部分`
+                {usageToday.cached > 0 && usageToday.prompt > 0
+                  ? `缓存命中率 ${Math.round((usageToday.cached / usageToday.prompt) * 100)}% · 省钱的是这部分`
                   : "这是你自己的 API 用量，本机只统计不限制"}
               </p>
             </div>

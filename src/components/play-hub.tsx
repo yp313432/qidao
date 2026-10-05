@@ -151,9 +151,16 @@ function TogetherCard() {
       {/* 用户："头像那个组件不加任何装饰了" —— 所以这里一个装饰都不挂 */}
 
       <div className="relative flex items-center justify-between gap-3">
+        {/*
+          顺序统一成「**AI 在左、我在右**」。
+          用户："我想我的头像在右边，AI 的头像在左边"，
+          并要求文字名字也一起对调 —— 所以下面那行名字也是 AI 在前。
+          ⚠️ 重叠用的 -ml-3 要挂在**后一个**（也就是"我"那个）上，
+             这样是"我"压在 AI 上面，跟"我在右"的视觉层次一致。
+        */}
         <div className="flex shrink-0 items-center">
-          <Face role="user" label={myName} />
-          <Face role="ai" label={aiName} className="-ml-3" />
+          <Face role="ai" label={aiName} />
+          <Face role="user" label={myName} className="-ml-3" />
         </div>
         <div className="text-right">
           {days === null ? (
@@ -183,9 +190,9 @@ function TogetherCard() {
         </div>
       </div>
 
-      {/* 名字 —— 图二那种「A & B」的写法 */}
+      {/* 名字 —— 跟头像同一个顺序：AI 在左、我在右 */}
       <p className="mt-4 text-center font-serif text-[15px]">
-        {myName} <span className="text-subtle">&</span> {aiName}
+        {aiName} <span className="text-subtle">&</span> {myName}
       </p>
     </section>
   );
