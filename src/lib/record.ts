@@ -1,4 +1,4 @@
-﻿import type { Attachment } from "@/lib/types";
+import type { Attachment } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
 /**
@@ -25,7 +25,6 @@ export function recordSupported(): boolean {
 export type Recorder = {
   startedAt: number;
   elapsed: () => number;
-  liveTranscript: () => string;
   /** 停止并产出附件；取消过、或没录到东西就返回 null */
   stop: () => Promise<Attachment | null>;
   cancel: () => void;
@@ -56,37 +55,25 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
   };
   rec.start(250);
 
-  /* ---- 顺带转写（尽力而为，失败不影响录音） ---- */
-  let transcript = "";
-  let sr: { stop: () => void; abort?: () => void } | null = null;
-  try {
-    const w = window as unknown as {
-      webkitSpeechRecognition?: new () => SpeechRec;
-      SpeechRecognition?: new () => SpeechRec;
-    };
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (SR) {
-      const r = new SR();
-      r.lang = (navigator.language || "zh-CN").slice(0, 5);
-      r.continuous = true;
-      r.interimResults = true;
-      r.onresult = (e) => {
-        let text = "";
-        for (let i = 0; i < e.results.length; i += 1) {
-          const alt = e.results[i]?.[0];
-          if (alt?.transcript) text += alt.transcript;
-        }
-        if (text.trim()) transcript = text.trim();
-      };
-      r.onerror = () => {
-        /* 转写失败就算了，录音照常 */
-      };
-      r.start();
-      sr = r;
-    }
-  } catch {
-    sr = null;
-  }
+  /**
+   * ── 这里**原来**还开了一个 webkitSpeechRecognition 想"顺带转写" ──────────
+   *
+   * 已删除（用户报"语音时不顺畅很卡、有时候能反应过来有时候不能"）。
+   *
+   * 为什么必须删：**两个东西同时向系统要麦克风**。
+   * MediaRecorder 已经占住了输入设备，再让 SpeechRecognition 去开一路，
+   * 安卓上经常直接抛 NotReadableError，或者把录音这一路也打断 ——
+   * 表现就是"时好时坏"，因为谁先抢到设备是随机的。
+   *
+   * 而且配了「语音服务」时**根本不需要它**：那条路是
+   * "自己录音 → 上传给语音服务转文字（transcribe）"，识别在上游做，
+   * 这里再开一个浏览器识别纯属多余，只会抢设备。
+   *
+   * 语音消息里显示的文字，现在由**语音服务**负责（voice-service.transcribe）；
+   * 没配语音服务时不显示文字，但录音本身是干净、稳定的 —— 这个取舍是对的：
+   * 宁可没有转写文字，也不能把录音搞坏。
+   */
+  const transcript = "";
 
   const timer = onTick
     ? window.setInterval(() => {
@@ -98,12 +85,6 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
 
   function shutdown() {
     if (timer) window.clearInterval(timer);
-    try {
-      sr?.stop();
-    } catch {
-      /* ignore */
-    }
-    sr = null;
     for (const t of stream.getTracks()) t.stop();
   }
 
@@ -112,13 +93,43 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
     finalized = true;
     const durationMs = Date.now() - startedAt;
 
+    /**
+     * 等 MediaRecorder 收尾。
+     *
+     * ⚠️ **必须带超时兜底**：`onstop` 在某些情况下不会触发
+     * （比如还没采到任何数据就 stop、或者轨道已经被系统收走）。
+     * 原来这里就是干等 —— 一旦不触发，stop() 永远挂着，
+     * 界面就卡在"正在录音"，点停止/发送都没反应（用户报的"像卡住了"）。
+     * 800ms 足够正常收尾，等不到就继续往下走（chunks 里有多少算多少）。
+     */
     await new Promise<void>((resolve) => {
-      rec.onstop = () => resolve();
+      let done = false;
+      const bail = window.setTimeout(() => {
+        if (done) return;
+        done = true;
+        resolve();
+      }, 800);
+      rec.onstop = () => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(bail);
+        resolve();
+      };
       try {
         if (rec.state !== "inactive") rec.stop();
-        else resolve();
+        else {
+          if (!done) {
+            done = true;
+            window.clearTimeout(bail);
+            resolve();
+          }
+        }
       } catch {
-        resolve();
+        if (!done) {
+          done = true;
+          window.clearTimeout(bail);
+          resolve();
+        }
       }
     });
     shutdown();
@@ -148,7 +159,6 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
   return {
     startedAt,
     elapsed: () => Date.now() - startedAt,
-    liveTranscript: () => transcript,
     stop: () => finish(false),
     cancel: () => {
       cancelled = true;
@@ -156,15 +166,3 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
     },
   };
 }
-
-type SpeechRec = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult:
-    | ((e: { results: Array<Array<{ transcript: string }>> }) => void)
-    | null;
-  onerror: ((e: unknown) => void) | null;
-  start: () => void;
-  stop: () => void;
-};

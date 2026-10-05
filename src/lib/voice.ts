@@ -7,7 +7,7 @@
 import { startNativeListening } from "@/lib/asr";
 import { IS_APP } from "@/lib/platform";
 import { startRecording } from "@/lib/record";
-import { speakTextAsync, speakText } from "@/lib/tts";
+import { speakTextAsync } from "@/lib/tts";
 import { transcribe, voiceConfigured } from "@/lib/voice-service";
 
 /**
@@ -30,12 +30,35 @@ function startServiceListening(opts: {
   let stopped = false;
   let rec: { stop: () => Promise<unknown>; cancel: () => void } | null = null;
 
+  /**
+   * ⚠️ 这里踩过一个**真的把麦克风占死的竞态 bug**（用户："想结束或发送都不行，
+   * 像卡了一样"、"时好时坏"）：
+   *
+   *   startRecording 要 await getUserMedia（第一次还要等权限弹窗），是**慢的**。
+   *   而下面那个 6 秒定时器是**立刻**挂上的。
+   *   如果 6 秒先到，finish() 里 `const r = rec` 拿到的还是 null →
+   *   直接 return、**什么都没停**；随后 rec 才被赋值 → 录音真的开始了，但永远没人停它。
+   *   结果：麦克风一直被占着，界面停在"正在录音"，点停止也没反应。
+   *
+   * 修法：把"已经决定要停"这个意图独立记成 `stopped`，
+   * 录音**姗姗来迟**时立刻发现"哦我已经该停了"，当场把它停掉、把麦克风释放。
+   */
   void (async () => {
     try {
-      rec = (await startRecording(() => undefined)) as unknown as {
+      const r = (await startRecording(() => undefined)) as unknown as {
         stop: () => Promise<unknown>;
         cancel: () => void;
       };
+      // 迟到的录音：如果这期间已经按过停止 / 已经超时，立刻收掉，别占着麦克风
+      if (stopped) {
+        try {
+          r.cancel();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      rec = r;
       opts.onPartial?.("（录音中…说完等一下，6 秒后自动停）");
       window.setTimeout(() => {
         if (!stopped) void finish();
@@ -51,7 +74,12 @@ function startServiceListening(opts: {
     stopped = true;
     const r = rec;
     rec = null;
-    if (!r) return;
+    // 录音还没起来（上面那个迟到分支会负责收掉），这里直接报结束，
+    // 不给界面留下"永远在录音"的状态
+    if (!r) {
+      opts.onEnd?.();
+      return;
+    }
     try {
       const att = (await r.stop()) as { dataUrl?: string } | null;
       if (!att?.dataUrl) {

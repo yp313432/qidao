@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 朗读（TTS）。集中放这里，因为「点了没声」有四种不同死法，
  * 散落在各处只会一遍遍踩：
  *
@@ -84,9 +84,40 @@ export async function speakTextAsync(
       try {
         const audio = new Audio(out.url);
         await new Promise<void>((resolve) => {
-          audio.onended = () => resolve();
-          audio.onerror = () => resolve();
-          void audio.play().catch(() => resolve());
+          /**
+           * ⚠️ **必须有超时兜底**（用户："语音对话不顺畅、有时候能反应过来有时候不能"）。
+           *
+           * 语音模式是"念完 → onEnd → 继续听"的免手持循环，全靠这里 resolve。
+           * 但 `onended` 在几种情况下**永远不触发**：
+           *   · 播放被系统/别的 App 打断
+           *   · 音频被暂停后没有恢复
+           *   · 流式 mp3 的时长元信息缺失，播完了也不发事件
+           * 一旦不触发，promise 永远挂着 → 界面卡在"正在说话" → 整个对话停死。
+           * 这就是"有时候能反应过来，有时候不能"。
+           *
+           * 兜底时长：报告的音频时长 + 3 秒余量；拿不到时长就按文字长度估
+           * （中文约 4 字/秒，语速 0.95 慢一点，给足余量）。
+           */
+          const textEstimateSec = Math.max(3, clean.length / 4);
+          const budgetMs = Math.max(
+            5000,
+            ((Number.isFinite(audio.duration) && audio.duration > 0
+              ? audio.duration
+              : textEstimateSec) +
+              3) *
+              1000,
+          );
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            window.clearTimeout(bail);
+            resolve();
+          };
+          const bail = window.setTimeout(finish, budgetMs);
+          audio.onended = finish;
+          audio.onerror = finish;
+          void audio.play().catch(finish);
         });
         URL.revokeObjectURL(out.url);
         opts.onEnd?.();
