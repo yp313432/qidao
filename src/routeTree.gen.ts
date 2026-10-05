@@ -27,6 +27,7 @@ import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiIpLocateRouteImport } from './routes/api/ip-locate'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
@@ -134,6 +135,11 @@ const AppWorldbookRoute = AppWorldbookRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIpLocateRoute = ApiIpLocateRouteImport.update({
+  id: '/api/ip-locate',
+  path: '/api/ip-locate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLyricsRoute = ApiLyricsRouteImport.update({
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/play/add': typeof AppPlayAddRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/': typeof AppIndexRoute
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/_app/voice': typeof AppVoiceRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/ip-locate': typeof ApiIpLocateRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
   '/_app/': typeof AppIndexRoute
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
+    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/play/add'
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
+    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/_app/voice'
     | '/_app/worldbook'
     | '/api/chat'
+    | '/api/ip-locate'
     | '/api/lyrics'
     | '/api/models'
     | '/_app/'
@@ -467,6 +479,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiIpLocateRoute: typeof ApiIpLocateRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
@@ -599,6 +612,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ip-locate': {
+      id: '/api/ip-locate'
+      path: '/api/ip-locate'
+      fullPath: '/api/ip-locate'
+      preLoaderRoute: typeof ApiIpLocateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lyrics': {
@@ -829,6 +849,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiIpLocateRoute: ApiIpLocateRoute,
   ApiLyricsRoute: ApiLyricsRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,

@@ -58,15 +58,24 @@ export function Ticker({
 
   const scrolling = dist > 0;
 
+  /*
+    ⚠️ 标签和正文必须在**同一个**滚动元素里。
+    原来我把标签放在动画元素**外面**，于是标签钉在原地不动，
+    而正文从它底下滚过去 → 两段字**重叠**（用户实测："跟着后面一起滚动，
+    不然他不动，后面的动会重叠"）。
+    现在合成一句整的，一起滚。
+  */
+  const full = prefix ? `${prefix} ${text}` : text;
+
   return (
     <div ref={boxRef} className={cn("min-w-0 overflow-hidden", className)}>
       <div className={cn("flex items-center", !scrolling && "justify-center")}>
-        {prefix && (
-          <span className="mr-1 shrink-0 text-[10px] text-subtle">{prefix}</span>
-        )}
         <span
           ref={textRef}
-          className={cn("whitespace-nowrap text-[10px] text-subtle", scrolling && "aster-ticker")}
+          className={cn(
+            "whitespace-nowrap text-[10px] text-subtle",
+            scrolling && "aster-ticker",
+          )}
           style={
             scrolling
               ? ({
@@ -76,7 +85,7 @@ export function Ticker({
               : undefined
           }
         >
-          {text}
+          {full}
         </span>
       </div>
     </div>

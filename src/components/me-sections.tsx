@@ -144,7 +144,12 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
     hint: "他是谁 · 能知道什么 · 怎么和你相处 · 什么状态 · 记得你什么",
     icon: Sparkles,
   },
-  { to: "/space", label: "我的空间", hint: "形象 · 背景空间 · 个性化", icon: Palette },
+  {
+    to: "/space",
+    label: "我的空间",
+    hint: "形象 · 背景空间 · 时感地址 · 个性化",
+    icon: Palette,
+  },
   {
     to: "/usage",
     label: "模型与用量",
@@ -154,8 +159,16 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
   { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）", icon: Database },
   {
     to: "/system",
+    /*
+      ⚠️ 这行 hint 是**用户能看到的**，必须跟二级页里真实有的东西一致，
+      否则就是误导（用户实测指出过："闹钟和定时任务已经挪走了，
+      但是系统那行提示还是显示有"）。
+
+      所以：闹钟、定时任务**已经从小日子那边挪过去了**，这里不能再写。
+      改 hint 的时候记得回头对一遍下面 systemSections 里的 Section 标题。
+    */
     label: "系统",
-    hint: "思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错",
+    hint: "思考链 · 通知 · 天气与定位 · 语音 · 开发与纠错",
     icon: Settings2,
   },
 ];
@@ -1309,7 +1322,16 @@ function MeSections({ tab }: { tab: MeTab }) {
         </div>
       </Section>
 
-      {/* 已归到 AI 概览里的两块：代码留着、先不显示，免得「我的」又长又重复 */}
+      {/*
+        这两块**已经不显示了**（`hidden`）—— 它们的内容都搬到「AI 概览」里了：
+          · 权限与感知 → /permissions（从 AI 概览进）
+          · 内在（他的状态）→ /inner（从 AI 概览进）
+        「我的」页面留着它们只会又长又重复。
+
+        用户要求："我之前让你删掉的那些外面还有就把它给调整了吧免得误导"——
+        所以这里**不再是"留着以后用"**：要么删掉，要么明确它就是废弃的。
+        保持 hidden 但写清原因，免得以后有人以为漏了又把它打开。
+      */}
       <Section title="AI 权限" hidden>
         <Link
           to="/permissions"

@@ -61,39 +61,46 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const valueRef = useRef("");
   valueRef.current = value;
 
+  /**
+   * 用户**是不是真的动过输入框**。
+   *
+   * 用它把两种情况分开（这是"删了又复活"那个 bug 的关键）：
+   *   · 刚挂载、还没填 → 别写，否则把草稿擦掉
+   *   · 用户真删光了   → **必须写空**，否则旧草稿会复活
+   * 原来只用 `if (value)` 判断，把这两种混成一谈 ——
+   * 于是删光之后 store 里还是旧字，去别的页再回来又出现了（用户实测）。
+   */
+  const editedRef = useRef(false);
+
   useEffect(() => {
+    editedRef.current = false;
     const saved = useApp.getState().chatDrafts[draftKey] ?? "";
     setValue(saved);
   }, [draftKey]);
 
   /**
-   * 节流保存。
+   * 节流保存：**用户动过就存，空值也存**（空 = 他删干净了）。
    *
-   * ⚠️ 清理函数里**只停定时器、不写 store**：挂载那一刻 value 还是空的，
-   * 早先版本在清理里写了一次，结果把刚存下的草稿又擦成空（实测踩过）。
+   * 清理函数里仍然不写 —— 那会在挂载/卸载的那一瞬误擦草稿（早先踩过）。
+   * 但卸载另有一个 effect 负责兜底（见下），两件事分开做。
    */
   useEffect(() => {
+    if (!editedRef.current) return;
     const timer = window.setTimeout(() => {
-      // 空值不写 —— 否则"刚刷新、store 还没回填"的那一瞬会把草稿擦掉。
-      // 真正清空草稿只有发送之后那一条显式路径（见 send）。
-      if (value) useApp.getState().setChatDraft(draftKey, value);
-    }, 400);
+      useApp.getState().setChatDraft(draftKey, value);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [value, draftKey]);
 
-  /** 卸载（跳到别的页面）时，用 ref 里的最新值补写一次 —— 这才是"字不丢"的关键 */
+  /**
+   * 卸载（跳到别的页面）时用 ref 补写一次 —— 这才是"字不丢"的关键。
+   *
+   * 同样要 `editedRef` 把关：没动过就不写，避免 StrictMode 二次挂载把草稿擦掉。
+   */
   useEffect(() => {
     const key = draftKey;
     return () => {
-      /**
-       * ⚠️ **不要用空值写**。
-       *
-       * React 开发模式（StrictMode）会把组件挂载两次：第一次挂载时草稿刚被
-       * 恢复进 state，紧接着就被卸载 —— 这一刻 valueRef 还是空的，
-       * 写下去就把草稿擦掉了（实测："读完立刻又被读成空"）。
-       * 真正要清空草稿只有一条路：发送之后 setValue("")，那条由节流保存负责。
-       */
-      if (valueRef.current) useApp.getState().setChatDraft(key, valueRef.current);
+      if (editedRef.current) useApp.getState().setChatDraft(key, valueRef.current);
     };
   }, [draftKey]);
 
@@ -456,7 +463,11 @@ export function Composer({ onSend, disabled, streaming }: Props) {
           rows={1}
           value={value}
           disabled={disabled}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            // 标记"用户动过"——这样删成空也会被存下来（不然旧草稿会复活）
+            editedRef.current = true;
+            setValue(e.target.value);
+          }}
           /*
             ⚠️ 这里原来挂了一对 onFocus/onBlur 去收放底部导航（keyboardUp）。
             整个机制**已删除** —— 用户说了不止一次：
