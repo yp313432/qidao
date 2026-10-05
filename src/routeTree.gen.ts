@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppAlarmsRouteImport } from './routes/_app/alarms'
 import { Route as AppCoreRouteImport } from './routes/_app/core'
 import { Route as AppDataRouteImport } from './routes/_app/data'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
@@ -23,7 +22,6 @@ import { Route as AppPermissionsRouteImport } from './routes/_app/permissions'
 import { Route as AppPlayRouteImport } from './routes/_app/play'
 import { Route as AppSpaceRouteImport } from './routes/_app/space'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
-import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppToolsRouteImport } from './routes/_app/tools'
 import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
@@ -34,7 +32,6 @@ import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
-import { Route as AppPlayGobangRouteImport } from './routes/_app/play.gobang'
 import { Route as AppPlayLearnRouteImport } from './routes/_app/play.learn'
 import { Route as AppPlayListenRouteImport } from './routes/_app/play.listen'
 import { Route as AppPlayPlayerRouteImport } from './routes/_app/play.player'
@@ -42,9 +39,13 @@ import { Route as AppPlayShiganRouteImport } from './routes/_app/play.shigan'
 import { Route as AppPlaySpaceRouteImport } from './routes/_app/play.space'
 import { Route as AppPlayTodoRouteImport } from './routes/_app/play.todo'
 import { Route as AppPlayToolsRouteImport } from './routes/_app/play.tools'
-import { Route as AppPlayTruthRouteImport } from './routes/_app/play.truth'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscribe'
+import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
+import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games.gobang'
+import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
+import { Route as AppPlayToolsAlarmsRouteImport } from './routes/_app/play.tools.alarms'
+import { Route as AppPlayToolsTasksRouteImport } from './routes/_app/play.tools.tasks'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -53,11 +54,6 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAlarmsRoute = AppAlarmsRouteImport.update({
-  id: '/alarms',
-  path: '/alarms',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCoreRoute = AppCoreRouteImport.update({
@@ -115,11 +111,6 @@ const AppSystemRoute = AppSystemRouteImport.update({
   path: '/system',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTasksRoute = AppTasksRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppToolsRoute = AppToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -170,11 +161,6 @@ const AppPlayDaysRoute = AppPlayDaysRouteImport.update({
   path: '/days',
   getParentRoute: () => AppPlayRoute,
 } as any)
-const AppPlayGobangRoute = AppPlayGobangRouteImport.update({
-  id: '/gobang',
-  path: '/gobang',
-  getParentRoute: () => AppPlayRoute,
-} as any)
 const AppPlayLearnRoute = AppPlayLearnRouteImport.update({
   id: '/learn',
   path: '/learn',
@@ -210,11 +196,6 @@ const AppPlayToolsRoute = AppPlayToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => AppPlayRoute,
 } as any)
-const AppPlayTruthRoute = AppPlayTruthRouteImport.update({
-  id: '/truth',
-  path: '/truth',
-  getParentRoute: () => AppPlayRoute,
-} as any)
 const ApiPushKeyRoute = ApiPushKeyRouteImport.update({
   id: '/api/push/key',
   path: '/api/push/key',
@@ -225,10 +206,34 @@ const ApiPushSubscribeRoute = ApiPushSubscribeRouteImport.update({
   path: '/api/push/subscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppPlayGamesIndexRoute = AppPlayGamesIndexRouteImport.update({
+  id: '/games/',
+  path: '/games/',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayGamesGobangRoute = AppPlayGamesGobangRouteImport.update({
+  id: '/games/gobang',
+  path: '/games/gobang',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayGamesTruthRoute = AppPlayGamesTruthRouteImport.update({
+  id: '/games/truth',
+  path: '/games/truth',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayToolsAlarmsRoute = AppPlayToolsAlarmsRouteImport.update({
+  id: '/alarms',
+  path: '/alarms',
+  getParentRoute: () => AppPlayToolsRoute,
+} as any)
+const AppPlayToolsTasksRoute = AppPlayToolsTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AppPlayToolsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
-  '/alarms': typeof AppAlarmsRoute
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
@@ -240,7 +245,6 @@ export interface FileRoutesByFullPath {
   '/play': typeof AppPlayRouteWithChildren
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
-  '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
@@ -250,21 +254,23 @@ export interface FileRoutesByFullPath {
   '/api/models': typeof ApiModelsRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
-  '/play/gobang': typeof AppPlayGobangRoute
   '/play/learn': typeof AppPlayLearnRoute
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
-  '/play/tools': typeof AppPlayToolsRoute
-  '/play/truth': typeof AppPlayTruthRoute
+  '/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play/': typeof AppPlayIndexRoute
+  '/play/games/gobang': typeof AppPlayGamesGobangRoute
+  '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
+  '/play/tools/tasks': typeof AppPlayToolsTasksRoute
+  '/play/games/': typeof AppPlayGamesIndexRoute
 }
 export interface FileRoutesByTo {
-  '/alarms': typeof AppAlarmsRoute
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
@@ -275,7 +281,6 @@ export interface FileRoutesByTo {
   '/permissions': typeof AppPermissionsRoute
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
-  '/tasks': typeof AppTasksRoute
   '/tools': typeof AppToolsRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
@@ -286,23 +291,25 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
-  '/play/gobang': typeof AppPlayGobangRoute
   '/play/learn': typeof AppPlayLearnRoute
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
-  '/play/tools': typeof AppPlayToolsRoute
-  '/play/truth': typeof AppPlayTruthRoute
+  '/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/play': typeof AppPlayIndexRoute
+  '/play/games/gobang': typeof AppPlayGamesGobangRoute
+  '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
+  '/play/tools/tasks': typeof AppPlayToolsTasksRoute
+  '/play/games': typeof AppPlayGamesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
-  '/_app/alarms': typeof AppAlarmsRoute
   '/_app/core': typeof AppCoreRoute
   '/_app/data': typeof AppDataRoute
   '/_app/env': typeof AppEnvRoute
@@ -314,7 +321,6 @@ export interface FileRoutesById {
   '/_app/play': typeof AppPlayRouteWithChildren
   '/_app/space': typeof AppSpaceRoute
   '/_app/system': typeof AppSystemRoute
-  '/_app/tasks': typeof AppTasksRoute
   '/_app/tools': typeof AppToolsRoute
   '/_app/usage': typeof AppUsageRoute
   '/_app/voice': typeof AppVoiceRoute
@@ -325,24 +331,26 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
   '/_app/play/days': typeof AppPlayDaysRoute
-  '/_app/play/gobang': typeof AppPlayGobangRoute
   '/_app/play/learn': typeof AppPlayLearnRoute
   '/_app/play/listen': typeof AppPlayListenRoute
   '/_app/play/player': typeof AppPlayPlayerRoute
   '/_app/play/shigan': typeof AppPlayShiganRoute
   '/_app/play/space': typeof AppPlaySpaceRoute
   '/_app/play/todo': typeof AppPlayTodoRoute
-  '/_app/play/tools': typeof AppPlayToolsRoute
-  '/_app/play/truth': typeof AppPlayTruthRoute
+  '/_app/play/tools': typeof AppPlayToolsRouteWithChildren
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/_app/play/': typeof AppPlayIndexRoute
+  '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
+  '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
+  '/_app/play/tools/tasks': typeof AppPlayToolsTasksRoute
+  '/_app/play/games/': typeof AppPlayGamesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/alarms'
     | '/core'
     | '/data'
     | '/env'
@@ -354,7 +362,6 @@ export interface FileRouteTypes {
     | '/play'
     | '/space'
     | '/system'
-    | '/tasks'
     | '/tools'
     | '/usage'
     | '/voice'
@@ -364,7 +371,6 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/play/add'
     | '/play/days'
-    | '/play/gobang'
     | '/play/learn'
     | '/play/listen'
     | '/play/player'
@@ -372,13 +378,16 @@ export interface FileRouteTypes {
     | '/play/space'
     | '/play/todo'
     | '/play/tools'
-    | '/play/truth'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play/'
+    | '/play/games/gobang'
+    | '/play/games/truth'
+    | '/play/tools/alarms'
+    | '/play/tools/tasks'
+    | '/play/games/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/alarms'
     | '/core'
     | '/data'
     | '/env'
@@ -389,7 +398,6 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/space'
     | '/system'
-    | '/tasks'
     | '/tools'
     | '/usage'
     | '/voice'
@@ -400,7 +408,6 @@ export interface FileRouteTypes {
     | '/'
     | '/play/add'
     | '/play/days'
-    | '/play/gobang'
     | '/play/learn'
     | '/play/listen'
     | '/play/player'
@@ -408,14 +415,17 @@ export interface FileRouteTypes {
     | '/play/space'
     | '/play/todo'
     | '/play/tools'
-    | '/play/truth'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/play'
+    | '/play/games/gobang'
+    | '/play/games/truth'
+    | '/play/tools/alarms'
+    | '/play/tools/tasks'
+    | '/play/games'
   id:
     | '__root__'
     | '/_app'
-    | '/_app/alarms'
     | '/_app/core'
     | '/_app/data'
     | '/_app/env'
@@ -427,7 +437,6 @@ export interface FileRouteTypes {
     | '/_app/play'
     | '/_app/space'
     | '/_app/system'
-    | '/_app/tasks'
     | '/_app/tools'
     | '/_app/usage'
     | '/_app/voice'
@@ -438,7 +447,6 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/play/add'
     | '/_app/play/days'
-    | '/_app/play/gobang'
     | '/_app/play/learn'
     | '/_app/play/listen'
     | '/_app/play/player'
@@ -446,10 +454,14 @@ export interface FileRouteTypes {
     | '/_app/play/space'
     | '/_app/play/todo'
     | '/_app/play/tools'
-    | '/_app/play/truth'
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/_app/play/'
+    | '/_app/play/games/gobang'
+    | '/_app/play/games/truth'
+    | '/_app/play/tools/alarms'
+    | '/_app/play/tools/tasks'
+    | '/_app/play/games/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -475,13 +487,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/alarms': {
-      id: '/_app/alarms'
-      path: '/alarms'
-      fullPath: '/alarms'
-      preLoaderRoute: typeof AppAlarmsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/core': {
@@ -561,13 +566,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSystemRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/tasks': {
-      id: '/_app/tasks'
-      path: '/tasks'
-      fullPath: '/tasks'
-      preLoaderRoute: typeof AppTasksRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/tools': {
       id: '/_app/tools'
       path: '/tools'
@@ -638,13 +636,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayDaysRouteImport
       parentRoute: typeof AppPlayRoute
     }
-    '/_app/play/gobang': {
-      id: '/_app/play/gobang'
-      path: '/gobang'
-      fullPath: '/play/gobang'
-      preLoaderRoute: typeof AppPlayGobangRouteImport
-      parentRoute: typeof AppPlayRoute
-    }
     '/_app/play/learn': {
       id: '/_app/play/learn'
       path: '/learn'
@@ -694,13 +685,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayToolsRouteImport
       parentRoute: typeof AppPlayRoute
     }
-    '/_app/play/truth': {
-      id: '/_app/play/truth'
-      path: '/truth'
-      fullPath: '/play/truth'
-      preLoaderRoute: typeof AppPlayTruthRouteImport
-      parentRoute: typeof AppPlayRoute
-    }
     '/api/push/key': {
       id: '/api/push/key'
       path: '/api/push/key'
@@ -715,44 +699,94 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushSubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/play/games/': {
+      id: '/_app/play/games/'
+      path: '/games'
+      fullPath: '/play/games/'
+      preLoaderRoute: typeof AppPlayGamesIndexRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/games/gobang': {
+      id: '/_app/play/games/gobang'
+      path: '/games/gobang'
+      fullPath: '/play/games/gobang'
+      preLoaderRoute: typeof AppPlayGamesGobangRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/games/truth': {
+      id: '/_app/play/games/truth'
+      path: '/games/truth'
+      fullPath: '/play/games/truth'
+      preLoaderRoute: typeof AppPlayGamesTruthRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/tools/alarms': {
+      id: '/_app/play/tools/alarms'
+      path: '/alarms'
+      fullPath: '/play/tools/alarms'
+      preLoaderRoute: typeof AppPlayToolsAlarmsRouteImport
+      parentRoute: typeof AppPlayToolsRoute
+    }
+    '/_app/play/tools/tasks': {
+      id: '/_app/play/tools/tasks'
+      path: '/tasks'
+      fullPath: '/play/tools/tasks'
+      preLoaderRoute: typeof AppPlayToolsTasksRouteImport
+      parentRoute: typeof AppPlayToolsRoute
+    }
   }
 }
+
+interface AppPlayToolsRouteChildren {
+  AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
+  AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
+}
+
+const AppPlayToolsRouteChildren: AppPlayToolsRouteChildren = {
+  AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
+  AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
+}
+
+const AppPlayToolsRouteWithChildren = AppPlayToolsRoute._addFileChildren(
+  AppPlayToolsRouteChildren,
+)
 
 interface AppPlayRouteChildren {
   AppPlayAddRoute: typeof AppPlayAddRoute
   AppPlayDaysRoute: typeof AppPlayDaysRoute
-  AppPlayGobangRoute: typeof AppPlayGobangRoute
   AppPlayLearnRoute: typeof AppPlayLearnRoute
   AppPlayListenRoute: typeof AppPlayListenRoute
   AppPlayPlayerRoute: typeof AppPlayPlayerRoute
   AppPlayShiganRoute: typeof AppPlayShiganRoute
   AppPlaySpaceRoute: typeof AppPlaySpaceRoute
   AppPlayTodoRoute: typeof AppPlayTodoRoute
-  AppPlayToolsRoute: typeof AppPlayToolsRoute
-  AppPlayTruthRoute: typeof AppPlayTruthRoute
+  AppPlayToolsRoute: typeof AppPlayToolsRouteWithChildren
   AppPlayIndexRoute: typeof AppPlayIndexRoute
+  AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
+  AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
+  AppPlayGamesIndexRoute: typeof AppPlayGamesIndexRoute
 }
 
 const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayAddRoute: AppPlayAddRoute,
   AppPlayDaysRoute: AppPlayDaysRoute,
-  AppPlayGobangRoute: AppPlayGobangRoute,
   AppPlayLearnRoute: AppPlayLearnRoute,
   AppPlayListenRoute: AppPlayListenRoute,
   AppPlayPlayerRoute: AppPlayPlayerRoute,
   AppPlayShiganRoute: AppPlayShiganRoute,
   AppPlaySpaceRoute: AppPlaySpaceRoute,
   AppPlayTodoRoute: AppPlayTodoRoute,
-  AppPlayToolsRoute: AppPlayToolsRoute,
-  AppPlayTruthRoute: AppPlayTruthRoute,
+  AppPlayToolsRoute: AppPlayToolsRouteWithChildren,
   AppPlayIndexRoute: AppPlayIndexRoute,
+  AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
+  AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
+  AppPlayGamesIndexRoute: AppPlayGamesIndexRoute,
 }
 
 const AppPlayRouteWithChildren =
   AppPlayRoute._addFileChildren(AppPlayRouteChildren)
 
 interface AppRouteChildren {
-  AppAlarmsRoute: typeof AppAlarmsRoute
   AppCoreRoute: typeof AppCoreRoute
   AppDataRoute: typeof AppDataRoute
   AppEnvRoute: typeof AppEnvRoute
@@ -764,7 +798,6 @@ interface AppRouteChildren {
   AppPlayRoute: typeof AppPlayRouteWithChildren
   AppSpaceRoute: typeof AppSpaceRoute
   AppSystemRoute: typeof AppSystemRoute
-  AppTasksRoute: typeof AppTasksRoute
   AppToolsRoute: typeof AppToolsRoute
   AppUsageRoute: typeof AppUsageRoute
   AppVoiceRoute: typeof AppVoiceRoute
@@ -773,7 +806,6 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAlarmsRoute: AppAlarmsRoute,
   AppCoreRoute: AppCoreRoute,
   AppDataRoute: AppDataRoute,
   AppEnvRoute: AppEnvRoute,
@@ -785,7 +817,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppPlayRoute: AppPlayRouteWithChildren,
   AppSpaceRoute: AppSpaceRoute,
   AppSystemRoute: AppSystemRoute,
-  AppTasksRoute: AppTasksRoute,
   AppToolsRoute: AppToolsRoute,
   AppUsageRoute: AppUsageRoute,
   AppVoiceRoute: AppVoiceRoute,

@@ -54,18 +54,24 @@ export const TERTIARY_PARENT: Record<string, string> = {
   // 「模型与用量」下面一项
   "/memory": "/usage",
 
-  // 「系统」下面三项（注意 /permissions 和 /inner 也在 /core 里，
-  // 两处都能进 → 统一按「更靠上的那个父级」算，也就是 /core）
-  "/alarms": "/system",
-  "/tasks": "/system",
+  // 「系统」下面一项
   "/env": "/system",
 
-  // 玩乐区：小日子下面三项
-  "/play/gobang": "/play/tools",
+  /*
+    玩乐区 —— 两级子分区：
+      /play/tools  小日子  →  days / todo / alarms / tasks
+      /play/games  小游戏  →  gobang / truth
+    以后往小游戏里加新游戏，**只要在这里补一行**，
+    返回钮和 verify-hierarchy 就都跟着对了。
+  */
   "/play/days": "/play/tools",
   "/play/todo": "/play/tools",
+  "/play/tools/alarms": "/play/tools",
+  "/play/tools/tasks": "/play/tools",
+  "/play/games/gobang": "/play/games",
+  "/play/games/truth": "/play/games",
 
-  // 玩乐区：音乐列表下面一项
+  // 音乐列表下面一项
   "/play/add": "/play/listen",
 };
 
@@ -121,6 +127,7 @@ export function backLabelOf(path: string): string {
     "/data": "返回数据",
     "/system": "返回系统",
     "/play/tools": "返回小日子",
+    "/play/games": "返回小游戏",
     "/play/listen": "返回音乐",
   };
   return names[parent] ?? "返回上一级";

@@ -25,15 +25,28 @@ const TERTIARY_PARENT = {
   "/inner": "/core",
   "/memories": "/core",
   "/memory": "/usage",
-  "/alarms": "/system",
-  "/tasks": "/system",
   "/env": "/system",
-  "/play/gobang": "/play/tools",
+  // 玩乐区两级子分区
   "/play/days": "/play/tools",
   "/play/todo": "/play/tools",
+  "/play/tools/alarms": "/play/tools",
+  "/play/tools/tasks": "/play/tools",
+  "/play/games/gobang": "/play/games",
+  "/play/games/truth": "/play/games",
   "/play/add": "/play/listen",
 };
 const ROOT_PATHS = ["/", "/tools", "/play", "/me"];
+
+/**
+ * **故意没有标题栏/返回钮**的页面 —— 它们整页就是别的东西。
+ *
+ *   /play/shigan 一个铺满屏幕的 iframe（纯时感画面），没有栖岛的任何外框。
+ *                用户："咱们就直接一整个页面就是纯时感插件了就可以"
+ *
+ * 这些页面不该被"必须有返回钮"这条规则判错。
+ * ⚠️ 往这里加东西要谨慎 —— 它等于放弃这一页的返回检查。
+ */
+const NO_CHROME_PAGES = ["/play/shigan"];
 
 function parentOf(path) {
   const p = path.replace(/\/+$/, "") || "/";
@@ -55,20 +68,21 @@ const PAGES = [
   "/inner",
   "/memories",
   "/memory",
-  "/alarms",
-  "/tasks",
   "/env",
   "/voice",
   "/play/listen",
   "/play/add",
   "/play/space",
-  "/play/truth",
   "/play/learn",
   "/play/shigan",
   "/play/tools",
-  "/play/gobang",
   "/play/days",
   "/play/todo",
+  "/play/tools/alarms",
+  "/play/tools/tasks",
+  "/play/games",
+  "/play/games/gobang",
+  "/play/games/truth",
 ];
 
 const browser = await chromium.launch({ channel: "msedge" });
@@ -81,14 +95,20 @@ let bad = 0;
 let checked = 0;
 
 for (const route of PAGES) {
+  const noChrome = NO_CHROME_PAGES.includes(route);
   await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 60000 });
   let href = "(没渲染)";
   try {
-    await page.waitForSelector("header", { timeout: 20000 });
-    href = await page.evaluate(() => {
-      const a = document.querySelector('header a[aria-label^="返回"]');
-      return a ? a.getAttribute("href") : null;
-    });
+    // 无外框的页面（纯 iframe 那种）没有 header，别等它
+    await page.waitForSelector(noChrome ? "body" : "header", { timeout: 20000 });
+    if (!noChrome) {
+      href = await page.evaluate(() => {
+        const a = document.querySelector('header a[aria-label^="返回"]');
+        return a ? a.getAttribute("href") : null;
+      });
+    } else {
+      href = null;
+    }
   } catch {
     href = "(超时)";
   }
@@ -97,7 +117,12 @@ for (const route of PAGES) {
   checked++;
 
   let verdict;
-  if (want === null) {
+  if (noChrome) {
+    // 整页是别的东西（纯 iframe）—— 没有栖岛的外框是**设计要求**，不是错
+    const hasFrame = await page.evaluate(() => Boolean(document.querySelector("iframe")));
+    verdict = hasFrame ? "✅ 纯内容页（整页 iframe，符合设计）" : "❌ 没找到 iframe，这页不该是空的";
+    if (!hasFrame) bad++;
+  } else if (want === null) {
     // 顶级 tab 本来就不该有返回钮
     verdict = href === null ? "✅ 无返回钮（正确）" : `❌ 不该有返回钮，却是 ${href}`;
     if (href !== null) bad++;

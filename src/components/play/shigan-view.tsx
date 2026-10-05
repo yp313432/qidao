@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
 import { useApp } from "@/lib/store";
-import { cn } from "@/lib/utils";
 
 /**
  * 「时感」嵌进来 —— 直接看那个页面，不是调用。
@@ -17,11 +13,8 @@ import { cn } from "@/lib/utils";
  */
 export function ShiganView() {
   const settings = useApp((s) => s.settings);
-  const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<"loading" | "ok" | "stuck">("loading");
   const [dismissed, setDismissed] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(settings.shiganUrl);
 
   /**
    * 地址的默认值：
@@ -86,120 +79,67 @@ export function ShiganView() {
       }
     }, 1500);
     return () => window.clearInterval(iv);
-  }, [url, reloadKey]);
+  }, [url]);
 
+  /*
+    用户："咱们就直接一整个页面就是纯时感插件了就可以"
+          "时感那个插件底部本来就看不到导航栏，然后也不用留了"
+
+    所以这一页**整个就是时感的画面**：没有栖岛的标题栏、没有背景图、
+    没有圆角卡片、没有那条地址栏 —— 也没有底部导航
+    （app-shell 的 hideNav 已经把 /play/ 整段都排除了）。
+
+    代价：原来那个「换地址」入口没了。所以它挪到了
+    「我的 → 我的空间 → 时感地址」——设置归设置，画面归画面。
+  */
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <SceneBackdrop image={settings.diaryImage} />
-      <PlayHeader title="时感" />
+    <div className="relative flex min-h-0 flex-1 flex-col bg-white">
+      {/* 时感自己的页面。不加 sandbox：它是我们自己跑的，脚本要能正常工作。 */}
+      <iframe
+        id="shigan-frame"
+        key={url}
+        src={url}
+        title="时感"
+        onLoad={() => {
+          loadedRef.current = true;
+          setState(probe() === "blank" ? "stuck" : "ok");
+        }}
+        className="size-full border-0 bg-white"
+      />
 
-      <div className="flex items-center justify-between gap-2 px-4">
-        <p className="min-w-0 flex-1 truncate font-mono text-[10px] text-subtle">{url}</p>
-        <button
-          type="button"
-          aria-label="重新加载"
-          onClick={() => setReloadKey((k) => k + 1)}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chip"
-        >
-          <RefreshCw className={cn("size-3.5", state === "loading" && "aster-spin")} />
-        </button>
-        <button
-          type="button"
-          aria-label="换地址"
-          onClick={() => {
-            setDraft(settings.shiganUrl);
-            setEditing((v) => !v);
-          }}
-          className="flex h-8 shrink-0 items-center rounded-full bg-chip px-3 text-[11px]"
-        >
-          换地址
-        </button>
-      </div>
+      {/*
+        提示一律做成**细条贴在顶上**，绝不盖住画面中间 ——
+        想给人看的东西不能被自己的提示挡掉。
+      */}
+      {state === "loading" && (
+        <p className="pointer-events-none absolute inset-x-3 top-3 rounded-full bg-black/55 px-3.5 py-2 text-center text-[11px] text-white backdrop-blur-sm">
+          正在打开时感…
+        </p>
+      )}
 
-      {editing && (
-        <div className="mt-2 px-4">
-          <div className="rounded-2xl border border-line bg-surface px-3.5 py-3">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              aria-label="时感地址"
-              placeholder={auto}
-              className="w-full rounded-xl bg-chip px-3 py-2.5 font-mono text-[12px] outline-none placeholder:text-subtle"
-            />
-            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-              留空就自动用 <span className="font-mono">{auto}</span>。
-              部署到公网之后，把那个地址填在这里。
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  useApp.getState().patchSettings({ shiganUrl: draft.trim() });
-                  setEditing(false);
-                }}
-                className="flex-1 rounded-xl bg-ink py-2 text-[12px] font-medium text-ink-fg"
-              >
-                用这个地址
-              </button>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 rounded-xl bg-chip px-3.5 py-2 text-[12px]"
-              >
-                <ExternalLink className="size-3" />
-                新窗口打开
-              </a>
+      {state === "stuck" && !dismissed && (
+        <div className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/70 px-3.5 py-3 backdrop-blur-md">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-medium text-white">好像没打开</p>
+              <p className="mt-1 text-[11px] leading-4 text-white/80">
+                地址是 <span className="font-mono">{url}</span>。
+                没打开一般是：本地副本没打进这个构建 / 地址不对。
+                想换地址去「我的 → 我的空间 → 时感地址」。
+              </p>
             </div>
+            <button
+              type="button"
+              aria-label="知道了"
+              onClick={() => setDismissed(true)}
+              className="shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-[11px] text-white"
+            >
+              知道了
+            </button>
           </div>
         </div>
       )}
-
-      <div className="mt-3 min-h-0 flex-1 px-4 pb-above-nav">
-        <div className="relative h-full overflow-hidden rounded-[1.6rem] border border-line bg-surface">
-          {/* 时感自己的页面。不加 sandbox：它是我们自己跑的，脚本要能正常工作。 */}
-          <iframe
-            id="shigan-frame"
-            key={`${url}-${reloadKey}`}
-            src={url}
-            title="时感"
-            onLoad={() => {
-              loadedRef.current = true;
-              setState(probe() === "blank" ? "stuck" : "ok");
-            }}
-            className="size-full border-0 bg-white"
-          />
-
-          {/* 提示一律做成"细条"，绝不盖住画面中间 —— 想给人看的东西不能被自己的提示挡掉 */}
-          {state === "loading" && (
-            <p className="pointer-events-none absolute inset-x-3 top-3 rounded-full bg-black/55 px-3.5 py-2 text-center text-[11px] text-white backdrop-blur-sm">
-              正在打开时感…（第一次会慢，Vite 要现编译）
-            </p>
-          )}
-
-          {state === "stuck" && !dismissed && (
-            <div className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/70 px-3.5 py-3 backdrop-blur-md">
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-white">好像没打开</p>
-                  <p className="mt-1 text-[11px] leading-4 text-white/80">
-                    iframe 不会告诉我原因（跨域），常见三种：时感没在跑 / 地址不对 /
-                    手机上打开时时感得跑在同一台电脑上。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="知道了"
-                  onClick={() => setDismissed(true)}
-                  className="shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-[11px] text-white"
-                >
-                  知道了
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
+

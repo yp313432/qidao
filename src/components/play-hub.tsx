@@ -5,11 +5,11 @@ import {
   CalendarHeart,
   ChevronRight,
   Disc3,
+  Gamepad2,
   GraduationCap,
   Hourglass,
   ImagePlus,
   Sparkles,
-  Spade,
   X,
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
@@ -241,7 +241,13 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
   { to: "/play/listen", label: "音乐", icon: Disc3 },
   { to: "/play/space", label: "动态空间", icon: BookHeart },
   { to: "/play/tools", label: "小日子", icon: CalendarHeart },
-  { to: "/play/truth", label: "真心话", icon: Spade },
+  /*
+    「真心话」原来单独一格，现在跟五子棋合并成了「小游戏」分区
+    （用户："把五子棋放到真心话那里，他们俩做成一个分区叫小游戏，
+           点进去有这两个游戏，后续我还要加小游戏类型的"）。
+    真心话还在，只是从这一格**挪进了小游戏里面**。
+  */
+  { to: "/play/games", label: "小游戏", icon: Gamepad2 },
   { to: "/play/learn", label: "英语学习", icon: GraduationCap },
   { to: "/play/shigan", label: "时感", icon: Hourglass },
 ];

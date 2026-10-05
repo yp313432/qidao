@@ -1011,24 +1011,12 @@ function MeSections({ tab }: { tab: MeTab }) {
           </label>
         )}
 
-        {/* 提醒/闹钟列表在独立页（说明比较长，放这一页会把页面撑长） */}
-        <Link
-          to="/alarms"
-          className="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-        >
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium">闹钟 / 提醒</span>
-            <span className="mt-0.5 block text-[11px] text-muted">
-              {reminders.length > 0
-                ? `${reminders.filter((r) => r.ring).length} 个响铃 · 共 ${reminders.length} 个`
-                : "还没设过 —— 也可以直接跟他说「明早七点半叫我」"}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              到点全屏响铃（带声音）；App 关着靠系统定时通知
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
+        {/*
+          「闹钟 / 提醒」的列表入口**已挪到「玩乐 → 小日子 → 闹钟」**
+          （用户："把闹钟和定时任务都挪到小日子这个组件里面呗，
+                 然后我的区里面就删掉就不用重复了"）。
+          这里只留上面那个"日记提醒时间"的开关 —— 它属于通知设置，不是闹钟。
+        */}
       </Section>
 
       <Section title="定位">
@@ -1191,26 +1179,11 @@ function MeSections({ tab }: { tab: MeTab }) {
         )}
       </Section>
 
-      {/* 定时任务：让他到点自己开口 */}
-      <Section title="定时任务">
-        <Link
-          to="/tasks"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-        >
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium">让他按时自己开口</span>
-            <span className="mt-0.5 block text-[11px] text-muted">
-              {tasks.filter((t) => t.enabled).length > 0
-                ? `${tasks.filter((t) => t.enabled).length} 个开着`
-                : "还没设过 —— 也可以直接跟他说「每天早上八点跟我说句早安」"}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              App 开着时他真会说；关掉时靠系统通知兜底
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
-      </Section>
+      {/*
+        「定时任务」那一段**已挪到「玩乐 → 小日子 → 定时任务」**
+        （跟闹钟一起挪的，用户要求，理由是"这样看着分类更准一点"）。
+        这一页不再重复。
+      */}
 
       <Section title="开发与纠错">
         {/* Section 里的子元素是直接堆叠的，多张卡片必须自己包一层间距，

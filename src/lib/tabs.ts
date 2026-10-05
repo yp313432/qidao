@@ -33,9 +33,14 @@ export const TAB_OWNED_PATHS: Record<string, string[]> = {
     "/inner",
     "/memories",
     "/memory",
-    "/alarms",
-    "/tasks",
     "/env",
+    /*
+      ⚠️ /alarms 和 /tasks 从这份表里**拿掉了** ——
+      它们已经挪到「玩乐 → 小日子」下面，路径变成
+      /play/tools/alarms 和 /play/tools/tasks，
+      前缀比对（/play/...）自然就归到「玩乐」了，不需要在这里登记。
+      留在这里反而会让高亮走错 tab。
+    */
   ],
 };
 
