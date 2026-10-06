@@ -1,4 +1,5 @@
 import type { Attachment } from "@/lib/types";
+import { createVad, rmsOfWaveform } from "@/lib/vad";
 import { uid } from "@/lib/utils";
 
 /**
@@ -28,9 +29,32 @@ export type Recorder = {
   /** 停止并产出附件；取消过、或没录到东西就返回 null */
   stop: () => Promise<Attachment | null>;
   cancel: () => void;
+  /**
+   * 录音**自己结束**时（说完自动停）带着附件 resolve。
+   *
+   * 为什么要有它：开着"说完自动停"时，没有任何人去点停止 ——
+   * 调用方得有个东西可以 await。手动 `stop()` 也会让同一个 promise 落地，
+   * 所以两种情况用同一个等待点，不需要判断谁先谁后。
+   */
+  done: Promise<Attachment | null>;
 };
 
-export async function startRecording(onTick?: (ms: number) => void): Promise<Recorder> {
+export type RecordOptions = {
+  /**
+   * **说完自动停**：连续这么久没声音就结束录音（毫秒）。
+   * 不传 = 老行为（录到手动停或到上限）—— 语音消息那条路不受影响。
+   */
+  stopOnSilenceMs?: number;
+  /** 最长录多久（默认 60 秒；通话模式会传更短的值） */
+  maxMs?: number;
+  /** 每次采样回调音量（0-1），给界面画波形/显示"听见了"用 */
+  onLevel?: (rms: number) => void;
+};
+
+export async function startRecording(
+  onTick?: (ms: number) => void,
+  opts: RecordOptions = {},
+): Promise<Recorder> {
   if (!recordSupported()) {
     throw new Error("这个浏览器不支持录音（需要 https 或 localhost）");
   }
@@ -75,20 +99,104 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
    */
   const transcript = "";
 
+  /**
+   * ── 说完自动停（通话模式）────────────────────────────────────────────
+   *
+   * 原来的语音服务那条路是**固定录 6 秒**：你说 1 秒说完，还要再干等 5 秒。
+   * 这里接上一路音量分析：连续 `stopOnSilenceMs` 低于阈值就自己收尾。
+   *
+   * 用的是**同一个 stream**（不再开第二个麦克风 —— 这个项目已经被
+   * "两路抢设备"坑过一次，见上面那段注释）。
+   */
+  let audioCtx: AudioContext | null = null;
+  let levelTimer = 0;
+  if (opts.stopOnSilenceMs && opts.stopOnSilenceMs > 0) {
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (Ctor) {
+      try {
+        audioCtx = new Ctor();
+        // 有些环境（含安卓 WebView）新建的 AudioContext 是 suspended 的 ——
+        // 那样 analyser 只会读到全零，等于永远"没声音"，说完自动停就废了
+        if (audioCtx.state === "suspended") void audioCtx.resume().catch(() => undefined);
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        const wave = new Uint8Array(analyser.fftSize);
+        const vad = createVad({
+          silenceMs: opts.stopOnSilenceMs,
+          maxMs: opts.maxMs ?? MAX_MS,
+        });
+        levelTimer = window.setInterval(() => {
+          analyser.getByteTimeDomainData(wave);
+          const rms = rmsOfWaveform(wave);
+          opts.onLevel?.(rms);
+          const decision = vad.push(rms, Date.now());
+          // done = 说完了；silent = 一直没说话（界面会提示"没听到"）
+          if (decision === "done" || decision === "silent") void finish(false);
+        }, 50);
+      } catch {
+        // 拿不到 AudioContext 就退回"手动停/到上限"的老行为，不能让录音整个废掉
+        audioCtx = null;
+        levelTimer = 0;
+      }
+    }
+  }
+
   const timer = onTick
     ? window.setInterval(() => {
         const ms = Date.now() - startedAt;
         onTick(ms);
-        if (ms >= MAX_MS) void finish(false);
+        if (ms >= (opts.maxMs ?? MAX_MS)) void finish(false);
       }, 200)
     : 0;
 
   function shutdown() {
     if (timer) window.clearInterval(timer);
+    if (levelTimer) window.clearInterval(levelTimer);
+    if (audioCtx) {
+      void audioCtx.close().catch(() => undefined);
+      audioCtx = null;
+    }
     for (const t of stream.getTracks()) t.stop();
   }
 
-  async function finish(wasCancelled: boolean): Promise<Attachment | null> {
+  /**
+   * ⚠️ `finish` 必须**记住那一次的结果**。
+   *
+   * 踩过的坑：说完自动停会自己调一次 `finish(false)`，而调用方随后 `stop()`
+   * 又会调一次 —— 原来的写法第二次会直接 `return null`（`finalized` 已经 true），
+   * 于是**自动停辛苦录到的那段音频被丢掉**，调用方拿到 null 报"没录到声音"。
+   * 所以第一次调用就把 promise 存下来，谁问都返回同一个。
+   */
+  let finished: Promise<Attachment | null> | null = null;
+
+  /**
+   * `done`：**录音自己结束**时落地的 promise。
+   *
+   * ⚠️ 它必须在**录音创建时就挂好**，而不是"读它的时候才去收尾"。
+   * 第一版就是写成 getter → `finish(false)`，结果调用方一 `await rec.done`
+   * 就立刻把录音掐了（实测 90ms、0 字节）—— 名字叫"done"却干着"stop"的事，
+   * 这种错最阴的地方是**测试里看着像"自动停生效了"**（它确实立刻停了）。
+   */
+  let resolveDone: ((att: Attachment | null) => void) | null = null;
+  const donePromise = new Promise<Attachment | null>((resolve) => {
+    resolveDone = resolve;
+  });
+
+  function finish(wasCancelled: boolean): Promise<Attachment | null> {
+    if (!finished) {
+      finished = doFinish(wasCancelled).then((att) => {
+        resolveDone?.(att);
+        return att;
+      });
+    }
+    return finished;
+  }
+
+  async function doFinish(wasCancelled: boolean): Promise<Attachment | null> {
     if (finalized) return null;
     finalized = true;
     const durationMs = Date.now() - startedAt;
@@ -164,5 +272,7 @@ export async function startRecording(onTick?: (ms: number) => void): Promise<Rec
       cancelled = true;
       void finish(true);
     },
+    // 注意：**读它不会停止录音**，只是等它结束（说完自动停 / 手动停 / 到上限）
+    done: donePromise,
   };
 }

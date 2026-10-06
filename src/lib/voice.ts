@@ -14,11 +14,17 @@ import { transcribe, voiceConfigured } from "@/lib/voice-service";
  * 「自己录音 → 上传转文字」这条路。
  *
  * 跟别的识别实现**同一个回调接口**，所以语音页、输入框麦克风都不用改。
- * 录多久：默认 6 秒自动停（也可以在界面上手动停）。
- * 为什么不做"静音自动断"：那要接 AnalyserNode 判音量，代码多、还容易误判，
- * 先用固定时长 —— 界面上有秒数，用户看得见。
+ *
+ * ⚠️ 2026-10 改：「固定录 6 秒」→ **说完自动停**。
+ * 用户的原话："那个说完等 6 秒时间也太长" —— 你说 1 秒说完也要再等 5 秒，
+ * 而真打电话是你**停下来**对方就接。现在连续静音 700ms 就收尾，
+ * 最长 20 秒、一直没说话 8 秒放弃（判定逻辑在 `lib/vad.ts`，有单独验收）。
  */
-const SERVICE_RECORD_MS = 6000;
+
+/** 连续静音多久算"说完了" */
+const SERVICE_SILENCE_MS = 700;
+/** 一句话最长录多久（说个没完也不能一直录） */
+const SERVICE_MAX_MS = 20_000;
 
 function startServiceListening(opts: {
   lang?: string;
@@ -26,31 +32,40 @@ function startServiceListening(opts: {
   onFinal: (text: string) => void;
   onEnd?: () => void;
   onError?: (err: string) => void;
+  /** 实时音量（0-1）—— 通话页拿它画"我在听"的反馈 */
+  onLevel?: (rms: number) => void;
 }): ListenHandle | null {
-  let stopped = false;
-  let rec: { stop: () => Promise<unknown>; cancel: () => void } | null = null;
+  let aborted = false;
+  let harvested = false;
+  let rec: { done: Promise<unknown>; stop: () => Promise<unknown>; cancel: () => void } | null = null;
 
   /**
    * ⚠️ 这里踩过一个**真的把麦克风占死的竞态 bug**（用户："想结束或发送都不行，
    * 像卡了一样"、"时好时坏"）：
    *
    *   startRecording 要 await getUserMedia（第一次还要等权限弹窗），是**慢的**。
-   *   而下面那个 6 秒定时器是**立刻**挂上的。
+   *   而当时有个 6 秒定时器是**立刻**挂上的。
    *   如果 6 秒先到，finish() 里 `const r = rec` 拿到的还是 null →
    *   直接 return、**什么都没停**；随后 rec 才被赋值 → 录音真的开始了，但永远没人停它。
    *   结果：麦克风一直被占着，界面停在"正在录音"，点停止也没反应。
    *
-   * 修法：把"已经决定要停"这个意图独立记成 `stopped`，
+   * 修法：把"已经决定要停"这个意图独立记成 `aborted`，
    * 录音**姗姗来迟**时立刻发现"哦我已经该停了"，当场把它停掉、把麦克风释放。
+   * （现在定时器没了，但这个守卫仍然要留着 —— 用户随时可能在权限弹窗上点停止。）
    */
   void (async () => {
     try {
-      const r = (await startRecording(() => undefined)) as unknown as {
+      const r = (await startRecording(() => undefined, {
+        stopOnSilenceMs: SERVICE_SILENCE_MS,
+        maxMs: SERVICE_MAX_MS,
+        onLevel: opts.onLevel,
+      })) as unknown as {
+        done: Promise<unknown>;
         stop: () => Promise<unknown>;
         cancel: () => void;
       };
-      // 迟到的录音：如果这期间已经按过停止 / 已经超时，立刻收掉，别占着麦克风
-      if (stopped) {
+      // 迟到的录音：如果这期间已经按过停止，立刻收掉，别占着麦克风
+      if (aborted) {
         try {
           r.cancel();
         } catch {
@@ -59,29 +74,24 @@ function startServiceListening(opts: {
         return;
       }
       rec = r;
-      opts.onPartial?.("（录音中…说完等一下，6 秒后自动停）");
-      window.setTimeout(() => {
-        if (!stopped) void finish();
-      }, SERVICE_RECORD_MS);
+      opts.onPartial?.("（在听你说…你停一下我就接）");
+      await harvest(r);
     } catch (e) {
       opts.onError?.(`录不了音：${e instanceof Error ? e.message : "麦克风打不开"}`);
       opts.onEnd?.();
     }
   })();
 
-  async function finish() {
-    if (stopped) return;
-    stopped = true;
-    const r = rec;
-    rec = null;
-    // 录音还没起来（上面那个迟到分支会负责收掉），这里直接报结束，
-    // 不给界面留下"永远在录音"的状态
-    if (!r) {
-      opts.onEnd?.();
-      return;
-    }
+  /**
+   * 等这段录音结束（说完自动停 / 手动停 / 到上限都会让它落地），然后转文字。
+   * 只跑一次 —— 自动停和手动停可能几乎同时发生，重复转写会白花钱。
+   */
+  async function harvest(r: { done: Promise<unknown> }): Promise<void> {
+    if (harvested) return;
+    harvested = true;
     try {
-      const att = (await r.stop()) as { dataUrl?: string } | null;
+      const att = (await r.done) as { dataUrl?: string } | null;
+      if (aborted) return;
       if (!att?.dataUrl) {
         opts.onError?.("没录到声音");
         opts.onEnd?.();
@@ -92,14 +102,21 @@ function startServiceListening(opts: {
       if (out.ok) opts.onFinal(out.text);
       else opts.onError?.(out.reason);
     } catch (e) {
-      opts.onError?.(`转文字出错：${e instanceof Error ? e.message : "未知"}`);
+      if (!aborted) opts.onError?.(`转文字出错：${e instanceof Error ? e.message : "未知"}`);
     }
-    opts.onEnd?.();
+    if (!aborted) opts.onEnd?.();
   }
 
   return {
     stop: () => {
-      void finish();
+      // 手动停：让录音收尾，harvest 接着往下走
+      const r = rec;
+      if (!r) {
+        aborted = true;
+        opts.onEnd?.();
+        return;
+      }
+      void r.stop();
     },
   };
 }
