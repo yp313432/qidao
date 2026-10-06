@@ -196,12 +196,14 @@ export function HttpTools() {
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
       >
         <Sparkles className="size-4" />
-        加几个能用的示例（天气 / 搜 GitHub / 汇率 / 一言）
+        加几个能用的示例（新闻 / 天气 / 热搜 / 搜 GitHub …）
       </button>
       {added && <p className="px-1 pt-1 text-[12px] text-accent">{added}</p>}
 
       <p className="px-1 pt-2 text-[11px] leading-4 text-subtle">
-        示例都是<span className="text-fg">实测能在浏览器里调通</span>的公开接口（不用 key）。
+        示例都是<span className="text-fg">实测能在浏览器里调通</span>的公开接口。
+        其中「微博热搜 / 抖音热榜」<span className="text-fg">需要你自己的 key</span>
+        （默认关着，去 tianapi.com 免费注册拿到 key 填进网址再打开）。
         像「抓普通网页」那种做不到 —— 浏览器有跨域限制，绝大多数网站不允许别的页面读它的内容
         （百度、example.com 都试过，会被挡住）。
       </p>

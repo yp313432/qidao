@@ -72,24 +72,52 @@ await page.getByRole("button", { name: /加几个能用的示例/ }).click();
 await page.locator("article").first().waitFor({ timeout: 20000 });
 
 const text = await page.locator("body").innerText();
-check("提示说加进来了几个", text.includes("加进来了 4 个示例"), text.match(/加进来了[^\n]*/)?.[0] ?? "");
-for (const name of ["天气（可改经纬度）", "搜 GitHub 仓库", "人民币汇率", "随机一言"]) {
+check("提示说加进来了几个", text.includes("加进来了 7 个示例"), text.match(/加进来了[^\n]*/)?.[0] ?? "");
+for (const name of [
+  "天气（可改经纬度）",
+  "搜 GitHub 仓库",
+  "人民币汇率",
+  "随机一言",
+  "今日新闻（免 key）",
+  "微博热搜（要填自己的 key）",
+  "抖音热榜（要填自己的 key）",
+]) {
   check(`示例「${name}」在列表里`, text.includes(name));
 }
 
 /* 2. 能看出"哪几个值可以被星芒改" */
 check("天气那条标出了经纬度可改", text.includes("可改参数：latitude、longitude、current"), "latitude、longitude、current");
 check("搜 GitHub 那条标出了搜索词可改", text.includes("可改参数：q、per_page"), "q、per_page");
+/*
+  ⚠️ 密钥不许出现在"可改参数"里 —— 否则等于邀请模型去改用户的 key。
+  热搜那条的网址里就有 key=test，必须被过滤掉。
+*/
+check(
+  "热搜那条**没有**把 key 列成可改参数（防止模型改坏/泄露密钥）",
+  !text.includes("可改参数：key"),
+  text.includes("可改参数：key") ? "被列出来了（有问题）" : "",
+);
+check("要 key 的两条默认是**关着**的（关着的不会进提示词）", (await page.locator('article button[role="switch"][aria-checked="false"]').count()) >= 2);
 await page.screenshot({ caret: "initial", path: `${SHOTS}\\http-examples.png` });
 
 /* 3. 点两次不会重复加 */
 await page.getByRole("button", { name: /加几个能用的示例/ }).click();
 await page.waitForTimeout(800);
 const after = await page.locator("article").count();
-check("再点一次不会重复加（按名字去重）", after === 4, `现在 ${after} 条`);
+check("再点一次不会重复加（按名字去重）", after === 7, `现在 ${after} 条`);
 check("第二次点会说「都已经有了」", (await page.locator("body").innerText()).includes("都已经有了"));
 
 /* 4. 示例真的能调通（外网依赖） */
+const newsCard = page.locator("article").filter({ hasText: "今日新闻" });
+await newsCard.getByRole("button", { name: "调用" }).click();
+await newsCard.locator("pre").waitFor({ timeout: 40000 });
+const newsText = await newsCard.innerText();
+check(
+  "示例「今日新闻」真的调通了（免 key 那条）",
+  newsText.includes("HTTP 200") && newsText.includes("news"),
+  newsText.replace(/\s+/g, " ").slice(-80),
+);
+
 const ghCard = page.locator("article").filter({ hasText: "搜 GitHub 仓库" });
 await ghCard.getByRole("button", { name: "调用" }).click();
 await ghCard.locator("pre").waitFor({ timeout: 40000 });

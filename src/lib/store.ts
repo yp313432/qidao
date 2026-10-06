@@ -188,6 +188,43 @@ export const EXAMPLE_HTTP_TOOLS: HttpTool[] = [
     body: "",
     enabled: true,
   },
+  {
+    id: "tool_demo_news",
+    name: "示例 · 今日新闻（免 key）",
+    description: "60秒读懂世界，不用 key。返回当天 15 条新闻标题 —— 想知道「今天发生了什么」就调它。",
+    method: "GET",
+    url: "https://60s.viki.moe/v2/60s",
+    headersText: "",
+    body: "",
+    enabled: true,
+  },
+  /*
+    下面两条**默认关着**，因为要用户自己的 key。
+    为什么还是放进来：这样用户拿到 key 之后只需要"改一处 + 打开开关"，
+    不用去抄网址。关着的工具不会进提示词，所以模型看不到、也不会乱调。
+  */
+  {
+    id: "tool_demo_weibohot",
+    name: "示例 · 微博热搜（要填自己的 key）",
+    description:
+      "天行数据接口。去 tianapi.com 免费注册拿 key，把网址里的 key=test 换成你的，再打开右边开关就能用。",
+    method: "GET",
+    url: "https://apis.tianapi.com/weibohot/index?key=test",
+    headersText: "",
+    body: "",
+    enabled: false,
+  },
+  {
+    id: "tool_demo_douyinhot",
+    name: "示例 · 抖音热榜（要填自己的 key）",
+    description:
+      "同上，天行数据的抖音热榜。抖音上的梗和热点基本都在这个榜上（同样是换 key 后打开开关）。",
+    method: "GET",
+    url: "https://apis.tianapi.com/douyinhot/index?key=test",
+    headersText: "",
+    body: "",
+    enabled: false,
+  },
 ];
 
 function titleFrom(text: string): string {

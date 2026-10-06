@@ -20,6 +20,38 @@ function asString(v: unknown): string {
 }
 
 /**
+ * 哪些查询参数**不该**被当成"可改参数"。
+ *
+ * 为什么：很多国内接口把密钥直接写在网址里（`?key=xxx`、`?appkey=xxx`）。
+ * 要是把它列成"可改参数"，等于**邀请模型去改你的密钥** ——
+ * 改坏了接口就 401，泄露了更麻烦（它会出现在提示词和调用日志里）。
+ * 所以密钥类的名字从清单里剔除，模型只能动别的。
+ *
+ * 注意别误伤：`keyword`（关键词）**不算**密钥 —— 所以用的是"结尾匹配"，
+ * 而不是"包含 key 就算"。
+ */
+const SECRET_EXACT = new Set([
+  "key",
+  "auth",
+  "authorization",
+  "password",
+  "passwd",
+  "pwd",
+  "sig",
+  "sign",
+  "signature",
+  "cookie",
+  "session",
+]);
+const SECRET_SUFFIX = ["key", "token", "secret"];
+
+function looksSecret(name: string): boolean {
+  const n = name.toLowerCase();
+  if (SECRET_EXACT.has(n)) return true;
+  return SECRET_SUFFIX.some((s) => n.endsWith(s) && n !== s);
+}
+
+/**
  * 这个工具**能被改的参数**有哪些 —— 从用户配好的请求里**推导**出来，不额外加 UI。
  *
  *   · GET / DELETE：网址里已有的查询参数（`?city=hangzhou` → `city`）
@@ -31,7 +63,7 @@ function asString(v: unknown): string {
 export function paramsOfTool(tool: HttpTool): string[] {
   if (tool.method === "GET" || tool.method === "DELETE") {
     try {
-      return [...new Set(new URL(tool.url).searchParams.keys())];
+      return [...new Set(new URL(tool.url).searchParams.keys())].filter((k) => !looksSecret(k));
     } catch {
       return [];
     }
@@ -41,7 +73,7 @@ export function paramsOfTool(tool: HttpTool): string[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return Object.keys(parsed as Record<string, unknown>);
+      return Object.keys(parsed as Record<string, unknown>).filter((k) => !looksSecret(k));
     }
   } catch {
     /* 不是 JSON 就没有可改的参数 */
