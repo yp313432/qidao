@@ -128,15 +128,26 @@ check("② 最明显那一瓣认得出来", logic.topLabel === "想念" || logic
 await page.goto(`${BASE}/inner`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForTimeout(1500);
 
-const petalCount = await page.locator("svg ellipse").count();
+const petalCount = await page.locator("svg path[data-petal]").count();
 const labelCount = await page.locator("svg text").count();
 const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-// 每瓣都有一点点长度（词表里有的就看得见），"没报过"的那几瓣明显更短
-const ry = await page.$$eval("svg ellipse", (els) => els.map((e) => Number(e.getAttribute("ry"))));
+// 每瓣都有一点点长度（词表里有的就看得见）：量渲染出来的包围盒高度
+const petalHeights = await page.$$eval("svg path[data-petal]", (els) =>
+  els.map((e) => Math.round(e.getBoundingClientRect().height)),
+);
 
 check("③ 花瓣画出来了（两朵 × 11 瓣 = 22）", petalCount === 22, `${petalCount} 瓣`);
 check("③ 标签 + 花心文字都在（22 标签 + 4 花心 = 26）", labelCount === 26, `${labelCount} 个`);
-check("③ 没报过的维度也留了一点点（看得出词表里有它）", ry.length > 0 && Math.min(...ry) > 3, `最短 ry=${Math.min(...ry).toFixed(1)}`);
+check(
+  "③ 没报过的维度也留了一点点（看得出词表里有它，但明显短）",
+  petalHeights.length > 0 && Math.min(...petalHeights) >= 2,
+  `最短 ${Math.min(...petalHeights)}px / 最长 ${Math.max(...petalHeights)}px`,
+);
+check(
+  "③ 「不用突出这么长」：最长那瓣不超过整朵的三分之二（不再是细长条）",
+  Math.max(...petalHeights) / 330 <= 0.72,
+  `最长 ${Math.max(...petalHeights)}px`,
+);
 check("③ 花心写着最明显那瓣的名字", text.includes("想念") || text.includes("偏爱"));
 check("③ 图下面把数值写清楚了（读得出精确值）", /想念 \d+%|偏爱 \d+%/.test(text), text.match(/(想念|偏爱) \d+%/)?.[0] ?? "");
 check("③ 老存档那笔也变成了花瓣（30 天平均那朵有值）", text.includes("最近 30 天 · 平均"));
