@@ -180,6 +180,31 @@ export default async function qidaoGateMiddleware(
   const token = cookieValue(event.req.headers.get("cookie"));
   if (token && safeEqual(token, expected)) return next();
 
+  /*
+    App（安卓）**没法带 cookie** —— 手机上的 HTTP 工具只能自己设请求头或参数。
+    所以额外认两种"带票"方式，签名比对跟 cookie 那条完全一样（固定时间）：
+      ① 请求头 `x-qidao-pass`
+      ② 查询参数 `?pass=`
+    为什么两种都要：带自定义头会触发**跨域预检**，而预检在 dev server 上会被
+    Vite 自带的 CORS 先答掉（返回的头部不含自定义头）—— 也就是说"只认请求头"
+    会让 App 在预检那一步就发不出请求，且报错像网络问题。查询参数不触发预检，
+    在 dev / 线上、浏览器 / WebView 里都成立，所以 App 那边用 ②。
+
+    为什么不做成"某个路径免检"：那样任何拿到域名的人都能白嫖 `/api/*`
+    （读网页、搜索都会替别人跑）。宁可让 App 多带一个 token。
+  */
+  const headerPass = (event.req.headers.get("x-qidao-pass") ?? "").trim();
+  if (headerPass && safeEqual(await signature(headerPass), expected)) return next();
+  const queryPass = (event.url.searchParams.get("pass") ?? "").trim();
+  if (queryPass && safeEqual(await signature(queryPass), expected)) return next();
+
+  /*
+    跨域预检放行：预检是浏览器**自动**发的 OPTIONS，不携带 cookie、也不带自定义头，
+    拦它只会让 App 连请求都发不出去。路由自己用 CORS 头回答它 —— 预检本身不带数据，
+    放行不泄露任何东西，也不消耗上游额度。
+  */
+  if (method === "OPTIONS" && path.startsWith("/api/")) return next();
+
   // 没票：拦住。接口返回 JSON，页面返回那张门。
   if (path.startsWith("/api/")) {
     return new Response(JSON.stringify({ error: "unauthorized", message: "需要先过口令门" }), {

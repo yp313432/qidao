@@ -37,6 +37,8 @@ const SECRET_EXACT = new Set([
   "password",
   "passwd",
   "pwd",
+  "pass",
+  "passphrase",
   "sig",
   "sign",
   "signature",

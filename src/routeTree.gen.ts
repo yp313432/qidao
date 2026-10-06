@@ -26,8 +26,11 @@ import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiHotRouteImport } from './routes/api/hot'
 import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiReadRouteImport } from './routes/api/read'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
@@ -135,6 +138,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotRoute = ApiHotRouteImport.update({
+  id: '/api/hot',
+  path: '/api/hot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLyricsRoute = ApiLyricsRouteImport.update({
   id: '/api/lyrics',
   path: '/api/lyrics',
@@ -143,6 +151,16 @@ const ApiLyricsRoute = ApiLyricsRouteImport.update({
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReadRoute = ApiReadRouteImport.update({
+  id: '/api/read',
+  path: '/api/read',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
@@ -273,8 +291,11 @@ export interface FileRoutesByFullPath {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hot': typeof ApiHotRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/read': typeof ApiReadRoute
+  '/api/search': typeof ApiSearchRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -313,8 +334,11 @@ export interface FileRoutesByTo {
   '/voice': typeof AppVoiceRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hot': typeof ApiHotRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/read': typeof ApiReadRoute
+  '/api/search': typeof ApiSearchRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
@@ -357,8 +381,11 @@ export interface FileRoutesById {
   '/_app/voice': typeof AppVoiceRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hot': typeof ApiHotRoute
   '/api/lyrics': typeof ApiLyricsRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/read': typeof ApiReadRoute
+  '/api/search': typeof ApiSearchRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
@@ -402,8 +429,11 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
+    | '/api/hot'
     | '/api/lyrics'
     | '/api/models'
+    | '/api/read'
+    | '/api/search'
     | '/oauth/callback'
     | '/play/add'
     | '/play/days'
@@ -442,8 +472,11 @@ export interface FileRouteTypes {
     | '/voice'
     | '/worldbook'
     | '/api/chat'
+    | '/api/hot'
     | '/api/lyrics'
     | '/api/models'
+    | '/api/read'
+    | '/api/search'
     | '/oauth/callback'
     | '/'
     | '/play/add'
@@ -485,8 +518,11 @@ export interface FileRouteTypes {
     | '/_app/voice'
     | '/_app/worldbook'
     | '/api/chat'
+    | '/api/hot'
     | '/api/lyrics'
     | '/api/models'
+    | '/api/read'
+    | '/api/search'
     | '/oauth/callback'
     | '/_app/'
     | '/_app/play/add'
@@ -515,8 +551,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiHotRoute: typeof ApiHotRoute
   ApiLyricsRoute: typeof ApiLyricsRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiReadRoute: typeof ApiReadRoute
+  ApiSearchRoute: typeof ApiSearchRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
@@ -643,6 +682,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hot': {
+      id: '/api/hot'
+      path: '/api/hot'
+      fullPath: '/api/hot'
+      preLoaderRoute: typeof ApiHotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lyrics': {
       id: '/api/lyrics'
       path: '/api/lyrics'
@@ -655,6 +701,20 @@ declare module '@tanstack/react-router' {
       path: '/api/models'
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/read': {
+      id: '/api/read'
+      path: '/api/read'
+      fullPath: '/api/read'
+      preLoaderRoute: typeof ApiReadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/callback': {
@@ -902,8 +962,11 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiHotRoute: ApiHotRoute,
   ApiLyricsRoute: ApiLyricsRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiReadRoute: ApiReadRoute,
+  ApiSearchRoute: ApiSearchRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
