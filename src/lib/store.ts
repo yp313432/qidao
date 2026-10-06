@@ -131,14 +131,59 @@ const defaultSettings: Settings = {
   permissions: defaultPermissions(),
 };
 
-/** 默认给一个真能用的示例，证明这个面板是「真的发请求」而不是摆设。 */
-const DEFAULT_HTTP_TOOLS: HttpTool[] = [
+/**
+ * 示例 HTTP 工具 —— **都在浏览器里实测过能真的调通**（CORS 放行）。
+ *
+ * 为什么要给示例：这个面板以前是"自己填地址"，用户根本不知道该填什么
+ * （原话："HTTP 工具一般是用来干嘛的？我对他不是很了解"）。给几个真能用的，
+ * 一看就明白它是干什么的。
+ *
+ * ⚠️ 挑示例的标准很硬：**必须亲测过能读到响应**。像"抓普通网页"
+ * （example.com、百度）在浏览器里会被跨域拦住 —— 网络是通的（绕开跨域能拿到
+ * 不透明响应），只是对方没开 CORS。留那种示例只会让人以为工具坏了。
+ *
+ * 另外每条都刻意留了**可改的参数**（见 `lib/http-tools.ts` 的 `paramsOfTool`）：
+ *   · 天气：网址里的 latitude / longitude → 星芒能改坐标
+ *   · 搜 GitHub：网址里的 q → 星芒能改搜索词（这就是"自动搜索"能落地的那部分）
+ *   · 汇率 / 一言：没留参数 → 只能按原样调（演示"参数是可选的"）
+ */
+export const EXAMPLE_HTTP_TOOLS: HttpTool[] = [
   {
     id: "tool_demo_weather",
-    name: "示例 · 上海天气",
-    description: "Open-Meteo 免费接口（无需 key）。点「调用」会真的发一次请求。",
+    name: "示例 · 天气（可改经纬度）",
+    description: "Open-Meteo 免费接口，不用 key。经纬度写在网址里，所以星芒能改坐标换城市。",
     method: "GET",
     url: "https://api.open-meteo.com/v1/forecast?latitude=31.23&longitude=121.47&current=temperature_2m,wind_speed_10m",
+    headersText: "",
+    body: "",
+    enabled: true,
+  },
+  {
+    id: "tool_demo_github",
+    name: "示例 · 搜 GitHub 仓库",
+    description: "GitHub 公开搜索接口，不用 key（有频率限制）。改 q 就能搜别的词。",
+    method: "GET",
+    url: "https://api.github.com/search/repositories?q=react&per_page=3",
+    headersText: "Accept: application/vnd.github+json",
+    body: "",
+    enabled: true,
+  },
+  {
+    id: "tool_demo_fx",
+    name: "示例 · 人民币汇率",
+    description: "open.er-api 免费汇率接口，不用 key。这条**没留可改参数**，所以只能按原样调。",
+    method: "GET",
+    url: "https://open.er-api.com/v6/latest/CNY",
+    headersText: "",
+    body: "",
+    enabled: true,
+  },
+  {
+    id: "tool_demo_hitokoto",
+    name: "示例 · 随机一言",
+    description: "一言（hitokoto）免费接口，不用 key。适合当「随口一句」的小东西。",
+    method: "GET",
+    url: "https://v1.hitokoto.cn/?c=d&encode=json",
     headersText: "",
     body: "",
     enabled: true,
@@ -377,7 +422,7 @@ export const useApp = create<AppState>()(
       activeId: null,
       model: "sonnet",
       mcp: DEFAULT_MCP,
-      httpTools: DEFAULT_HTTP_TOOLS,
+      httpTools: EXAMPLE_HTTP_TOOLS,
       activity: null,
       recentActivity: [],
       pendingActions: [],

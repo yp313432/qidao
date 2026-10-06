@@ -1,6 +1,7 @@
 import { buildManual } from "@/lib/manual";
+import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
+import type { HttpTool, McpServer, McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
  * 拼提示词的地方 —— **服务端和 App 内直连共用这一份**。
@@ -12,8 +13,52 @@ import type { McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
  * 所以：一条规则、一处实现、两边调用。
  */
 
-/** 一个 MCP 服务器 + 它的工具（工具定义用来生成"要什么参数"的说明） */
-export type PromptTool = { name: string; tools: McpTool[] };
+/**
+ * 提示词里"外部工具"那一节的条目 —— **两类工具，形状不一样**：
+ *
+ *   · `mcp`  —— 一个 MCP 服务器 + 它 tools/list 回来的工具定义
+ *     （参数结构是**服务端给的**）
+ *   · `http` —— 用户自己配的一条 HTTP 请求
+ *     （参数是**从他配的请求里推出来的**，见 `lib/http-tools.ts` 的 `paramsOfTool`）
+ *
+ * 为什么要分开：两类"参数"的来源不同，写进提示词的措辞也不同 ——
+ * 一个能说"参数结构如下"，另一个只能说"这几个值可以改，其余是配死的"。
+ */
+export type PromptTool =
+  | { kind: "mcp"; name: string; tools: McpTool[] }
+  | {
+      kind: "http";
+      name: string;
+      method: string;
+      url: string;
+      description: string;
+      /** 用户配好的请求里**能被改**的那些值 */
+      params: string[];
+    };
+
+/**
+ * 把 store 里两份配置拼成提示词要的清单 —— **一处实现**，
+ * `use-chat`（聊天）和 `task-daemon`（定时任务）都调它，免得两处各拼一套。
+ */
+export function promptToolsFor(mcp: McpServer[], http: HttpTool[]): PromptTool[] {
+  return [
+    ...mcp.filter((m) => m.enabled).map(
+      (m): PromptTool => ({ kind: "mcp", name: m.name, tools: m.tools }),
+    ),
+    ...http
+      .filter((t) => t.enabled)
+      .map(
+        (t): PromptTool => ({
+          kind: "http",
+          name: t.name,
+          method: t.method,
+          url: t.url,
+          description: t.description,
+          params: paramsOfTool(t),
+        }),
+      ),
+  ];
+}
 
 export type PromptContext = {
   activity?: string;
@@ -139,6 +184,14 @@ const ABILITIES = `【你能直接操作这个 App】
     可以说"我去查一下"。下一轮拿到结果再讲给它听。
   · 对方要认证而我们还没授权时，工具清单是空的 —— 这时候老实说"这个还没接上，
     得先去「工具 → MCP」点一下去授权"，别硬编一个工具名去调。
+- **调用你自己配的 HTTP 接口** —— 他在「工具 → HTTP」里配的那些请求：
+  {"kind":"http.call","tool":"工具名","args":{"参数名":"值"}}
+  · 工具名、以及**哪几个值可以改**，都在下面清单的「他自己配的 HTTP 接口」那节里。
+  · **args 可以整个不写** —— 那就等于按他配好的原样发一次（他要是没写可改参数，
+    你就只能这么调）。
+  · 只传清单里列出来的名字；**其余部分（网址路径、请求头、没列出的字段）是配死的，你改不了**。
+  · 这个请求是**他的真实接口**，可能有副作用（下单、发消息之类）。看名字/说明不确定时，
+    先问一句"要我去调 XX 吗"，别自己就发了。
 - **你不只会记，还能改和删**（这条很重要，以前你只能记、改不了）。用**内容片段**指定那一条：
   · 改记忆 {"kind":"memory.update","query":"躺平","note":"新的说法","tags":["累"]}
   · 删记忆 {"kind":"memory.remove","query":"躺平"}
@@ -207,20 +260,46 @@ function compactParams(schema: unknown): string {
  */
 function toolCatalog(tools: PromptTool[]): string {
   if (!tools.length) {
-    return "已配置的外部工具：暂时没有。要连 MCP 服务器，去「工具 → MCP」加一个（HTTP 地址）。";
+    return "已配置的外部工具：暂时没有。要连 MCP 服务器去「工具 → MCP」加一个（HTTP 地址）；要调自己的接口去「工具 → HTTP」加一条。";
   }
-  const blocks = tools.map((srv) => {
-    if (!srv.tools.length) {
-      return `· 服务器「${srv.name}」：还拿不到工具清单（多半是没点过「测试连接」，或者对方要授权还没授）。`;
-    }
-    const lines = srv.tools.map((t) => {
-      const desc = t.description ? `：${t.description.slice(0, 80)}` : "";
-      const params = compactParams(t.inputSchema);
-      return `  - ${t.name}${desc}${params ? `\n    参数：${params}` : "（不需要参数）"}`;
+
+  const mcp: Extract<PromptTool, { kind: "mcp" }>[] = [];
+  const http: Extract<PromptTool, { kind: "http" }>[] = [];
+  for (const t of tools) (t.kind === "mcp" ? mcp : http).push(t as never);
+
+  const parts: string[] = [];
+
+  if (mcp.length) {
+    const blocks = mcp.map((srv) => {
+      if (!srv.tools.length) {
+        return `· 服务器「${srv.name}」：还拿不到工具清单（多半是没点过「测试连接」，或者对方要授权还没授）。`;
+      }
+      const lines = srv.tools.map((t) => {
+        const desc = t.description ? `：${t.description.slice(0, 80)}` : "";
+        const params = compactParams(t.inputSchema);
+        return `  - ${t.name}${desc}${params ? `\n    参数：${params}` : "（不需要参数）"}`;
+      });
+      return `· 服务器「${srv.name}」：\n${lines.join("\n")}`;
     });
-    return `· 服务器「${srv.name}」：\n${lines.join("\n")}`;
-  });
-  return `已配置的外部工具（MCP，用 tool.call 调）：\n${blocks.join("\n")}`;
+    parts.push(`【MCP 工具】用 tool.call 调：\n${blocks.join("\n")}`);
+  }
+
+  if (http.length) {
+    /*
+      HTTP 工具的参数**不是**服务端给的，而是从用户配好的请求里推出来的。
+      所以措辞必须诚实：只有列出来的那几个值能动，其余是配死的。
+    */
+    const lines = http.map((t) => {
+      const desc = t.description ? `：${t.description.slice(0, 60)}` : "";
+      const params = t.params.length
+        ? `可改的参数：${t.params.join("、")}（不传就用他配好的值）`
+        : "他配好的请求里没有可改的值（不带参数直接调）";
+      return `  - ${t.name}（${t.method} ${t.url.slice(0, 60)}）${desc}\n    ${params}`;
+    });
+    parts.push(`【他自己配的 HTTP 接口】用 http.call 调：\n${lines.join("\n")}`);
+  }
+
+  return `已配置的外部工具：\n\n${parts.join("\n\n")}`;
 }
 
 /** 稳定的那部分：人设 + 风格 + 工具清单。**每轮都一样**，好让前缀缓存命中。 */

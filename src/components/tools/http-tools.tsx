@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Play, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { useApp } from "@/lib/store";
+import { buildHttpRequest, paramsOfTool } from "@/lib/http-tools";
+import { EXAMPLE_HTTP_TOOLS, useApp } from "@/lib/store";
 import type { HttpTool } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -11,30 +12,56 @@ type Result = { status: number; ms: number; text: string; error?: string };
 /**
  * HTTP 工具**列表**。
  *
- * 新建 / 编辑不在这里弹层了 —— 跳到独立页面 `/tools/http`（编辑某一条带 `?id=`）。
- * 见 `editor-page.tsx` 开头的说明：弹层会被底部导航压住，而且跟 MCP 那份
- * 长得几乎一样却各写一遍。
+ * 两条路都通，而且是**同一份请求构造**（`lib/http-tools.ts`）：
+ *   · 你点「调用」—— 按你配好的原样发一次
+ *   · **星芒自己调**（`http.call` 动作，过权限闸门之后）——
+ *     「可改的参数」是**从你配好的请求里推出来的**：GET 看网址里的查询参数、
+ *     POST/PUT 看请求体的顶层键。所以"你配了什么，他就能改什么"，不用另填说明。
+ *
+ * 新建 / 编辑跳到独立页面 `/tools/http`（原来那个底部弹层会被导航挡住）。
  */
 export function HttpTools() {
   const tools = useApp((s) => s.httpTools);
   const [running, setRunning] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, Result>>({});
+  const [added, setAdded] = useState("");
+
+  /**
+   * 一键加示例 —— 按**名字**去重，点几次都不会重复加。
+   *
+   * 为什么需要它（不只是把示例写进默认值就完事）：
+   * 默认值只对**全新安装**生效，老用户（比如手机上已经装好的）永远看不到。
+   * 有了这个按钮，装上新版点一下就有了，不用手动抄地址。
+   */
+  function addExamples() {
+    const st = useApp.getState();
+    const have = new Set(st.httpTools.map((t) => t.name));
+    let n = 0;
+    for (const ex of EXAMPLE_HTTP_TOOLS) {
+      if (have.has(ex.name)) continue;
+      const { id: _drop, ...rest } = ex;
+      st.addHttpTool(rest);
+      n += 1;
+    }
+    setAdded(n > 0 ? `加进来了 ${n} 个示例` : "示例都已经有了");
+    window.setTimeout(() => setAdded(""), 4000);
+  }
 
   async function run(tool: HttpTool) {
     setRunning(tool.id);
     const started = performance.now();
     try {
-      const headers = new Headers();
-      for (const line of tool.headersText.split(/\r?\n/)) {
-        const i = line.indexOf(":");
-        if (i > 0) headers.set(line.slice(0, i).trim(), line.slice(i + 1).trim());
+      // 跟"星芒自己调"共用同一份请求构造（lib/http-tools.ts）——
+      // 以前这套逻辑写在这个组件里，模型那条路再抄一遍就迟早走偏
+      const built = buildHttpRequest(tool);
+      if (!built.ok) {
+        setResults((m) => ({
+          ...m,
+          [tool.id]: { status: 0, ms: 0, text: "", error: built.error },
+        }));
+        return;
       }
-      const init: RequestInit = { method: tool.method, headers };
-      if (tool.method !== "GET" && tool.method !== "DELETE" && tool.body.trim()) {
-        init.body = tool.body;
-        if (!headers.has("content-type")) headers.set("content-type", "application/json");
-      }
-      const res = await fetch(tool.url, init);
+      const res = await fetch(built.url, built.init);
       const text = (await res.text()).slice(0, 4000);
       setResults((m) => ({
         ...m,
@@ -60,6 +87,11 @@ export function HttpTools() {
       <p className="px-1 pb-1 text-[12px] leading-5 text-muted">
         自己填地址和请求头，点「调用」会<span className="font-medium text-fg">真的</span>
         发一次请求 —— 不依赖 AI。浏览器有跨域（CORS）限制，对方服务器不放开的话会被挡住。
+        <br />
+        <span className="font-medium text-fg">星芒也能调它</span>
+        ：他会按工具名提议、过你的权限闸门之后真的发出去。
+        「可改的参数」是从你配好的请求里读出来的（GET 看网址里的查询参数，
+        POST 看请求体的字段）—— 想让某个值能被改，就把它先填进网址或请求体。
       </p>
 
       {tools.length === 0 && (
@@ -80,6 +112,15 @@ export function HttpTools() {
                 <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{t.url}</p>
                 {t.description && (
                   <p className="mt-1 text-[12px] leading-5 text-muted">{t.description}</p>
+                )}
+                {/*
+                  把"星芒能改哪几个值"直接摆在卡片上 —— 否则用户根本不知道
+                  自己配的请求里哪些部分是可被模型改的（推导规则见 lib/http-tools.ts）
+                */}
+                {paramsOfTool(t).length > 0 && (
+                  <p className="mt-1 font-mono text-[11px] leading-4 text-subtle">
+                    可改参数：{paramsOfTool(t).join("、")}
+                  </p>
                 )}
               </div>
               <Switch
@@ -144,6 +185,26 @@ export function HttpTools() {
         <Plus className="size-4" />
         新建 HTTP 工具
       </Link>
+
+      {/*
+        一键加示例：给"不知道该填什么"的人一个起点（原话："HTTP 工具一般是
+        用来干嘛的？我对他不是很了解"）。按名字去重，点几次都安全。
+      */}
+      <button
+        type="button"
+        onClick={addExamples}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
+      >
+        <Sparkles className="size-4" />
+        加几个能用的示例（天气 / 搜 GitHub / 汇率 / 一言）
+      </button>
+      {added && <p className="px-1 pt-1 text-[12px] text-accent">{added}</p>}
+
+      <p className="px-1 pt-2 text-[11px] leading-4 text-subtle">
+        示例都是<span className="text-fg">实测能在浏览器里调通</span>的公开接口（不用 key）。
+        像「抓普通网页」那种做不到 —— 浏览器有跨域限制，绝大多数网站不允许别的页面读它的内容
+        （百度、example.com 都试过，会被挡住）。
+      </p>
     </div>
   );
 }

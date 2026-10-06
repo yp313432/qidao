@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 验收脚本：工具区三个编辑器 + MCP 真握手。
  *
  * 为什么要写它（这一轮用户的要求）：
@@ -135,9 +135,27 @@ const check = (name, ok, extra = "") => {
   if (!ok) bad++;
 };
 
+/**
+ * 等页面**真的能点**（hydration 完成）。
+ *
+ * 为什么必须等：SSR 渲染出来的按钮在 hydration 之前是"看得见、点了没反应"的
+ * （React 还没把 onClick 挂上去）。测试跑得比 hydration 快就会**点空**，
+ * 表现成"点了 MCP 标签却没切过去"这种随机失败 —— 实测踩过两次，
+ * 而且失败点每次都换地方，特别像"代码坏了"。
+ *
+ * 标志：`documentElement.dataset.theme` 是 `ThemeRoot` 在 hydration 完成后写的
+ * （见 `store.ts` 的 `applyTheme`），比 sleep 可靠。
+ */
+async function waitInteractive(page) {
+  await page.waitForFunction(() => document.documentElement.dataset.theme !== undefined, null, {
+    timeout: 30000,
+  });
+}
+
 /* 1. 先进工具页，并从列表走到 MCP 编辑器（走真实的点击路径，不直接输网址） */
 await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("h1", { timeout: 20000 });
+await waitInteractive(page);
 
 check("工具首页有主导航（这一页不该隐藏）", await page.locator('nav[aria-label="主导航"]').count() === 1);
 
@@ -243,12 +261,12 @@ check("第 3 步带上了协商出来的协议版本头", list?.proto === "2025-
 check("第 1 步**没有**提前带协议版本头（协议是先协商再带的）", init?.proto === "", `实际="${init?.proto}"`);
 
 /* 6. 另外两个编辑器也走一遍（同一套写法，不该只对 MCP 好使） */
-await page.goto(`${BASE}/tools/http`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/tools/http`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("h1", { timeout: 20000 });
 check("/tools/http 也没有底部导航", (await page.locator('nav[aria-label="主导航"]').count()) === 0);
 await page.screenshot({ caret: "initial", path: `${SHOTS}\\tools-http-editor.png` });
 
-await page.goto(`${BASE}/tools/docs`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/tools/docs`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("h1", { timeout: 20000 });
 check("/tools/docs 也没有底部导航", (await page.locator('nav[aria-label="主导航"]').count()) === 0);
 check("/tools/docs 不再是 window.prompt 两次（有真标题栏）", (await page.getByText("新建文档").count()) > 0);
@@ -259,7 +277,7 @@ await page.locator('header a[aria-label^="返回"]').click();
 await page.waitForURL("**/tools", { timeout: 20000 });
 check("编辑器的返回钮回到 /tools（上一级）", new URL(page.url()).pathname === "/tools");
 
-await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("h1", { timeout: 20000 });
 await page.screenshot({ caret: "initial", path: `${SHOTS}\\tools-home.png` });
 

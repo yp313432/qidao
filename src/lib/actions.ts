@@ -1,4 +1,5 @@
 import { toggleAmbience } from "@/lib/ambience";
+import { buildHttpRequest } from "@/lib/http-tools";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -564,6 +565,44 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
 
       if (!r.ok) return `调用「${toolName}」失败：${r.text}`;
       return `调用「${toolName}」的结果：\n${r.text}`;
+    }
+
+    /* ---------------- 自己配的 HTTP 工具 ----------------
+     * 跟 MCP 那条并列：模型按名字指定工具，这里用**跟手动「调用」同一份**
+     * 请求构造（lib/http-tools.ts 的 buildHttpRequest）真发一次。
+     */
+    case "http.call": {
+      const wanted = str(action.tool).trim();
+      if (!wanted) return "没说是哪个 HTTP 工具，调不了。";
+
+      const enabled = useApp.getState().httpTools.filter((t) => t.enabled);
+      const hit =
+        enabled.find((t) => t.name.trim().toLowerCase() === wanted.toLowerCase()) ??
+        // 名字可以有细微出入（模型偶尔会加书名号/空格），退一步做包含匹配
+        enabled.find((t) => t.name.trim().toLowerCase().includes(wanted.toLowerCase()));
+      if (!hit) {
+        const names = enabled.map((t) => t.name).join("、");
+        return `没找到叫「${wanted}」的 HTTP 工具。现在有的是：${names || "（一个都没有，去「工具 → HTTP」加）"}`;
+      }
+
+      const args =
+        action.args && typeof action.args === "object"
+          ? (action.args as Record<string, unknown>)
+          : {};
+      const built = buildHttpRequest(hit, args);
+      if (!built.ok) return `调用「${hit.name}」失败：${built.error}`;
+
+      try {
+        const res = await fetch(built.url, built.init);
+        const text = (await res.text()).slice(0, 2000);
+        const head = `${hit.method} ${built.url}`;
+        if (!res.ok) {
+          return `调用「${hit.name}」失败（HTTP ${res.status}）${built.note}\n${head}\n${text || "(空响应)"}`;
+        }
+        return `调用「${hit.name}」的结果${built.note}：\n${head}\n${text || "(空响应)"}`;
+      } catch (err) {
+        return `调用「${hit.name}」失败：${(err as Error).message || "网络错误"}（多半是对方没开跨域，或者地址/网络有问题）`;
+      }
     }
 
     case "ambience.play":

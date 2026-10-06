@@ -684,7 +684,19 @@ export type AppAction =
    *
    * 权限落在 `mcp_tools`（L2）：默认要用户点一下确认。
    */
-  | { kind: "tool.call"; server: string; tool: string; args?: Record<string, unknown> };
+  | { kind: "tool.call"; server: string; tool: string; args?: Record<string, unknown> }
+  /**
+   * **调用一个自己配的 HTTP 工具**（「工具 → HTTP」里那些）。
+   *
+   * 为什么跟 MCP 分成两种动作、而不是一个动作里分叉：
+   *   · 权限不一样 —— MCP 落 `mcp_tools`、HTTP 落 `http_tools`，
+   *     用户可以在权限页里分别放行/拒绝（闸门弹的卡片也才对得上）
+   *   · 两者"参数"的含义也不一样：MCP 的参数结构是服务端给的；
+   *     HTTP 的参数是**从用户配好的请求里推出来的**（见 lib/http-tools.ts）
+   *
+   * `args` 可以整个不传 = 「按他配好的原样发一次」，跟手动点「调用」等价。
+   */
+  | { kind: "http.call"; tool: string; args?: Record<string, unknown> };
 
 /** 一条「用户在干什么」的记录。 */
 export type ActivityEntry = {

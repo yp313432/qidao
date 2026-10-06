@@ -64,6 +64,8 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "letter.remove": "letter_write",
   // 调外部 MCP 工具：落在「调用 MCP 工具」这项权限上（L2，默认要问一下）
   "tool.call": "mcp_tools",
+  // 调自己配的 HTTP 工具：落在「调用 HTTP 工具」那项上（另一项权限，可以分别放行）
+  "http.call": "http_tools",
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
@@ -203,5 +205,9 @@ export function actionTitle(action: AppAction): string {
       return `删掉信${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一封）"}`;
     case "tool.call":
       return `调用外部工具「${action.tool}」${action.server ? `（服务器：${action.server.slice(0, 20)}）` : ""}`;
+    case "http.call":
+      return `调用你配的 HTTP 工具「${action.tool}」${
+        action.args && Object.keys(action.args).length ? `（带参数：${Object.keys(action.args).join("、")}）` : ""
+      }`;
   }
 }

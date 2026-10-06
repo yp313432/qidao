@@ -3,7 +3,7 @@ import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
-import { actionFeedback, pickWorldEntries } from "@/lib/prompt";
+import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 
 /**
@@ -108,13 +108,10 @@ export function TaskDaemon() {
             style: settings.replyStyle,
             /*
               定时任务也要拿到工具清单 —— 不然提示词里会写"暂时没有外部工具"，
-              那是假话（用户可能明明配了 MCP），模型就会说"你没配工具"。
+              那是假话（用户可能明明配了 MCP / HTTP），模型就会说"你没配工具"。
               传上之后，定时任务里也能自己调工具。
             */
-            tools: useApp
-              .getState()
-              .enabledTools()
-              .map((t) => ({ name: t.name, tools: t.tools })),
+            tools: promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools),
             customBaseUrl: settings.customBaseUrl || undefined,
             customApiKey: settings.customApiKey || undefined,
             upstreamModel: settings.upstreamModel || undefined,

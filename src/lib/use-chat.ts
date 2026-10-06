@@ -3,7 +3,7 @@ import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage, type ChatDelta } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
-import { actionFeedback, pickWorldEntries } from "@/lib/prompt";
+import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { resolveVoiceLang, speak } from "@/lib/voice";
@@ -213,7 +213,8 @@ export function useChatStream() {
         if (!flushTimer) flushTimer = window.setTimeout(flush, 100);
       };
 
-      const tools = useApp.getState().enabledTools().map((t) => ({ name: t.name, tools: t.tools }));
+      // MCP 服务器 + 用户自己配的 HTTP 接口，一起交给提示词（一处实现见 promptToolsFor）
+      const tools = promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools);
       const context = buildContext();
       // 世界书：常驻的进系统提示词，命中关键词的挂在最后一条用户消息尾部。
       // 这里没有直接的 text 变量，就从历史里找最后一条用户消息来判断关键词。

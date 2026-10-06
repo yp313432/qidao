@@ -349,9 +349,27 @@ const check = (name, ok, extra = "") => {
   if (!ok) bad++;
 };
 
+/**
+ * 等页面**真的能点**（hydration 完成）。
+ *
+ * 为什么必须等：SSR 渲染出来的按钮在 hydration 之前是"看得见、点了没反应"的
+ * （React 还没把 onClick 挂上去）。测试跑得比 hydration 快就会**点空**，
+ * 表现成"点了 MCP 标签却没切过去"这种随机失败 —— 实测踩过两次，
+ * 而且失败点每次都换地方，特别像"代码坏了"。
+ *
+ * 标志：`documentElement.dataset.theme` 是 `ThemeRoot` 在 hydration 完成后写的
+ * （见 `store.ts` 的 `applyTheme`），比 sleep 可靠。
+ */
+async function waitInteractive(page) {
+  await page.waitForFunction(() => document.documentElement.dataset.theme !== undefined, null, {
+    timeout: 30000,
+  });
+}
+
 /* 1. 配置一个要认证的服务器 */
-await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("h1", { timeout: 20000 });
+await waitInteractive(page);
 await page.getByRole("button", { name: "MCP" }).click();
 await page.getByText("添加 MCP 服务器").click();
 await page.getByPlaceholder("例如：Horizon / 我的记忆库").waitFor({ timeout: 20000 });
@@ -371,7 +389,7 @@ await page.screenshot({ caret: "initial", path: `${SHOTS}\\mcp-oauth-needs-auth.
 
 /* 3. 点「去授权」→ 应该跳到桩授权服务器，并带上规范要求的参数 */
 await page.getByRole("button", { name: "去授权" }).click();
-await page.waitForURL(`${AS_URL}/authorize**`, { timeout: 25000 });
+await page.waitForURL(`${AS_URL}/authorize**`, { timeout: 60000 });
 await page.locator("#approve").waitFor({ timeout: 20000 });
 
 const a = log.authorize ?? {};
@@ -388,9 +406,14 @@ check(
 check("动态注册时报的就是这个回调地址", log.registeredRedirect === `${BASE}/oauth/callback`);
 await page.screenshot({ caret: "initial", path: `${SHOTS}\\mcp-oauth-consent.png` });
 
-/* 4. 点同意 → 回跳 → 换令牌 → 自动重握手 */
+/*
+  4. 点同意 → 回跳 → 换令牌 → 自动重握手
+  ⚠️ 等待给足（60s）：这一步要跨"点链接 → 浏览器导航 → 整页重新加载 → SSR →
+  hydration → 换令牌"好几段，机器忙的时候 25s 会假失败（实测遇到过：
+  失败点每次还不一样，特别像"代码坏了"）。
+*/
 await page.locator("#approve").click();
-await page.waitForURL(`${BASE}/oauth/callback**`, { timeout: 25000 });
+await page.waitForURL(`${BASE}/oauth/callback**`, { timeout: 60000 });
 await page.getByText("授权成功", { exact: false }).waitFor({ timeout: 30000 });
 
 const cbText = await page.locator("body").innerText();
@@ -439,7 +462,7 @@ await page.screenshot({ caret: "initial", path: `${SHOTS}\\mcp-oauth-connected.p
  * 所以这里**手工种一个授权会话**，专门测守卫本身。
  */
 async function seedPending(state) {
-  await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.evaluate((st) => {
     localStorage.setItem(
       "qidao:mcp-oauth-pending",
@@ -459,7 +482,7 @@ async function seedPending(state) {
 }
 
 await seedPending("RIGHT-STATE");
-await page.goto(`${BASE}/oauth/callback?code=whatever&state=WRONG-STATE`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/oauth/callback?code=whatever&state=WRONG-STATE`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.getByText("授权没完成").waitFor({ timeout: 20000 });
 const badState = await page.locator("body").innerText();
 check(
@@ -469,7 +492,7 @@ check(
 );
 
 await seedPending("RIGHT-STATE");
-await page.goto(`${BASE}/oauth/callback?code=bad-code&state=RIGHT-STATE`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/oauth/callback?code=bad-code&state=RIGHT-STATE`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.getByText("授权没完成").waitFor({ timeout: 20000 });
 const badCode = await page.locator("body").innerText();
 check(
