@@ -501,7 +501,8 @@ export const useApp = create<AppState>()(
       diary: [
         {
           id: "d1",
-          mood: "calm",
+          // 心情跟花瓣共用同一张 11 个词的表（`lib/state-dims.ts`）
+          mood: "reflect",
           body: "把界面做成清晨纸页的感觉。它应该安静，而不是吵。",
           createdAt: SEED_AT - 3600_000 * 8,
         },
@@ -894,7 +895,9 @@ export const useApp = create<AppState>()(
           conversations: s.conversations.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)),
         })),
       addUserMessage: (text, attachments) => {
-        let { activeId, conversations, model } = get();
+        // model 只读、activeId/conversations 后面要改 —— 所以拆开声明（顺手修掉存量的 prefer-const）
+        const { model } = get();
+        let { activeId, conversations } = get();
         if (!activeId || !conversations.find((c) => c.id === activeId)) {
           activeId = get().newChat();
           conversations = get().conversations;

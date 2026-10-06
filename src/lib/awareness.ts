@@ -4,6 +4,7 @@ import { READINGS } from "@/lib/learn-data";
 import { MODELS } from "@/lib/models";
 import { permissionDef } from "@/lib/permissions";
 import { usePlayer } from "@/lib/player";
+import { moodDisplay } from "@/lib/state-dims";
 import { useApp } from "@/lib/store";
 
 /**
@@ -15,14 +16,6 @@ import { useApp } from "@/lib/store";
  */
 
 export type AwarenessItem = { id: string; title: string; text: string };
-
-const MOOD: Record<string, string> = {
-  calm: "平静",
-  happy: "开心",
-  tired: "疲惫",
-  down: "低落",
-  excited: "兴奋",
-};
 
 /** 某一项权限当前是不是放开（缺省：只读类放开，其余问）。 */
 export function modeOf(id: string): "ask" | "allow" | "deny" {
@@ -90,7 +83,7 @@ export function buildAwarenessItems(): AwarenessItem[] {
   if (canRead("read_diary")) {
     const recent = st.diary
       .slice(0, 4)
-      .map((d) => `「${MOOD[d.mood] ?? d.mood}」${excerpt(d.body, 16)}`);
+      .map((d) => `「${moodDisplay(d.mood).label}」${excerpt(d.body, 16)}`);
     out.push({
       id: "read_diary",
       title: "日记",

@@ -32,6 +32,7 @@ import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
+import { moodDisplay } from "@/lib/state-dims";
 import { useApp } from "@/lib/store";
 import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -71,15 +72,11 @@ const STYLES: { id: ReplyStyle; label: string }[] = [
   { id: "explanatory", label: "详尽" },
 ];
 
-/** 「内在」入口上那行小字要用到的心情中文名与相对时间 */
-const MOOD_CN: Record<string, string> = {
-  calm: "平静",
-  joy: "开心",
-  focus: "专注",
-  low: "低落",
-  miss: "想念",
-};
-const moodLabel = (m: string) => MOOD_CN[m] ?? "平静";
+/**
+ * 「内在」入口上那行小字要用到的心情中文名与相对时间。
+ * 心情名**从词表派生**（`lib/state-dims.ts`）—— 老存档的 mood 也能兜住，不留空白。
+ */
+const moodLabel = (m: string) => moodDisplay(m).label;
 function relShort(ts: number): string {
   const mins = Math.floor((Date.now() - ts) / 60000);
   if (mins < 60) return `${Math.max(1, mins)} 分钟前`;

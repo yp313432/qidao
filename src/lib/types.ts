@@ -1,4 +1,5 @@
 import type { ModelId } from "./models";
+import type { DimId } from "./state-dims";
 
 export type ChatRole = "user" | "assistant";
 
@@ -19,8 +20,18 @@ export type Attachment = {
   durationMs?: number;
 };
 
-/** 心情。日记、动态、信都用这一套，免得三处各写各的。 */
-export type MoodId = "calm" | "joy" | "focus" | "low" | "spark" | "miss";
+/**
+ * 心情。日记、动态、信、状态采样都用这一套。
+ *
+ * **跟花瓣共用同一张 11 个词的词表**（`lib/state-dims.ts` 的 `DimId`）——
+ * 用户原话："ai 的心情描述还是那六个吗，太少了，而且不好分类，
+ * 直接改成图上的这十一个吧。"
+ * 所以这里不再单独列词，而是 `DimId` 的别名：**改词表只改一处**。
+ *
+ * ⚠️ 老存档里存的是旧 id（"calm" / "joy" …）：类型上不保证，
+ *    显示时走 `state-dims.ts` 的 `moodDisplay()` 兜底（不会空白）。
+ */
+export type MoodId = DimId;
 
 /** 一条「动态」：即时的心情。by 表示是他发的还是我自己发的。 */
 export type Moment = {
@@ -155,7 +166,7 @@ export type StateSample = {
   /**
    * 此刻**明显的那些**情绪维度（稀疏：只写他报出来的，0~1）。
    *
-   * 词表见 `lib/state-dims.ts`（想念/偏爱/牵挂/分享欲/好奇/野心/反思/无聊/难过/生气/精神）。
+   * 词表见 `lib/state-dims.ts`（想念/心动/牵挂/分享欲/好奇/情愫/反思/无聊/难过/生气/占有）。
    * 为什么稀疏：每轮报满十来个数字要白花 token，而且"十来个都是 0.3"本来就不像真的 ——
    * 真实的某一刻，通常只有一两样很突出。
    */
@@ -637,7 +648,7 @@ export type AppAction =
       kind: "state.report";
       mood: MoodId;
       /**
-       * 此刻**明显的那些**维度：`{"偏爱":0.08,"想念":0.4}` —— **稀疏**，
+       * 此刻**明显的那些**维度：`{"心动":0.08,"想念":0.4}` —— **稀疏**，
        * 没报的当 0。词表见 `lib/state-dims.ts`（键就是中文词本身）。
        */
       dims?: Record<string, number>;

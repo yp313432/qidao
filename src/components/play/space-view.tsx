@@ -5,26 +5,16 @@ import { PlayHeader } from "@/components/play-header";
 import { DiaryWall } from "@/components/play/diary-view";
 import { LetterViewer } from "@/components/play/letter-envelope";
 import { useApp } from "@/lib/store";
+import { DIMS, moodDisplay } from "@/lib/state-dims";
 import type { Letter, MoodId } from "@/lib/types";
 import { cn, formatClock, formatDay } from "@/lib/utils";
 
-const MOODS: { id: MoodId; label: string }[] = [
-  { id: "calm", label: "平静" },
-  { id: "joy", label: "开心" },
-  { id: "spark", label: "心动" },
-  { id: "focus", label: "专注" },
-  { id: "miss", label: "想你" },
-  { id: "low", label: "低落" },
-];
-
-const TONE: Record<MoodId, string> = {
-  calm: "bg-sky-400",
-  joy: "bg-amber-400",
-  spark: "bg-fuchsia-400",
-  focus: "bg-emerald-400",
-  miss: "bg-rose-400",
-  low: "bg-slate-400",
-};
+/**
+ * 心情词表：**跟花瓣共用同一张 11 个词的表**（`lib/state-dims.ts`）。
+ * 颜色也取词表里的 `d.color` 走 inline style —— 不再各写一套 Tailwind 色类，
+ * 否则改了词表还得记得改颜色。
+ */
+const MOODS = DIMS.map((d) => ({ id: d.id, label: d.label, color: d.color }));
 
 const EN_TOP: Record<string, string> = {
   moments: "how are you feeling, right now",
@@ -113,7 +103,7 @@ export function SpaceView() {
 
 function MomentsSection() {
   const moments = useApp((s) => s.moments);
-  const [mood, setMood] = useState<MoodId>("calm");
+  const [mood, setMood] = useState<MoodId>("missing");
   const [text, setText] = useState("");
 
   function post() {
@@ -141,7 +131,7 @@ function MomentsSection() {
                 mood === m.id ? "bg-ink text-ink-fg" : "bg-chip",
               )}
             >
-              <span className={cn("size-1.5 rounded-full", TONE[m.id])} />
+              <span className="size-1.5 rounded-full" style={{ background: m.color }} />
               {m.label}
             </button>
           ))}
@@ -176,15 +166,19 @@ function MomentsSection() {
       ) : (
         <ul className="space-y-2">
           {moments.map((m) => {
-            const label = MOODS.find((x) => x.id === m.mood)?.label ?? "";
+            // 老存档的 mood 是 "calm" 这种 —— moodDisplay 兜成当时的中文名，不留空白
+            const info = moodDisplay(m.mood);
             return (
               <li key={m.id}>
                 <div className="group flex items-start gap-3 rounded-3xl border border-line bg-surface px-4 py-3">
-                  <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", TONE[m.mood])} />
+                  <span
+                    className="mt-1.5 size-2 shrink-0 rounded-full"
+                    style={{ background: info.color }}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] leading-6">{m.text}</p>
                     <p className="mt-1 text-[11px] text-subtle">
-                      {m.by === "ai" ? "他" : "我"} · {label} · {formatDay(m.at)}{" "}
+                      {m.by === "ai" ? "他" : "我"} · {info.label} · {formatDay(m.at)}{" "}
                       {formatClock(m.at)}
                     </p>
                   </div>

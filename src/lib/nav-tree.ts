@@ -130,12 +130,25 @@ export function parentOf(path: string): string | null {
  *
  * 所以两个入口（页内返回钮 / 系统返回）共用这一份层级表：
  *   · 有上一级 → 回上一级
- *   · 顶级页（`/`、`/tools`、`/play`、`/me`）→ `"exit"`：App 的规矩是退出
+ *   · 非首页的 tab → 回对话首页
+ *   · 对话首页 `/` → `"exit"`（只有站在首页，返回才是退出 App）
  *
  * 网页版**不用**它（浏览器里"历史返回"才是对的），只有原生壳会调。
  */
 export function systemBackTarget(path: string): string | "exit" {
-  return parentOf(path) ?? "exit";
+  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+
+  /*
+    顶级页分两种，这是**真 App 的规矩**（用户 2026-10 明确要求）：
+      · `/`（对话首页）→ **退出 App**（"对话页面我侧滑屏幕才会退出 app"）
+      · 其它三个 tab（工具/玩乐/我的）→ **先回对话首页**，不退出
+        （安卓 App 一贯做法：在非首页 tab 按返回，回到起始 tab）
+    只有真的站在首页了，返回才是"退出"。
+  */
+  if (p === "/") return "exit";
+  if ((ROOT_PATHS as readonly string[]).includes(p)) return "/";
+
+  return parentOf(p) ?? "exit";
 }
 
 /**

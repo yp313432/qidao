@@ -1,26 +1,25 @@
 import { useState } from "react";
 import { useApp } from "@/lib/store";
+import { DIMS, moodDisplay } from "@/lib/state-dims";
 import type { DiaryEntry } from "@/lib/types";
 import { cn, formatClock, formatDay } from "@/lib/utils";
 
-const MOODS: { id: DiaryEntry["mood"]; label: string }[] = [
-  { id: "calm", label: "平静" },
-  { id: "joy", label: "欢喜" },
-  { id: "focus", label: "专注" },
-  { id: "low", label: "低落" },
-  { id: "spark", label: "火花" },
-  { id: "miss", label: "想念" },
-];
+/** 日记的心情也**跟花瓣共用同一张 11 个词的词表**（`lib/state-dims.ts`） */
+const MOODS: { id: DiaryEntry["mood"]; label: string }[] = DIMS.map((d) => ({
+  id: d.id,
+  label: d.label,
+}));
 
-/** 每种心情一种纸色 */
-const PAPER: Record<DiaryEntry["mood"], string> = {
-  calm: "from-sky-200/45 to-sky-100/10",
-  joy: "from-amber-200/55 to-rose-100/15",
-  focus: "from-emerald-200/45 to-teal-100/10",
-  low: "from-slate-300/45 to-slate-100/10",
-  spark: "from-fuchsia-200/45 to-violet-100/15",
-  miss: "from-rose-200/50 to-orange-100/15",
-};
+/**
+ * 每种心情一种纸色 —— 直接拿词表里的颜色调透明度，
+ * 不再每种心情各写一套 Tailwind 渐变（改词表时不会漏）。
+ */
+function paperTint(id: string): string {
+  const c = moodDisplay(id).color;
+  const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(c);
+  if (!m) return "transparent";
+  return `linear-gradient(to bottom right, rgba(${m[1]},${m[2]},${m[3]},0.3), rgba(${m[1]},${m[2]},${m[3]},0.06))`;
+}
 
 const TILT = ["-rotate-[1.2deg]", "rotate-[0.9deg]", "-rotate-[0.4deg]", "rotate-[1.4deg]"];
 
@@ -39,7 +38,7 @@ export function DiaryWall() {
   const diary = useApp((s) => s.diary);
   const streak = useApp((s) => s.diaryStreak());
   const today = useApp((s) => s.todayDiary());
-  const [mood, setMood] = useState<DiaryEntry["mood"]>("calm");
+  const [mood, setMood] = useState<DiaryEntry["mood"]>("reflect");
   const [body, setBody] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
@@ -131,7 +130,7 @@ export function DiaryWall() {
       <div className="columns-2 gap-3">
         {diary.map((d, i) => {
           const open = openId === d.id;
-          const moodLabel = MOODS.find((m) => m.id === d.mood)?.label ?? "";
+          const moodLabel = moodDisplay(d.mood).label;
           return (
             <button
               key={d.id}
@@ -145,10 +144,8 @@ export function DiaryWall() {
               )}
             >
               <span
-                className={cn(
-                  "pointer-events-none absolute inset-0 bg-gradient-to-br",
-                  PAPER[d.mood] ?? PAPER.calm,
-                )}
+                className="pointer-events-none absolute inset-0"
+                style={{ backgroundImage: paperTint(d.mood) }}
               />
               <span
                 className="pointer-events-none absolute top-0 right-0 size-5 bg-fg/8"

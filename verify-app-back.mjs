@@ -143,9 +143,9 @@ check(
   JSON.stringify({ tools: logic.out["/play/tools"], todo: logic.out["/play/todo"], days: logic.out["/play/days"] }),
 );
 check(
-  "① **四个 tab 返回 exit**（App 的规矩是退出，不是回到上一个点过的页）",
-  logic.tabTargets.every((t) => t === "exit"),
-  JSON.stringify(logic.tabTargets),
+  "① **只有「对话」首页返回 exit；其它三个 tab 先回对话首页**（真 App 的规矩）",
+  JSON.stringify(logic.tabTargets) === JSON.stringify(["exit", "/", "/", "/"]),
+  JSON.stringify({ tabs: logic.tabs, targets: logic.tabTargets }),
 );
 check("① 带查询串 / 末尾斜杠也算得对", logic.withQuery === "/tools" && logic.withSlash === "/me");
 check("① 没有页面会「返回自己」", logic.parentIsSame.length === 0, logic.parentIsSame.join("、"));
@@ -182,13 +182,23 @@ check(
   page.url(),
 );
 
-// 顶级页触发返回 → 退出 App（不是回上一个点过的页）
+// 非首页 tab 触发返回 → 回对话首页（**不退出**）
 await page.goto(`${BASE}/me`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForTimeout(900);
 await page.evaluate(() => window.__back.cb());
+await page.waitForTimeout(500);
+const exitedFromTab = await page.evaluate(() => window.__back.exited);
+check(
+  "② 在「我的」tab 触发返回 → 回对话首页，**不退出 App**",
+  new URL(page.url()).pathname === "/" && exitedFromTab === 0,
+  `${page.url()}（exitApp ${exitedFromTab} 次）`,
+);
+
+// 对话首页触发返回 → 退出 App（用户："对话页面我侧滑屏幕才会退出 app"）
+await page.evaluate(() => window.__back.cb());
 await page.waitForTimeout(400);
 const exited = await page.evaluate(() => window.__back.exited);
-check("② 在 tab 页触发返回 → **退出 App**（不是回历史）", exited >= 1, `exitApp 调了 ${exited} 次`);
+check("② 在**对话首页**触发返回 → 退出 App", exited >= 1, `exitApp 调了 ${exited} 次`);
 
 console.log("-".repeat(64));
 const hydration = consoleErrors.filter((t) => /hydration/i.test(t));

@@ -3,11 +3,9 @@ import { InnerFlower } from "@/components/inner-flower";
 import { PageHeader } from "@/components/page-header";
 import { useApp } from "@/lib/store";
 import { resolveAiName } from "@/lib/branding";
-import { DIMS, averageDims, dimsOf, strongest } from "@/lib/state-dims";
-import type { MoodId } from "@/lib/types";
+import { DIMS, averageDims, dimsOf, moodDisplay, strongest } from "@/lib/state-dims";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
-import { cn } from "@/lib/utils";
 
 /**
  * 内在 · 状态。
@@ -24,15 +22,15 @@ import { cn } from "@/lib/utils";
  * 三样东西：此刻 / 最近 30 天的平均 / 心情分布。
  */
 
-const MOODS: { id: MoodId; label: string; dot: string; bar: string }[] = [
-  { id: "calm", label: "平静", dot: "bg-sky-400", bar: "bg-sky-400/70" },
-  { id: "joy", label: "开心", dot: "bg-amber-400", bar: "bg-amber-400/70" },
-  { id: "focus", label: "专注", dot: "bg-emerald-400", bar: "bg-emerald-400/70" },
-  { id: "low", label: "低落", dot: "bg-slate-400", bar: "bg-slate-400/70" },
-  { id: "miss", label: "想念", dot: "bg-rose-400", bar: "bg-rose-400/70" },
-  // spark 以前**漏在这里**了（类型里有、上报白名单和这里都没有）→ "心动"永远显示不出来
-  { id: "spark", label: "心动", dot: "bg-fuchsia-400", bar: "bg-fuchsia-400/70" },
-];
+/**
+ * 心情分布用的词表。
+ *
+ * **跟花瓣共用同一张表**（`lib/state-dims.ts` 的 DIMS）—— 用户："ai 的心情描述
+ * 还是那六个吗，太少了，而且不好分类，直接改成图上的这十一个吧。"
+ * 颜色也直接取词表里的 `d.color`（走 inline style），不再各写一套 Tailwind 色类 ——
+ * 否则色类和词表迟早有一处对不上。
+ */
+const MOODS = DIMS.map((d) => ({ id: d.id, label: d.label, color: d.color }));
 
 /** 珍珠光斑：位置/大小/延迟都写死（不用随机数 —— 免得 SSR 首帧跟客户端不一致） */
 const PEARLS = [
@@ -137,7 +135,8 @@ export function InnerView() {
               <div className="tide-card rounded-3xl px-4 py-4">
                 <div className="flex items-baseline gap-2">
                   <span className="font-serif text-2xl text-fg">
-                    {MOODS.find((m) => m.id === latest.mood)?.label ?? "平静"}
+                    {/* 老存档的 mood 是 "calm" 这种（新词表里没有）—— moodDisplay 会兜成当时的中文名，不留空白 */}
+                    {moodDisplay(latest.mood).label}
                   </span>
                   <span className="text-[12px] text-fg/55">此刻 · {relTime(latest.at)}</span>
                 </div>
@@ -191,8 +190,7 @@ export function InnerView() {
                       .map((m) => (
                         <span
                           key={m.id}
-                          className={m.bar}
-                          style={{ width: `${(m.n / moodTotal) * 100}%` }}
+                          style={{ width: `${(m.n / moodTotal) * 100}%`, background: m.color }}
                           title={`${m.label} ${m.n} 次`}
                         />
                       ))}
@@ -200,7 +198,7 @@ export function InnerView() {
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg/70">
                     {moodCounts.map((m) => (
                       <span key={m.id} className="inline-flex items-center gap-1">
-                        <span className={cn("size-1.5 rounded-full", m.dot)} />
+                        <span className="size-1.5 rounded-full" style={{ background: m.color }} />
                         {m.label} {m.n}
                       </span>
                     ))}

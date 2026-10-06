@@ -8,7 +8,7 @@ import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { speakTextAsync } from "@/lib/tts";
 import { normalizeDimKey } from "@/lib/state-dims";
-import type { AppAction, FeatureId, McpOAuth, Memory, MoodId, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, McpOAuth, Memory, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -277,7 +277,8 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `开始朗读「${text.slice(0, 12)}」`;
     }
     case "diary.add":
-      st.addDiary("calm", action.body);
+      // 这个动作没有 mood 字段（他写日记时多半只看正文）—— 给个中性的「反思」
+      st.addDiary("reflect", action.body);
       return "日记已写入";
     case "chat.new":
       st.newChat();
@@ -363,14 +364,14 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
         return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
       };
       /*
-        mood 的白名单**必须跟 MoodId 对齐**。
-        顺带修了个 bug：原来这里少了 "spark"（心动）—— 类型里有、白名单没有，
-        于是他永远报不出"心动"，一报就被兜成"平静"。
+        mood 跟花瓣**共用同一张词表**（MoodId = DimId，见 lib/state-dims.ts），
+        所以这里不再自己维护一份白名单（以前那份少了 "spark"，
+        于是他永远报不出"心动"，一报就被兜成"平静"；两处写死的清单必然走散）。
+
+        中文词或英文 id 都认（`normalizeDimKey` 里还有旧词的别名表）；
+        真认不出来就兜到"想念" —— 不能留空，否则界面上那一格是白的。
       */
-      const MOODS = ["calm", "joy", "focus", "low", "miss", "spark"];
-      const mood = MOODS.includes(str((action as { mood?: unknown }).mood))
-        ? ((action as { mood: MoodId }).mood)
-        : "calm";
+      const mood = normalizeDimKey(str((action as { mood?: unknown }).mood)) ?? "missing";
 
       /**
        * 维度：**中文词或英文 id 都认**（提示词里让他报的是中文词），

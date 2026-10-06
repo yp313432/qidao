@@ -1,4 +1,5 @@
 import type { AppAction, PermissionId } from "@/lib/types";
+import { DIMS } from "@/lib/state-dims";
 
 /** 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。 */
 export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
@@ -70,6 +71,12 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
 
+/**
+ * 心情 id → 中文名。**从词表派生**（`lib/state-dims.ts` 的 DIMS）——
+ * 以前这里手写了一份 6 个词的清单，跟花瓣对不上，改词表时必然漏掉一处。
+ */
+const MOOD_CN: Record<string, string> = Object.fromEntries(DIMS.map((d) => [d.id, d.label]));
+
 /** 把一个动作翻译成给人看的一句话（审批弹窗 / 日志都用它）。 */
 export function actionTitle(action: AppAction): string {
   switch (action.kind) {
@@ -127,14 +134,6 @@ export function actionTitle(action: AppAction): string {
     case "cron.add":
       return `设一个定时任务：${action.prompt.slice(0, 14)}${action.time ? `（每天 ${action.time}）` : ""}`;
     case "state.report": {
-      const MOOD_CN: Record<string, string> = {
-        calm: "平静",
-        joy: "开心",
-        focus: "专注",
-        low: "低落",
-        miss: "想念",
-        spark: "心动",
-      };
       /*
         状态现在是**稀疏维度**（只报此刻明显的那几个），所以这里把报出来的列一下。
         老数据只有 energy/missing/curious 三个顶层字段 → dims 为空，就只写心情。
