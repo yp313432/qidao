@@ -167,6 +167,12 @@ export function startListening(opts: {
   onFinal: (text: string) => void;
   onEnd?: () => void;
   onError?: (err: string) => void;
+  /**
+   * 实时音量（0-1）—— 给通话页的波形用。
+   * 只有"自己录音 → 上传转文字"那条路会给（它是我们自己在分析麦克风）；
+   * 系统识别那两条路拿不到电平，所以是可选参数。
+   */
+  onLevel?: (rms: number) => void;
 }): ListenHandle | null {
   /**
    * ① 配了**语音服务**（我的 → 语音服务）→ 走"自己录音 → 上传转文字"。

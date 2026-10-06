@@ -762,6 +762,64 @@ html[data-drawer-open] .glass-nav-bar {
     transform: scale(1.04);
   }
 }
+
+/* ------------------------------------------------------------------
+ * 语音通话页：头像外面的两圈光环 + 波形。
+ *
+ * 光环为什么是**两层**：一层跟着音量走（说话时胀、安静时收），
+ * 一层固定慢呼吸 —— 只有一层的话，安静时整个画面像死掉了。
+ * 两层的时长故意不整除（1.6s / 5s），所以看起来一直不重复。
+ * ------------------------------------------------------------------ */
+.voice-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--aster-accent) 34%, transparent);
+  background: radial-gradient(
+    circle at 50% 45%,
+    color-mix(in oklab, var(--aster-accent) 16%, transparent),
+    transparent 68%
+  );
+  /* 音量那条靠 JS 改 opacity —— 别加 transition，否则跟不上 20Hz 的采样 */
+  pointer-events: none;
+}
+
+.voice-halo-slow {
+  border-color: color-mix(in oklab, var(--aster-accent) 18%, transparent);
+  animation: voice-halo-breath 5s ease-in-out infinite;
+}
+
+@keyframes voice-halo-breath {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.95;
+  }
+}
+
+/* 波形：每根柱子用自己的时长/延迟错开，看起来才是"声波"不是"整体抖动" */
+.voice-wave-bar {
+  animation: voice-wave 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes voice-wave {
+  from {
+    transform: scaleY(0.18);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* 他在说话时波形更活泼一点（跟"听你说"区分开） */
+.voice-wave-speaking .voice-wave-bar {
+  animation-duration: 0.55s;
+}
+
 /* ------------------------------------------------------------------
  * 弹层 / 菜单专用材质。
  *

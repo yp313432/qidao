@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Mic } from "lucide-react";
+import { Mic, PhoneOff } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { Avatar } from "@/components/avatar";
+import { VoiceWave } from "@/components/voice-wave";
 import { resolveAiName } from "@/lib/branding";
 import { createSentenceStreamer, createSpeechQueue, type SpeechQueue } from "@/lib/speech-queue";
+import { keepScreenAwake, type WakeLockHandle } from "@/lib/wake-lock";
 import { useApp } from "@/lib/store";
 import { useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
@@ -75,6 +78,10 @@ export function VoiceView() {
   const [heard, setHeard] = useState("");
   const [said, setSaid] = useState("");
   const [notice, setNotice] = useState("");
+  /** 实时麦克风音量（0-1）—— 只用来画波形，不参与判定 */
+  const [level, setLevel] = useState(0);
+  /** 通话时握着"屏幕别自动锁"的锁 */
+  const wakeRef = useRef<WakeLockHandle | null>(null);
 
   const listenRef = useRef<ListenHandle | null>(null);
   const baselineRef = useRef("");
@@ -131,6 +138,8 @@ export function VoiceView() {
     listenRef.current = startListening({
       lang: currentLang(),
       onPartial: (t) => setHeard(t),
+      // 真实音量 → 波形（说话时柱子跟着跳）
+      onLevel: (rms) => setLevel(rms),
       onFinal: (t) => {
         got = true;
         setHeard(t);
@@ -175,6 +184,14 @@ export function VoiceView() {
         if (aliveRef.current && turnDoneRef.current) beginListen();
       },
     });
+    /**
+     * 通话期间别让屏幕自己锁掉。
+     * 不 await：拿不到锁（省电模式 / 不支持）也不能耽误开始听。
+     */
+    void keepScreenAwake().then((h) => {
+      if (aliveRef.current) wakeRef.current = h;
+      else h.release();
+    });
     if (!sttSupported()) {
       setPhase("unsupported");
       return;
@@ -186,6 +203,8 @@ export function VoiceView() {
       stopSpeaking();
       queueRef.current?.stop();
       queueRef.current = null;
+      wakeRef.current?.release();
+      wakeRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -289,22 +308,34 @@ export function VoiceView() {
         </button>
       </div>
 
-      {/* 主体 */}
+      {/* 主体：头像 + 光环 + 波形（头像本身就是"重新开始听"的按钮） */}
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-8 text-center">
         <button
           type="button"
           aria-label="开始聆听"
           onClick={beginListen}
           disabled={phase === "thinking" || phase === "unsupported"}
-          className={cn(
-            "flex size-32 items-center justify-center rounded-full border border-line bg-surface text-fg shadow-sm transition-transform active:scale-95",
-            phase === "listening" && "voice-pulse",
-          )}
+          className="relative flex size-40 items-center justify-center rounded-full transition-transform active:scale-[0.97]"
         >
-          <Mic className="size-10" strokeWidth={1.5} />
+          {/*
+            两层光环：
+              · 内层跟着**真实音量**胀缩（安静时收成很小的一圈）
+              · 外层固定慢呼吸 —— 只有内层的话，静音时画面像死机
+            数值直接写 inline：20Hz 的采样用 class 切换会跟不上。
+          */}
+          <span
+            className="voice-halo"
+            style={{
+              opacity: 0.22 + Math.min(level * 7, 0.7),
+              transform: `scale(${1 + Math.min(level * 1.6, 0.24)})`,
+            }}
+          />
+          <span className="voice-halo voice-halo-slow" style={{ inset: "-12%" }} />
+          <Avatar role="ai" size={104} className="relative shadow-lg" />
         </button>
 
         <p className="text-[15px] font-medium text-fg">{PHASE_TEXT[phase]}</p>
+        <VoiceWave level={level} phase={phase} />
 
         {subtitles ? (
           <div className="w-full max-w-sm space-y-2">
@@ -345,20 +376,23 @@ export function VoiceView() {
           type="button"
           onClick={beginListen}
           disabled={phase === "thinking" || phase === "unsupported"}
-          className="rounded-full bg-chip px-5 py-3 text-[13px] font-medium text-fg disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-chip px-5 py-3 text-[13px] font-medium text-fg disabled:opacity-50"
         >
+          <Mic className="size-4" strokeWidth={1.8} />
           再说一次
         </button>
         <Link
           to="/"
-          className="rounded-full bg-ink px-5 py-3 text-[13px] font-medium text-ink-fg"
+          className="flex items-center gap-1.5 rounded-full bg-warn px-6 py-3 text-[13px] font-medium text-white"
         >
-          结束
+          <PhoneOff className="size-4" strokeWidth={1.8} />
+          挂断
         </Link>
       </div>
 
       <p className="px-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-center text-[11px] leading-4 text-subtle">
-        这是回合制语音：说话 → 转文字 → 他回 → 朗读。不是把音频发给他听。
+        你停下来他就接（静音 0.7 秒判定）；他一边想一边念。
+        半双工：他说话时不听你的 —— 不然外放会自问自答（浏览器里没有可靠的回声消除）。
       </p>
     </div>
   );
