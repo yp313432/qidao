@@ -3,13 +3,13 @@ import { Link } from "@tanstack/react-router";
 import { Mic } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { resolveAiName } from "@/lib/branding";
+import { createSentenceStreamer, createSpeechQueue, type SpeechQueue } from "@/lib/speech-queue";
 import { useApp } from "@/lib/store";
 import { useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { cn } from "@/lib/utils";
 import {
   resolveVoiceLang,
-  speak,
   startListening,
   sttSupported,
   stopSpeaking,
@@ -30,8 +30,14 @@ const PHASE_TEXT: Record<Phase, string> = {
 /**
  * 语音对话页（独立页面，不是浮层）。
  *
- * 说清楚它是什么：**回合制语音** —— 说话 → 转文字 → 他回 → 朗读 → 继续听。
- * 不是把音频发给他听（那需要支持音频的模型 + 实时通道）。
+ * **2026-10 起是"边说边念"**：模型的话一出来就按句子送去合成，成一句念一句，
+ * 不再等整段回完（原来"到听见第一个字"要等转写 + 整段生成 + 合成）。
+ * 配上"说完自动停"（`lib/vad.ts`），一轮的等待从十几秒压到几秒。
+ *
+ * 仍然是**回合制**（半双工）：他说话时不听，念完/说完再听下一句。
+ * 为什么不做"边说边听"：浏览器里程序化播放的音频不能当作回声消除的参考信号
+ * （见 MDN 的 echoCancellation 定义 + sokuji issue #55），外放时会自问自答。
+ * 戴耳机时才可能安全地做双向。
  */
 export function VoiceView() {
   const settings = useApp((s) => s.settings);
@@ -40,12 +46,26 @@ export function VoiceView() {
   const { busy, send } = useChatStream();
   useActivity("在语音对话");
 
-  const lang = resolveVoiceLang(settings.voiceLang);
+  /**
+   * ⚠️ `send` 必须用 ref 取**最新**的那个 —— 这是实测复现过的真 bug。
+   *
+   * 免提循环是**进页面那一刻**（mount effect）就开始的，那个闭包里的 `send`
+   * 捕获的是**首帧渲染**的 settings。如果这一页是直接打开的（深链、刷新、
+   * 或者 hydration 稍慢），首帧的 settings 还是默认值 ——
+   * 于是整场语音对话都在发"空的自定义上游"，用户明明配了却看到
+   * 「还没接模型：去「我的 → 自定义上游」填地址和密钥」。
+   *
+   * 实测：直接在 /voice 上打开能稳定复现；从对话页点进去就正常
+   * （那时已经 hydrate 完了）—— 所以这种 bug 藏得很深，只有脚本能抓。
+   */
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   /**
    * 取「此刻」的语言设置。
-   * 免提循环是靠回调驱动的，闭包里的 lang 会是旧的 —— 所以每次都现读，
-   * 否则你中途换语言，下一轮还在用上一个。
+   *
+   * 免提循环和播放队列都是回调驱动的，闭包里的值会是旧的 —— 所以每次都现读，
+   * 否则你中途换语言，下一句还在用上一个。
    */
   function currentLang() {
     return resolveVoiceLang(useApp.getState().settings.voiceLang);
@@ -60,6 +80,19 @@ export function VoiceView() {
   const baselineRef = useRef("");
   const phaseRef = useRef<Phase>("idle");
   const aliveRef = useRef(true);
+  /** 句子级播放队列 + 句子切分器（都在挂载时建一次） */
+  const queueRef = useRef<SpeechQueue | null>(null);
+  const streamerRef = useRef<ReturnType<typeof createSentenceStreamer> | null>(null);
+  /** 流式文本已经念到第几个字（按消息 id 分开记，换一轮就重置） */
+  const streamRef = useRef<{ id: string; chars: number }>({ id: "", chars: 0 });
+  /**
+   * 这一轮"文本流完了"没有。
+   *
+   * 为什么要它：队列**每播完一批**都会喊 onIdle，如果一喊就回去听下一句，
+   * 那他说第一句的间隙（等第二句从模型出来）就会被打断成两个回合。
+   * 所以只有"文本流结束 + 队列也空了"才算一轮结束。
+   */
+  const turnDoneRef = useRef(false);
   phaseRef.current = phase;
 
   const lastAssistantId = useApp((s) => {
@@ -81,6 +114,8 @@ export function VoiceView() {
   function beginListen() {
     if (!aliveRef.current) return;
     stopSpeaking();
+    // 队列也要停：不然上一轮的尾巴会跟这一轮的你说话叠在一起
+    queueRef.current?.stop();
     setHeard("");
     setNotice("");
     setPhase("listening");
@@ -101,7 +136,8 @@ export function VoiceView() {
         setHeard(t);
         baselineRef.current = lastAssistantId;
         setPhase("thinking");
-        void send(t);
+        // 用 ref 里的最新 send（首帧那个闭包里的 settings 可能还没 hydrate）
+        void sendRef.current(t);
       },
       onError: (e) => {
         errored = true;
@@ -131,6 +167,14 @@ export function VoiceView() {
   // 进页面就开始听；离开时全部停掉
   useEffect(() => {
     aliveRef.current = true;
+    streamerRef.current = createSentenceStreamer();
+    queueRef.current = createSpeechQueue({
+      lang: currentLang,
+      // 一轮真的结束（文本流完了、队列也空了）才回去听下一句
+      onIdle: () => {
+        if (aliveRef.current && turnDoneRef.current) beginListen();
+      },
+    });
     if (!sttSupported()) {
       setPhase("unsupported");
       return;
@@ -140,27 +184,63 @@ export function VoiceView() {
       aliveRef.current = false;
       stopListen();
       stopSpeaking();
+      queueRef.current?.stop();
+      queueRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 他的回复到了就朗读，念完继续听
+  /**
+   * **他说一句，我们念一句** —— 不再等整段回完。
+   *
+   * 流式文本是每 100ms 左右刷进 store 的，所以这里只处理"新长出来的那一段"，
+   * 凑满一句就送进队列（合成 + 播放）。`streamRef` 记着已经念到第几个字，
+   * 避免同一句被念两遍。
+   */
   useEffect(() => {
     if (phaseRef.current !== "thinking") return;
-    if (busy) return;
     if (!lastAssistantId || lastAssistantId === baselineRef.current) return;
-    const text = lastAssistantText.trim();
-    if (!text) return;
+    const text = lastAssistantText;
+
+    if (streamRef.current.id !== lastAssistantId) {
+      // 新的一轮：清空上轮的缓冲和"停用"状态
+      streamRef.current = { id: lastAssistantId, chars: 0 };
+      turnDoneRef.current = false;
+      streamerRef.current?.reset();
+      queueRef.current?.reset();
+    }
+
+    const fresh = text.slice(streamRef.current.chars);
+    if (!fresh) return;
+    streamRef.current.chars = text.length;
     setSaid(text);
-    setPhase("speaking");
-    speak(text, {
-      lang: currentLang(),
-      onEnd: () => {
-        if (aliveRef.current) beginListen();
-      },
-    });
+
+    const sentences = streamerRef.current?.push(fresh) ?? [];
+    if (sentences.length > 0) {
+      if (phaseRef.current === "thinking") setPhase("speaking");
+      for (const s of sentences) queueRef.current?.push(s);
+    }
+  }, [lastAssistantId, lastAssistantText]);
+
+  // 文本流结束 → 把最后一句（常常没有标点）也念掉，念完再回去听
+  useEffect(() => {
+    if (busy) return;
+    const st = phaseRef.current;
+    if (st !== "thinking" && st !== "speaking") return;
+    if (!lastAssistantId || lastAssistantId === baselineRef.current) return;
+    if (streamRef.current.id !== lastAssistantId) return;
+
+    turnDoneRef.current = true;
+    const rest = streamerRef.current?.flush() ?? "";
+    if (rest) {
+      if (phaseRef.current === "thinking") setPhase("speaking");
+      queueRef.current?.push(rest);
+      return;
+    }
+    // 这轮什么都没念（空回复 / 没装语音包）→ 别卡在"他在说"，直接继续听
+    if (!queueRef.current?.speaking() && aliveRef.current) beginListen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, lastAssistantId, lastAssistantText]);
+  }, [busy, lastAssistantId]);
 
   const subtitles = settings.voiceSubtitles;
 

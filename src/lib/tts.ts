@@ -33,7 +33,20 @@ type NativeTts = {
     pitch?: number;
     volume?: number;
   }) => Promise<void>;
+  /** 打断当前这句（通话里"挂断/被插话"要用） */
+  stop?: () => Promise<void>;
 };
+
+/**
+ * 正在播的那一段音频（语音服务合成的 mp3）。
+ *
+ * ⚠️ 为什么必须留这个句柄：`new Audio(url).play()` 播出去之后**没有任何办法停** ——
+ * `stopSpeaking()` 原来只 cancel 浏览器自带 TTS，对这条音频完全无效。
+ * 后果很具体：通话里你想打断他、或者按挂断，他还在那儿把话念完。
+ */
+let currentAudio: HTMLAudioElement | null = null;
+/** 让"等这段音频播完"的那个 promise 立刻落地（否则调用方会一直等） */
+let abortCurrent: (() => void) | null = null;
 
 let nativeTtsCache: { api: NativeTts } | null | undefined;
 
@@ -117,12 +130,19 @@ export async function speakTextAsync(
           const bail = window.setTimeout(finish, budgetMs);
           audio.onended = finish;
           audio.onerror = finish;
+          // 记下"正在播的这段" —— stopSpeaking() 靠它真的把声音掐掉
+          currentAudio = audio;
+          abortCurrent = finish;
           void audio.play().catch(finish);
         });
+        currentAudio = null;
+        abortCurrent = null;
         URL.revokeObjectURL(out.url);
         opts.onEnd?.();
         return { ok: true };
       } catch (e) {
+        currentAudio = null;
+        abortCurrent = null;
         URL.revokeObjectURL(out.url);
         opts.onEnd?.();
         return { ok: false, reason: e instanceof Error ? e.message : "播放失败" };
@@ -267,8 +287,30 @@ export function speakText(text: string, opts: SpeakOptions = {}): SpeakResult {
   return { ok: true };
 }
 
+/**
+ * 立刻停下正在念的声音 —— **三条路都要掐**：
+ *   ① 浏览器自带 TTS（speechSynthesis）
+ *   ② 语音服务合成的那段 mp3（`Audio` 元素，没有句柄就停不了）
+ *   ③ 安卓原生朗读引擎
+ *
+ * 通话模式里"插话/挂断"全靠它；少掐一条，用户就会遇到
+ * "我都按挂断了，他还在念"。
+ */
 export function stopSpeaking(): void {
   if (ttsSupported()) window.speechSynthesis.cancel();
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+    } catch {
+      /* 已经停了 */
+    }
+    currentAudio = null;
+  }
+  abortCurrent?.();
+  abortCurrent = null;
+  void nativeTts()
+    .then((t) => t?.api.stop?.())
+    .catch(() => undefined);
 }
 
 /**
