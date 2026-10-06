@@ -11,10 +11,31 @@
  *
  * 所以：凡是要区分两种形态的地方，都从这里取判断，别再各写各的。
  */
+import { Capacitor } from "@capacitor/core";
 
 /** 打包成安卓 App 的那种构建（VITE_DIRECT_UPSTREAM=1）。 */
 export const IS_APP =
   (import.meta.env?.VITE_DIRECT_UPSTREAM as string | undefined) === "1";
+
+/**
+ * 现在是不是**真的跑在手机的 App 壳里**（安卓 WebView / iOS）。
+ *
+ * 跟 `IS_APP` 的区别很重要，别混：
+ *   · `IS_APP` 是**构建期**常量 —— "这一版是给安卓打的"
+ *   · 这个是**运行时**判断 —— "我此刻确实在那个原生 WebView 里"
+ *
+ * 为什么 OAuth 必须用运行时判断：**回跳方式完全不同** ——
+ * 真机里只能跳**系统浏览器**再靠自定义 scheme 跳回来（App 里没有本地服务端，
+ * 同源回调会落到 Chrome 自己身上）；网页版直接同源跳就行。
+ * 用构建期常量的话，"给安卓打的包在浏览器里打开"这种调试场景会走错分支。
+ */
+export function isNativeApp(): boolean {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 问上游要模型列表。

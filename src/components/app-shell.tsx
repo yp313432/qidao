@@ -1,5 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
+import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GlassHighlight } from "@/components/glass-highlight";
 import { PlayerHost } from "@/components/player-host";
@@ -67,6 +68,8 @@ export function AppShell() {
       <AlarmOverlay />
       {/* AI 请求的任何操作都要从这里过一道（询问 / 允许 / 拒绝） */}
       <ActionGate />
+      {/* App 里 OAuth 授权完的深链回跳（qidao://oauth/callback）由它接收 */}
+      <McpOAuthListener />
       {/* 他写了新信：一进前端就跳出拆信动画 */}
       <LetterAlert />
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">

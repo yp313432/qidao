@@ -59,6 +59,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!--
+              OAuth 授权完的**回跳**：qidao://oauth/callback?code=…
+
+              为什么是这个 scheme：App 里没有本地服务端，系统浏览器跳
+              https://localhost/... 会落到 Chrome 自己身上、回不到 App；
+              所以按 RFC 8252 用自定义 scheme（Android 把符合这个 scheme 的
+              链接直接派给栖岛）。
+
+              host 只写到 "oauth"，path 不限制 —— 以后回调路径改了（或者
+              多一个中转页）不用再来动这里，少一次"改 A 忘了改 B"。
+              注意 MainActivity 上有 android:launchMode="singleTask"，
+              所以回跳是**唤醒已有实例**、不会重开一个 App。
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="qidao" android:host="oauth" />
+            </intent-filter>
+
         </activity>
 
         <provider

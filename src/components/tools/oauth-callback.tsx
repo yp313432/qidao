@@ -3,40 +3,15 @@ import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { completeAuthorize } from "@/lib/mcp-oauth";
 import { probeServer } from "@/lib/mcp";
+import { waitHydrated } from "@/lib/store-ready";
 import { useApp } from "@/lib/store";
 import type { McpTool } from "@/lib/types";
 
 /**
- * 等 store 从 IndexedDB 恢复完再写。
- *
- * ⚠️ 这一步**不能省**，是实测踩出来的真 bug：
- * 回调页是**整页新加载**的（浏览器从授权服务器跳回来），页面一加载
- * `persist` 就开始异步读 IndexedDB。如果这时候马上 `patchMcp` 写令牌，
- * 会先写进内存、随后被**恢复出来的旧快照整个覆盖** —— 表现就是
- * "授权页明明说成功了，回列表却不显示已授权"（令牌悄悄没了）。
- * 实测就是这么报的错。所以写之前先等 `hydrated`（`theme-root.tsx` 置的位）。
- */
-async function waitHydrated(): Promise<void> {
-  if (useApp.getState().hydrated) return;
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      unsub();
-      resolve();
-    };
-    const unsub = useApp.subscribe((s) => {
-      if (s.hydrated) finish();
-    });
-    // 兜底：万一位已经置过、事件错过了，或者 IndexedDB 卡住
-    if (useApp.getState().hydrated) finish();
-    window.setTimeout(finish, 4000);
-  });
-}
-
-/**
  * OAuth 回调页 —— 用户在授权服务器那边点了"同意"，浏览器跳回来的地方。
+ *
+ * （App 版不走这一页：真机里是深链回到 App，由 `mcp-oauth-listener.tsx` 处理。
+ *  两边的"换令牌 + 落库 + 验一次"用的是同一份 `completeAuthorize` / `waitHydrated`。）
  *
  * 这一页**故意不放在 `_app` 布局下面**：它是从外部跳回来的落地页，
  * 带着 `?code=...`，不该套上 AppShell 的导航和返回钮。所以放在

@@ -1,4 +1,4 @@
-import { IS_APP } from "./platform";
+import { isNativeApp } from "./platform";
 import type { McpOAuth, McpServer } from "./types";
 
 /**
@@ -113,8 +113,35 @@ async function pkceChallenge(verifier: string): Promise<string> {
  *   服务器不一定接受**，这条要在真机上试。
  */
 export function redirectUri(): string {
-  if (IS_APP) return "qidao://oauth/callback";
+  if (isNativeApp()) return "qidao://oauth/callback";
   return `${window.location.origin}/oauth/callback`;
+}
+
+/**
+ * 从回调地址里把参数抠出来。
+ *
+ * 网页版传进来的是 `http://…/oauth/callback?code=…`；
+ * **App 里传进来的是深链** `qidao://oauth/callback?code=…` ——
+ * `new URL()` 对自定义 scheme 一样能解析（`searchParams` 也能用），
+ * 所以两端共用这一个函数。
+ */
+export function parseCallbackUrl(raw: string): {
+  code?: string;
+  state?: string;
+  error?: string;
+  errorDescription?: string;
+} {
+  try {
+    const q = new URL(raw).searchParams;
+    return {
+      code: q.get("code") ?? undefined,
+      state: q.get("state") ?? undefined,
+      error: q.get("error") ?? undefined,
+      errorDescription: q.get("error_description") ?? undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 /** 从 401 的 `WWW-Authenticate` 里抠 `resource_metadata="..."`（拿不到时返回 null） */
@@ -334,7 +361,11 @@ export function clearPending(): void {
 
 export type CompleteResult =
   | { ok: true; serverId: string; oauth: McpOAuth }
-  | { ok: false; message: string };
+  /**
+   * `serverId` 在失败时也尽量给出来 —— App 里回跳失败时，界面要能把
+   * "失败原因"写在那一条服务器卡片上，不然用户只看到"没反应"。
+   */
+  | { ok: false; message: string; serverId?: string };
 
 /**
  * 第 7 步：回调页拿到 code，换令牌。
@@ -373,15 +404,20 @@ export async function completeAuthorize(params: {
   }
   if (Date.now() - pending.startedAt > PENDING_TTL_MS) {
     clearPending();
-    return { ok: false, message: "授权超时（超过 15 分钟），回工具页重新点一次。「去授权」" };
+    return {
+      ok: false,
+      serverId: pending.serverId,
+      message: "授权超时（超过 15 分钟），回工具页重新点一次。「去授权」",
+    };
   }
   if (!params.code) {
-    return { ok: false, message: "回调地址里没有 code，这次授权没完成。" };
+    return { ok: false, serverId: pending.serverId, message: "回调地址里没有 code，这次授权没完成。" };
   }
   if (params.state !== pending.state) {
     clearPending();
     return {
       ok: false,
+      serverId: pending.serverId,
       message: "state 对不上，按规范必须拒绝这次授权（可能是授权码被劫持或被塞了别人的码）。请重新授权。",
     };
   }
@@ -406,6 +442,7 @@ export async function completeAuthorize(params: {
   } catch (err) {
     return {
       ok: false,
+      serverId: pending.serverId,
       message: `连不上换令牌的地址：${(err as Error).message}\n${pending.tokenEndpoint}`,
     };
   }
@@ -415,11 +452,16 @@ export async function completeAuthorize(params: {
   try {
     json = JSON.parse(text) as typeof json;
   } catch {
-    return { ok: false, message: `换令牌返回的不是 JSON（HTTP ${res.status}）：\n${text.slice(0, 400)}` };
+    return {
+      ok: false,
+      serverId: pending.serverId,
+      message: `换令牌返回的不是 JSON（HTTP ${res.status}）：\n${text.slice(0, 400)}`,
+    };
   }
   if (!res.ok || !json.access_token) {
     return {
       ok: false,
+      serverId: pending.serverId,
       message: `换令牌失败（HTTP ${res.status}）：${json.error_description ?? text.slice(0, 300)}`,
     };
   }

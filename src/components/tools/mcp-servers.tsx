@@ -4,6 +4,7 @@ import { KeyRound, Loader2, Pencil, Plus, ShieldCheck, Trash2, Wifi } from "luci
 import { Switch } from "@/components/ui/switch";
 import { probeServer } from "@/lib/mcp";
 import { isAuthorized, planAuthorize } from "@/lib/mcp-oauth";
+import { openAuthorizeUrl } from "@/lib/mcp-oauth-browser";
 import { useApp } from "@/lib/store";
 import type { McpOAuth, McpServer } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,31 @@ export function McpServers() {
       useApp.getState().patchMcp(server.id, {
         oauth: { ...(server.oauth ?? { clientId: plan.persist.clientId }), ...plan.persist },
       });
-      window.location.assign(plan.url);
+      /*
+        跳出去授权。
+        ⚠️ App（真机）里这是**系统浏览器**，App 会退到后台 ——
+        所以先写一条状态留在卡片上：回来后一眼能看出"刚才那一步做了"，
+        而失败时也有个东西可看（真机上"回到 App 什么都没发生"最让人懵）。
+      */
+      useApp.getState().patchMcp(server.id, {
+        status: {
+          ok: false,
+          at: Date.now(),
+          // 保留 needsAuth：万一人从浏览器空手回来，还能再点一次「去授权」
+          needsAuth: true,
+          message:
+            "已经跳到浏览器等你授权了。\n授权完回到栖岛，这里会自动变成「拿到 N 个工具」。",
+        },
+      });
+      await openAuthorizeUrl(plan.url);
+      /*
+        ⚠️ 这里必须把 loading 复位。
+        网页版跳走之后这一行没意义（页面已经卸载），但 **App 里不会跳走** ——
+        它是"开系统浏览器 + App 退到后台"，函数照常往下走。
+        少了这一行，用户从浏览器回来会看到一个**永久卡在"准备授权…"**的按钮，
+        既点不动、也看不出该干嘛（实测抓到的）。
+      */
+      setAuthing(null);
     } catch (err) {
       setAuthError({ id: server.id, message: (err as Error).message });
       setAuthing(null);
