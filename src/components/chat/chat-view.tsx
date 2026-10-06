@@ -22,6 +22,7 @@ import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { ToolProcess } from "@/components/chat/tool-process";
+import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
 import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
@@ -313,6 +314,8 @@ export function ChatView() {
               className="space-y-5 px-2 py-4 pb-8"
               style={{ fontSize: `${chatFontPx(settings.chatFontSize)}px` }}
             >
+            {/* 「更早的对话（摘要）」那条线 —— 只在这条对话真有摘要时出现（P4b） */}
+            <SummaryLine conversationId={conv!.id} />
             {conv!.messages.map((m) => {
               const mine = m.role === "user";
               const streaming = liveId === m.id;

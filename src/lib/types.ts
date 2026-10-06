@@ -236,6 +236,27 @@ export type Conversation = {
   updatedAt: number;
   pinned: boolean;
   incognito: boolean;
+  /**
+   * **更早那部分的滚动摘要**（见 `lib/summary.ts`）。
+   *
+   * 长对话超预算时，原来是把更早的消息**整条丢掉**（"忘掉"）——
+   * 而前面那些"我们定过什么、他喜欢什么、还有什么事没做完"恰恰最值钱。
+   * 现在丢掉之前先让 AI 压成一份**只记事实**的摘要，挂在历史最前面继续用。
+   *
+   * 界面上：对话顶部一条可展开的线，**能看、能改**（用户明确要求能编辑）。
+   */
+  summary?: {
+    text: string;
+    /** 已经摘到第几条（不含）—— 之前那些消息都在摘要里了 */
+    upToIndex: number;
+    /** 一共吸收了多少条 */
+    covered: number;
+    /** 摘要自身 token（估算）—— 界面上用它说明"省了多少" */
+    tokens: number;
+    /** 生成时那批原文的 token —— 跟上面一比就是省了多少 */
+    sourceTokens: number;
+    updatedAt: number;
+  };
 };
 
 export type ThemeId = "dawn" | "dusk" | "ink";

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
+import { summarizeNow } from "@/lib/summarizer";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
@@ -21,6 +22,10 @@ export function MemoryView() {
   const [store, setStore] = useState<StorageUsage | null>(null);
   const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState("");
+  /** 「现在就总结一次」那一下在跑 */
+  const [summarizing, setSummarizing] = useState(false);
+  /** 当前这条对话的 id —— 摘要是**按对话**存的，所以要有它 */
+  const conversationId = useApp((s) => s.activeId);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -94,6 +99,11 @@ export function MemoryView() {
                   title="系统提示词"
                 />
                 <span
+                  className="h-full bg-ok/70"
+                  style={{ width: `${(ctx.toolTokens / ctx.budget) * 100}%` }}
+                  title="工具定义"
+                />
+                <span
                   className="h-full bg-fg/60"
                   style={{ width: `${(ctx.historyTokens / ctx.budget) * 100}%` }}
                   title="对话历史"
@@ -111,6 +121,10 @@ export function MemoryView() {
                   {ctx.systemTokens === 0 && "（发过一次消息就有准确值）"}
                 </li>
                 <li>
+                  <span className="text-ok/70">■</span> 工具定义 · 约 {ctx.toolTokens} tokens
+                  <span className="text-subtle">（按需挑的那几个；全发要 4000 左右）</span>
+                </li>
+                <li>
                   <span className="text-fg/60">■</span> 对话历史 · 约 {ctx.historyTokens} tokens（
                   {ctx.messages} 条参与）
                 </li>
@@ -119,13 +133,34 @@ export function MemoryView() {
                 </li>
               </ul>
 
+              {ctx.overBudget && (
+                <p className="mt-3 rounded-2xl bg-warn/15 px-3 py-2 text-[11px] leading-4 text-warn">
+                  光是系统提示词 + 工具定义就已经超过你设的 {ctx.budget} 了 ——
+                  也就是说历史基本塞不进来。要么把预算调大，要么把「每次发多少工具」调成按需。
+                </p>
+              )}
+
+              {ctx.hasSummary && (
+                <p className="mt-3 rounded-2xl bg-chip px-3 py-2 text-[11px] leading-4 text-muted">
+                  更早的对话已经压成摘要（约 {ctx.summaryTokens} tokens）继续带着走 ——
+                  原文不再发出，
+                  <span className="font-medium text-fg">省了约 {ctx.summarySaved} tokens</span>
+                  ，而且信息没丢。在对话页顶部那条线里可以看到、改。
+                </p>
+              )}
+
               {ctx.folded > 0 && (
                 <p className="mt-3 rounded-2xl bg-chip px-3 py-2 text-[11px] leading-4 text-muted">
-                  为了不超预算，更早的 <span className="font-medium text-fg">{ctx.folded}</span> 条
-                  消息这一轮没有发出去（本地仍然保留）。
-                  <span className="text-subtle">
-                    「智能摘要压缩」需要接入 AI 才能真正总结，现在是按预算截断。
-                  </span>
+                  这一轮有 <span className="font-medium text-fg">{ctx.folded}</span> 条更早的消息
+                  没有发出去
+                  {ctx.foldedIntosummary > 0 ? (
+                    <>
+                      —— 其中约 <span className="font-medium text-fg">{ctx.foldedIntosummary}</span> 条
+                      已经压进上面的摘要里，剩下的本地仍然保留、只是这一轮不带。
+                    </>
+                  ) : (
+                    "（本地仍然保留）。"
+                  )}
                 </p>
               )}
             </>
@@ -139,7 +174,7 @@ export function MemoryView() {
         <div className="divide-y divide-line rounded-3xl border border-line bg-surface px-4">
           <Stepper
             label="上下文预算"
-            hint="超出就折叠更早的消息"
+            hint="这一轮请求的总量：系统提示词 + 工具 + 历史"
             value={`${settings.contextBudget} tokens`}
             onPrev={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, -1) })}
             onNext={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, 1) })}
@@ -183,6 +218,43 @@ export function MemoryView() {
             onPrev={() => patch({ compactAt: step(COMPACT_STEPS, settings.compactAt, -1) })}
             onNext={() => patch({ compactAt: step(COMPACT_STEPS, settings.compactAt, 1) })}
           />
+        </div>
+
+        {/*
+          手动摘一次的入口：自动触发是"用到 80% 才摘"，如果他嫌晚
+          （或者想立刻把前面的对话压掉），这里能现在就摘。
+        */}
+        <div className="mt-3 rounded-3xl border border-line bg-surface px-4 py-3.5">
+          <p className="text-[13px] font-medium">更早的对话（摘要）</p>
+          <p className="mt-0.5 text-[11px] leading-4 text-muted">
+            {ctx?.hasSummary
+              ? `已经有一份摘要（约 ${ctx.summaryTokens} tokens）—— 原文不再发出，省了约 ${ctx.summarySaved} tokens。`
+              : "超出预算时，更早的消息会被压成一份摘要继续带着走（而不是直接忘掉）。" +
+                "平时用不到，长对话（大约每 15~20 轮）会自动做一次。"}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              disabled={summarizing || !conversationId}
+              onClick={() => {
+                if (!conversationId) return;
+                setSummarizing(true);
+                void summarizeNow(conversationId).finally(() => setSummarizing(false));
+              }}
+              className="rounded-full bg-chip px-3.5 py-2 text-[12px] font-medium disabled:opacity-40"
+            >
+              {summarizing ? "总结中…" : "现在就总结一次"}
+            </button>
+            {ctx?.hasSummary && conversationId && (
+              <button
+                type="button"
+                onClick={() => useApp.getState().clearSummary(conversationId)}
+                className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-muted"
+              >
+                删掉摘要
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

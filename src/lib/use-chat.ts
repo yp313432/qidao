@@ -12,9 +12,17 @@ import {
 } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { ACTION_PERMISSION } from "@/lib/action-meta";
-import { actionFeedback, assembleMessages, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
+import {
+  actionFeedback,
+  assembleMessages,
+  pickWorldEntries,
+  promptToolsFor,
+  systemPrompt,
+} from "@/lib/prompt";
 import { useApp } from "@/lib/store";
+import { maybeSummarize } from "@/lib/summarizer";
 import { selectActionKinds } from "@/lib/tool-select";
+import { estimateTokens } from "@/lib/tokens";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
@@ -246,9 +254,18 @@ export function useChatStream(opts: UseChatOpts = {}) {
     compactAt: settings.compactAt,
   };
 
+  /**
+   * 上一轮实测的**固定开销**（系统提示词 + 这一轮的工具定义）。
+   *
+   * 为什么要记着它：预算 2026-10 起改成**整轮口径**（见 `lib/history-fit.ts`），
+   * 算历史额度时要扣掉这两块。每轮的实际系统提示词会略微不同
+   * （用户改权限、世界书、按需注册挑的动作变了），所以按"上一轮的量"估最省事也最准。
+   */
+  const fixedRef = useRef({ system: 2900, tools: 1500 });
+
   /** 把一段历史丢给模型，边流边写回指定的那一条助手消息。 */
   const runStream = useCallback(
-    async (conversationId: string, messageId: string, history: ApiMessage[]) => {
+    async (conversationId: string, messageId: string, history: ApiMessage[], summaryText?: string) => {
       setBusy(true);
       setLiveId(messageId);
       const started = Date.now();
@@ -439,6 +456,23 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const runNative = async (state: AttemptState): Promise<void> => {
         const reqActive = buildReq(true);
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
+        /**
+         * ⚠️ **摘要要插在系统提示词之后、历史之前** —— 不能只加在 `history` 里：
+         * 原生工具那条路会**重拼 messages**（`assembleMessages`），
+         * 只加在 history 上的话，摘要会被这一步悄悄丢掉
+         * （第一版就这么错了：原文被水位线切掉了、摘要又没进去，等于那一段彻底失忆）。
+         */
+        const withSummary: ApiMessage[] = summaryText
+          ? [
+              assembled[0]!,
+              // 套上"这是摘要、原文已不再带上"的标记（不然模型会当成用户的原话）
+              {
+                role: "system",
+                content: `【更早的对话（摘要，原文已不再带上）】\n${summaryText.trim()}`,
+              },
+              ...assembled.slice(1),
+            ]
+          : assembled;
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
         const known = new Set(actionToolsFor(kindsSent).map((t) => t.function.name));
@@ -467,7 +501,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const roundTextStart = { at: 0 };
         const result = await runToolLoop({
           send,
-          baseMessages: assembled,
+          baseMessages: withSummary,
           // P3：只发这一轮用得上的（没筛就发全部，顺序都跟着 ACTION_SCHEMA 走）
           tools: actionToolsFor(kindsSent),
           signal: ac.signal,
@@ -558,6 +592,30 @@ export function useChatStream(opts: UseChatOpts = {}) {
       flush();
 
       /**
+       * ⭐ **该摘就摘**（P4b：滚动摘要）。
+       *
+       * 放在这一轮写完之后、`finalize` 之前：此时刚发出去的那批消息已经在库里了，
+       * 算出来的 token 最接近"下一轮要发的量"。
+       *
+       * 判定本身是纯函数（`planSummary`）：**只有历史用到额度的 80% 才摘** ——
+       * 所以正常聊天永远不触发，长对话大约每 15~20 轮一次（预算是 12000 时）。
+       * 失败不影响主流程（摘不出来就照旧"整条丢"）。
+       */
+      if (native) {
+        const sysText = systemPrompt(buildReq(true));
+        fixedRef.current = {
+          system: estimateTokens(sysText),
+          tools: estimateTokens(JSON.stringify(actionToolsFor(kindsSent))),
+        };
+        await maybeSummarize({
+          conversationId,
+          history,
+          systemTokens: fixedRef.current.system,
+          toolTokens: fixedRef.current.tools,
+        });
+      }
+
+      /**
        * 走**文本协议**时才有"正文里的动作块"要解析（原生那条路已经在循环里执行完了）。
        * 权限、确认弹窗、动作记录都由 store 那一侧负责（没授权的会被拦下来问用户）。
        */
@@ -643,11 +701,21 @@ export function useChatStream(opts: UseChatOpts = {}) {
         .getState()
         .addUserMessage(text, attachments);
       const prior = useApp.getState().conversations.find((c) => c.id === conversationId);
-      const history = historyForApi(
-        prior?.messages.filter((m) => m.id !== assistant.id) ?? [user],
-        histOpts,
-      );
-      await runStream(conversationId, assistant.id, history);
+      /**
+       * **水位线**：摘要盖住的那一段原文不再发（`summary.upToIndex` 是库里那个位置）。
+       * 摘要本身挂在历史最前面（`summary` 那个字段），所以信息没丢、只是换成了压缩版。
+       */
+      const all = prior?.messages.filter((m) => m.id !== assistant.id) ?? [user];
+      const kept = prior?.summary ? all.slice(prior.summary.upToIndex) : all;
+      const history = historyForApi(kept, {
+        ...histOpts,
+        // 整轮口径：扣掉系统提示词和工具，才是历史真正能用的额度
+        systemTokens: fixedRef.current.system,
+        toolTokens: fixedRef.current.tools,
+        // 摘要放最前面（原文已经在上面被切掉了）
+        summary: prior?.summary ? { text: prior.summary.text, upToIndex: 0 } : undefined,
+      });
+      await runStream(conversationId, assistant.id, history, prior?.summary?.text);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [runStream, settings],
@@ -669,7 +737,20 @@ export function useChatStream(opts: UseChatOpts = {}) {
         thinkingDurationMs: 0,
         feedback: undefined,
       });
-      await runStream(conversationId, messageId, historyForApi(target.messages.slice(0, idx), histOpts));
+      const kept = target.summary
+        ? target.messages.slice(target.summary.upToIndex, idx)
+        : target.messages.slice(0, idx);
+      await runStream(
+        conversationId,
+        messageId,
+        historyForApi(kept, {
+          ...histOpts,
+          systemTokens: fixedRef.current.system,
+          toolTokens: fixedRef.current.tools,
+          summary: target.summary ? { text: target.summary.text, upToIndex: 0 } : undefined,
+        }),
+        target.summary?.text,
+      );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [runStream, settings],

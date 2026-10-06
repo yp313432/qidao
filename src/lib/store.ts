@@ -79,7 +79,14 @@ const defaultSettings: Settings = {
   quotaAlerts: true,
   diaryReminders: false,
   reminderTime: "21:00",
-  contextBudget: 6000,
+  /**
+   * 整轮预算（**系统提示词 + 工具定义 + 历史** 都算在里面）。
+   *
+   * 2026-10 从 6000 提到 12000：原来的口径只算历史，而系统提示词 2889 +
+   * 这一轮工具 900~4000 早就把 6000 吃光了 —— 实测长对话稳在 11550 还在涨，
+   * 用户却以为自己在 6000 以内。改口径的同时把默认提上来，才装得下正常对话。
+   */
+  contextBudget: 12000,
   keepRecent: 16,
   autoCompact: true,
   compactAt: 80,
@@ -420,6 +427,10 @@ export type AppState = {
   ) => { conversationId: string; user: ChatMessage; assistant: ChatMessage };
   patchMessage: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
   finalizeAssistant: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
+  /** 写入/更新这条对话的「更早的对话摘要」（用户也能手改，所以是 patch 语义） */
+  patchSummary: (conversationId: string, patch: Partial<NonNullable<Conversation["summary"]>>) => void;
+  /** 丢掉摘要（回到"整条丢"的老行为）—— 摘错了他可以一键撤 */
+  clearSummary: (conversationId: string) => void;
   bumpQuota: () => boolean;
   quotaResetAt: () => number;
   toggleMcp: (id: string) => void;
@@ -959,6 +970,33 @@ export const useApp = create<AppState>()(
                   updatedAt: Date.now(),
                   messages: c.messages.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
                 },
+          ),
+        })),
+      patchSummary: (conversationId, patch) =>
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id !== conversationId
+              ? c
+              : {
+                  ...c,
+                  updatedAt: Date.now(),
+                  summary: {
+                    text: "",
+                    upToIndex: 0,
+                    covered: 0,
+                    tokens: 0,
+                    sourceTokens: 0,
+                    ...(c.summary ?? {}),
+                    ...patch,
+                    updatedAt: Date.now(),
+                  },
+                },
+          ),
+        })),
+      clearSummary: (conversationId) =>
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id !== conversationId ? c : { ...c, summary: undefined },
           ),
         })),
       finalizeAssistant: (conversationId, messageId, patch) => {

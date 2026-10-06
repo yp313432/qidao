@@ -630,7 +630,13 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
 }
 
 export type HistoryOpts = {
-  /** 估算 token 预算 */
+  /**
+   * 这一轮的**整轮预算**（系统提示词 + 工具 + 历史都算在里面）。
+   *
+   * ⚠️ 口径在 2026-10 改过：原来这里框的是"只有历史"，于是设置 6000 时
+   * 系统提示词 2889 + 工具 4007 早就超了，用户从界面上看不出来
+   * （实测长对话稳在 11550，超设置近一倍）。现在按整轮算。
+   */
   budget?: number;
   /** 至少保留最近多少条 */
   keepRecent?: number;
@@ -638,6 +644,12 @@ export type HistoryOpts = {
   autoCompact?: boolean;
   /** 用到预算的百分之多少开始折叠 */
   compactAt?: number;
+  /** 系统提示词 token（整轮口径要扣掉它） */
+  systemTokens?: number;
+  /** 这一轮 tools 定义 token（整轮口径要扣掉它） */
+  toolTokens?: number;
+  /** 已经压好的「更早的对话摘要」——挂在历史最前面一起发 */
+  summary?: { text: string; upToIndex: number };
 };
 
 function tokensOf(m: ApiMessage): number {
@@ -650,11 +662,20 @@ function tokensOf(m: ApiMessage): number {
   return n;
 }
 
+/** 切掉已经被摘要吸收的部分（摘要站在它原来的位置） */
+function droppedBySummary(messages: ApiMessage[], upToIndex: number | undefined): ApiMessage[] {
+  if (!upToIndex || upToIndex <= 0) return messages;
+  return messages.slice(upToIndex);
+}
+
 /**
  * 组装发给上游的历史。
  *
  * 加了预算控制：从最近往回收，装不下就停 —— 但最近 keepRecent 条
  * 无论多长都保留（否则一句长文就能把当前问题挤掉）。
+ *
+ * 2026-10 起：预算按**整轮**算（扣掉系统提示词和工具），并且会把
+ * 「更早的对话摘要」放在最前面（那些原文已经不再发了）。
  */
 export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): ApiMessage[] {
   const keep = Math.max(2, opts.keepRecent ?? 16);
@@ -685,17 +706,27 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
       };
     });
 
-  if (!autoCompact) return built.slice(-keep);
+  const afterSummary = droppedBySummary(built, opts.summary?.upToIndex);
+
+  if (!autoCompact) return afterSummary.slice(-keep);
+
+  /**
+   * 整轮口径：额度 = 预算 − 系统提示词 − 工具定义。
+   * （原来只减 0，所以"预算 6000"其实框不住任何东西。）
+   */
+  const room = Math.max(0, budget - (opts.systemTokens ?? 0) - (opts.toolTokens ?? 0));
+  const fitLimit = Math.min(limit, room);
 
   const kept: ApiMessage[] = [];
   let used = 0;
-  for (let i = built.length - 1; i >= 0; i -= 1) {
-    const item = built[i]!;
-    const forced = built.length - i <= keep;
+  for (let i = afterSummary.length - 1; i >= 0; i -= 1) {
+    const item = afterSummary[i]!;
+    const forced = afterSummary.length - i <= keep;
     const t = tokensOf(item);
-    if (!forced && used + t > limit) break;
+    if (!forced && used + t > fitLimit) break;
     used += t;
     kept.unshift(item);
   }
+  if (kept.length === 0) return [];
   return kept;
 }
