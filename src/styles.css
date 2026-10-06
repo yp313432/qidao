@@ -820,6 +820,135 @@ html[data-drawer-open] .glass-nav-bar {
   animation-duration: 0.55s;
 }
 
+/* ==================================================================
+ * 「心潮」舞台 —— 内在页那朵花待的地方。
+ *
+ * 分层（从下到上）：
+ *   1. 粉→紫的流体渐变底（两块大模糊色斑在慢慢游）
+ *   2. 珍珠粒子（少量、错开漂移；不是几百个点的 canvas）
+ *   3. 两条正弦波（海面），横向无限平移
+ *   4. 花（SVG，贝塞尔花瓣 + 发光 + 呼吸）
+ *
+ * 为什么用 CSS/SVG 而不是 WebGL：这页是"看一眼就走"的页面，
+ * 常驻 WebGL 在手机上很费电；CSS 渐变+模糊的观感接近，代价低一个量级。
+ *
+ * 颜色是**写死的粉紫**（用户要的就是这个调子），不跟主题令牌走 ——
+ * 深浅主题下它都是同一种"海"。
+ * ================================================================== */
+.flower-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  isolation: isolate;
+  background:
+    radial-gradient(120% 90% at 20% 0%, #ffe3f3 0%, rgba(255, 227, 243, 0) 55%),
+    radial-gradient(110% 80% at 85% 12%, #e7dcff 0%, rgba(231, 220, 255, 0) 60%),
+    linear-gradient(165deg, #ffeaf6 0%, #f3e6ff 45%, #e8e2ff 100%);
+}
+
+/* 1. 流体：两块大色斑慢慢游动 + 一层柔光叠加 */
+.flower-blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(28px);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+.flower-blob-a {
+  inset: -20% -10% auto -20%;
+  height: 70%;
+  background: radial-gradient(circle at 40% 40%, #ff9ecb 0%, rgba(255, 158, 203, 0) 70%);
+  animation: flower-drift-a 14s ease-in-out infinite;
+}
+.flower-blob-b {
+  inset: auto -15% -25% 10%;
+  height: 75%;
+  background: radial-gradient(circle at 60% 60%, #b79cff 0%, rgba(183, 156, 255, 0) 72%);
+  animation: flower-drift-b 18s ease-in-out infinite;
+}
+
+@keyframes flower-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6%, 5%, 0) scale(1.08); }
+}
+@keyframes flower-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.04); }
+  50% { transform: translate3d(-5%, -4%, 0) scale(1); }
+}
+
+/* 2. 珍珠 / 光斑：少量、各自错开漂移，避免"整齐划一"的假 */
+.flower-pearl {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, rgba(255, 255, 255, 0.55) 45%, rgba(255, 255, 255, 0) 72%);
+  animation: flower-float 11s ease-in-out infinite;
+}
+@keyframes flower-float {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.55; }
+  50% { transform: translate3d(4px, -10px, 0); opacity: 0.9; }
+}
+
+/* 3. 海面：两条正弦波横向无限平移（路径画两遍，平移正好一个周期就不会跳） */
+.flower-wave {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  pointer-events: none;
+  opacity: 0.62;
+}
+.flower-wave svg {
+  width: 200%;
+  height: 100%;
+  display: block;
+}
+.flower-wave-far { animation: flower-wave-drift 17s linear infinite; opacity: 0.45; }
+.flower-wave-near { animation: flower-wave-drift 11s linear infinite reverse; }
+
+@keyframes flower-wave-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+/* 4. 花：呼吸 + 入场时"缓缓长出来"（spring 缓动） */
+.flower-breathe {
+  transform-origin: 50% 50%;
+  animation: flower-breathe 4.2s ease-in-out infinite;
+}
+@keyframes flower-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.flower-grow {
+  transform-origin: 50% 50%;
+  animation: flower-grow 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes flower-grow {
+  from { transform: scale(0.62); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* 最明显的那一瓣：边缘光晕呼吸（"偏爱"那种凸出来的感觉） */
+.flower-lobe-glow {
+  animation: flower-lobe-glow 3.2s ease-in-out infinite;
+}
+@keyframes flower-lobe-glow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(255, 120, 180, 0.55)); }
+  50% { filter: drop-shadow(0 0 9px rgba(255, 120, 180, 0.9)); }
+}
+
+/* 数值变化时花瓣平滑生长（Chromium 支持 d 的过渡；不支持就直接换，不影响使用） */
+.flower-petal {
+  transition: d 900ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease;
+}
+
+/* 花心：深灰水滴 + 玻璃质感 */
+.flower-core {
+  filter: drop-shadow(0 6px 14px rgba(60, 30, 70, 0.28));
+}
+
+
 /* ------------------------------------------------------------------
  * 弹层 / 菜单专用材质。
  *

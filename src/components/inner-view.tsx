@@ -108,7 +108,7 @@ export function InnerView() {
                 <p className="mt-1 text-[12px] leading-5 text-muted">「{latest.note}」</p>
               )}
 
-              <InnerFlower dims={nowDims} mode="now" className="mt-3" />
+              <InnerFlower dims={nowDims} mode="now" variant="full" className="mt-3" />
 
               {/* 花瓣下面把那几个"亮着的"写成数值 —— 图看不出精确数字，文字补上 */}
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
@@ -135,7 +135,7 @@ export function InnerView() {
                   {activeDims.length ? ` · 常在的是 ${activeDims.map((d) => d.label).join("、")}` : ""}
                 </p>
               </div>
-              <InnerFlower dims={avgDims} mode="avg" className="mt-2" />
+              <InnerFlower dims={avgDims} mode="avg" variant="lite" className="mt-2" />
               <p className="mt-1 text-center text-[11px] leading-4 text-subtle">
                 没记录的日子<span className="text-muted">不算 0</span>
                 （不然"某天没聊"会被当成"那天没情绪"）
