@@ -972,6 +972,42 @@ function MeSections({ tab }: { tab: MeTab }) {
             ))}
           </div>
         </div>
+
+        {/*
+          发多少动作：按需（P3）/ 全发。
+          用户原话："就是根据对话判断我需要什么样的工具才会调用，其他的就不每一轮都发给它"
+          —— 61 个动作的定义每轮 ≈ 4007 token，按需能砍到 1/3 左右。
+        */}
+        <div className="mb-2 rounded-2xl bg-chip px-3.5 py-3">
+          <p className="text-[12px] leading-5">每次发多少工具</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">
+            按需：只按当前这句话挑相关的几组发过去（省钱，也少让他选错）。
+            拿不准你在说什么的时候会全发，不会让他「不会做」。
+            全发：每轮都带 61 个动作，最稳但最贵 —— 怀疑按需漏了什么就切到这儿对比。
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-1">
+            {(
+              [
+                ["auto", "按需（推荐）"],
+                ["all", "全部发"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => patch({ toolCatalog: id })}
+                className={cn(
+                  "rounded-full px-3 py-2 text-[12px] font-medium",
+                  ((settings.toolCatalog ?? "auto") === "auto" ? "auto" : "all") === id
+                    ? "bg-ink text-ink-fg"
+                    : "bg-elevated",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button
           type="button"
           disabled={

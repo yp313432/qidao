@@ -1,17 +1,13 @@
 /**
- * 探针：**走原生 `tools` 之后，系统提示词到底省了多少**。
+ * 探针：**走原生 `tools` 之后，系统提示词和 tools 各占多少、按需注册省了多少**。
  *
- * 为什么要单独量：P2 的主要收益是"动作清单不用在提示词里再写一遍"
- * （定义改由上游的 `tools` 参数结构化携带）。但"省了多少"不能靠感觉 ——
- * 这里直接调 App 自己的 `systemPrompt()` + `estimateTokens()` 量出来。
- *
- * 量三份：
- *   ① 老协议（带工具清单）：nativeTools=false
- *   ② 原生 tools：nativeTools=true
- *   ③ 两者之差 = 这一次改动的真实收益
- *
- * 顺带量一下 61 个动作的 tools JSON 有多大 —— 它**每一轮都要发**，
- * 所以"省了提示词"不等于"整体省了"，两个数都要看（别拿一个数当结论）。
+ * 为什么必须量（不量就是自欺）：P2 结束时实测过一笔账 ——
+ *   · 提示词省了 2023 token（动作清单不再写第二遍）
+ *   · 但 61 个动作的 tools 定义**每轮要发 ≈ 4007** → 净多花
+ * P3（按需注册）要治的就是后面那一半。这里量三样：
+ *   ① 系统提示词：老协议 / 原生 / 原生+按需（多出来的那份"动作名清单"也要算进去）
+ *   ② 一句句真句子下，tools 的 token 数（按需 vs 全发）
+ *   ③ 净账：相对老协议，到底省没省
  *
  * 跑法（要完整权限；dev server 要在 8080）：
  *   node probe-native-savings.mjs
@@ -27,7 +23,10 @@ await page.waitForTimeout(1200);
 const out = await page.evaluate(async () => {
   const { systemPrompt } = await import("/src/lib/prompt.ts");
   const { estimateTokens } = await import("/src/lib/tokens.ts");
-  const { actionTools } = await import("/src/lib/action-schema.ts");
+  const { ACTION_SCHEMA, ACTION_GROUP_OF, actionToolsFor } = await import(
+    "/src/lib/action-schema.ts"
+  );
+  const { selectActionKinds } = await import("/src/lib/tool-select.ts");
 
   const base = {
     style: "default",
@@ -38,32 +37,91 @@ const out = await page.evaluate(async () => {
     worldAlways: [],
     permissions: {},
   };
-  const legacy = systemPrompt({ ...base, nativeTools: false });
-  const native = systemPrompt({ ...base, nativeTools: true });
-  const tools = actionTools();
-  const toolsJson = JSON.stringify(tools);
+  const legacyPrompt = systemPrompt({ ...base, nativeTools: false });
+  const nativePrompt = systemPrompt({ ...base, nativeTools: true });
+  const selectivePrompt = systemPrompt({
+    ...base,
+    nativeTools: true,
+    selectiveTools: true,
+  });
+
+  const allKinds = ACTION_SCHEMA.map((a) => a.kind);
+  const allTools = actionToolsFor(allKinds);
+  const allJson = JSON.stringify(allTools);
+
+  /** 拿几句"真句子"看按需挑出几个（挑的都是平时最常说的） */
+  const cases = [
+    "帮我写今天的日记，顺便放首歌",
+    "七点半叫我起床",
+    "陪我下一局五子棋",
+    "把主题换成深色的",
+    "查一下杭州天气",
+    "嗯，就这样",
+  ];
+  const rows = cases.map((text) => {
+    const r = selectActionKinds({
+      text,
+      allKinds,
+      groupOf: ACTION_GROUP_OF,
+      enabled: true,
+    });
+    const json = JSON.stringify(actionToolsFor(r.kinds));
+    return {
+      text,
+      count: r.kinds.length,
+      groups: r.groups,
+      tokens: estimateTokens(json),
+    };
+  });
+
+  const size = (s) => ({ chars: s.length, tokens: estimateTokens(s) });
   return {
-    legacy: { chars: legacy.length, tokens: estimateTokens(legacy) },
-    native: { chars: native.length, tokens: estimateTokens(native) },
-    toolsCount: tools.length,
-    toolsJson: { chars: toolsJson.length, tokens: estimateTokens(toolsJson) },
+    legacyPrompt: size(legacyPrompt),
+    nativePrompt: size(nativePrompt),
+    selectivePrompt: size(selectivePrompt),
+    allTools: { count: allTools.length, ...size(allJson) },
+    rows,
   };
 });
 
 const pad = (s, n) => String(s).padEnd(n, " ");
-console.log("块".padEnd(28) + pad("字符", 8) + pad("token", 10));
+console.log("【一】系统提示词（每轮都发）");
+console.log("块".padEnd(30) + pad("字符", 8) + pad("token", 10));
 console.log("-".repeat(48));
-console.log("老协议（提示词带动作清单）".padEnd(24) + pad(out.legacy.chars, 8) + pad(out.legacy.tokens, 10));
-console.log("原生 tools（提示词只留规则）".padEnd(23) + pad(out.native.chars, 8) + pad(out.native.tokens, 10));
-console.log("-".repeat(48));
+console.log("老协议（提示词带动作清单）".padEnd(26) + pad(out.legacyPrompt.chars, 8) + pad(out.legacyPrompt.tokens, 10));
+console.log("原生 tools（只留规则）".padEnd(25) + pad(out.nativePrompt.chars, 8) + pad(out.nativePrompt.tokens, 10));
 console.log(
-  "提示词省下".padEnd(26) +
-    pad(out.legacy.chars - out.native.chars, 8) +
-    pad(out.legacy.tokens - out.native.tokens, 10),
+  "原生 + 按需（多一份动作名清单）".padEnd(26) +
+    pad(out.selectivePrompt.chars, 8) +
+    pad(out.selectivePrompt.tokens, 10),
+);
+
+console.log("\n【二】tools 定义（每轮都要发 —— P3 砍的是这一块）");
+console.log("全发".padEnd(30) + pad(`${out.allTools.count} 个`, 10) + pad("", 8) + pad(out.allTools.tokens, 10));
+console.log("-".repeat(48));
+for (const r of out.rows) {
+  console.log(
+    `「${r.text}」`.padEnd(24) +
+      pad(`${r.count} 个`, 10) +
+      pad(`${r.tokens} token`, 12) +
+      `命中：${r.groups.join("、") || "（全发）"}`,
+  );
+}
+
+console.log("\n【三】净账（相对老协议，每轮多花/省下多少 token）");
+const promptDelta = out.selectivePrompt.tokens - out.legacyPrompt.tokens;
+console.log(`提示词：${promptDelta >= 0 ? "+" : ""}${promptDelta}`);
+for (const r of out.rows) {
+  const net = promptDelta + r.tokens - 0;
+  console.log(`  「${r.text}」 → ${net >= 0 ? "+" : ""}${net}（tools ${r.tokens}）`);
+}
+console.log(
+  "\n（老协议不发 tools。所以「净账」= 提示词变化 + tools token；负数 = 真的省了）",
 );
 console.log(
-  `\n但 tools 这份定义每轮都要发：${out.toolsCount} 个动作 = ${out.toolsJson.chars} 字符 ≈ ${out.toolsJson.tokens} token`,
+  `全发时的净账：${promptDelta + out.allTools.tokens >= 0 ? "+" : ""}${
+    promptDelta + out.allTools.tokens
+  } ← 这就是 P3 之前的状态（净多花）`,
 );
-console.log("→ 所以「提示词省的那部分」和「tools 多花的那部分」要一起看，别只报一边。");
 
 await browser.close();

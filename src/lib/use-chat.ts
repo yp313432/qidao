@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { actionTools } from "@/lib/action-schema";
+import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import {
@@ -11,8 +11,10 @@ import {
   type ChatDelta,
 } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
+import { ACTION_PERMISSION } from "@/lib/action-meta";
 import { actionFeedback, assembleMessages, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
+import { selectActionKinds } from "@/lib/tool-select";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
@@ -173,6 +175,24 @@ function shouldFillVoice(r: ToolRoundRecord, roundHasText: boolean): boolean {
 }
 
 /**
+ * 从"要发给上游的历史"里取出**最后一句话**和**最近几条** —— 按需注册靠它判断
+ * "这一轮该给哪些动作"（见 `lib/tool-select`）。
+ *
+ * 为什么要最近几条而不是只看最后一句：用户会说"好""就这样""嗯"，
+ * 真正的意图在**上一轮**（"帮我写日记" → "好"）。只按最后一句筛会漏光。
+ */
+function historyText(history: ApiMessage[]): { last: string; recent: string[] } {
+  const asText = (m: ApiMessage): string =>
+    typeof m.content === "string"
+      ? m.content
+      : (m.content ?? [])
+          .map((p) => (p && typeof p === "object" && "text" in p ? String(p.text ?? "") : ""))
+          .join(" ");
+  const users = history.filter((m) => m.role === "user").map(asText).filter(Boolean);
+  return { last: users[users.length - 1] ?? "", recent: users.slice(-3).reverse() };
+}
+
+/**
  * 内部信号：上游**明确拒绝**了 `tools` 参数 → 该摘掉 tools、按文本协议重来。
  *
  * 用一个 Error 子类而不是返回值，是因为它要在**深两层的异步栈**里穿出来
@@ -285,11 +305,56 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       /**
        * 这一轮走哪条通道（见 `shouldUseNativeTools` 的说明）。
-       * 只有**原生**那条路才把 61 个动作的定义当 `tools` 发出去。
+       * 只有**原生**那条路才把动作的定义当 `tools` 发出去。
        */
       const native = forceProtocolRef.current
         ? forceProtocolRef.current === "native"
         : shouldUseNativeTools(settings);
+
+      /**
+       * ⭐ **P3 按需注册**：这一轮到底发哪些动作。
+       *
+       * 用户原话："就是根据对话判断我需要什么样的工具才会调用，其他的就不每一轮都发给它"。
+       * 实测账（交接 ⑤ §2.5）：61 个动作的 tools 定义每轮 ≈ 4007 token —— 比提示词省下的还多。
+       *
+       * 三条纪律（都在 `tool-select.ts` 里写清了）：
+       *   · 命中**整组**就发（宁可多发，漏发会让他说"我做不到"）
+       *   · 命中少于 2 组 = 意思不明确 → **全发**（关键词漏了的最坏结果是"没省"，不是"不会做"）
+       *   · `state.report`（那朵花的数据源）等四个动作**常驻**
+       *
+       * 只有走原生 tools 时才谈得上"发哪些"；文本协议那条路本来就是提示词里的清单，不筛。
+       */
+      const selection = native
+        ? (() => {
+            const ctx = historyText(history);
+            return selectActionKinds({
+              text: ctx.last,
+              recent: ctx.recent,
+              allKinds: ACTION_SCHEMA.map((a) => a.kind),
+              groupOf: ACTION_GROUP_OF,
+              // 用户明确拒绝过的动作**根本没资格进请求**（发了也是白花 token、还让他白忙一场）
+              allowed: (kind) => {
+                const perm = ACTION_PERMISSION[kind as AppAction["kind"]];
+                return !perm || settings.permissions[perm] !== "deny";
+              },
+              enabled: (settings.toolCatalog ?? "auto") === "auto",
+            });
+          })()
+        : null;
+      /** 这一轮真的发出去的动作 kind（顺序稳定）—— P3 之后不再总是 61 个 */
+      const kindsSent = selection
+        ? selection.kinds
+        : ACTION_SCHEMA.map((a) => a.kind);
+      /** 这一轮是不是"只发了一部分"（要给模型那份兜底说明，免得他以为做不到） */
+      const selective = kindsSent.length < ACTION_SCHEMA.length;
+      if (native) {
+        // 诊断用：用户报"他怎么不会做 XX"时，先看这一行就知道那轮到底发了什么
+        console.debug(
+          `[qidao] 这一轮发 ${kindsSent.length}/${ACTION_SCHEMA.length} 个动作（命中组：${
+            selection?.groups.join("、") || "全部"
+          }）`,
+        );
+      }
 
       /**
        * 把 request 对象拼出来（一处实现，两条通道共用）。
@@ -317,7 +382,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
           recentActions,
           permissions: settings.permissions,
         };
-        return { ...base, nativeTools };
+        return {
+          ...base,
+          nativeTools,
+          // "这一轮只发了一部分" → 提示词里要带上兜底说明（不然他会以为自己做不到）
+          selectiveTools: nativeTools && selective,
+        };
       };
 
       const onDelta = (d: ChatDelta) => {
@@ -371,7 +441,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
-        const known = new Set(actionTools().map((t) => t.function.name));
+        const known = new Set(actionToolsFor(kindsSent).map((t) => t.function.name));
         const send: ToolRoundSend = (() => {
           const inner =
             (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim()
@@ -398,7 +468,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const result = await runToolLoop({
           send,
           baseMessages: assembled,
-          tools: actionTools(),
+          // P3：只发这一轮用得上的（没筛就发全部，顺序都跟着 ACTION_SCHEMA 走）
+          tools: actionToolsFor(kindsSent),
           signal: ac.signal,
           onDelta,
           onRound: (r) => {

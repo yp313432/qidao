@@ -95,6 +95,13 @@ export type ChatRequest = {
    */
   toolProtocol?: "native" | "text";
   /**
+   * 这一轮的原生 `tools` 是**按需挑的**（P3 按需注册）：只发跟当前对话相关的动作。
+   *
+   * 服务端据此在系统提示词里加一条兜底规则 —— 筛掉的动作**不等于不存在**，
+   * 模型不能因为"工具列表里没有"就回答"我做不到"（那会让用户以为功能坏了）。
+   */
+  selectiveTools?: boolean;
+  /**
    * ⭐ 工具循环里**每一轮**都从这条口子发出去（而不是重拼 `messages`）：
    * 那一轮要带的东西（上一轮 assistant 的 tool_calls + tool 结果）只有客户端有。
    *

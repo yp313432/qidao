@@ -447,6 +447,18 @@ export type Settings = {
   toolProbeOk?: boolean;
   /** 上面那条结论是什么时候测的（界面上要说清"上次测的是什么时候"） */
   toolProbeAt?: number;
+  /**
+   * 原生 tools 发多少：**按需**还是一股脑全发。
+   *
+   *   · `auto`（默认）—— **按需注册**（P3）：按当前对话挑相关的组。
+   *     实测 61 个动作的 tools 定义每轮 ≈ 4007 token，按需能砍到 1/3 左右
+   *   · `all` —— 全发（诊断用：怀疑"按需漏了动作"时切到这档对比一下）
+   *   · `off` —— 同 `all`（留一格是为了以后能一键退回，不必改代码）
+   *
+   * 用户原话（P3 的需求）："就是根据对话判断我需要什么样的工具才会调用，
+   * 其他的就不每一轮都发给它"。
+   */
+  toolCatalog?: "auto" | "all" | "off";
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;

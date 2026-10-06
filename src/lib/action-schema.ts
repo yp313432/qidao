@@ -585,6 +585,35 @@ export function actionTools(): ActionTool[] {
   }));
 }
 
+/**
+ * **按需注册（P3）要用的一份索引**：kind → 它属于哪个组。
+ *
+ * 为什么放这儿：`ACTION_SCHEMA` 是动作的**唯一定义**，分组也在里面 ——
+ * 再手写一份 kind→组的表迟早走散（P0 建 `ACTION_SCHEMA` 就是为了治这个）。
+ * `lib/tool-select.ts` 只吃"组"这个概念（它零 import，所以表由调用方喂进去）。
+ */
+export const ACTION_GROUP_OF: Record<string, ActionGroup> = Object.fromEntries(
+  ACTION_SCHEMA.map((a) => [a.kind, a.group]),
+) as Record<string, ActionGroup>;
+
+/**
+ * 把一组 kind 变成 `tools` 参数 —— **按需注册真正省下来的那一步**。
+ *
+ * 跟 `actionTools()` 的关系：那个是"全部 61 个"，这个是"这一轮要发的那几个"。
+ * 顺序跟着 `ACTION_SCHEMA` 走（稳定 → 不打断上游前缀缓存）。
+ */
+export function actionToolsFor(kinds: readonly string[]): ActionTool[] {
+  const want = new Set(kinds);
+  return ACTION_SCHEMA.filter((a) => want.has(a.kind)).map((action) => ({
+    type: "function" as const,
+    function: {
+      name: actionToolName(action.kind),
+      description: `${action.summary}（${action.kind}）`,
+      parameters: parametersOf(action),
+    },
+  }));
+}
+
 function fieldsText(fields: readonly ActionFieldDef[]): string {
   if (fields.length === 0) return "";
   const inner = fields

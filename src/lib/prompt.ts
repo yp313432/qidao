@@ -1,6 +1,8 @@
 import { buildManual } from "@/lib/manual";
+import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
+import { FALLBACK_RULE, renderToolNameList } from "@/lib/tool-select";
 import type { HttpTool, McpServer, McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
@@ -88,6 +90,14 @@ export type PromptInput = {
    * 不是 / 降级回来时，照旧渲染那份完整清单（那份清单是唯一一份，见 `ABILITIES`）。
    */
   nativeTools?: boolean;
+  /**
+   * 这一轮的原生 tools 是**按需挑的**（P3 按需注册：只发跟当前对话相关的动作）。
+   *
+   * 为什么必须让提示词知道：筛掉的动作**不等于不存在**。用户要用的那个恰好没被选中时，
+   * 模型不能回答"我做不到"（用户会以为功能坏了）—— 所以要给它一条兜底规则：
+   * 需要清单里没带的动作，就在正文里写动作块，客户端照样执行。
+   */
+  selectiveTools?: boolean;
   name?: string;
   aiName?: string;
   persona?: string;
@@ -386,7 +396,11 @@ export function systemPrompt(input: PromptInput): string {
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
   }${worldAlways}
 ${tools}
-${input.nativeTools ? NATIVE_ACTIONS : ABILITIES}`;
+${input.nativeTools ? NATIVE_ACTIONS : ABILITIES}${
+    input.nativeTools && input.selectiveTools
+      ? `\n${FALLBACK_RULE}\n${renderToolNameList(ACTION_SCHEMA.map((a) => a.kind))}\n`
+      : ""
+  }`;
 }
 
 /**
