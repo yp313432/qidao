@@ -130,6 +130,17 @@ export function htmlToText(html: string): { title: string; text: string } {
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ")
+    /*
+      丢掉导航/页脚/侧栏/表单 —— 实测读百度首页时，正文只有 141 字，
+      而且几乎全是"登录/我的关注/我的收藏/皮肤中心"这类导航噪声。
+      这些块对"这页讲了什么"没有价值，先整块去掉再抽文本。
+    */
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
+    .replace(/<form[\s\S]*?<\/form>/gi, " ")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, " ")
     // 换行语义：块级标签变空格，br/段落变换行
     .replace(/<\/(p|div|section|article|li|h[1-6]|tr|br)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")

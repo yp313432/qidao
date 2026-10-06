@@ -25,7 +25,11 @@ export const Route = createFileRoute("/api/read")({
         const checked = isPublicHttpUrl(raw.trim());
         if (!checked.ok) return json({ ok: false, why: checked.why }, 400);
 
-        const got = await fetchText(checked.url.toString(), { maxBytes: 400_000, timeoutMs: 12_000 });
+        /*
+          ⚠️ 超时给到 15 秒而不是 12 秒：用户手机实测读百度首页用了 **10.2 秒**
+          （Cloudflare 从境外取国内站点就是慢），12 秒的余量太薄，稍慢一点就整条失败。
+        */
+        const got = await fetchText(checked.url.toString(), { maxBytes: 400_000, timeoutMs: 15_000 });
         if (!got.ok) return json({ ok: false, why: `取网页失败：${got.why}` }, 502);
 
         const { title, text } = htmlToText(got.text);

@@ -29,7 +29,16 @@ export const Route = createFileRoute("/api/search")({
           // 博查失败就往下走抓取兜底，别让用户什么都拿不到
         }
 
-        const scraped = (await viaBing(q)) ?? (await viaDuckDuckGo(q));
+        /*
+          兜底顺序是有讲究的（2026-10 实测）：
+            ① **Bing 的 RSS 接口**（`&format=rss`）—— 官方 feed，返回结构化 XML，
+               783ms、10 条；这种接口不吃反爬，**从境外网络（Cloudflare）也能用**
+            ② 抓 Bing 的 HTML 结果页 —— 在这台机器上能出结果，但**从 Cloudflare 上
+               失败过**（用户手机实测 502），所以只能排在后面当兜底
+          DDG / Wikipedia / SearXNG 在这台机器上直接连不通（网络到不了），没法验，
+          所以不放进来充数。
+        */
+        const scraped = (await viaBingRss(q)) ?? (await viaBingHtml(q));
         if (scraped) return json(scraped);
 
         return json(
@@ -94,9 +103,47 @@ function decodeEntities(s: string): string {
     .trim();
 }
 
-async function viaBing(q: string): Promise<Record<string, unknown> | null> {
+/**
+ * ① Bing 的 **RSS 接口** —— 免 key 兜底里的首选。
+ *
+ * 为什么首选它：这是官方 feed（`&format=rss`），返回结构化 XML，实测 783ms、10 条，
+ * **不吃反爬**。用户手机上实测过：抓 Bing 的 HTML 结果页从 Cloudflare 出去是 502
+ * （境外 IP 被反爬挡了），而 RSS 这条路不依赖页面结构，稳定得多。
+ */
+async function viaBingRss(q: string): Promise<Record<string, unknown> | null> {
+  const got = await fetchText(`https://www.bing.com/search?q=${encodeURIComponent(q)}&format=rss`, {
+    timeoutMs: 8_000,
+    maxBytes: 400_000,
+  });
+  if (!got.ok || got.status !== 200) return null;
+
+  const results: Hit[] = [];
+  for (const item of got.text.split(/<item>/i).slice(1)) {
+    const link = item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] ?? "";
+    const title = item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "";
+    const desc = item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] ?? "";
+    const url = decodeEntities(link.replace(/<!\[CDATA\[|\]\]>/g, "").trim());
+    const cleanTitle = decodeEntities(title.replace(/<!\[CDATA\[|\]\]>/g, "")).trim();
+    if (!cleanTitle || !url.startsWith("http")) continue;
+    results.push({
+      title: cleanTitle,
+      url,
+      snippet: decodeEntities(desc.replace(/<!\[CDATA\[|\]\]>/g, "")).slice(0, 300),
+    });
+    if (results.length >= 5) break;
+  }
+  if (!results.length) return null;
+  return { ok: true, engine: "bing-rss", query: q, results };
+}
+
+/**
+ * ② 抓 Bing 的 HTML 结果页 —— 兜底的兜底。
+ * 在这台机器上能出结果，但**从 Cloudflare 上失败过**（用户手机实测 502），
+ * 所以只当最后一道。
+ */
+async function viaBingHtml(q: string): Promise<Record<string, unknown> | null> {
   const got = await fetchText(`https://cn.bing.com/search?q=${encodeURIComponent(q)}&setlang=zh-CN`, {
-    timeoutMs: 12_000,
+    timeoutMs: 8_000,
     maxBytes: 600_000,
   });
   if (!got.ok || got.status !== 200) return null;
@@ -123,37 +170,5 @@ async function viaBing(q: string): Promise<Record<string, unknown> | null> {
     if (results.length >= 5) break;
   }
   if (!results.length) return null;
-  return { ok: true, engine: "bing", query: q, results };
-}
-
-async function viaDuckDuckGo(q: string): Promise<Record<string, unknown> | null> {
-  const got = await fetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
-    timeoutMs: 12_000,
-    maxBytes: 600_000,
-  });
-  if (!got.ok || got.status !== 200) return null;
-
-  const results: Hit[] = [];
-  const re = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snips = [...got.text.matchAll(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)];
-  let m: RegExpExecArray | null;
-  let i = 0;
-  while ((m = re.exec(got.text)) && results.length < 5) {
-    let url = decodeEntities(m[1]);
-    // DDG 给的是跳转链接，真地址藏在 uddg 参数里
-    const uddg = url.match(/[?&]uddg=([^&]+)/);
-    if (uddg) url = decodeURIComponent(uddg[1]);
-    if (!url.startsWith("http")) {
-      i += 1;
-      continue;
-    }
-    results.push({
-      title: decodeEntities(m[2]),
-      url,
-      snippet: decodeEntities(snips[i]?.[1] ?? "").slice(0, 300),
-    });
-    i += 1;
-  }
-  if (!results.length) return null;
-  return { ok: true, engine: "duckduckgo", query: q, results };
+  return { ok: true, engine: "bing-html", query: q, results };
 }
