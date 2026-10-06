@@ -30,6 +30,7 @@ import {
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
+import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -323,6 +324,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [models, setModels] = useState<string[]>([]);
   const [modelMsg, setModelMsg] = useState<string | null>(null);
   const [probing, setProbing] = useState(false);
+  // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
+  const [probeBusy, setProbeBusy] = useState(false);
+  const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
 
   async function probeModels() {
     setProbing(true);
@@ -340,6 +344,31 @@ function MeSections({ tab }: { tab: MeTab }) {
       setModelMsg(json.message ?? "没拉到模型列表，手动填吧");
     }
     setProbing(false);
+  }
+
+  /**
+   * 探测上游认不认原生 `tools`（function calling）。
+   *
+   * 三条最小请求都在 `lib/tool-probe` 里，它自己吞掉所有失败
+   * （超时 / 非 JSON / HTML 错误页），这里再兜一层 —— 万一它抛出来，
+   * 这一页就白了，而这是用户唯一能自测上游的地方。
+   */
+  async function runToolProbe() {
+    setProbeBusy(true);
+    setProbeResult(null);
+    try {
+      setProbeResult(
+        await probeToolCalling({
+          baseUrl: settings.customBaseUrl,
+          apiKey: settings.customApiKey,
+          model: settings.upstreamModel,
+        }),
+      );
+    } catch (err) {
+      setProbeResult(failedProbeResult(`探测没跑起来：${(err as Error).message || "未知错误"}`));
+    } finally {
+      setProbeBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -878,6 +907,62 @@ function MeSections({ tab }: { tab: MeTab }) {
             不记得名字就点「拉取可用模型」，直接问对方要列表。
           </p>
         </div>
+      </Section>
+
+      {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
+      <Section title="工具调用（原生 tools）">
+        <p className="mb-2 text-[12px] leading-5 text-muted">
+          下一版想让栖岛用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
+          吞掉、变成一坨普通文字，有的直接报错（还有的只跟流式一起给）。点一下测出来，再决定怎么接。
+          <br />
+          用的就是上面那三格（地址 / 密钥 / 模型名），密钥只在本机这次请求里用。
+        </p>
+        <button
+          type="button"
+          disabled={
+            !settings.customBaseUrl.trim() ||
+            !settings.customApiKey.trim() ||
+            !settings.upstreamModel.trim() ||
+            probeBusy
+          }
+          onClick={runToolProbe}
+          className="h-11 w-full rounded-2xl bg-chip px-3.5 text-[13px] font-medium disabled:opacity-40"
+        >
+          {probeBusy ? "正在问上游，稍等…（最多 20 秒）" : "测一测这个上游支不支持工具调用"}
+        </button>
+        {probeBusy && (
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            真机上网络往返 0.8~2 秒很正常，三条请求加起来可能要几秒 —— 别退出去，马上好。
+          </p>
+        )}
+        {probeResult && !probeBusy && (
+          <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
+            <ProbeLine label="认 tools 参数" pass={probeResult.nonStreamToolCall} />
+            <ProbeLine label="流式下能识别到工具调用" pass={probeResult.streamToolCall} />
+            <ProbeLine label="一次能返回多个工具调用" pass={probeResult.multiToolCall} />
+            <p className="mt-1.5 text-[12px] text-muted">耗时 {probeResult.latencyMs} ms</p>
+            <p
+              className={cn(
+                "mt-1.5 text-[12px] leading-5",
+                probeResult.ok ? "text-muted" : "text-warn",
+              )}
+            >
+              {probeResult.ok
+                ? probeResult.error
+                  ? `整体能用，但有一处要留意：${probeResult.error}`
+                  : "整体能用 —— 可以按原生工具调用来做。"
+                : (probeResult.error ?? "没测出结果，换个地址或模型再试试。")}
+            </p>
+            {probeResult.rawSnippet && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[11px] text-subtle">看原始返回片段</summary>
+                <pre className="mt-1.5 max-h-56 overflow-auto rounded-xl bg-elevated p-2 text-[11px] leading-4 whitespace-pre-wrap text-muted">
+                  {probeResult.rawSnippet}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
       </Section>
     </>
   );
@@ -1472,6 +1557,18 @@ function ImageRow({
           <X className="size-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+/** 探测结果里的一行：通过 / 不通过 */
+function ProbeLine({ label, pass }: { label: string; pass: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <span className="text-[13px]">{label}</span>
+      <span className={cn("shrink-0 text-[12px] font-medium", pass ? "text-ok" : "text-warn")}>
+        {pass ? "通过" : "不通过"}
+      </span>
     </div>
   );
 }
