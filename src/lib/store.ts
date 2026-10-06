@@ -117,6 +117,9 @@ const defaultSettings: Settings = {
   customApiKey: "",
   upstreamModel: "",
   upstreamModels: [],
+  // 通道默认 auto：**没测过就走文本协议**（老路子，绝不冒险）——
+  // 判错要比现在多花 ~1800 token 更糟的是"一个字都回不出来"。见 lib/use-chat 的 shouldUseNativeTools。
+  toolProtocol: "auto",
   background: { image: "", blur: 24, dim: 0.15, opacity: 0.9 },
   font: "system",
   textTone: "auto",

@@ -21,6 +21,7 @@ import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
+import { ToolProcess } from "@/components/chat/tool-process";
 import { Ticker } from "@/components/chat/ticker";
 import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
@@ -429,6 +430,10 @@ export function ChatView() {
                         ) : streaming ? (
                           <p className="thinking-shimmer text-sm">正在写回复…</p>
                         ) : null}
+                        {/* 他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化 */}
+                        {m.rounds && m.rounds.length > 0 && !streaming && (
+                          <ToolProcess rounds={m.rounds} />
+                        )}
                         {m.content && !streaming && (
                           <MessageActions
                             content={m.content}

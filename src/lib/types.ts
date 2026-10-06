@@ -98,6 +98,25 @@ export type RequestLogEntry = {
   cached?: number;
 };
 
+/**
+ * 原生 tools 循环里**一次工具调用**的记录（调了什么、什么参数、结果如何）。
+ *
+ * 放在 `types.ts` 而不是 `lib/tool-loop.ts` 是为了破循环依赖：
+ * 消息里要存它（`ChatMessage.rounds`），而 tool-loop 又要读 `AppAction`。
+ */
+export type ToolCallRecord = {
+  /** 上游给的工具名（内部动作是 `navigate` 这种点号换下划线的形式） */
+  name: string;
+  /** 换回内部 kind；不是我们的工具就是 null（模型瞎编的） */
+  kind: string | null;
+  /** 模型给的原始参数字符串（**不解析**，原样留着才看得出它到底写了什么） */
+  args: string;
+  /** 回灌给模型的那句人话结果 */
+  result: string;
+  /** 有没有真的执行成功（被拒绝、参数坏、认不出工具名都是 false） */
+  ok: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -120,6 +139,14 @@ export type ChatMessage = {
   };
   /** 这条是**定时任务**让他主动说的，不是用户问的（聊天里会带一个小标记） */
   scheduled?: boolean;
+  /**
+   * 这一轮他"真的动过手"的记录（原生 tools 循环里每一轮调了什么、成没成）。
+   *
+   * 为什么要存进消息里：**动作闸门那张卡片是瞬时的**（点完就没了），
+   * 事后回看这条回复时"他刚才到底干了什么"就查不到了。用户报过
+   * "他说他执行了，但什么都没发生" —— 有了这份记录，"哪一步没成"当场看得见。
+   */
+  rounds?: { round: number; calls: ToolCallRecord[] }[];
 };
 
 /**
@@ -401,6 +428,25 @@ export type Settings = {
    * 对话框那个模型选择器显示的就是它 —— **真实可用的名字**，不是摆设的档位。
    */
   upstreamModels: string[];
+  /**
+   * 内部动作走哪条通道：
+   *   · `auto`（默认）—— 看 `toolProbeOk`（P1 探测按钮写进来的结论）；没测过就走文本
+   *   · `native` —— 强制走原生 `tools`（function calling）
+   *   · `text` —— 强制走老路子（正文里的 ```qidao 动作块）
+   *
+   * 为什么默认 `auto` 而不是 `native`：上游支持参差（很多中转会把 tool_call 吞掉、
+   * 变成一坨普通文字，或者直接报 400）。判断依据必须是**测出来的**，不是猜的。
+   */
+  toolProtocol?: "auto" | "native" | "text";
+  /**
+   * P1「测一测这个上游支不支持工具调用」的结论，**缓存下来给聊天链路读**。
+   *
+   * 为什么必须落进设置：探测结果原来只存在设置页的 useState 里，
+   * 一刷新就没了 —— 而聊天那侧要在每次发请求前判断"这把上游能不能发 tools"。
+   */
+  toolProbeOk?: boolean;
+  /** 上面那条结论是什么时候测的（界面上要说清"上次测的是什么时候"） */
+  toolProbeAt?: number;
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;
@@ -601,8 +647,7 @@ export type FeatureId =
   | "notifications"
   | "diaryReminder";
 
-/** AI 能请求 App 做的事。全部由前端执行，所以最终把关在前端。 */
-export type AppAction =
+/** AI 能请求 App 做的事。全部由前端执行，所以最终把关在前端。 */export type AppAction =
   | { kind: "navigate"; path: string }
   | { kind: "media.play" }
   | { kind: "media.pause" }

@@ -1,12 +1,38 @@
 import { useCallback, useRef, useState } from "react";
+import { actionTools } from "@/lib/action-schema";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
-import { historyForApi, streamChat, type ApiMessage, type ChatDelta } from "@/lib/chat-client";
+import {
+  historyForApi,
+  makeDirectRound,
+  makeServerRound,
+  streamChat,
+  type ApiMessage,
+  type ChatDelta,
+} from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
-import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
+import { actionFeedback, assembleMessages, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
+import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
+import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { resolveVoiceLang, speak } from "@/lib/voice";
+
+export type UseChatOpts = {
+  /**
+   * 工具轮里"模型没说话"时念一句过渡（**只有语音页要**）。
+   *
+   * 为什么需要：上了原生 tools 之后，"他决定去动手"那一轮可能一个字正文都没有 ——
+   * 静音几秒再出声，用户会以为断了。念一句"等一下，我去看看"，
+   * 通话的节奏就不塌（用户已知这个折中，见交接文档 §2.2）。
+   */
+  onFiller?: (text: string) => void;
+  /**
+   * 这一轮**强制**走哪条通道（诊断 / 验收用；不填就用设置里的判断）。
+   * 生产界面不传它 —— 免得出现"设置里选了自动、实际被某个页面覆盖"这种隐性走散。
+   */
+  forceProtocol?: "native" | "text";
+};
 
 /* --------------------------- 他的「动作块」协议 --------------------------- */
 
@@ -136,6 +162,32 @@ export function looksLikeAction(text: string): boolean {
 /**
  * 对话发送逻辑（对话页与语音页共用）。
  *
+ * 故意**不按工具名逐条写文案**（那会变成第二份状态清单，迟早过期，见坑 #31）：
+ * 一句通用的、不承诺具体结果的过渡词就够了，而且用户要求"说人话"。
+ */
+const TOOL_FILLER = "嗯，我看一下。";
+
+/** 同一轮里已经念过过渡就不重复念（一轮里连调三个动作会念三遍，很吵） */
+function shouldFillVoice(r: ToolRoundRecord, roundHasText: boolean): boolean {
+  return !roundHasText && r.calls.length > 0;
+}
+
+/**
+ * 内部信号：上游**明确拒绝**了 `tools` 参数 → 该摘掉 tools、按文本协议重来。
+ *
+ * 用一个 Error 子类而不是返回值，是因为它要在**深两层的异步栈**里穿出来
+ * （`runToolLoop` → `makeDirectRound` → `streamDirect`），返回值会被层层吞掉。
+ */
+class NativeRejected extends Error {
+  constructor() {
+    super("上游不支持 tools");
+    this.name = "NativeRejected";
+  }
+}
+
+/**
+ * 对话发送逻辑（对话页与语音页共用）。
+ *
  * 从 chat-view 里抽出来的原因很直接：语音模式改成独立页面之后，
  * 它也要能「发一条、等回复、念出来」，这两页必须走同一套逻辑，
  * 否则预算控制、用量统计、权限感知很快会两套走偏。
@@ -154,13 +206,18 @@ function notifyQuota(aiName: string) {
   }
 }
 
-export function useChatStream() {
+export function useChatStream(opts: UseChatOpts = {}) {
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const aiName = resolveAiName(settings.aiName);
   const [busy, setBusy] = useState(false);
   const [liveId, setLiveId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** opts 每个渲染都是新对象，用 ref 兜住，免得把 runStream 的依赖表搞脏 */
+  const fillerRef = useRef(opts.onFiller);
+  fillerRef.current = opts.onFiller;
+  const forceProtocolRef = useRef(opts.forceProtocol);
+  forceProtocolRef.current = opts.forceProtocol;
 
   const histOpts = {
     budget: settings.contextBudget,
@@ -182,7 +239,6 @@ export function useChatStream() {
       let content = "";
       /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
       let hadContent = false;
-      let hadError = false;
       let usage: ChatMessage["usage"];
       let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
 
@@ -226,27 +282,50 @@ export function useChatStream() {
       // 他上一轮动手的结果（回执）—— 没有它他不知道自己到底做没做
       const st = useApp.getState();
       const recentActions = actionFeedback(st.actionLog, st.pendingActions.length);
-      const req = {
-        model,
-        messages: history,
-        style: settings.replyStyle,
-        tools,
-        customBaseUrl: settings.customBaseUrl || undefined,
-        customApiKey: settings.customApiKey || undefined,
-        upstreamModel: settings.upstreamModel || undefined,
-        maxTokens: settings.maxTokens,
-        name: settings.displayName,
-        aiName,
-        persona: settings.persona || undefined,
-        context,
-        worldAlways: world.always,
-        worldHit: world.hit,
-        recentActions,
-        permissions: settings.permissions,
+
+      /**
+       * 这一轮走哪条通道（见 `shouldUseNativeTools` 的说明）。
+       * 只有**原生**那条路才把 61 个动作的定义当 `tools` 发出去。
+       */
+      const native = forceProtocolRef.current
+        ? forceProtocolRef.current === "native"
+        : shouldUseNativeTools(settings);
+
+      /**
+       * 把 request 对象拼出来（一处实现，两条通道共用）。
+       *
+       * `nativeTools` 这个标志**跟着本地变量走，不是跟着开关走** ——
+       * 探测说支持、结果上游报了 400，降级重试时要立刻按文本协议重拼提示词，
+       * 否则模型手里拿的是"按工具调用"的说明、却没有 tools 可用。
+       */
+      const buildReq = (nativeTools: boolean) => {
+        const base = {
+          model,
+          messages: history,
+          style: settings.replyStyle,
+          tools,
+          customBaseUrl: settings.customBaseUrl || undefined,
+          customApiKey: settings.customApiKey || undefined,
+          upstreamModel: settings.upstreamModel || undefined,
+          maxTokens: settings.maxTokens,
+          name: settings.displayName,
+          aiName,
+          persona: settings.persona || undefined,
+          context,
+          worldAlways: world.always,
+          worldHit: world.hit,
+          recentActions,
+          permissions: settings.permissions,
+        };
+        return { ...base, nativeTools };
       };
+
       const onDelta = (d: ChatDelta) => {
         if (d.error) {
-          hadError = true;
+          /**
+           * 错误正文先当"这一轮的话"显示出来（`content || d.error`：已经有正文就不覆盖）。
+           * 注意它**不置 hadContent** —— 只有报错、没有正文时还要走"自动重试一次"那条路。
+           */
           content = content || d.error;
           schedule();
           flush();
@@ -263,6 +342,81 @@ export function useChatStream() {
           content += d.content;
           schedule();
         }
+
+        /**
+         * 模型选了工具 —— **先把已经吐出来的正文写进界面再执行**。
+         *
+         * 不然会这样：他先说一句"我去看一下"，然后调用动作；用户要点的
+         * 那张确认卡片几秒后才弹出来，而这期间那句话还压在节流缓冲里没显示，
+         * 看起来像"界面卡住了"。
+         */
+        if (d.toolCalls?.length) {
+          dirty = true;
+          flush();
+        }
+      };
+
+      /** 一次尝试共用的一块状态（重试时整块清掉，免得两次的内容混在一起） */
+      type AttemptState = {
+        pendingCalls: { name: string }[];
+        rounds: ToolRoundRecord[];
+        usedNative: boolean;
+        reqError?: string;
+        stalled: boolean;
+      };
+
+      /** 原生 tools 那条路：拼好 messages + 循环。同步抛错（真的异常）由外层接住转成重试。 */
+      const runNative = async (state: AttemptState): Promise<void> => {
+        const reqActive = buildReq(true);
+        const assembled = assembleMessages(reqActive, history) as ApiMessage[];
+        // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
+        // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
+        const known = new Set(actionTools().map((t) => t.function.name));
+        const send: ToolRoundSend = (() => {
+          const inner =
+            (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim()
+              ? makeDirectRound(reqActive)
+              : makeServerRound(reqActive);
+          return async (args) => {
+            const r = await inner(args);
+            for (const c of r.toolCalls) {
+              if (!known.has(c.name)) {
+                // 上游把工具调用"变成一坨普通文字"时常见的形状：名字是垃圾。
+                // 这条不降级（没有明确信号），但记下来方便排查 —— 用户报"他瞎调"时先看这个。
+                console.warn("[qidao] 上游返回了不在清单里的工具名：", c.name);
+              }
+            }
+            return r;
+          };
+        })();
+
+        /**
+         * 工具循环跑完一轮之后：语音页要有一句过渡（不然那几秒是死寂）。
+         * 放在 `onRound` 里而不是循环外，是因为**只有真的调了工具**才需要过渡。
+         */
+        const roundTextStart = { at: 0 };
+        const result = await runToolLoop({
+          send,
+          baseMessages: assembled,
+          tools: actionTools(),
+          signal: ac.signal,
+          onDelta,
+          onRound: (r) => {
+            state.rounds.push(r);
+            const before = roundTextStart.at;
+            const roundHasText = content.slice(before).trim().length > 0;
+            roundTextStart.at = content.length;
+            if (shouldFillVoice(r, roundHasText)) fillerRef.current?.(TOOL_FILLER);
+          },
+        });
+        state.pendingCalls = result.pendingCalls;
+        state.usedNative = result.usedNative;
+        if (result.toolsRejected) {
+          // 上游明确不要 tools → 交给外层按文本协议再来一遍
+          throw new NativeRejected();
+        }
+        state.reqError = result.error;
+        state.stalled = result.stalled;
       };
 
       /**
@@ -272,21 +426,43 @@ export function useChatStream() {
        * 结果是一条**只有思考、没有正文**的空回复（用户报过两次）。
        * 与其让他手动点「重新生成」，不如自己再试一遍 ——
        * 重试时把上一次的思考和错误文本都丢掉，免得两次内容混在一起。
+       *
+       * ⚠️ P2 起判定标准变了：**"只有工具调用、没有正文"不算空**——
+       * 按老规矩（必须有正文）判断的话，工具轮会被无限重发（这正是坑 #36）。
        */
+      const state: AttemptState = { pendingCalls: [], rounds: [], usedNative: false, stalled: false };
       let lastErr: unknown = null;
+      let rejectedToText = false;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         hadContent = false;
-        hadError = false;
+        state.pendingCalls = [];
+        state.rounds = [];
+        state.usedNative = false;
+        state.reqError = undefined;
+        state.stalled = false;
         try {
-          await streamChat(req, onDelta, ac.signal);
+          if (native && !rejectedToText) {
+            await runNative(state);
+          } else {
+            await streamChat(buildReq(false), onDelta, ac.signal);
+          }
           lastErr = null;
         } catch (err) {
+          // 上游明确拒绝了 tools：这不是错误，是"该换条路" —— 立刻按文本协议重来
+          if (err instanceof NativeRejected) {
+            rejectedToText = true;
+            content = "";
+            thinking = "";
+            hadContent = false;
+            dirty = true;
+            flush();
+            continue;
+          }
           lastErr = err;
         }
         if (ac.signal.aborted) break;
-        // 判定标准是"**真的拿到了正文**"：只有思考、或者只是一个错误提示，
-        // 都不算成功 —— 那种情况值得自动再来一次。
-        if (hadContent) break;
+        // 成功 = 真的拿到了正文 **或** 真的调用了工具（两者有一个就不算失败）
+        if (hadContent || state.usedNative) break;
         if (attempt === 2) break;
         content = "";
         thinking = "";
@@ -295,8 +471,10 @@ export function useChatStream() {
         flush();
         await new Promise((r) => window.setTimeout(r, 350));
       }
-      if (!hadContent && (lastErr || hadError) && (lastErr as { name?: string } | null)?.name !== "AbortError") {
+      if (!hadContent && !state.usedNative && !ac.signal.aborted) {
+        const why = state.reqError || (lastErr as Error | null)?.message;
         content =
+          (why ? `${why}\n\n` : "") +
           "没拿到正文。可能是：连接被掐断（思考链太长时容易这样），地址/密钥不对，或者网络不通。\n\n" +
           "已经自动重试过一次了。可以再点「重新生成」，或者跟他说「想短一点、先给结论」。";
       }
@@ -308,9 +486,11 @@ export function useChatStream() {
       dirty = true;
       flush();
 
-      // 「他真的动手」这一步：解析回复里的 qidao 动作块并执行。
-      // 权限、确认弹窗、动作记录都由 store 那一侧负责（没授权的会被拦下来问用户）。
-      const actions = takeActions(content);
+      /**
+       * 走**文本协议**时才有"正文里的动作块"要解析（原生那条路已经在循环里执行完了）。
+       * 权限、确认弹窗、动作记录都由 store 那一侧负责（没授权的会被拦下来问用户）。
+       */
+      const actions = state.usedNative ? [] : takeActions(content);
       for (const action of actions) {
         useApp.getState().requestAction(action, "AI");
       }
@@ -319,9 +499,18 @@ export function useChatStream() {
        * 用户实测报过："写动态和信不可以了，他说他执行了，但是是空的"：
        * 模型以为做了、用户那边什么都没发生，两边对不上。
        */
-      if (actions.length === 0 && looksLikeAction(content)) {
+      if (!state.usedNative && actions.length === 0 && looksLikeAction(content)) {
         content +=
           "\n\n（他写了个动作，但格式我没看懂，所以没执行 —— 可以点「重新生成」，或者直接跟我说要做什么。）";
+      }
+      /**
+       * 撞上轮数上限：还有动作没执行完。**必须说清**（P5 那条"失败要可见"的规矩），
+       * 不然模型会在正文里说"我都做好了"，而实际上后面几步根本没跑。
+       */
+      if (state.pendingCalls.length > 0) {
+        content +=
+          `\n\n（他已经连着动手了 ${state.rounds.length} 轮，我先停下让你看看 —— ` +
+          "还有更进一步的，直接跟他说一声就行。）";
       }
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
@@ -335,6 +524,8 @@ export function useChatStream() {
         thinking,
         thinkingDurationMs: Date.now() - started,
         usage,
+        // 这一轮他"真的动过手"的记录（调了哪个动作、成没成）—— 给消息下面那行过程看
+        rounds: state.rounds.length > 0 ? state.rounds : undefined,
       });
       if (meta) {
         useApp.getState().logRequest({

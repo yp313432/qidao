@@ -46,7 +46,24 @@ export function VoiceView() {
   const settings = useApp((s) => s.settings);
   const patch = useApp((s) => s.patchSettings);
   const aiName = resolveAiName(settings.aiName);
-  const { busy, send } = useChatStream();
+  const { busy, send } = useChatStream({
+    /**
+     * 工具轮里他一个字都没说 → 念一句过渡，别让通话出现几秒死寂。
+     *
+     * 为什么需要：P2 之后内部动作走原生 `tools`，模型可以**只调用工具、不写正文**——
+     * 那几秒（还要等用户在卡片上点"允许"）语音那一侧是完全安静的，
+     * 听起来像通话断了（用户已知这个折中，见交接文档 §2.2）。
+     *
+     * ⚠️ 不要用 `turnDoneRef` 当条件：它是"整轮结束"的标志，工具轮里**还是 false**。
+     * 只在一轮正在进行（thinking / speaking）时插一句，免得在待机时突然出声。
+     * 队列是挂载时才建的，所以还要判空（首帧渲染时它还不存在）。
+     */
+    onFiller: (text) => {
+      const p = phaseRef.current;
+      if (p !== "thinking" && p !== "speaking") return;
+      queueRef.current?.push(text);
+    },
+  });
   useActivity("在语音对话");
 
   /**

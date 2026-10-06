@@ -31,6 +31,7 @@ import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
+import { toolProtocolLabel } from "@/lib/tool-protocol";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -311,6 +312,18 @@ function MeSections({ tab }: { tab: MeTab }) {
   const patch = useApp((s) => s.patchSettings);
   const background = settings.background;
   const sum = permissionSummary(settings.permissions);
+  /** 这一轮对话实际走哪条通道（跟聊天那边**共用同一个判断**，别在这里再写一套） */
+  const channel = toolProtocolLabel(settings);
+  /** 上次探测是什么时候 —— 只在 hydration 之后显示（时间在服务端和客户端算出来不一样） */
+  const probeAtText =
+    hydrated && settings.toolProbeAt
+      ? new Date(settings.toolProbeAt).toLocaleString("zh-CN", {
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
 
   // 通知相关状态（都在 effect 里读，避免 SSR / 客户端不一致）
   const [perm, setPerm] = useState<NotificationPermission | "unsupported" | "loading">("loading");
@@ -357,13 +370,21 @@ function MeSections({ tab }: { tab: MeTab }) {
     setProbeBusy(true);
     setProbeResult(null);
     try {
-      setProbeResult(
-        await probeToolCalling({
-          baseUrl: settings.customBaseUrl,
-          apiKey: settings.customApiKey,
-          model: settings.upstreamModel,
-        }),
-      );
+      const result = await probeToolCalling({
+        baseUrl: settings.customBaseUrl,
+        apiKey: settings.customApiKey,
+        model: settings.upstreamModel,
+      });
+      setProbeResult(result);
+      /**
+       * ⭐ 结果要**存进设置**，不只是显示出来。
+       *
+       * 为什么：聊天那侧每次发请求前都要判断"这把上游能不能发 tools"，
+       * 而探测结果原来只活在设置页的 useState 里 —— 一刷新就没了，
+       * 于是聊天永远只能走文本协议（P2 接不上）。存进设置之后，
+       * `shouldUseNativeTools()` 才读得到（见 lib/use-chat）。
+       */
+      patch({ toolProbeOk: result.ok, toolProbeAt: Date.now() });
     } catch (err) {
       setProbeResult(failedProbeResult(`探测没跑起来：${(err as Error).message || "未知错误"}`));
     } finally {
@@ -912,11 +933,45 @@ function MeSections({ tab }: { tab: MeTab }) {
       {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
       <Section title="工具调用（原生 tools）">
         <p className="mb-2 text-[12px] leading-5 text-muted">
-          下一版想让栖岛用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
+          栖岛用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
           吞掉、变成一坨普通文字，有的直接报错（还有的只跟流式一起给）。点一下测出来，再决定怎么接。
           <br />
           用的就是上面那三格（地址 / 密钥 / 模型名），密钥只在本机这次请求里用。
         </p>
+        {/* 现在到底走哪条通道 —— 不写清楚的话，用户永远不知道自己处在哪个状态 */}
+        <div className="mb-2 rounded-2xl bg-chip px-3.5 py-3">
+          <p className="text-[12px] leading-5">
+            现在走的是：
+            <span className="font-medium">
+              {channel.native ? "原生工具调用" : "正文里的动作块（保底那套）"}
+            </span>
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">
+            {channel.text}
+            {!channel.native && probeAtText ? `（上次测于 ${probeAtText}）` : ""}
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-1">
+            {(
+              [
+                ["auto", "自动"],
+                ["native", "原生"],
+                ["text", "保底"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => patch({ toolProtocol: id })}
+                className={cn(
+                  "rounded-full px-3 py-2 text-[12px] font-medium",
+                  (settings.toolProtocol ?? "auto") === id ? "bg-ink text-ink-fg" : "bg-elevated",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button
           type="button"
           disabled={
