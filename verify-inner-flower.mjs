@@ -144,9 +144,32 @@ check(
   `最短 ${Math.min(...petalHeights)}px / 最长 ${Math.max(...petalHeights)}px`,
 );
 check(
-  "③ 「不用突出这么长」：最长那瓣不超过整朵的三分之二（不再是细长条）",
-  Math.max(...petalHeights) / 330 <= 0.72,
+  "③ 花瓣**够长**（真机反馈「太短」：最长那瓣要明显长于一半宽度）",
+  Math.max(...petalHeights) >= 70,
   `最长 ${Math.max(...petalHeights)}px`,
+);
+/* ⚠️ 这两条是盯真机反馈的：滤镜让页面卡、还会让花心偶尔画不出来 */
+const svgFilters = await page.locator("svg filter, svg [filter]").count();
+check("③ **花瓣里没有任何 SVG 滤镜**（真机卡顿 + 花心画崩的元凶）", svgFilters === 0, `${svgFilters} 处`);
+const beadRx = await page.$$eval("svg ellipse[fill*='40,32,48']", (els) =>
+  els.map((e) => Number(e.getAttribute("rx"))),
+);
+check(
+  "③ 花心圆缩到约一半（原来 rx=13.6 太抢戏）",
+  beadRx.length > 0 && Math.max(...beadRx) <= 9,
+  `rx=${beadRx.join("/")}`,
+);
+const tide = await page.evaluate(() => {
+  const el = document.querySelector(".tide-bg");
+  if (!el) return null;
+  const cs = getComputedStyle(el);
+  const r = el.getBoundingClientRect();
+  return { position: cs.position, w: Math.round(r.width), h: Math.round(r.height) };
+});
+check(
+  "③ 背景是**整页铺满**的（fixed 覆盖视口，不是卡片里那一块）",
+  tide?.position === "fixed" && tide.w >= 380 && tide.h >= 800,
+  JSON.stringify(tide),
 );
 check("③ 花心写着最明显那瓣的名字", text.includes("想念") || text.includes("偏爱"));
 check("③ 图下面把数值写清楚了（读得出精确值）", /想念 \d+%|偏爱 \d+%/.test(text), text.match(/(想念|偏爱) \d+%/)?.[0] ?? "");

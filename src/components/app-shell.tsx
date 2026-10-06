@@ -1,5 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
+import { AppBack } from "@/components/app-back";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GlassHighlight } from "@/components/glass-highlight";
@@ -70,6 +71,12 @@ export function AppShell() {
       <ActionGate />
       {/* App 里 OAuth 授权完的深链回跳（qidao://oauth/callback）由它接收 */}
       <McpOAuthListener />
+      {/*
+        **系统返回**（安卓返回键 / 侧边滑动手势）由它接管：
+        App 的返回是"回上一级"，不是浏览器的"回上一个点过的页面"。
+        去哪儿由 `nav-tree.ts` 一份层级表决定（跟页内返回钮同源）。
+      */}
+      <AppBack />
       {/* 他写了新信：一进前端就跳出拆信动画 */}
       <LetterAlert />
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -109,6 +116,12 @@ export function AppShell() {
                   <Link
                     key={tab.to}
                     to={tab.to}
+                    /*
+                      切标签用 replace：**标签之间没有层级关系**，
+                      不该往历史里压一层（不然"返回"会回到上一个标签 ——
+                      那是网页的行为，App 里返回应该回上一级）。
+                    */
+                    replace
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex min-w-0 flex-1 flex-col items-center pt-1 pb-1 text-[10px] font-medium tracking-wide transition-colors",
