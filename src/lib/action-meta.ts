@@ -133,8 +133,19 @@ export function actionTitle(action: AppAction): string {
         focus: "专注",
         low: "低落",
         miss: "想念",
+        spark: "心动",
       };
-      return `记下自己的状态：${MOOD_CN[action.mood] ?? action.mood}（精力 ${Math.round(action.energy * 100)}%）`;
+      /*
+        状态现在是**稀疏维度**（只报此刻明显的那几个），所以这里把报出来的列一下。
+        老数据只有 energy/missing/curious 三个顶层字段 → dims 为空，就只写心情。
+      */
+      const dims = action.dims ?? {};
+      const parts = Object.entries(dims)
+        .slice(0, 3)
+        .map(([k, v]) => `${k} ${Math.round(Number(v) * 100)}%`);
+      return `记下自己的状态：${MOOD_CN[action.mood] ?? action.mood}${
+        parts.length ? `（${parts.join("、")}）` : ""
+      }`;
     }
     case "memory.add":
       return `记住：${action.note.slice(0, 20)}`;

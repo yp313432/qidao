@@ -146,12 +146,20 @@ export type StateSample = {
   at: number;
   /** 此刻的心情 */
   mood: MoodId;
-  /** 精力 0~1 */
+  /** 精力 0~1（**老字段**：新数据也会写它，好让旧版本仍能读） */
   energy: number;
-  /** 想念（有多想跟你说话）0~1 */
+  /** 想念（有多想跟你说话）0~1（老字段，同上） */
   missing: number;
-  /** 好奇 0~1 */
+  /** 好奇 0~1（老字段，同上） */
   curious: number;
+  /**
+   * 此刻**明显的那些**情绪维度（稀疏：只写他报出来的，0~1）。
+   *
+   * 词表见 `lib/state-dims.ts`（想念/偏爱/牵挂/分享欲/好奇/野心/反思/无聊/难过/生气/精神）。
+   * 为什么稀疏：每轮报满十来个数字要白花 token，而且"十来个都是 0.3"本来就不像真的 ——
+   * 真实的某一刻，通常只有一两样很突出。
+   */
+  dims?: Partial<Record<string, number>>;
   /** 为什么是这个状态（他写的一句话，可选） */
   note?: string;
 };
@@ -624,13 +632,19 @@ export type AppAction =
   | { kind: "reminder.add"; text: string; time?: string; ring?: boolean; date?: string }
   /** 定时任务：到点让他自己开口（App 活着时真的会说话；关掉时靠通知兜底） */
   | { kind: "cron.add"; prompt: string; time?: string; at?: string; notify?: boolean }
-  /** 他自己报一笔状态（L0，静默执行；用来画「内在」那条波浪线） */
+  /** 他自己报一笔状态（L0，静默执行；「内在」那朵花就是它长出来的） */
   | {
       kind: "state.report";
       mood: MoodId;
-      energy: number;
-      missing: number;
-      curious: number;
+      /**
+       * 此刻**明显的那些**维度：`{"偏爱":0.08,"想念":0.4}` —— **稀疏**，
+       * 没报的当 0。词表见 `lib/state-dims.ts`（键就是中文词本身）。
+       */
+      dims?: Record<string, number>;
+      /** 老的三个顶层字段（可选，兼容旧提示词/旧模型） */
+      energy?: number;
+      missing?: number;
+      curious?: number;
       note?: string;
     }
   | { kind: "memory.add"; note: string; tags?: string[] }

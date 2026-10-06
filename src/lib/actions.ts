@@ -7,6 +7,7 @@ import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { speakTextAsync } from "@/lib/tts";
+import { normalizeDimKey } from "@/lib/state-dims";
 import type { AppAction, FeatureId, McpOAuth, Memory, MoodId, Settings } from "@/lib/types";
 
 /**
@@ -361,15 +362,40 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
         const n = typeof v === "number" ? v : Number(v);
         return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
       };
-      const MOODS = ["calm", "joy", "focus", "low", "miss"];
+      /*
+        mood 的白名单**必须跟 MoodId 对齐**。
+        顺带修了个 bug：原来这里少了 "spark"（心动）—— 类型里有、白名单没有，
+        于是他永远报不出"心动"，一报就被兜成"平静"。
+      */
+      const MOODS = ["calm", "joy", "focus", "low", "miss", "spark"];
       const mood = MOODS.includes(str((action as { mood?: unknown }).mood))
         ? ((action as { mood: MoodId }).mood)
         : "calm";
+
+      /**
+       * 维度：**中文词或英文 id 都认**（提示词里让他报的是中文词），
+       * 认不出来的就丢掉 —— 不能写进档案，否则花会长出一瓣没有名字的东西。
+       */
+      const dims: Record<string, number> = {};
+      const raw = (action as { dims?: Record<string, unknown> }).dims;
+      if (raw && typeof raw === "object") {
+        for (const [k, v] of Object.entries(raw)) {
+          const id = normalizeDimKey(k);
+          if (id) dims[id] = clamp(v);
+        }
+      }
+      // 老的三个顶层字段（旧提示词/旧模型只会给它们）
+      for (const k of ["energy", "missing", "curious"] as const) {
+        const v = (action as Record<string, unknown>)[k];
+        if (v !== undefined && dims[k] === undefined) dims[k] = clamp(v);
+      }
+
       useApp.getState().addStateSample({
         mood,
-        energy: clamp(action.energy),
-        missing: clamp(action.missing),
-        curious: clamp(action.curious),
+        energy: dims.energy ?? 0,
+        missing: dims.missing ?? 0,
+        curious: dims.curious ?? 0,
+        dims,
         note: str((action as { note?: unknown }).note).trim().slice(0, 60) || undefined,
       });
       return "记下了此刻的状态";
