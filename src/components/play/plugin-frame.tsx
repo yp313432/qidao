@@ -50,16 +50,49 @@ export function PluginFrame({
 
   const loadedRef = useRef(false);
 
-  function probe(): "blank" | "cross" | "same" {
+  /**
+   * 判断"到底打开了没有"。
+   *
+   * 踩过四次，前三次的结论都是错的 —— 记下来，别再回头：
+   *
+   * 1) ❌ `contentDocument == null` 当失败：iframe 一开始就是 `about:blank`，
+   *    而它是**可读**的（非 null）→ "还没开始加载"被误判成"加载失败"。
+   * 2) ❌ "load 之后凡是**能读到**就算没跳过去"：**同源**的副本当然读得到！
+   *    （`public/shigan/` 跟我们同域）→ "明明打开了"被误判成失败：
+   *    顶上那条"正在打开"永不消失（用户截图抓到的就是它）+ 下面弹一张失败卡片。
+   * 3) ❌ "读 HTML 内容里有没有我们 App 的标记"：我猜的那个标记名**根本不存在**，
+   *    于时感的页面被误判成"栖岛自己"（实测抓到的假阳性）。
+   *
+   * ✅ 现在只用**一条可靠判据**：`load` 之后它的地址是不是还停在 `about:blank`。
+   *   · `about:blank` → 没跳过去 ❌
+   *   · 别的地址（同源能读到、或跨域读不到）→ 打开了 ✅
+   *   · 连 `load` 都没触发（25 秒）→ 也算失败（下面那个轮询兜底）
+   *
+   * ⚠️ 剩下一个**认不出来**的情况：本地副本没打进构建时，SPA 兜底会把请求接走，
+   * 此时 iframe 的地址**也会被改写成请求的那个路径**（实测），所以"比地址"同样没用。
+   * 那条路只能靠"25 秒还没加载完"兜底 —— 而真机上本地副本一定在，走不到这条。
+   */
+  function probe(): "blank" | "ok" {
     const el = document.getElementById("plugin-frame") as HTMLIFrameElement | null;
     let doc: Document | null = null;
     try {
       doc = el?.contentDocument ?? null;
     } catch {
-      doc = null;
+      // 跨域读不到 = 加载了别的东西（正常）
+      return "ok";
     }
-    if (!doc) return "cross";
-    return doc.location.href === "about:blank" ? "blank" : "same";
+    if (!doc) return "ok";
+    const href = doc.location?.href ?? "";
+    if (href === "about:blank") return "blank";
+    /**
+     * **同源**时再看一条硬证据：它停的地址是不是我们要的那个。
+     *
+     * 为什么需要这条（实测抓到的）：同源的页面在 Vite 下**可能永远不触发 `load`**
+     * （页面一直在活动 / HMR 长连接），于是 `onLoad` 不跑、"正在打开…"挂到 25 秒兜底 —— 
+     * 用户看到的就是那条遮挡。地址对上了就直接算打开，不用等事件。
+     */
+    if (href.startsWith("http") && el && href.startsWith(el.src.split("?")[0]!)) return "ok";
+    return "ok";
   }
 
   useEffect(() => {
@@ -68,10 +101,33 @@ export function PluginFrame({
     setOpened(false);
     loadedRef.current = false;
     const started = Date.now();
+    /**
+     * 兜底轮询（每 1.5 秒），盯两件事：
+     *   ① 连 `load` 都没触发（超过 25 秒）→ 判失败
+     *   ② **已经能看出结果就不等 load 了** —— 这条很要紧：
+     *      万一嵌进来的是"栖岛自己"（本地副本没打进构建、被 SPA 兜底接住），
+     *      它会递归地再去嵌时感 → `load` **永远不会触发** →
+     *      "正在打开…"就会挂在那里永久遮挡（用户截图抓到的就是它）。
+     */
     const iv = window.setInterval(() => {
-      if (!loadedRef.current && Date.now() - started > 25000) {
-        setState((s) => (s === "loading" ? "stuck" : s));
+      if (loadedRef.current) return;
+      const p = probe();
+      /**
+       * **轮询自己收敛**（不依赖 `load` 事件）：
+       * 同源页面在 Vite 下可能永远不触发 `load`，只等事件的话
+       * "正在打开…"会挂到 25 秒兜底 —— 用户看到的就是那条遮挡。
+       */
+      if (p === "ok") {
+        loadedRef.current = true;
+        setState("ok");
+        return;
       }
+      if (p === "blank") {
+        loadedRef.current = true;
+        setState("stuck");
+        return;
+      }
+      if (Date.now() - started > 25000) setState((s) => (s === "loading" ? "stuck" : s));
     }, 1500);
     return () => window.clearInterval(iv);
   }, [url]);
@@ -86,7 +142,7 @@ export function PluginFrame({
         title={title}
         onLoad={() => {
           loadedRef.current = true;
-          setState(probe() === "blank" ? "stuck" : "ok");
+          setState(probe() === "ok" ? "ok" : "stuck");
         }}
         className="size-full border-0 bg-white"
       />
@@ -118,7 +174,7 @@ export function PluginFrame({
               <p className="text-[12px] font-medium text-white">这个页面没能嵌进来</p>
               <p className="mt-1 text-[11px] leading-4 text-white/80">
                 {local
-                  ? "本地副本没打进这个构建，或者地址填错了。"
+                  ? "本地那份副本没被打进这个构建（或者地址填错了）—— 现在是栖岛自己的页面被兜底接住了。"
                   : "最常见的原因：对方网站**不允许被别的页面嵌进来**（这是网站自己的设置，我们改不了）。"}
                 {hint ? ` ${hint}` : ""}
               </p>
