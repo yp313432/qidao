@@ -31,6 +31,7 @@ import { Route as ApiLyricsRouteImport } from './routes/api/lyrics'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiReadRouteImport } from './routes/api/read'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiWakeRouteImport } from './routes/api/wake'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
@@ -166,6 +167,11 @@ const ApiReadRoute = ApiReadRouteImport.update({
 const ApiSearchRoute = ApiSearchRouteImport.update({
   id: '/api/search',
   path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWakeRoute = ApiWakeRouteImport.update({
+  id: '/api/wake',
+  path: '/api/wake',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/models': typeof ApiModelsRoute
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -374,6 +381,7 @@ export interface FileRoutesByTo {
   '/api/models': typeof ApiModelsRoute
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
@@ -426,6 +434,7 @@ export interface FileRoutesById {
   '/api/models': typeof ApiModelsRoute
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
@@ -479,6 +488,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/read'
     | '/api/search'
+    | '/api/wake'
     | '/oauth/callback'
     | '/play/add'
     | '/play/days'
@@ -527,6 +537,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/read'
     | '/api/search'
+    | '/api/wake'
     | '/oauth/callback'
     | '/'
     | '/play/add'
@@ -578,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/read'
     | '/api/search'
+    | '/api/wake'
     | '/oauth/callback'
     | '/_app/'
     | '/_app/play/add'
@@ -616,6 +628,7 @@ export interface RootRouteChildren {
   ApiModelsRoute: typeof ApiModelsRoute
   ApiReadRoute: typeof ApiReadRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiWakeRoute: typeof ApiWakeRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
@@ -775,6 +788,13 @@ declare module '@tanstack/react-router' {
       path: '/api/search'
       fullPath: '/api/search'
       preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wake': {
+      id: '/api/wake'
+      path: '/api/wake'
+      fullPath: '/api/wake'
+      preLoaderRoute: typeof ApiWakeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/callback': {
@@ -1072,6 +1092,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiModelsRoute: ApiModelsRoute,
   ApiReadRoute: ApiReadRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiWakeRoute: ApiWakeRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
