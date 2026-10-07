@@ -1,4 +1,4 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+﻿import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
@@ -9,6 +9,7 @@ import { EmbedHost } from "@/components/play/embed-host";
 import { ReminderDaemon } from "@/components/reminder-daemon";
 import { AlarmOverlay } from "@/components/alarm-overlay";
 import { TaskDaemon } from "@/components/task-daemon";
+import { WakeDaemon } from "@/components/wake-daemon";
 import { UiEffects } from "@/components/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
@@ -65,6 +66,8 @@ export function AppShell() {
       <ReminderDaemon />
       {/* 定时任务：到点让他自己开口（App 活着时；关掉时靠原生通知兜底） */}
       <TaskDaemon />
+      {/* 「主动找你」：把人设/最近对话/规矩同步给 Worker，供后台唤醒时用（见 lib/wake-sync） */}
+      <WakeDaemon />
       {/* 闹钟到点：全屏响铃（只发通知的话人会睡过去） */}
       <AlarmOverlay />
       {/* AI 请求的任何操作都要从这里过一道（询问 / 允许 / 拒绝） */}

@@ -93,12 +93,44 @@ jobs:
             exit 1
           fi
 
+      - name: 注入「他主动找你」的地址（从 GitHub 密钥，不进仓库）
+        # 后台那段 JS（public/runners/wake.js）要知道 Worker 的地址 + 口令，
+        # 但仓库是公开的 —— 所以真值放 GitHub Secrets，这里只做一次替换。
+        # 没配密钥也**不算失败**：那个包里的「主动找你」是关着的（只弹"第 N 次醒来"的调试通知），
+        # 不会去请求一个假地址。
+        env:
+          WAKE_URL: ${{ secrets.QIDAO_WAKE_URL }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "public/runners/wake.js";
+            const url = (process.env.WAKE_URL || "").trim();
+            if (!url) {
+              console.log("::warning::没配 QIDAO_WAKE_URL —— 这个包里「他主动找你」是关着的（只弹调试通知）");
+              process.exit(0);
+            }
+            const src = fs.readFileSync(p, "utf8");
+            const MARK = "__QIDAO_" + "WAKE_URL__";
+            if (!src.includes(MARK)) {
+              console.log("::error::wake.js 里找不到占位符，注入失败");
+              process.exit(1);
+            }
+            // ⚠️ 必须 replaceAll：这个占位符在文件里出现**两次**（注释里一次、代码里一次），
+            //    用 replace 只会换掉第一处（也就是注释），真正的变量还是占位符 → 功能全哑。
+            //    写的时候靠字符串拼接 MARK，免得这个脚本自己也被替换进去。
+            const out = src.split(MARK).join(url);
+            fs.writeFileSync(p, out);
+            console.log("已注入地址（长度 " + url.length + "，内容不打印）");
+          '
+
       - name: 构建纯前端产物（界面打进 App 本地）
         env:
           # 目标=安卓：走 SPA 构建；直连上游：App 里不经服务器直接跟模型说话
           QIDAO_TARGET: android
           VITE_DIRECT_UPSTREAM: "1"
           VITE_AUTH_ENABLED: "false"
+          # App 侧同步上下文/自检要用的同一个地址（打包时烘进去，运行时读得到）
+          VITE_QIDAO_WAKE_URL: ${{ secrets.QIDAO_WAKE_URL }}
         run: |
           npm run build
           node scripts/copy-static.mjs

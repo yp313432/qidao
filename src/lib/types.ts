@@ -505,6 +505,25 @@ export type Settings = {
    * 不占这里 —— 它们是随 App 一起发布的。
    */
   customPlugins?: CustomPlugin[];
+  /**
+   * **「主动找你」的接口地址**（形如 `https://…/api/wake?pass=…`）。
+   *
+   * 一般**不用填** —— 打包时会从 GitHub 密钥（`QIDAO_WAKE_URL`）注入进来，
+   * 这样地址和口令都不进公开仓库。这一栏是留给"临时指到别处 / 本地调试"的。
+   */
+  wakeUrl?: string;
+  /**
+   * 他主动找你的**最短间隔**（分钟）。
+   *
+   * 只管一件事：**两次"问 AI"之间至少隔多久**（控花销 ——
+   * 系统每 15 分钟就会唤醒他一次，但不到这个间隔就根本不去问 AI）。
+   * 下限会被夹到 15：安卓的唤醒下限就是 15 分钟，设更小也不会更勤。
+   */
+  wakeMinGapMinutes?: number;
+  /** 夜间不打扰：起始小时（0~23）。起止设成一样 = 不启用 */
+  wakeQuietStart?: number;
+  /** 夜间不打扰：结束小时（0~23） */
+  wakeQuietEnd?: number;
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;

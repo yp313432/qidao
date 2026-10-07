@@ -33,6 +33,7 @@ import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { toolProtocolLabel } from "@/lib/tool-protocol";
 import { wakeSupported } from "@/lib/background-wake";
+import { pingWake, wakeUrlSource } from "@/lib/wake-sync";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -341,6 +342,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
+  /** 「他主动找你」的通道自检（见 lib/wake-sync）—— 安全：只 fetch Worker，不碰原生 */
+  const [wakePinging, setWakePinging] = useState(false);
+  const [wakePingMsg, setWakePingMsg] = useState("");
 
   async function probeModels() {
     setProbing(true);
@@ -1176,16 +1180,103 @@ function MeSections({ tab }: { tab: MeTab }) {
           那条路已经拿掉，验证只能靠"切后台等 15 分钟"（详见 lib/background-wake.ts 的注释）。
         */}
         <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
-          <p className="text-[12px] font-medium">后台唤醒（实验）</p>
+          <p className="text-[12px] font-medium">他主动找你</p>
           <p className="mt-1 text-[11px] leading-4 text-muted">
             {wakeSupported()
-              ? "让 App **关着**时也能自己醒过来看一眼。现在配的是「一次性、1 分钟后」——把栖岛切到后台（或从后台划掉），等 1~3 分钟，看会不会自己弹一条通知（写着「第 N 次醒来」）。"
+              ? "系统每 15 分钟把他叫醒看一眼，**只有到了下面那个间隔**才真去问 AI 要不要说话（没到就继续睡，不花钱、不响）。"
               : "这条只有装成 App 之后有用（网页里没有后台任务）。"}
           </p>
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            为什么没有「立刻试一次」的按钮：那个方法会把整个 App 卡死（插件的实现问题），已经拿掉。
-            切一次后台只醒一次 —— 这是为了**先把验证时间压到 1 分钟**；验通了我再换成正式的
-            「每 15 分钟循环」（安卓对循环任务的硬下限）。
+
+          {/* 通道状态：地址是打包注入的还是手填的、通不通 */}
+          <p className="mt-2 text-[11px] leading-4">
+            通道：
+            <span className={wakeUrlSource() === "none" ? "text-warn" : "text-ok"}>
+              {wakeUrlSource() === "manual"
+                ? "手填地址"
+                : wakeUrlSource() === "build"
+                  ? "打包时已注入"
+                  : "还没配（这个包里没注入地址）"}
+            </span>
+          </p>
+
+          {/* 最短间隔 —— 用户点名的"我能自己调节时间吗" */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted">最短间隔</span>
+            {[30, 60, 120, 180, 240].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => patch({ wakeMinGapMinutes: m })}
+                className={
+                  (settings.wakeMinGapMinutes ?? 60) === m
+                    ? "rounded-full bg-accent/20 px-3 py-1.5 text-[11px] text-accent"
+                    : "rounded-full bg-elevated px-3 py-1.5 text-[11px] text-muted"
+                }
+              >
+                {m >= 60 ? `${m / 60} 小时` : `${m} 分钟`}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-subtle">
+            两次&ldquo;问他&rdquo;之间至少隔这么久。安卓的唤醒下限是 15 分钟，所以设更小也不会更勤。
+          </p>
+
+          {/* 夜间不打扰 */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted">夜间不打扰</span>
+            <select
+              value={settings.wakeQuietStart ?? 1}
+              onChange={(e) => patch({ wakeQuietStart: Number(e.target.value) })}
+              className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
+              aria-label="夜间从不打扰开始的小时"
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {h}:00
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-muted">→</span>
+            <select
+              value={settings.wakeQuietEnd ?? 8}
+              onChange={(e) => patch({ wakeQuietEnd: Number(e.target.value) })}
+              className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
+              aria-label="夜间不打扰结束的小时"
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {h}:00
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-subtle">
+            这两格设成一样 = 不启用。（跨零点也对：比如 23:00 → 7:00。）
+          </p>
+
+          {/*
+            通道自检：安全，只是 fetch 一下 Worker。
+            ⚠️ 绝不调插件的 dispatchEvent（那个会让整个 App 卡死）。
+          */}
+          <button
+            type="button"
+            disabled={wakePinging}
+            onClick={() => {
+              setWakePinging(true);
+              setWakePingMsg("");
+              void pingWake()
+                .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
+                .finally(() => setWakePinging(false));
+            }}
+            className="mt-2.5 rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+          >
+            {wakePinging ? "正在试…" : "通道自检"}
+          </button>
+          {wakePingMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>}
+
+          <p className="mt-2 text-[11px] leading-4 text-subtle">
+            自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 15 分钟，
+            所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 / 上游没配&rdquo;分开。
           </p>
         </div>
 

@@ -370,6 +370,28 @@ export const Route = createFileRoute("/api/wake")({
       },
 
       /**
+       * 清掉存下来的上下文（"忘掉这些"）。
+       *
+       * 两个用途：
+       *   ① **正当功能**：用户不想要这段上下文了（里头有人设、最近对话、上游配置）
+       *   ② **让验收可重复**：`verify-wake.mjs` 的"还没同步过上下文"那条用例
+       *      需要一个干净状态，否则会被前一个脚本留下的东西污染（真踩过一次）
+       * 门后面只有他自己能调（`/api/*` 都要过口令）。
+       */
+      DELETE: async () => {
+        memStore = null;
+        const c = cacheApi();
+        if (c) {
+          try {
+            await (c as unknown as { delete: (u: string) => Promise<boolean> }).delete(STORE_URL);
+          } catch {
+            /* 清不掉就算了 —— 内存那份已经清了 */
+          }
+        }
+        return json({ ok: true, cleared: true });
+      },
+
+      /**
        * ③ 后台那段 JS 来要一句话。
        *
        * `?since=<分钟>` = 距**上一次真问过 AI**过了多久（后台用 KV 记着，自己不判断，交给这里）。
@@ -457,7 +479,19 @@ export const Route = createFileRoute("/api/wake")({
           });
         }
 
-        return json({ ok: true, action: "speak", text: said.slice(0, 200), urge, at: Date.now() });
+        return json({
+          ok: true,
+          action: "speak",
+          text: said.slice(0, 200),
+          urge,
+          /**
+           * 名字要带回去 —— 后台那段 JS 拿它当**通知标题**
+           * （像微信那样显示"谁在说"，而不是干巴巴一个"栖岛"）。
+           * 验收脚本真跑时抓到过一次：这里漏了，通知标题就退回了应用名。
+           */
+          aiName: ctx.aiName,
+          at: Date.now(),
+        });
       },
     },
   },

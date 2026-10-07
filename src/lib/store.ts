@@ -99,6 +99,16 @@ const defaultSettings: Settings = {
   // 自建插件（玩乐 → 插件）；内置的时感/记忆宇宙写在 lib/plugins.ts，不占这里
   customPlugins: [],
   /*
+    「主动找你」的默认规矩（用户可调，见 lib/wake-sync.ts）：
+      · 最短间隔 60 分钟 —— 两次"问 AI"之间至少隔这么久（控花销）
+      · 夜间 1:00–8:00 不打扰
+    地址默认留空：打包时会从 GitHub 密钥注入，不写进公开仓库。
+  */
+  wakeUrl: "",
+  wakeMinGapMinutes: 60,
+  wakeQuietStart: 1,
+  wakeQuietEnd: 8,
+  /*
     和风天气 —— 一次解决「知道你在哪」和「天气」两件事。
     （原来反查地名用的 OpenStreetMap 国内连不上，用户实测定位一直失败。）
     key 只存这台设备，跟自定义上游的 api key 同样的处理方式。
