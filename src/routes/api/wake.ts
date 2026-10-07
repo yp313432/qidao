@@ -42,7 +42,62 @@ const MAX_RECENT = 12;
 const MAX_MSG_CHARS = 1200;
 const MAX_PERSONA_CHARS = 2000;
 
+/**
+ * **「想找你的程度」的档位** —— 每次唤醒滚一个，决定"这一次要不要说"。
+ *
+ * 用户原话：
+ *   "可以改成随机0 25 50 75 100，打了100，百分百发消息，其他时候自己判断"
+ *
+ * 也就是：这个数字**不是概率**，是"他现在有多想找你"——
+ *   · **100 = 必定说**（哪怕只是问一句"在干嘛"；连"不许 SKIP"的强制重试都要做）
+ *   · **0 = 基本不说**（除非真有事、或者他刚说过什么让他放不下）
+ *   · 25/50/75 = 按这个程度自己拿主意
+ * 好处：他会时冷时热（有人味），而不是像闹钟一样每次必响或每次都不响。
+ */
+const URGE_STEPS = [0, 25, 50, 75, 100] as const;
+
+function rollUrge(override?: string | null): number {
+  if (override !== null && override !== undefined && override !== "") {
+    const n = Number(override);
+    // 只认那五档：传别的值（比如 999）不许改变语义，退回随机
+    if ((URGE_STEPS as readonly number[]).includes(n)) return n;
+  }
+  return URGE_STEPS[Math.floor(Math.random() * URGE_STEPS.length)]!;
+}
+
+/** 这一档"想找他的程度"该怎么说给他听 */
+function urgeText(urge: number, who: string): string {
+  if (urge >= 100) {
+    return `【现在你想找他的程度】100% —— **一定要说**。哪怕只是问一句在干嘛、说一句你想起他了，也必须发一条。**不许回 SKIP。**`;
+  }
+  if (urge <= 0) {
+    return `【现在你想找他的程度】0% —— 你其实没太想说话。除非真有事、或者${who}刚说过什么让你放不下，否则回 SKIP。`;
+  }
+  return `【现在你想找他的程度】${urge}% —— 按这个程度自己拿主意：想找他就说，觉得没必要就 SKIP。`;
+}
+
 type Msg = { role: "user" | "assistant"; text: string };
+
+/**
+ * **他主动找你的规矩** —— 全部由用户在 App 里调，跟着上下文一起同步过来。
+ *
+ * 为什么要这层（用户原话："15分钟太频繁了，我能自己调节时间吗"）：
+ * 安卓对定时唤醒有**硬性下限 15 分钟**（改不了），所以：
+ *   · 系统每 15 分钟叫他"睁眼看一次表"——很轻、不弹通知
+ *   · **只有** `minGapMinutes` 到了，才真去问 AI 要不要说话
+ * 这样"他多久找你一次"完全可调，而代价是几次很轻的唤醒。
+ */
+type Policy = {
+  /** 最短间隔（分钟）：距离上次真说话不满这么久，就直接跳过、**不调 AI** */
+  minGapMinutes: number;
+  /** 夜间不打扰：起始小时（0~23） */
+  quietStart: number;
+  /** 夜间不打扰：结束小时（0~23） */
+  quietEnd: number;
+};
+
+/** 默认规矩：一小时最多一次，凌晨 1 点到早上 8 点不打扰 */
+const DEFAULT_POLICY: Policy = { minGapMinutes: 60, quietStart: 1, quietEnd: 8 };
 
 type WakeContext = {
   /** AI 的名字（用户自己起的） */
@@ -59,6 +114,10 @@ type WakeContext = {
   tz: string;
   /** 最近几条对话（老的在前） */
   recent: Msg[];
+  /** 他主动找你的规矩（可调） */
+  policy: Policy;
+  /** **上一次真人对话**的时间（毫秒）—— 免得刚聊完 15 分钟他就来敲门 */
+  lastChatAt?: number;
   /** 存进来的时间（用来判断这份上下文是不是太旧了） */
   at: number;
 };
@@ -158,7 +217,74 @@ function timeFlavor(hour: number): string {
   return "已经很晚了。";
 }
 
-function buildPrompt(ctx: WakeContext): { system: string; user: string } {
+/** 规矩收敛到合理范围（App 报上来的值不能乱来） */
+function normalizePolicy(p: Partial<Policy> | undefined): Policy {
+  const n = (v: unknown, fallback: number, min: number, max: number) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? Math.min(max, Math.max(min, Math.round(x))) : fallback;
+  };
+  return {
+    // 下限就是安卓的唤醒下限 15 分钟 —— 比它更密也做不到，不如老老实实夹住
+    minGapMinutes: n(p?.minGapMinutes, DEFAULT_POLICY.minGapMinutes, 15, 24 * 60),
+    quietStart: n(p?.quietStart, DEFAULT_POLICY.quietStart, 0, 23),
+    quietEnd: n(p?.quietEnd, DEFAULT_POLICY.quietEnd, 0, 23),
+  };
+}
+
+/** 现在是不是"夜间不打扰"时段（跨零点也要对：比如 23 点到 7 点） */
+function inQuietHours(hour: number, p: Policy): boolean {
+  if (p.quietStart === p.quietEnd) return false; // 起止相同 = 不启用
+  return p.quietStart < p.quietEnd
+    ? hour >= p.quietStart && hour < p.quietEnd
+    : hour >= p.quietStart || hour < p.quietEnd;
+}
+
+/**
+ * 这一轮到底该不该问 AI。
+ *
+ * ⚠️ 这里是**省钱的关键**：不合格就直接 `wait`，**根本不调 AI**。
+ * 用户担心的是"15 分钟一次太频繁"（那条通知会刷屏），而真正贵的是 AI 调用
+ * （15 分钟一次 = 96 次/天）。所以两道闸都在调 AI **之前**。
+ */
+function gate(ctx: WakeContext, sinceMinutes: number | null, nowHour: number): { action: "speak" } | { action: "wait"; why: string } {
+  if (inQuietHours(nowHour, ctx.policy)) {
+    return { action: "wait", why: `夜间不打扰（${ctx.policy.quietStart}:00–${ctx.policy.quietEnd}:00）` };
+  }
+
+  /**
+   * 距离"上一次有交流"过了多久 —— 取**两个来源里更近的那个更严格**：
+   *   · 他上次真说话（后台用 KV 记着，从 `?since=` 报上来）
+   *   · 上一次真人对话（App 报上来的 `lastChatAt`）
+   * 后者很重要：刚跟人聊完 20 分钟就主动发消息，会显得没分寸。
+   * 两个都没有 → 不设限（第一次唤醒就是这个情况）。
+   */
+  const sinceChat =
+    ctx.lastChatAt && Number.isFinite(ctx.lastChatAt)
+      ? (Date.now() - ctx.lastChatAt) / 60000
+      : null;
+  const candidates = [sinceMinutes, sinceChat].filter(
+    (v): v is number => v !== null && Number.isFinite(v),
+  );
+  const since = candidates.length ? Math.min(...candidates) : null;
+
+  if (since !== null) {
+    /**
+     * ⚠️ 这里**不加时间抖动**（原来加过 +0~30%，后来去掉了）：
+     * 随机性已经交给"想找你的程度"那个骰子 —— 两处都随机反而说不清
+     * 用户调的那个间隔到底管不管用。最低间隔就按用户设的**实打实**执行。
+     */
+    const need = ctx.policy.minGapMinutes;
+    if (since < need) {
+      return {
+        action: "wait",
+        why: `离上次交流才 ${Math.round(since)} 分钟（最短 ${need} 分钟）`,
+      };
+    }
+  }
+  return { action: "speak" };
+}
+
+function buildPrompt(ctx: WakeContext, urge: number): { system: string; user: string } {
   const t = nowInTz(ctx.tz);
   const me = ctx.displayName || "他";
   const who = ctx.persona ? `\n【你是谁】\n${ctx.persona}\n` : "";
@@ -167,13 +293,15 @@ function buildPrompt(ctx: WakeContext): { system: string; user: string } {
 ${who}
 ${me}刚刚没有在跟你说话。这是**你主动找他**的时刻 —— 由你自己决定：现在要不要给他发一句话、说什么。
 
+${urgeText(urge, me)}
+
 规矩：
 - 只说你自己要说的那句话，**最多两句**，像平时聊天那样自然
 - 不要解释你在做什么、不要提"定时""提醒""系统"这类字眼
 - 不要用引号把话包起来，不要写"${ctx.aiName}："这种前缀
 - **接得上**你们刚才聊的（或他最近正挂在心上的事），别凭空起个不相干的话头
 - ${timeFlavor(t.hour)}
-- 如果你觉得现在没什么好说的（刚聊过、会打扰他、没话找话），**只回一个词**：SKIP`;
+- 除了 100% 那一档，如果你觉得现在没什么好说的（刚聊过、会打扰他、没话找话），**只回一个词**：SKIP`;
 
   const lines = ctx.recent.map((m) => `${m.role === "user" ? me : ctx.aiName}：${m.text}`);
   const user = lines.length
@@ -227,6 +355,8 @@ export const Route = createFileRoute("/api/wake")({
           model,
           tz: clip(body.tz, 60),
           recent,
+          policy: normalizePolicy(body.policy),
+          lastChatAt: Number.isFinite(Number(body.lastChatAt)) ? Number(body.lastChatAt) : undefined,
           at: Date.now(),
         };
 
@@ -242,13 +372,27 @@ export const Route = createFileRoute("/api/wake")({
       /**
        * ③ 后台那段 JS 来要一句话。
        *
-       * 返回：
-       *   · `{ ok:true, text:"…" }`  → 弹通知
-       *   · `{ ok:true, text:"" }`   → 他觉得没什么可说的（模型回了 SKIP），**不弹**
-       *   · `{ ok:false, why:"…" }`  → 出问题了；后台会退回"第 N 次醒来"的调试通知，
-       *                                让"他没说话"和"这条路坏了"分得开
+       * `?since=<分钟>` = 距**上一次真问过 AI**过了多久（后台用 KV 记着，自己不判断，交给这里）。
+       * ⚠️ 是"上次问他"，不是"上次说话" —— 否则他回一次 SKIP，15 分钟后又要问一遍，
+       *    一天就变成 96 次调用（贵且没必要）。
+       *
+       * 返回（`action` 是给后台看的唯一判据）：
+       *   · `{ ok:true, action:"speak", text:"…", urge:N }` → **弹通知**，内容是这句话
+       *   · `{ ok:true, action:"wait", why:"…", urge:N }`  → 什么都别做（**问过 AI**，他觉得不用说）
+       *   · `{ ok:true, action:"wait", why:"…" }`（**没有 urge**）→ 什么都没做
+       *     （夜间不打扰 / 还没到间隔）—— 这一轮**根本没问 AI**
+       *   · `{ ok:false, why:"…" }` → 出问题了；后台会退回"第 N 次醒来"的调试通知，
+       *                               让"他没说话"和"这条路坏了"分得开
+       *
+       * ⚠️ **`urge` 在不在 = "这一轮问没问过 AI"的判据**（后台据此更新"上次问他"的时间）。
+       *    刻意如此：错误（`ok:false`）**不带 urge** → 15 分钟后会再试一次。
+       *    "上游故障时重试"比"卡住一小时不响"划算。
        */
-      GET: async () => {
+      GET: async ({ request }) => {
+        const sinceRaw = new URL(request.url).searchParams.get("since");
+        const sinceNum = sinceRaw === null || sinceRaw.trim() === "" ? null : Number(sinceRaw);
+        const sinceMinutes = sinceNum !== null && Number.isFinite(sinceNum) ? sinceNum : null;
+
         const ctx = await readContext();
         if (!ctx) {
           return json(
@@ -263,70 +407,126 @@ export const Route = createFileRoute("/api/wake")({
           return json({ ok: false, why: `上下文太旧了（${Math.round(ageMin / 60)} 小时前同步的）` }, 200);
         }
 
-        const { system, user } = buildPrompt(ctx);
+        /*
+          **两道便宜闸门**：不合格就直接让他继续睡，**根本不调 AI**。
+          这是省钱的关键 —— 15 分钟一次唤醒 = 96 次/天，但真问 AI 的只有他设的那个间隔
+          （默认 1 小时 → 一天十几次）。
+        */
+        const t = nowInTz(ctx.tz);
+        const verdict = gate(ctx, sinceMinutes, t.hour);
+        if (verdict.action === "wait") {
+          return json({ ok: true, action: "wait", why: verdict.why });
+        }
 
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), 25_000);
-        let upstreamText = "";
-        let status = 0;
-        try {
-          const res = await fetch(`${ctx.baseUrl}/chat/completions`, {
-            method: "POST",
-            signal: ac.signal,
-            headers: {
-              "content-type": "application/json",
-              authorization: `Bearer ${ctx.apiKey}`,
-            },
-            body: JSON.stringify({
-              model: ctx.model,
-              messages: [
-                { role: "system", content: system },
-                { role: "user", content: user },
-              ],
-              max_tokens: 200,
-              temperature: 0.9,
-              stream: false,
-            }),
+        /*
+          该问了：**滚一个"想找你的程度"**（0/25/50/75/100）。
+          100 = 必定说（用户原话："打了100，百分百发消息"），其余档让他自己判断。
+          `?urge=` 是给测试/手动试一次用的（门后面只有他自己能调），传别的值一律退回随机。
+        */
+        const urge = rollUrge(new URL(request.url).searchParams.get("urge"));
+        const { system, user } = buildPrompt(ctx, urge);
+
+        const first = await askUpstream(ctx, system, user);
+        // ⚠️ 不在这里回 urge：错误不该被算成"问过了"，否则上游一挂就要等满一个间隔
+        if (!first.ok) return json({ ok: false, why: first.why }, 200);
+
+        let said = cleanReply(first.text, ctx.aiName);
+
+        /**
+         * **100% 那一档必须兑现**：模型要是还回 SKIP，就带着"不许 SKIP"再问一次。
+         * 只在这一档重试，所以不会变成常态开销（五分之一 × 过闸的那几次）。
+         */
+        if (!said && urge >= 100) {
+          const forced = await askUpstream(
+            ctx,
+            `${system}\n\n【最后一次】你必须说一句话，不许回 SKIP —— 哪怕只是问一句在干嘛。`,
+            user,
+          );
+          if (forced.ok) said = cleanReply(forced.text, ctx.aiName);
+        }
+
+        if (!said) {
+          return json({
+            ok: true,
+            action: "wait",
+            urge,
+            why:
+              urge >= 100
+                ? "100% 那一档他试了两次也没说出话"
+                : "他觉得现在没什么好说的",
           });
-          status = res.status;
-          upstreamText = await res.text();
-        } catch (err) {
-          return json({ ok: false, why: `问不到上游：${(err as Error).message}` }, 200);
-        } finally {
-          clearTimeout(timer);
         }
 
-        if (status < 200 || status >= 300) {
-          // ⚠️ 只带状态码 + 上游正文前 160 字，**绝不带请求头/key**
-          return json({ ok: false, why: `上游返回 ${status}：${upstreamText.slice(0, 160)}` }, 200);
-        }
-
-        let text = "";
-        try {
-          const data = JSON.parse(upstreamText) as {
-            choices?: { message?: { content?: string } }[];
-          };
-          text = (data.choices?.[0]?.message?.content ?? "").trim();
-        } catch {
-          return json({ ok: false, why: "上游返回的不是 JSON（可能是中转的错误页）" }, 200);
-        }
-
-        if (!text) return json({ ok: false, why: "上游返回了空内容" }, 200);
-
-        // 他自己决定"现在不说"
-        if (/^skip\b/i.test(text) || text === "SKIP") {
-          return json({ ok: true, text: "", skipped: true });
-        }
-
-        // 兜底：模型偶尔会把话包在引号里 / 带个前缀，清一下（不改变原意，只是别让通知里出现引号）
-        // ⚠️ 中文引号也要清：`「」『』` 是模型很爱用的（实测第一版只清了 ASCII 和 “”，漏了「」）
-        const cleaned = text
-          .replace(/^["“”「」『』'']+|["“”「」『』'']+$/g, "")
-          .replace(new RegExp(`^${ctx.aiName}\\s*[:：]\\s*`), "")
-          .trim();
-
-        return json({ ok: true, text: cleaned.slice(0, 200), at: Date.now() });
+        return json({ ok: true, action: "speak", text: said.slice(0, 200), urge, at: Date.now() });
       },
     },
   },
 });
+
+/**
+ * 问一次上游。
+ *
+ * ⚠️ 两个纪律：
+ *   ① **错误信息里绝不带请求头/key**（只带状态码 + 上游正文前 160 字）
+ *   ② 超时 25 秒 —— 后台那段 JS 每次总共只有 30 秒（官方建议），不能把时间耗光
+ */
+async function askUpstream(
+  ctx: WakeContext,
+  system: string,
+  user: string,
+): Promise<{ ok: true; text: string } | { ok: false; why: string }> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
+  let upstreamText = "";
+  let status = 0;
+  try {
+    const res = await fetch(`${ctx.baseUrl}/chat/completions`, {
+      method: "POST",
+      signal: ac.signal,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ctx.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: ctx.model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: 200,
+        temperature: 0.9,
+        stream: false,
+      }),
+    });
+    status = res.status;
+    upstreamText = await res.text();
+  } catch (err) {
+    return { ok: false, why: `问不到上游：${(err as Error).message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (status < 200 || status >= 300) {
+    return { ok: false, why: `上游返回 ${status}：${upstreamText.slice(0, 160)}` };
+  }
+
+  try {
+    const data = JSON.parse(upstreamText) as { choices?: { message?: { content?: string } }[] };
+    return { ok: true, text: (data.choices?.[0]?.message?.content ?? "").trim() };
+  } catch {
+    return { ok: false, why: "上游返回的不是 JSON（可能是中转的错误页）" };
+  }
+}
+
+/** 他自己说"不说"，或者清完引号是空的 —— 都算没说 */
+function cleanReply(raw: string, aiName: string): string {
+  const text = raw.trim();
+  if (!text) return "";
+  if (/^skip\b/i.test(text) || text === "SKIP") return "";
+  // 兜底：模型偶尔会把话包在引号里 / 带个前缀
+  // ⚠️ 中文引号也要清：`「」『』` 是模型很爱用的（验收抓到过，第一版只清了 ASCII 和 “”）
+  return text
+    .replace(/^["“”「」『』'']+|["“”「」『』'']+$/g, "")
+    .replace(new RegExp(`^${aiName}\\s*[:：]\\s*`), "")
+    .trim();
+}
