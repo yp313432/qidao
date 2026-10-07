@@ -58,19 +58,23 @@ const config: CapacitorConfig = {
      *   "那个定时任务还是只有点开 app 才可以发消息，即使我后台一直开着"
      *   "我们现在已经是一个 app 了，不要再留网页的设计思路了"
      *
-     * 这条路是**原生**的：系统按 interval 叫醒一段跑在 webview 外面的 JS，
+     * 这条路是**原生**的：系统叫醒一段跑在 webview 外面的 JS（走 WorkManager），
      * 它能联网、能弹真通知 —— 所以以后可以在后台直接问 AI"现在该说什么"。
+     * 时机是「App 切到后台」那一刻排上队（见插件安卓侧的 `handleOnPause`）。
      *
-     * ⚠️ `interval` 在安卓上**最短 15 分钟**（官方限制），而且系统会按省电策略推迟；
-     *    荣耀/Huawei 这类"杀后台"最凶的机型还需要用户在系统设置里放行
-     *    （参考 https://dontkillmyapp.com）。
+     * ── 现在这组值是**验证用**的（第 1 轮）────────────────────────────
+     *   `repeat: false` + `interval: 1` = **一次性、1 分钟后**醒一次。
+     *   为什么这么配：**周期**任务在安卓上有**最短 15 分钟**的硬限制，而**一次性**
+     *   任务的延迟没有这个下限 —— 所以这样能把验证时间从 15~30 分钟压到 1~3 分钟。
+     *   代价：每切一次后台只醒一次（不是循环）。
+     *   ✅ 验通之后改成 `repeat: true` + `interval: 15` 就是正式形态。
      */
     BackgroundRunner: {
       label: "com.yanping.qidao.wake",
       src: "runners/wake.js",
       event: "qidaoWake",
-      repeat: true,
-      interval: 15,
+      repeat: false,
+      interval: 1,
       autoStart: true,
     },
   },

@@ -1,76 +1,29 @@
 import { isNativeApp } from "@/lib/platform";
 
 /**
- * **后台唤醒**的 App 侧开关 —— 跟 `public/runners/wake.js` 配对。
+ * **后台唤醒**的 App 侧说明 —— 跟 `public/runners/wake.js` 配对。
  *
- * 为什么要有这个文件：网页（电脑上调试）里没有"后台任务"这回事，
- * 插件也不能在浏览器里 import（会报错）—— 所以全部走**动态 import + 平台判断**，
- * 电脑上静默不用，手机上才真的调。
+ * ⚠️⚠️ 这里**故意没有**「手动触发一次」的函数 —— 这是一个踩过的坑，别再加回来：
  *
- * ⚠️ 这一版是**最小验证**：只证明"App 关着时，系统到底会不会把它叫醒"。
- * 叫醒之后干什么（问 AI、生成那句话、弹通知）等这一步验过了再接。
+ * 插件的 `dispatchEvent` 在安卓侧是这样实现的（`BackgroundRunnerPlugin.kt`）：
+ *
+ *     runBlocking(Dispatchers.IO) {              // ← 插件方法跑在**主线程**，这句把主线程挡住
+ *         impl.execute(...)                     // ← 里面 future.conditionalAwait { it != null }
+ *     }                                         //    **无限期等**，没有超时
+ *
+ * 也就是：主线程被挡住等 JS 回调，而 JS 引擎要跑又得用主线程 → **死锁**。
+ * 实测后果（用户真机反馈）：点一下之后"一直写着正在叫他"，**整个 App 卡住不动**，通知也没有。
+ *
+ * 所以规矩是：**App 侧永远不要调 `dispatchEvent`**。
+ * 真正管用的是**系统定时任务**那条路（WorkManager → `RunnerWorker`）——
+ * 它跑在后台线程上，不碰主线程，也就没有这个死锁（`verify-background-wake.mjs` 盯着这条）。
+ *
+ * 代价：没法规避 15 分钟的等待 —— 想验只能把 App 切到后台、等。
  */
 
-/** 跟 capacitor.config.ts 里那两行**必须一致**（写错了调用就石沉大海） */
+/** 跟 capacitor.config.ts 里那两行**必须一致**（写错了后台任务就是哑的） */
 export const WAKE_LABEL = "com.yanping.qidao.wake";
 export const WAKE_EVENT = "qidaoWake";
-
-type Runner = {
-  checkPermissions: () => Promise<{ notifications?: string }>;
-  requestPermissions: (o: { apis: string[] }) => Promise<unknown>;
-  dispatchEvent: (o: {
-    label: string;
-    event: string;
-    details?: Record<string, unknown>;
-  }) => Promise<unknown>;
-};
-
-async function getRunner(): Promise<Runner | null> {
-  if (!isNativeApp()) return null;
-  try {
-    const mod = (await import("@capacitor/background-runner")) as unknown as {
-      BackgroundRunner: Runner;
-    };
-    return mod.BackgroundRunner;
-  } catch {
-    return null;
-  }
-}
-
-export type WakeTestResult = { ok: boolean; message: string };
-
-/**
- * **立刻试一次**（不用等 15 分钟）。
- *
- * 为什么要这个按钮：一次真机验证要等 15~30 分钟，而且失败时分不清是
- * "后台没被叫醒"还是"叫醒了但这段 JS 写错了"。分两步试：
- *   ① 点一下 → 立刻手动触发一次 → 通知来了 = **JS 和通知这条路是通的**
- *   ② 关掉 App 等半小时 → 通知来了 = **系统真的会叫醒它**
- * 两步分开，失败在哪一步一眼就知道。
- */
-export async function wakeTestOnce(): Promise<WakeTestResult> {
-  const runner = await getRunner();
-  if (!runner) {
-    return { ok: false, message: "这条只有装成 App 之后才有用（网页里没有后台任务）。" };
-  }
-  try {
-    /** 安卓 13+ 通知要先授权（跟闹钟用的是同一个权限） */
-    const before = await runner.checkPermissions().catch(() => ({ notifications: "prompt" }));
-    if (before?.notifications !== "granted") {
-      await runner.requestPermissions({ apis: ["notifications"] }).catch(() => undefined);
-    }
-    await runner.dispatchEvent({ label: WAKE_LABEL, event: WAKE_EVENT, details: { from: "manual" } });
-    return {
-      ok: true,
-      message: "已经手动叫了他一次 —— 应该马上会弹一条通知（第 N 次醒来）。没弹就是通知权限被关了。",
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      message: `叫不动他：${(err as Error).message || "未知错误"}。可能这个包还没带上后台任务，或者配置没对上。`,
-    };
-  }
-}
 
 /** 这台设备支不支持后台唤醒（网页版永远不支持） */
 export function wakeSupported(): boolean {

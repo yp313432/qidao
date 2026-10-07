@@ -28,6 +28,20 @@ const check = (name, ok, extra = "") => {
 
 const read = (p) => (existsSync(p) ? readFileSync(p, "utf8") : "");
 
+/**
+ * 把注释剥掉再看代码。
+ *
+ * ⚠️ 这是**必须的**，不是洁癖：这份仓库里到处是"解释为什么不要这么写"的中文注释，
+ * 直接拿正则扫原文会把说明文字当成代码 —— 我已经因此误报过两次：
+ *   ① 后台文件注释里写了"原来是 window.setInterval"，被判成"代码里用了 window"
+ *   ② 说明里写了"不要调 dispatchEvent"，被判成"调了 dispatchEvent"
+ * 所以：**判断"代码有没有干某事"，先剥注释。**
+ */
+const stripComments = (src) =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, " ") // 块注释
+    .replace(/(^|[^:])\/\/.*$/gm, "$1 "); // 行注释（避开 http:// 那种）
+
 /* ───────── ① 后台小文件本身 ───────── */
 
 console.log("【一】后台小文件（public/runners/wake.js）");
@@ -42,9 +56,7 @@ check("文件存在", runner.length > 0, runnerPath);
  * ⚠️ 检查前**先把注释剥掉** —— 否则说明文字里写一句"原来是 window.setInterval"
  * 就会被误判成"代码里用了 window"（第一版真这么误报了一次）。
  */
-const code = runner
-  .replace(/\/\*[\s\S]*?\*\//g, " ") // 块注释
-  .replace(/(^|[^:])\/\/.*$/gm, "$1 "); // 行注释（避开 http:// 那种）
+const code = stripComments(runner);
 
 const forbidden = [
   [/\bimport\s+/, "import"],
@@ -92,11 +104,54 @@ check(
  * 后面的数字，结果一个数字都抓不到、默认成 0 → 断言**假绿**（等于没考）。
  * 假绿比没有还糟：它会让人以为查过了。
  */
-const notifyBase = Number((code.match(/NOTIFY_ID_BASE\s*=\s*(\d+)/) ?? [])[1] ?? "NaN");
+const notifyId = Number((code.match(/NOTIFY_ID_BASE\s*=\s*(\d+)/) ?? [])[1] ?? "NaN");
 check(
   "通知 id 是正的、且在 32 位整数范围内（安卓限制）",
-  Number.isFinite(notifyBase) && notifyBase > 0 && notifyBase < 2_000_000_000,
-  `base=${notifyBase}`,
+  Number.isFinite(notifyId) && notifyId > 0 && notifyId < 2_000_000_000,
+  `base=${notifyId}`,
+);
+
+/**
+ * ⚠️ **顺序**：先弹通知、再记账。
+ * 这一版的通知是"我醒过"的唯一证据；反过来的话，万一记账出错，
+ * 用户就什么都看不到，而我们连"它到底醒没醒"都不知道。
+ */
+const iNotify = code.indexOf("CapacitorNotifications.schedule");
+const iKvSet = code.indexOf('CapacitorKV.set("wake_count"');
+check(
+  "先弹通知、后记账（记账出错也不能影响通知）",
+  iNotify > -1 && iKvSet > -1 && iNotify < iKvSet,
+  `通知@${iNotify} / 记账@${iKvSet}`,
+);
+
+/* ───────── ①-b 死锁规矩：App 侧永远不要调 dispatchEvent ───────── */
+
+console.log("\n【一·b】死锁规矩：App 侧不许调 dispatchEvent");
+/**
+ * 这是**踩过的坑，不是理论**（用户真机反馈：点一下之后"一直写着正在叫他"、
+ * **整个 App 卡住不动**、通知也没有）。
+ *
+ * 原因在插件安卓实现里：
+ *   `BackgroundRunnerPlugin.dispatchEvent` → `runBlocking(Dispatchers.IO) { impl.execute(...) }`
+ *   而插件方法跑在**主线程**上 → 主线程被挡住；`impl.execute` 里
+ *   `future.conditionalAwait { it != null }` **无限期等** JS 回调，没有超时；
+ *   而 JS 引擎要跑又得用主线程 → 主线程等 JS、JS 等主线程 → 死锁。
+ *
+ * 所以：**手动触发这条路整条封掉**。要验只能等系统到点叫它（15 分钟起）。
+ */
+const helperSrc = read(join(process.cwd(), "src", "lib", "background-wake.ts"));
+check(
+  "lib/background-wake.ts 里没有 dispatchEvent（剥掉注释后）",
+  !/dispatchEvent/.test(stripComments(helperSrc)),
+);
+const meSections = read(join(process.cwd(), "src", "components", "me-sections.tsx"));
+check(
+  "界面里也没直接调 dispatchEvent（剥掉注释后）",
+  !/dispatchEvent/.test(stripComments(meSections)),
+);
+check(
+  "后台唤醒的注释里记了这条坑（免得下一个人又加回来）",
+  /死锁|主线程/.test(helperSrc),
 );
 
 /* ───────── ② 配置与常量的对账 ───────── */
@@ -105,8 +160,16 @@ console.log("\n【二】capacitor.config.ts ↔ lib/background-wake.ts（对不�
 const cap = read(join(process.cwd(), "capacitor.config.ts"));
 const helper = read(join(process.cwd(), "src", "lib", "background-wake.ts"));
 
-const labelInCap = (cap.match(/label:\s*"([^"]+)"/) ?? [])[1] ?? "";
-const eventInCap = (cap.match(/event:\s*"([^"]+)"/) ?? [])[1] ?? "";
+/**
+ * ⚠️ **配置也要剥注释再解析** —— 这是同一个坑的第三次：
+ * `capacitor.config.ts` 的大段注释里写了"验通之后改成 `repeat: true` + `interval: 15`"，
+ * 直接扫原文就会把**注释里的示例**当成真配置（上面那版就误报成 repeat=true）。
+ * 结论：凡是"从源码里读一个值"，先剥注释。
+ */
+const capCode = stripComments(cap);
+
+const labelInCap = (capCode.match(/label:\s*"([^"]+)"/) ?? [])[1] ?? "";
+const eventInCap = (capCode.match(/event:\s*"([^"]+)"/) ?? [])[1] ?? "";
 const labelInHelper = (helper.match(/WAKE_LABEL\s*=\s*"([^"]+)"/) ?? [])[1] ?? "";
 const eventInHelper = (helper.match(/WAKE_EVENT\s*=\s*"([^"]+)"/) ?? [])[1] ?? "";
 
@@ -120,15 +183,22 @@ check(
   Boolean(eventInCap) && eventInCap === eventInHelper,
   `config=${eventInCap} / helper=${eventInHelper}`,
 );
-check("src 指向那个后台文件", /src:\s*"runners\/wake\.js"/.test(cap));
-check("autoStart 打开（装完就自动排上）", /autoStart:\s*true/.test(cap));
-check("repeat 打开（要反复醒，不是只醒一次）", /repeat:\s*true/.test(cap));
+check("src 指向那个后台文件", /src:\s*"runners\/wake\.js"/.test(capCode));
+check("autoStart 打开（切后台那一刻才排得上队）", /autoStart:\s*true/.test(capCode));
 
-const interval = Number((cap.match(/interval:\s*(\d+)/) ?? [])[1] ?? 0);
+/**
+ * `interval` 的合法性**取决于 repeat**（这是安卓的规矩，不是我们的偏好）：
+ *   · **周期**任务（`repeat: true`）→ WorkManager 硬性要求 **≥ 15 分钟**
+ *     （写 1 分钟不会更勤，只会报错/被忽略）
+ *   · **一次性**任务（`repeat: false`）→ 延迟没有这个下限，可以 1 分钟
+ *     （当前就是这种：为了把验证时间从 15 分钟压到 1 分钟）
+ */
+const repeats = /repeat:\s*true/.test(capCode);
+const interval = Number((capCode.match(/interval:\s*(\d+)/) ?? [])[1] ?? 0);
 check(
-  "interval ≥ 15（安卓硬限制，写小了也不会更勤）",
-  interval >= 15,
-  `interval=${interval}`,
+  repeats ? "周期任务：interval ≥ 15（安卓硬限制）" : "一次性任务：interval ≥ 1（没有 15 分钟下限）",
+  interval >= (repeats ? 15 : 1),
+  `repeat=${repeats} interval=${interval}`,
 );
 
 /* ───────── ③ 安卓工程那两处接线 ───────── */

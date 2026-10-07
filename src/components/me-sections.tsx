@@ -32,7 +32,7 @@ import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { toolProtocolLabel } from "@/lib/tool-protocol";
-import { wakeSupported, wakeTestOnce } from "@/lib/background-wake";
+import { wakeSupported } from "@/lib/background-wake";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -341,9 +341,6 @@ function MeSections({ tab }: { tab: MeTab }) {
   // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
-  /** 后台唤醒的"现在试一次"（见 lib/background-wake） */
-  const [wakeBusy, setWakeBusy] = useState(false);
-  const [wakeMsg, setWakeMsg] = useState("");
 
   async function probeModels() {
     setProbing(true);
@@ -1167,36 +1164,29 @@ function MeSections({ tab }: { tab: MeTab }) {
         </div>
 
         {/*
-          **后台唤醒的验证入口**（2026-10 加）。
+          **后台唤醒的说明卡**（2026-10 加）。
           用户的诉求："定时任务还是只有点开 app 才可以发消息" / "不要再留网页的设计思路了"
           —— 原来的定时任务靠页面里每 30 秒查一次，一关 App 就没了。
           新的做法是交给安卓系统定时叫醒一段跑在网页外面的 JS（见 public/runners/wake.js）。
-          这一版只**验证机制**：点一下立刻试一次，再关掉 App 等半小时看会不会自己醒。
+
+          ⚠️ 这里**故意没有按钮** —— 曾经有个「现在试一次」，它调插件的 `dispatchEvent`，
+          而那个方法在安卓侧用 `runBlocking` 挡住**主线程**、再无限期等 JS 回调（没有超时）
+          → 主线程等 JS、JS 等主线程 → **死锁**。
+          用户真机实测：点一下之后"一直写着正在叫他"，**整个 App 卡住不动**。
+          那条路已经拿掉，验证只能靠"切后台等 15 分钟"（详见 lib/background-wake.ts 的注释）。
         */}
         <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
           <p className="text-[12px] font-medium">后台唤醒（实验）</p>
           <p className="mt-1 text-[11px] leading-4 text-muted">
-            让 App **关着**时也能自己醒过来看一眼（现在定时任务做不到，因为它靠页面里自己数时间）。
             {wakeSupported()
-              ? "先点下面「现在试一次」：应该马上弹一条通知 —— 那说明这条路是通的。然后把 App 关掉、锁屏、等半小时，看看会不会自己醒。"
+              ? "让 App **关着**时也能自己醒过来看一眼。现在配的是「一次性、1 分钟后」——把栖岛切到后台（或从后台划掉），等 1~3 分钟，看会不会自己弹一条通知（写着「第 N 次醒来」）。"
               : "这条只有装成 App 之后有用（网页里没有后台任务）。"}
           </p>
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={!wakeSupported() || wakeBusy}
-              onClick={() => {
-                setWakeBusy(true);
-                void wakeTestOnce()
-                  .then((r) => setWakeMsg(r.message))
-                  .finally(() => setWakeBusy(false));
-              }}
-              className="rounded-full bg-elevated px-3.5 py-2 text-[12px] font-medium disabled:opacity-40"
-            >
-              {wakeBusy ? "正在叫他…" : "现在试一次"}
-            </button>
-          </div>
-          {wakeMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{wakeMsg}</p>}
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            为什么没有「立刻试一次」的按钮：那个方法会把整个 App 卡死（插件的实现问题），已经拿掉。
+            切一次后台只醒一次 —— 这是为了**先把验证时间压到 1 分钟**；验通了我再换成正式的
+            「每 15 分钟循环」（安卓对循环任务的硬下限）。
+          </p>
         </div>
 
         <div className="mb-2 flex flex-wrap gap-2">
