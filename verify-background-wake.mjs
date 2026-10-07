@@ -157,6 +157,58 @@ check(
   /VITE_QIDAO_WAKE_URL/.test(helper),
 );
 
+/* ───────── 【二·b】甲那条路的关键手：抽屉名字两端必须一致 ───────── */
+
+console.log("\n【二·b】「配置抽屉」两端必须对得上（写错一个字母就谁也见不到谁，还不报错）");
+{
+  const labelInConfig = (capCode.match(/label:\s*"([^"]+)"/) ?? [])[1] ?? "";
+  const java = read(
+    join(
+      process.cwd(),
+      "android",
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "yanping",
+      "qidao",
+      "WakeBridgePlugin.java",
+    ),
+  );
+  const prefsInJava = (java.match(/PREFS\s*=\s*"([^"]+)"/) ?? [])[1] ?? "";
+  check(
+    "Java 抽屉名 == BackgroundRunner.label",
+    Boolean(prefsInJava) && prefsInJava === labelInConfig,
+    `java=${prefsInJava} / config=${labelInConfig}`,
+  );
+
+  const mainActivity = read(
+    join(process.cwd(), "android", "app", "src", "main", "java", "com", "yanping", "qidao", "MainActivity.java"),
+  );
+  check("插件在 MainActivity 里注册了（不注册等于没写）", /registerPlugin\(WakeBridgePlugin\.class\)/.test(mainActivity));
+
+  const bridgeJs = read(join(process.cwd(), "src", "lib", "wake-bridge.ts"));
+  check("JS 侧插件名一致（WakeBridge）", /registerPlugin<WakeBridgeApi>\("WakeBridge"\)/.test(bridgeJs));
+  check(
+    "JS 侧用的键跟后台读的键一致（cfg_ 开头那批）",
+    /cfg_base_url/.test(bridgeJs) && /cfg_base_url/.test(runner),
+  );
+
+  /** 档位间隔两端也要一致：App 生成五段、后台按 25 分钟一档挑 */
+  const promptTs = read(join(process.cwd(), "src", "lib", "wake-prompt.ts"));
+  check("App 生成的是五段指令（0/25/50/75/100）", /URGE_LEVELS\s*=\s*\[0,\s*25,\s*50,\s*75,\s*100\]/.test(promptTs));
+  check("后台按 25 分钟一档挑（LADDER_STEP_MIN = 25）", /LADDER_STEP_MIN\s*=\s*25/.test(code));
+  /**
+   * ⚠️ 别断言"代码里有裸的 `{{TIME}}`" —— 它是写在正则里的（`/\{\{TIME\}\}/`），
+   * 裸串根本不会出现。要断言的是"它在 replace 里处理了这两个占位符"。
+   */
+  check(
+    "后台会替换两个时间占位符（TIME / ELAPSED）",
+    /\.replace\([^)]*TIME/.test(code) && /\.replace\([^)]*ELAPSED/.test(code),
+  );
+}
+
 /* ───────── 【三】死锁规矩 ───────── */
 
 console.log("\n【三】死锁规矩：App 侧永远不许调 dispatchEvent");
@@ -169,7 +221,7 @@ console.log("\n【三】死锁规矩：App 侧永远不许调 dispatchEvent");
  *   而 JS 引擎要跑又得用主线程 → 主线程等 JS、JS 等主线程 = **死锁**。
  * 所以：要验通道就老老实实 fetch Worker（见 `lib/wake-sync.ts` 的 pingWake）。
  */
-for (const rel of ["src/lib/background-wake.ts", "src/lib/wake-sync.ts", "src/components/wake-daemon.tsx"]) {
+for (const rel of ["src/lib/background-wake.ts", "src/lib/wake-sync.ts", "src/lib/wake-bridge.ts", "src/components/wake-daemon.tsx"]) {
   const src = read(join(process.cwd(), rel));
   check(`${rel} 里没有 dispatchEvent（剥掉注释后）`, !/dispatchEvent/.test(strip(src)));
 }

@@ -9,6 +9,9 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     // 注册自定义插件：把闹钟交给系统时钟（见 SystemAlarmPlugin）
     registerPlugin(SystemAlarmPlugin.class);
+    // 注册自定义插件：「他主动找你」的配置抽屉（见 WakeBridgePlugin）
+    // 前台把上游配置和五段指令写进去，后台那段 JS 醒来时自己读（安卓不允许直接递）
+    registerPlugin(WakeBridgePlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

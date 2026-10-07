@@ -345,6 +345,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   /** 「他主动找你」的通道自检（见 lib/wake-sync）—— 安全：只 fetch Worker，不碰原生 */
   const [wakePinging, setWakePinging] = useState(false);
   const [wakePingMsg, setWakePingMsg] = useState("");
+  /** 主路（直接问你的 AI）配好了没 —— 缺哪样都不能问 */
+  const upstreamReady = () =>
+    Boolean((settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() && (settings.upstreamModel ?? "").trim());
 
   async function probeModels() {
     setProbing(true);
@@ -1228,17 +1231,24 @@ function MeSections({ tab }: { tab: MeTab }) {
             </ul>
           </div>
 
-          {/* 通道状态：地址是打包注入的还是手填的、通不通 */}
+          {/*
+            通道状态。现在**主路是"直接问你的 AI"**（甲）：
+            后台那段 JS 醒来 → 从 App 交给它的抽屉里读配置 → 直接打你的上游（国内、不用梯、不用域名）。
+            Worker（乙）只是备路，只有配了地址才会用。
+          */}
           <p className="mt-2 text-[11px] leading-4">
             通道：
-            <span className={wakeUrlSource() === "none" ? "text-warn" : "text-ok"}>
-              {wakeUrlSource() === "manual"
-                ? "手填地址"
-                : wakeUrlSource() === "build"
-                  ? "打包时已注入"
-                  : "还没配（这个包里没注入地址）"}
+            <span className={upstreamReady() ? "text-ok" : "text-warn"}>
+              {upstreamReady()
+                ? "直接问你的 AI（不用梯、不用域名）"
+                : "还没配自定义上游（地址 / 密钥 / 模型）"}
             </span>
           </p>
+          {wakeUrlSource() !== "none" && (
+            <p className="mt-1 text-[11px] leading-4 text-subtle">
+              备路（Worker 中转）：{wakeUrlSource() === "manual" ? "手填地址" : "打包时已注入"} —— 只有主路不通时才需要它
+            </p>
+          )}
 
           {/* 夜间不打扰 */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2">

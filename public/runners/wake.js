@@ -5,46 +5,42 @@
  *   "那个定时任务还是只有点开 app 才可以发消息，即使我后台一直开着，不省电那些也设置了"
  *   "我想要是它根据当时情景说的话，而不是预设"
  *   "我们现在已经是一个 app 了，不要再留网页的设计思路了"
+ *   "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的"
  *
- * 根因就是网页思路：原来的定时任务靠**页面里每 30 秒查一次**（`window.setInterval`），
- * 而安卓一切到后台就冻结网页的定时器 —— 所以 App 一关就什么都不会发生。
+ * ── 它现在干什么（甲：**直接问你的 AI**，不经过 Worker、不用梯、不用域名）──
+ *   系统每 25 分钟叫醒它 →
+ *     ① 看总开关（App 里关掉就什么都不做）
+ *     ② 看是不是夜间（夜间不打扰）
+ *     ③ 算「程度」：距**他上次开口**过了多久（每 25 分钟一档：0/25/50/75/100）
+ *     ④ 按档位从 App 交过来的**五段指令**里挑一段，把 `{{TIME}}`/`{{ELAPSED}}` 换成此刻的值
+ *     ⑤ 直接 POST 到你自己的上游（国内那条快的）→ 拿到他生成的那句话 → 弹通知
  *
- * ── 现在它在干什么（"乙"方案：AI 的调用在 Worker 上）────────────────
- * 系统把它叫起来 → 它去问 Worker 一句"现在要不要说话、说什么" → 把他返回的那句话弹成通知。
- * Worker 那边（`src/routes/api/wake.ts`）负责：两道便宜闸门（夜间不打扰、最短间隔）+
- * 滚一个"想找你的程度"（0/25/50/75/100）+ 问 AI。
+ * ── 配置从哪来（用户问过："不是 app 问哎吗"）────────────────────
+ *   **是 App 里的后台部分在问**，不是界面在问。App 打开时会把配置 + 五段指令
+ *   写进一个"抽屉"（`android/.../WakeBridgePlugin.java`），这里醒来时从抽屉里读。
+ *   为什么绕这一下：安卓不允许网页那边直接往这里塞东西。
  *
- * 这里能用的东西只有三样（官方限制，别惦记别的）：
- *   · `fetch`               —— 联网
- *   · `CapacitorKV`         —— 存东西（跨唤醒保留）
- *   · `CapacitorNotifications` —— 直接弹真通知
+ * ── 备路 ────────────────────────────────────────────────
+ *   抽屉里没有配置、但打包时注入过 `WAKE_URL`（Worker 中转）→ 走 Worker 那条
+ *   （域名在国内被污染时要挂梯，所以默认不用；将来有域名可以启用）。
  *
- * ⚠️ 五条纪律（官方文档 + 插件源码 + 真机踩坑读出来的）：
- *   ① 每次被叫起来**最多干 30 秒**（安卓上限 10 分钟，但要照顾跨平台）
- *   ② 每次都是**全新的上下文** —— 上一次的变量不会留着，要记东西只能写 `CapacitorKV`
- *   ③ 干完**必须**调用 `resolve()` 或 `reject()`。
- *      插件安卓侧是这样等的：`future.conditionalAwait { it != null }` —— **没有超时**，
- *      不回调它就永远挂着（后台那条路会把这一次后台任务白白耗掉）。
- *   ④ **不许用 `toISOString()`** —— 它给的是 UTC。用户在国内（UTC+8），
- *      第一版就这么写的，通知上写 09:09、实际 17:09，差 8 小时，白让人绕一圈。
- *   ⑤ 这个文件是**给原生加载的普通 JS**：不能 import、不能 TypeScript、没有 DOM
- *      （`window`/`document`/`localStorage` 全都没有）。
+ * ── 五条纪律（官方文档 + 插件源码 + 真机踩坑读出来的）──────────────
+ *   ① 每次最多干 30 秒（安卓上限 10 分钟，但要照顾跨平台）
+ *   ② 每次都是**全新的上下文** —— 变量不留，要记东西只能写 `CapacitorKV`
+ *   ③ 干完**必须** `resolve()` / `reject()`：插件那边 `conditionalAwait` **没有超时**，
+ *      不回调就永远挂着（那次后台任务白跑）
+ *   ④ **不许用 `toISOString()`** —— 它给的是 UTC。用户 UTC+8，第一版就这么写的，
+ *      通知上写 09:09、实际 17:09，白让人绕一圈
+ *   ⑤ 这是**给原生加载的普通 JS**：不能 import、不能 TypeScript、没有 DOM。
+ *      也**不要**用 `window`/`document`/`localStorage`
  *
- * ⚠️ **App 侧永远不要调 `dispatchEvent`**（曾经有个"现在试一次"按钮那么干）：
+ * ⚠️ **App 侧永远不要调插件的 `dispatchEvent`**（曾经有个"现在试一次"按钮那么干）：
  * 那个方法在安卓侧用 `runBlocking` 挡住主线程、再无限期等这里的回调 →
- * 主线程等 JS、JS 等主线程 → **死锁，整个 App 卡死**。见 `src/lib/wake-sync.ts`。
+ * 主线程等 JS、JS 等主线程 → **死锁，整个 App 卡死**（真机踩过）。
+ * 要递东西用"抽屉"（见 `src/lib/wake-bridge.ts`）。
  */
 
-/**
- * Worker 上的那个接口地址（形如 `https://…/api/wake?pass=…`）。
- *
- * ⚠️ **这个值由 CI 从 GitHub 密钥注入**（`QIDAO_WAKE_URL`），仓库里只有下面那一处占位符 ——
- * 因为仓库是公开的，地址和口令不能写进来。
- * 没注入时（本地开发、没配密钥）就退回"第 N 次醒来"的调试通知，**绝不请求一个假地址**。
- *
- * ⚠️ 占位符在全文件里**只允许出现那一处**（CI 是按它整串替换的；注释里再写一遍会让人
- * 误以为要替换两处，而 `replace` 只换第一处 —— 那就会换到注释、把功能换成哑的）。
- */
+/** Worker 备路的地址（形如 `https://…/api/wake?pass=…`）。⚠️ 由 CI 从 GitHub 密钥注入。 */
 var WAKE_URL = "__QIDAO_WAKE_URL__";
 
 /** 通知 id 的基数（安卓要 32 位整数）。用加法错开，避免几条通知互相覆盖。 */
@@ -53,17 +49,15 @@ var NOTIFY_ID_BASE = 9000;
 /** 出错时的调试通知最短间隔（分钟）—— 上游一直挂的话，别每 25 分钟吵他一次 */
 var ERR_NOTIFY_COOLDOWN_MIN = 60;
 
-/**
- * 被"关掉"之后，隔多久才再去问一次（分钟）。
- *
- * 用户在 App 里一键关闭后，Worker 会回 `muted: true`；
- * 这里就把它记下来，接下来这几小时**连请求都不发**（省电、省流量）。
- * 为什么还要定期去问一次：万一你改了主意重新打开，得有个机会知道 ——
- * 4 小时是个折中（一天最多 6 次很轻的请求）。
- */
+/** 被"关掉"之后，隔多久才再去确认一次（分钟）。见下面 `muted_at` 的说明。 */
 var MUTED_RECHECK_MIN = 240;
 
-/** 时间戳 —— 必须是**本地时间**，理由见上面纪律 ④ */
+/** 「程度」的档位间隔：每 25 分钟升一档（跟 App 里的 `wake-prompt.ts` 必须一致） */
+var LADDER_STEP_MIN = 25;
+
+/* ───────── 小工具 ───────── */
+
+/** 时间戳 —— 必须是**本地时间**（纪律 ④） */
 function localStamp() {
   var d = new Date();
   var p = function (n) {
@@ -84,24 +78,28 @@ function localStamp() {
   );
 }
 
-/** 读一个数（读不到当 0） */
-function kvNum(key) {
+/** 读抽屉 / KV 里的字符串 */
+function cfg(key) {
   try {
-    return Number((CapacitorKV.get(key) || {}).value || "0") || 0;
+    return String((CapacitorKV.get(key) || {}).value || "");
   } catch (e) {
-    return 0;
+    return "";
   }
+}
+
+function kvNum(key) {
+  var v = cfg(key);
+  return v ? Number(v) || 0 : 0;
 }
 
 function kvSet(key, value) {
   try {
     CapacitorKV.set(key, String(value));
   } catch (e) {
-    /* 记不上不算失败 —— 下面还要接着干活 */
+    /* 记不上不算失败 */
   }
 }
 
-/** 弹一条通知（单独包一层，出问题也别影响主流程） */
 function notify(id, title, body) {
   try {
     CapacitorNotifications.schedule([{ id: id, title: title, body: body }]);
@@ -110,10 +108,9 @@ function notify(id, title, body) {
   }
 }
 
-/** 把这一轮的经过记一行（跨唤醒保留，用来排查"它到底醒没醒、有没有说话"） */
 function logLine(text) {
   try {
-    var prev = (CapacitorKV.get("wake_log") || {}).value || "";
+    var prev = cfg("wake_log");
     var next = [text].concat(
       prev.split("\n").filter(function (s) {
         return s;
@@ -125,7 +122,6 @@ function logLine(text) {
   }
 }
 
-/** 出错时弹一条"调试通知"（带冷却，免得刷屏）—— 让"他没说话"和"这条路坏了"分得开 */
 function errorNotify(count, stamp, why) {
   var lastErr = kvNum("last_err_at");
   var now = Date.now();
@@ -138,6 +134,47 @@ function errorNotify(count, stamp, why) {
   );
 }
 
+/** 距上次说话多久 → 哪一档（0 / 25 / 50 / 75 / 100） */
+function levelOf(elapsedMin) {
+  if (elapsedMin === null) return 0;
+  var step = Math.floor(Math.max(0, elapsedMin) / LADDER_STEP_MIN);
+  return Math.min(100, step * 25);
+}
+
+/** 档位 → 五段指令里的第几段（0~4） */
+function indexOf(level) {
+  return Math.min(4, Math.max(0, Math.round(level / 25)));
+}
+
+/** 给模型看的"过了多久"（人话） */
+function elapsedText(elapsedMin) {
+  if (elapsedMin === null) return "很久（你们还没聊过）";
+  var m = Math.round(elapsedMin);
+  if (m < 1) return "刚刚";
+  if (m < 60) return m + " 分钟";
+  var h = Math.floor(m / 60);
+  return h + " 小时" + (m % 60 > 0 ? " " + (m % 60) + " 分钟" : "");
+}
+
+/** 夜间不打扰（起止相同 = 不启用；跨零点也对，比如 23→7） */
+function inQuiet(hour, start, end) {
+  if (start === end) return false;
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+/** 模型偶尔把话包在引号里 / 带前缀 —— 清一下（中文引号也要清，验收抓到过） */
+function cleanReply(raw, aiName) {
+  var text = String(raw || "").trim();
+  if (!text) return "";
+  if (/^skip\b/i.test(text) || text === "SKIP") return "";
+  return text
+    .replace(/^["“”「」『』'']+|["“”「」『』'']+$/g, "")
+    .replace(new RegExp("^" + aiName + "\\s*[:：]\\s*"), "")
+    .trim();
+}
+
+/* ───────── 主流程 ───────── */
+
 addEventListener("qidaoWake", function (resolve, reject) {
   try {
     var now = Date.now();
@@ -145,52 +182,175 @@ addEventListener("qidaoWake", function (resolve, reject) {
     var count = kvNum("wake_count") + 1;
     kvSet("wake_count", count);
 
-    /**
-     * 地址能不能用：注入成功后它就是个 http(s) 地址；没注入时还是上面那个占位符（以 `__` 开头）。
-     *
-     * ⚠️ **这里不能写字面占位符去做比较**（第一版是 `WAKE_URL.indexOf("__…__") === -1`）：
-     * CI 是**整串全替换**的，会把这一句里的占位符也换成真地址 ——
-     * 于是它变成"判断自己是不是包含自己"，恒为假 → 永远以为没配、永远不请求 Worker。
-     * 这种错**不报错**，只是安静地不工作。改成"长得像不像一个网址"就没有这个耦合了。
-     */
-    var ready = /^https?:\/\//.test(WAKE_URL);
-    if (!ready) {
-      notify(NOTIFY_ID_BASE + (count % 1000), "栖岛 · 后台唤醒", "第 " + count + " 次醒来：" + stamp + "（本地时间）");
-      logLine("#" + count + " " + stamp + " 未配置地址（只报醒）");
-      resolve();
-      return;
+    var baseUrl = cfg("cfg_base_url");
+    var apiKey = cfg("cfg_api_key");
+    var model = cfg("cfg_model");
+    var aiName = cfg("cfg_ai_name") || "栖岛";
+    /** 抽屉里有配置 → **甲**（直接问你的 AI） */
+    var direct = /^https?:\/\//.test(baseUrl) && apiKey !== "" && model !== "";
+
+    if (direct) {
+      /* ① 总开关：App 里关掉就完全安静（连请求都不发） */
+      if (cfg("cfg_enabled") === "0") {
+        kvSet("muted_at", now);
+        logLine("#" + count + " " + stamp + " 你关掉了，什么都不做");
+        resolve();
+        return;
+      }
     }
 
     /**
-     * **被关掉期间连请求都不发**（用户在 App 里一键关闭之后）。
-     * 上次 Worker 回过 `muted: true` 就记了时间；没到复查时间直接收工。
+     * **静音期**（你关掉了 / 上次 Worker 回了 `muted: true`）→ **连请求都不发**。
+     * ⚠️ 这道检查要放在"两条路"的**前面**（一开始只加在主路上，
+     * 结果走备路时每个 25 分钟还是照发 —— 验收抓到的）。
      */
     var mutedAt = kvNum("muted_at");
     if (mutedAt > 0 && (now - mutedAt) / 60000 < MUTED_RECHECK_MIN) {
-      logLine("#" + count + " " + stamp + " 静音中（你关掉了，不发请求）");
+      logLine("#" + count + " " + stamp + " 静音中（你关掉了）");
       resolve();
       return;
     }
 
-    /**
-     * 距**上一次他开口**过了多久（分钟）—— **程度就是从它算出来的**。
-     *
-     * 用户拍板的规则（原话）：
-     *   "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的，比如 25 分钟时候他叫醒了，
-     *    但可以选择不发消息，然后到 50 叫醒，选择发不发，到了 100 叫醒，必定发，
-     *    如果 25 叫醒且发了，重新开始记就行。"
-     *
-     * 所以后台**不用自己数档位**（数次数会在系统推迟唤醒时错位）——
-     * 只报"距他上次开口多久"，Worker 按时间算该到哪一档（0/25/50/75/100）。
-     * 他开口之后这个时间自然从 0 重新开始（"重新开始记"）。
-     *
-     * ⚠️ 是"**他开口**"不是"上次问他"：没说话就一直攒着，越久越想找你。
-     */
-    var lastSpoke = kvNum("last_spoke_at");
-    var since = lastSpoke > 0 ? String(Math.max(0, Math.round((now - lastSpoke) / 60000))) : "";
+    if (direct) {
+      kvSet("muted_at", 0);
 
-    var url =
-      WAKE_URL + (WAKE_URL.indexOf("?") === -1 ? "?" : "&") + "since=" + since;
+      /* ② 夜间不打扰 */
+      var hour = new Date().getHours();
+      var qs = kvNum("cfg_quiet_start");
+      var qe = kvNum("cfg_quiet_end");
+      if (inQuiet(hour, qs, qe)) {
+        logLine("#" + count + " " + stamp + " 夜间不打扰（" + qs + "–" + qe + "）");
+        resolve();
+        return;
+      }
+
+      /* ③ 程度：距**他上次开口**过了多久（"他一旦开口就重新开始记"） */
+      var lastSpoke = kvNum("last_spoke_at");
+      var elapsed = lastSpoke > 0 ? (now - lastSpoke) / 60000 : null;
+      var level = levelOf(elapsed);
+      var idx = indexOf(level);
+
+      /* ④ 挑那一段指令，把时间占位符换成**此刻**的值 */
+      var tpl = cfg("cfg_prompt_" + idx);
+      if (!tpl) {
+        logLine("#" + count + " " + stamp + " 抽屉里没有指令（App 还没交过来？）");
+        errorNotify(count, stamp, "抽屉里没有指令：App 还没把配置交过来");
+        resolve();
+        return;
+      }
+      var system = tpl
+        .replace(/\{\{TIME\}\}/g, stamp)
+        .replace(/\{\{ELAPSED\}\}/g, elapsedText(elapsed));
+
+      /** ⑤ 直接问你的上游 */
+      fetch(baseUrl.replace(/\/+$/, "") + "/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + apiKey },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: "现在，你要主动说一句什么？（或者回 SKIP）" },
+          ],
+          max_tokens: 200,
+          temperature: 0.9,
+          stream: false,
+        }),
+      })
+        .then(function (res) {
+          return res.text().then(function (body) {
+            return { status: res.status, body: body };
+          });
+        })
+        .then(function (r) {
+          if (r.status < 200 || r.status >= 300) {
+            logLine("#" + count + " " + stamp + " 上游 " + r.status);
+            errorNotify(count, stamp, "上游返回 " + r.status + "：" + String(r.body).slice(0, 80));
+            resolve();
+            return;
+          }
+          var data = null;
+          try {
+            data = JSON.parse(r.body);
+          } catch (e) {
+            data = null;
+          }
+          var said = data ? cleanReply((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "", aiName) : "";
+
+          /* 100% 那档是**保底**：他耍赖说 SKIP 就带"不许 SKIP"再问一次 */
+          if (!said && idx === 4) {
+            fetch(baseUrl.replace(/\/+$/, "") + "/chat/completions", {
+              method: "POST",
+              headers: { "content-type": "application/json", authorization: "Bearer " + apiKey },
+              body: JSON.stringify({
+                model: model,
+                messages: [
+                  { role: "system", content: system + "\n\n【最后一次】你必须说一句话，不许回 SKIP。哪怕只是问一句在干嘛。" },
+                  { role: "user", content: "说一句。" },
+                ],
+                max_tokens: 200,
+                temperature: 0.9,
+                stream: false,
+              }),
+            })
+              .then(function (res2) {
+                return res2.text();
+              })
+              .then(function (body2) {
+                var d2 = null;
+                try {
+                  d2 = JSON.parse(body2);
+                } catch (e) {
+                  d2 = null;
+                }
+                var said2 = d2
+                  ? cleanReply((d2.choices && d2.choices[0] && d2.choices[0].message && d2.choices[0].message.content) || "", aiName)
+                  : "";
+                finish(said2, true);
+                resolve();
+              })
+              .catch(function () {
+                finish("", true);
+                resolve();
+              });
+            return;
+          }
+          finish(said, false);
+          resolve();
+        })
+        .catch(function (err) {
+          var msg = err && err.message ? err.message : "网络出问题";
+          logLine("#" + count + " " + stamp + " 请求失败：" + String(msg).slice(0, 60));
+          errorNotify(count, stamp, "问不到上游：" + msg);
+          resolve();
+        });
+
+      /** 收尾：说了就弹通知 + 记时间；没说就只记一行日志（程度会继续往上爬） */
+      function finish(said, forced) {
+        if (said) {
+          kvSet("last_spoke_at", now);
+          notify(NOTIFY_ID_BASE + (count % 1000), aiName, said);
+          logLine("#" + count + " " + stamp + " 说了（程度 " + level + "%" + (forced ? " · 保底档重试" : "") + "）：" + said.slice(0, 40));
+        } else {
+          logLine("#" + count + " " + stamp + " 没说（程度 " + level + "%）：" + elapsedText(elapsed));
+        }
+      }
+      return;
+    }
+
+    /* ───────── 备路：Worker 中转（抽屉里没配置，但注入过地址）───────── */
+
+    var ready = /^https?:\/\//.test(WAKE_URL);
+    if (!ready) {
+      notify(NOTIFY_ID_BASE + (count % 1000), "栖岛 · 后台唤醒", "第 " + count + " 次醒来：" + stamp + "（本地时间）");
+      logLine("#" + count + " " + stamp + " 没有任何配置（App 没交过来，也没注入 Worker 地址）");
+      resolve();
+      return;
+    }
+
+    var lastSpoke2 = kvNum("last_spoke_at");
+    var since = lastSpoke2 > 0 ? String(Math.max(0, Math.round((now - lastSpoke2) / 60000))) : "";
+    var url = WAKE_URL + (WAKE_URL.indexOf("?") === -1 ? "?" : "&") + "since=" + since;
 
     fetch(url, { method: "GET", headers: { Accept: "application/json" } })
       .then(function (res) {
@@ -209,25 +369,16 @@ addEventListener("qidaoWake", function (resolve, reject) {
           resolve();
           return;
         }
-
-        /**
-         * **总开关的状态跟着每次回复更新**：
-         *   · `muted: true`（你关掉了）→ 记下时间，接下来 4 小时连请求都不发
-         *   · 没有 muted（你重新打开了）→ 抹掉这个标记，恢复正常节奏
-         */
         if (data.muted) kvSet("muted_at", now);
-        else if (mutedAt > 0) kvSet("muted_at", 0);
-
         if (data.action === "speak" && data.text) {
           kvSet("last_spoke_at", now);
           notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text);
-          logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）：" + String(data.text).slice(0, 40));
+          logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）");
         } else if (data.ok === false) {
           logLine("#" + count + " " + stamp + " 失败：" + String(data.why || "").slice(0, 60));
           errorNotify(count, stamp, data.why || "他没答上来");
         } else {
-          /** 他决定不说 / 夜间不打扰 —— 都是"正常地保持安静"，不弹任何东西 */
-          logLine("#" + count + " " + stamp + " 没说（程度 " + data.urge + "）：" + String(data.why || "").slice(0, 40));
+          logLine("#" + count + " " + stamp + " 没说：" + String(data.why || "").slice(0, 40));
         }
         resolve();
       })
@@ -238,7 +389,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
         resolve();
       });
   } catch (err) {
-    /** ③ 无论如何都要收尾 */
+    /* ③ 无论如何都要收尾 */
     reject(err);
   }
 });

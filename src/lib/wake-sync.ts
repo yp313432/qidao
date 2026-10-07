@@ -1,20 +1,20 @@
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
+import { WAKE_KEYS, pushWakeConfig, readWakeConfig } from "@/lib/wake-bridge";
+import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
 
 /**
- * **「主动找你」的 App 侧** —— 把上下文和规矩同步给 Worker，并提供一个通道自检。
+ * **「主动找你」的 App 侧** —— 两条路都在这儿（哪条能用用哪条）：
  *
- * 用户拍板的方案是「乙」：**AI 的调用发生在 Worker 上**，手机上那段跑在网页外面的
- * 后台 JS（`public/runners/wake.js`）只负责请求 Worker、把他返回的那句话弹成通知。
- *
- * 这个文件做两件事：
- *   ① **同步**：把人设/名字/最近对话/上游配置/两个规矩 POST 给 `/api/wake`
- *      （甲方案：连 key 一起给 —— 用户在 Cloudflare 上零设置）
- *   ② **自检**：GET 一下，看这条路通不通（地址对不对、口令对不对、Worker 部署了没）
+ *   ① **抽屉（甲，主路）**：把人设/最近对话/上游配置/**五段指令**写进原生抽屉
+ *      （`lib/wake-bridge.ts`）。后台那段 JS 醒来时自己读，**直接问你的 AI** ——
+ *      国内上游不用梯、不用域名、不用 Worker。
+ *   ② **Worker（乙，备路）**：把上下文 POST 给 `/api/wake`。
+ *      只有配了地址才有意义（worker 域名被污染时需要梯，所以现在默认不用）。
  *
  * ⚠️ **绝对不要在这里调插件的 `dispatchEvent`** —— 那个方法在安卓侧用 `runBlocking`
  * 挡住主线程、再无限期等后台 JS 回调，会**让整个 App 卡死**（真机踩过：
- * "一直写着正在叫他，然后卡住不动了"）。要验通道就老老实实 fetch Worker。
+ * "一直写着正在叫他，然后卡住不动了"）。要递东西就用那个抽屉。
  */
 
 /** 后台那段 JS 需要的地址：优先用 App 里手填的，其次用打包时注入的 */
@@ -73,45 +73,69 @@ type PingReply = {
  * 真要排查，用下面的"通道自检"按钮 —— 那才把原因说出来。
  */
 export async function syncWakeContext(): Promise<WakeSyncResult> {
-  const url = wakeUrl();
-  if (!url) {
-    return { ok: false, message: "还没配地址（打包时没注入，App 里也没手填）——「主动找你」现在是关着的。" };
-  }
-
   const s = useApp.getState().settings;
   const baseUrl = (s.customBaseUrl ?? "").trim().replace(/\/+$/, "");
   const apiKey = (s.customApiKey ?? "").trim();
   const model = (s.upstreamModel ?? "").trim();
+  const notes: string[] = [];
 
-  /**
-   * ⚠️ 手机版必须用自己的上游（网页版那个服务端内置上游在 APK 里不存在）。
-   * 缺哪样就如实说缺哪样 —— 别同步一份跑不起来的配置过去，
-   * 那样后台每 15 分钟都会失败一次，还看不出去哪儿查。
-   */
+  /* ── ① 抽屉（甲，主路）：后台醒来直接问你的 AI —— 不用梯、不用域名、不用 Worker ── */
   if (!baseUrl || !apiKey) {
-    return { ok: false, message: "还没配自定义上游（地址 + 密钥）——「主动找你」需要它才能问 AI。" };
-  }
-  if (!model) {
-    return { ok: false, message: "还没填模型名（「我的 → 自定义上游」里的模型）—— 后台不知道用哪个模型。" };
+    notes.push("还没配自定义上游（地址 + 密钥）—— 他没法问 AI");
+  } else if (!model) {
+    notes.push("还没填模型名（「我的 → 自定义上游」）");
+  } else {
+    const input = wakePromptInput();
+    const prompts = buildAllWakePrompts(input);
+    const data: Record<string, string> = {
+      [WAKE_KEYS.baseUrl]: baseUrl,
+      [WAKE_KEYS.apiKey]: apiKey,
+      [WAKE_KEYS.model]: model,
+      [WAKE_KEYS.aiName]: input.aiName,
+      [WAKE_KEYS.enabled]: (s.wakeEnabled ?? true) ? "1" : "0",
+      [WAKE_KEYS.quietStart]: String(s.wakeQuietStart ?? 1),
+      [WAKE_KEYS.quietEnd]: String(s.wakeQuietEnd ?? 8),
+    };
+    prompts.forEach((p, i) => {
+      data[WAKE_KEYS.prompt(i)] = p;
+    });
+
+    const pushed = await pushWakeConfig(data);
+    notes.push(
+      pushed
+        ? `已交给他（${prompts.length} 段指令 + 最近 ${input.recent.length} 条对话）`
+        : "这台上交不进去（网页版没有后台；或者这个包还没带上那个抽屉插件）",
+    );
   }
 
-  const payload = {
-    aiName: resolveAiName(s.aiName),
-    displayName: s.displayName,
-    persona: s.persona ?? "",
-    baseUrl,
-    apiKey,
-    model,
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
-    recent: recentMessages(),
-    policy: {
-      enabled: s.wakeEnabled ?? true,
-      quietStart: s.wakeQuietStart ?? 1,
-      quietEnd: s.wakeQuietEnd ?? 8,
-    },
-    lastChatAt: lastChatAt(),
-  };
+  /* ── ② Worker（乙，备路）：只有配了地址才推（域名被污染时需要梯，所以现在默认不用）── */
+  const url = wakeUrl();
+  if (url && baseUrl && apiKey && model) {
+    notes.push(
+      (await postToWorker(url, {
+        aiName: resolveAiName(s.aiName),
+        displayName: s.displayName,
+        persona: s.persona ?? "",
+        baseUrl,
+        apiKey,
+        model,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
+        recent: recentMessages(),
+        policy: {
+          enabled: s.wakeEnabled ?? true,
+          quietStart: s.wakeQuietStart ?? 1,
+          quietEnd: s.wakeQuietEnd ?? 8,
+        },
+        lastChatAt: lastChatAt(),
+      })) ?? "",
+    );
+  }
 
+  return { ok: !notes.some((n) => /还没|交不进去/.test(n)), message: notes.filter(Boolean).join("；") };
+}
+
+/** 把上下文 POST 给 Worker（备路；失败只留一句话，不抛） */
+async function postToWorker(url: string, payload: unknown): Promise<string> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -126,14 +150,11 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
       data = null;
     }
     if (!res.ok || !data?.ok) {
-      return {
-        ok: false,
-        message: `同步失败（HTTP ${res.status}）：${data?.why ?? text.slice(0, 120)}`,
-      };
+      return `Worker 那条没推上（HTTP ${res.status}）：${data?.why ?? text.slice(0, 80)}`;
     }
-    return { ok: true, message: `同步好了（带上了最近 ${data.saved?.recent ?? 0} 条对话）。` };
+    return `Worker 那条也推上了（最近 ${data.saved?.recent ?? 0} 条）`;
   } catch (err) {
-    return { ok: false, message: `连不上 Worker：${(err as Error).message}` };
+    return `Worker 那条连不上：${(err as Error).message}`;
   }
 }
 
@@ -145,9 +166,55 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
  * 点一下就能把前三种分开 —— 剩下那种（上游）Worker 会明说。
  */
 export async function pingWake(): Promise<WakeSyncResult> {
+  /**
+   * **先看抽屉里有没有配置**（甲这条路）——有就直接试你的上游：
+   * 这是最有用的一次自检（"后台醒来能不能问到他"关键就在这一步）。
+   */
+  const cfg = await readWakeConfig();
+  if (cfg && cfg[WAKE_KEYS.baseUrl] && cfg[WAKE_KEYS.apiKey]) {
+    const t0 = Date.now();
+    try {
+      const res = await fetch(`${cfg[WAKE_KEYS.baseUrl]}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${cfg[WAKE_KEYS.apiKey]}`,
+        },
+        body: JSON.stringify({
+          model: cfg[WAKE_KEYS.model],
+          messages: [{ role: "user", content: "只回两个字：在的" }],
+          max_tokens: 20,
+          stream: false,
+        }),
+      });
+      const ms = Date.now() - t0;
+      const text = await res.text();
+      if (!res.ok) {
+        return { ok: false, message: `你的上游回了 HTTP ${res.status}（${ms}ms）：${text.slice(0, 120)}` };
+      }
+      let said = "";
+      try {
+        said = (JSON.parse(text) as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message
+          ?.content ?? "";
+      } catch {
+        /* 不是 JSON 也照样算通 */
+      }
+      return {
+        ok: true,
+        message: `这条是通的 ✅ 你的上游 ${ms}ms 就回了${said ? `「${said.trim().slice(0, 20)}」` : ""}。他已经能问到他了。`,
+      };
+    } catch (err) {
+      return { ok: false, message: `连不上你的上游：${(err as Error).message}（地址或网络的问题）` };
+    }
+  }
+
+  /* 抽屉里没有 → 退回"Worker 那条路"的自检（配了地址才有意义） */
   const url = wakeUrl();
   if (!url) {
-    return { ok: false, message: "还没配地址（打包时没注入，App 里也没手填）。" };
+    return {
+      ok: false,
+      message: "还没交给他任何配置（要在「自定义上游」里填好地址 + 密钥 + 模型；装成 App 之后我会自动交过去）。",
+    };
   }
 
   const full = url + (url.includes("?") ? "&" : "?") + "since=";
