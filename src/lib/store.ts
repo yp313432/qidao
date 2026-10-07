@@ -42,6 +42,7 @@ import type {
   Attachment,
   ChatMessage,
   Conversation,
+  CustomPlugin,
   DiaryEntry,
   HttpTool,
   McpServer,
@@ -95,6 +96,8 @@ const defaultSettings: Settings = {
   voiceSubtitles: true,
   embedQuote: "雨落在城市的肩上，我们各自听同一首歌。",
   shiganUrl: "",
+  // 自建插件（玩乐 → 插件）；内置的时感/记忆宇宙写在 lib/plugins.ts，不占这里
+  customPlugins: [],
   /*
     和风天气 —— 一次解决「知道你在哪」和「天气」两件事。
     （原来反查地名用的 OpenStreetMap 国内连不上，用户实测定位一直失败。）
@@ -445,6 +448,10 @@ export type AppState = {
   requestAction: (action: AppAction, from?: string) => void;
   resolveAction: (id: string, allow: boolean, remember: boolean, message: string) => void;
   clearActionLog: () => void;
+  /** 加一个插件（玩乐 → 插件 → 添加）：只填名字 + 地址就够了 */
+  addPlugin: (p: { name: string; hint?: string; url: string }) => string;
+  patchPlugin: (id: string, patch: Partial<CustomPlugin>) => void;
+  removePlugin: (id: string) => void;
   recordGame: (result: "win" | "loss" | "draw") => void;
   recordWord: (word: string) => void;
   saveDoc: (doc: Omit<SavedDoc, "id" | "createdAt">) => void;
@@ -613,6 +620,50 @@ export const useApp = create<AppState>()(
           };
         }),
       clearActionLog: () => set({ actionLog: [] }),
+      /**
+       * 加一个插件（玩乐 → 插件 → 添加）。
+       *
+       * 用户的想法："点进去写上地址和名字，就能插进去了"——所以这里**只要求名字 + 地址**，
+       * 说明留空就自动写一句"自己加的插件"。地址做个基本校验（必须是 http(s)），
+       * 免得存进去一个点开必然失败的串（那种失败最难查）。
+       */
+      addPlugin: ({ name, hint, url }) => {
+        const id = uid("plg");
+        const clean = url.trim();
+        set((s) => ({
+          settings: {
+            ...s.settings,
+            customPlugins: [
+              ...(s.settings.customPlugins ?? []),
+              {
+                id,
+                name: name.trim().slice(0, 20) || "未命名插件",
+                hint: (hint ?? "").trim().slice(0, 40) || "自己加的插件",
+                url: clean,
+                enabled: true,
+                createdAt: Date.now(),
+              },
+            ],
+          },
+        }));
+        return id;
+      },
+      patchPlugin: (id, patch) =>
+        set((s) => ({
+          settings: {
+            ...s.settings,
+            customPlugins: (s.settings.customPlugins ?? []).map((p) =>
+              p.id === id ? { ...p, ...patch } : p,
+            ),
+          },
+        })),
+      removePlugin: (id) =>
+        set((s) => ({
+          settings: {
+            ...s.settings,
+            customPlugins: (s.settings.customPlugins ?? []).filter((p) => p.id !== id),
+          },
+        })),
       logRequest: (e) =>
         set((s) => ({
           requestLog: [{ ...e, at: e.at ?? Date.now() }, ...s.requestLog].slice(0, 40),

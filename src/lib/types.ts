@@ -294,7 +294,24 @@ export type BackgroundSettings = {
 
 export type ReplyStyle = "default" | "concise" | "explanatory";
 
+/**
+ * 用户自己加的**插件**（玩乐 → 插件）。
+ *
+ * 用户原话："点进去写上地址和名字，就能插进去了"。
+ * 存的就这三样：名字、一句说明、地址（外加一个开关）。
+ */
+export type CustomPlugin = {
+  id: string;
+  name: string;
+  hint: string;
+  /** 要打开的地址（http(s)://…） */
+  url: string;
+  enabled: boolean;
+  createdAt: number;
+};
+
 export type Settings = {
+
   displayName: string;
   /** AI 的名字（用户自填，空则用默认名） */
   aiName: string;
@@ -480,6 +497,14 @@ export type Settings = {
    * 其他的就不每一轮都发给它"。
    */
   toolCatalog?: "auto" | "all" | "off";
+  /**
+   * 用户自己加的**插件**（玩乐 → 插件里那些 iframe 型）。
+   *
+   * 用户原话："点进去写上地址和名字，就能插进去了"。
+   * 内置的两个（时感 / 记忆宇宙）写在代码里（`lib/plugins.ts` 的 `BUILTIN_PLUGINS`），
+   * 不占这里 —— 它们是随 App 一起发布的。
+   */
+  customPlugins?: CustomPlugin[];
   background: BackgroundSettings;
   /** AI 的各项权限：询问 / 允许 / 拒绝（清单见 lib/permissions.ts） */
   permissions: Record<string, PermissionMode>;

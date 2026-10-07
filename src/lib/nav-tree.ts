@@ -74,6 +74,15 @@ export const TERTIARY_PARENT: Record<string, string> = {
 
   // 音乐列表下面一项
   "/play/add": "/play/listen",
+
+  /*
+    插件区（2026-10 新增，用户要求的"一个插件类别"）：
+      /play/plugins        插件目录      → 上一级是玩乐首页
+      /play/plugins/*      具体某个插件   → 上一级是插件目录
+    新增一个插件**不用动这里**（都落在 /play/plugins/ 前缀下），
+    只有"插件目录自己是谁的下级"要写一行。
+  */
+  "/play/plugins": "/play",
 };
 
 /**
@@ -110,7 +119,15 @@ export function parentOf(path: string): string | null {
   if ((ROOT_PATHS as readonly string[]).includes(p)) return null;
 
   // 3) 玩乐区的房间 → 回玩乐首页
-  if (p.startsWith("/play/")) return "/play";
+  if (p.startsWith("/play/")) {
+    /*
+      插件下面还有一层：`/play/plugins/xxx` 的上一级是插件目录（不是玩乐首页）——
+      用户从「插件」点进某个插件，返回当然该回「插件」。
+      （`/play/plugins` 自己已经在 TERTIARY_PARENT 里写了 → /play。）
+    */
+    if (p.startsWith("/play/plugins/")) return "/play/plugins";
+    return "/play";
+  }
 
   // 4) 工具区的编辑器 → 回工具首页
   if (p.startsWith(TOOLS_SUBPAGE_PREFIX)) return "/tools";
@@ -160,12 +177,29 @@ export function systemBackTarget(path: string): string | "exit" {
  *
  * 规则只在这里定义一处：以后再加整屏页面，往 `FULL_BLEED_PREFIXES`
  * 补一行就行，`app-shell` 不用改。
+ *
+ * 2026-10 加了两条：
+ *   · `/play/plugins/` —— **具体某个插件**是整页铺满的（跟时感一样），
+ *     但 **`/play/plugins` 这个目录本身不隐藏导航**（它还在 App 框架里，是个列表）。
+ *     所以前缀比目录多一个斜杠，正好把两者分开。
+ *   · `/play/plugins/edit` —— 插件的编辑器，跟工具区那几个编辑器一样要整屏。
  */
-export const FULL_BLEED_PREFIXES = ["/play/", "/tools/"] as const;
+export const FULL_BLEED_PREFIXES = ["/play/", "/tools/", "/play/plugins/"] as const;
+
+/**
+ * 例外：**这些整段前缀下的某个路径，其实是"列表页"，要保留底部导航**。
+ *
+ * 起因是实测抓到的：`/play/plugins/` 这个前缀把**目录页自己**
+ * （`/play/plugins`，注意最后没有斜杠）也算进去了 ——
+ * 而"插件目录"是个列表页，用户还要靠底部导航去别的地方，隐藏它等于把人关在里面。
+ * 真正该整屏的是**具体某个插件**（`/play/plugins/xxx`）。
+ */
+const KEEPS_NAV = ["/play/plugins"] as const;
 
 /** 这个页面该不该隐藏底部导航。 */
 export function hidesNav(path: string): boolean {
   const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+  if ((KEEPS_NAV as readonly string[]).includes(p)) return false;
   return FULL_BLEED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
@@ -192,6 +226,7 @@ export function backLabelOf(path: string): string {
     "/play/tools": "返回小日子",
     "/play/games": "返回小游戏",
     "/play/listen": "返回音乐",
+    "/play/plugins": "返回插件",
     "/tools": "返回工具",
   };
   return names[parent] ?? "返回上一级";

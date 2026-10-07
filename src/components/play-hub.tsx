@@ -7,8 +7,8 @@ import {
   Disc3,
   Gamepad2,
   GraduationCap,
-  Hourglass,
   ImagePlus,
+  Puzzle,
   Sparkles,
   X,
 } from "lucide-react";
@@ -256,7 +256,13 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
   */
   { to: "/play/games", label: "小游戏", icon: Gamepad2 },
   { to: "/play/learn", label: "英语学习", icon: GraduationCap },
-  { to: "/play/shigan", label: "时感", icon: Hourglass },
+  /*
+    原来是「时感」单独一格，现在收进「插件」里了 ——
+    用户："他和时感组成一个插件类别，然后点开是这两个插件，
+          以后我如果有新加的插件也放里面"。
+    时感没丢，只是从这一格**挪进了插件里面**（跟"真心话挪进小游戏"同一套做法）。
+  */
+  { to: "/play/plugins", label: "插件", icon: Puzzle },
 ];
 
 function ShowcaseGrid() {

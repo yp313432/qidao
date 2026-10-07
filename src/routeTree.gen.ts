@@ -50,6 +50,11 @@ import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscrib
 import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
 import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games.gobang'
 import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
+import { Route as AppPlayPluginsIndexRouteImport } from './routes/_app/play.plugins.index'
+import { Route as AppPlayPluginsSlugRouteImport } from './routes/_app/play/plugins/$slug'
+import { Route as AppPlayPluginsEditRouteImport } from './routes/_app/play/plugins/edit'
+import { Route as AppPlayPluginsMemoryRouteImport } from './routes/_app/play/plugins/memory'
+import { Route as AppPlayPluginsShiganRouteImport } from './routes/_app/play/plugins/shigan'
 import { Route as AppPlayToolsIndexRouteImport } from './routes/_app/play.tools/index'
 import { Route as AppPlayToolsAlarmsRouteImport } from './routes/_app/play.tools/alarms'
 import { Route as AppPlayToolsTasksRouteImport } from './routes/_app/play.tools/tasks'
@@ -258,6 +263,31 @@ const AppPlayGamesTruthRoute = AppPlayGamesTruthRouteImport.update({
   path: '/games/truth',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayPluginsIndexRoute = AppPlayPluginsIndexRouteImport.update({
+  id: '/plugins/',
+  path: '/plugins/',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayPluginsSlugRoute = AppPlayPluginsSlugRouteImport.update({
+  id: '/plugins/$slug',
+  path: '/plugins/$slug',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayPluginsEditRoute = AppPlayPluginsEditRouteImport.update({
+  id: '/plugins/edit',
+  path: '/plugins/edit',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayPluginsMemoryRoute = AppPlayPluginsMemoryRouteImport.update({
+  id: '/plugins/memory',
+  path: '/plugins/memory',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayPluginsShiganRoute = AppPlayPluginsShiganRouteImport.update({
+  id: '/plugins/shigan',
+  path: '/plugins/shigan',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayToolsIndexRoute = AppPlayToolsIndexRouteImport.update({
   id: '/tools/',
   path: '/tools/',
@@ -314,9 +344,14 @@ export interface FileRoutesByFullPath {
   '/tools/': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
+  '/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
+  '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games/': typeof AppPlayGamesIndexRoute
+  '/play/plugins/': typeof AppPlayPluginsIndexRoute
   '/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -358,9 +393,14 @@ export interface FileRoutesByTo {
   '/tools': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
+  '/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
+  '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games': typeof AppPlayGamesIndexRoute
+  '/play/plugins': typeof AppPlayPluginsIndexRoute
   '/play/tools': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesById {
@@ -405,9 +445,14 @@ export interface FileRoutesById {
   '/_app/tools/': typeof AppToolsIndexRoute
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/_app/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
+  '/_app/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/_app/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
+  '/_app/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/_app/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/_app/play/games/': typeof AppPlayGamesIndexRoute
+  '/_app/play/plugins/': typeof AppPlayPluginsIndexRoute
   '/_app/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRouteTypes {
@@ -452,9 +497,14 @@ export interface FileRouteTypes {
     | '/tools/'
     | '/play/games/gobang'
     | '/play/games/truth'
+    | '/play/plugins/$slug'
+    | '/play/plugins/edit'
+    | '/play/plugins/memory'
+    | '/play/plugins/shigan'
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games/'
+    | '/play/plugins/'
     | '/play/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -496,9 +546,14 @@ export interface FileRouteTypes {
     | '/tools'
     | '/play/games/gobang'
     | '/play/games/truth'
+    | '/play/plugins/$slug'
+    | '/play/plugins/edit'
+    | '/play/plugins/memory'
+    | '/play/plugins/shigan'
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games'
+    | '/play/plugins'
     | '/play/tools'
   id:
     | '__root__'
@@ -542,9 +597,14 @@ export interface FileRouteTypes {
     | '/_app/tools/'
     | '/_app/play/games/gobang'
     | '/_app/play/games/truth'
+    | '/_app/play/plugins/$slug'
+    | '/_app/play/plugins/edit'
+    | '/_app/play/plugins/memory'
+    | '/_app/play/plugins/shigan'
     | '/_app/play/tools/alarms'
     | '/_app/play/tools/tasks'
     | '/_app/play/games/'
+    | '/_app/play/plugins/'
     | '/_app/play/tools/'
   fileRoutesById: FileRoutesById
 }
@@ -850,6 +910,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayGamesTruthRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/plugins/': {
+      id: '/_app/play/plugins/'
+      path: '/plugins'
+      fullPath: '/play/plugins/'
+      preLoaderRoute: typeof AppPlayPluginsIndexRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/plugins/$slug': {
+      id: '/_app/play/plugins/$slug'
+      path: '/plugins/$slug'
+      fullPath: '/play/plugins/$slug'
+      preLoaderRoute: typeof AppPlayPluginsSlugRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/plugins/edit': {
+      id: '/_app/play/plugins/edit'
+      path: '/plugins/edit'
+      fullPath: '/play/plugins/edit'
+      preLoaderRoute: typeof AppPlayPluginsEditRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/plugins/memory': {
+      id: '/_app/play/plugins/memory'
+      path: '/plugins/memory'
+      fullPath: '/play/plugins/memory'
+      preLoaderRoute: typeof AppPlayPluginsMemoryRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/plugins/shigan': {
+      id: '/_app/play/plugins/shigan'
+      path: '/plugins/shigan'
+      fullPath: '/play/plugins/shigan'
+      preLoaderRoute: typeof AppPlayPluginsShiganRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/tools/': {
       id: '/_app/play/tools/'
       path: '/tools'
@@ -886,9 +981,14 @@ interface AppPlayRouteChildren {
   AppPlayIndexRoute: typeof AppPlayIndexRoute
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
+  AppPlayPluginsSlugRoute: typeof AppPlayPluginsSlugRoute
+  AppPlayPluginsEditRoute: typeof AppPlayPluginsEditRoute
+  AppPlayPluginsMemoryRoute: typeof AppPlayPluginsMemoryRoute
+  AppPlayPluginsShiganRoute: typeof AppPlayPluginsShiganRoute
   AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
   AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
   AppPlayGamesIndexRoute: typeof AppPlayGamesIndexRoute
+  AppPlayPluginsIndexRoute: typeof AppPlayPluginsIndexRoute
   AppPlayToolsIndexRoute: typeof AppPlayToolsIndexRoute
 }
 
@@ -904,9 +1004,14 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayIndexRoute: AppPlayIndexRoute,
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
+  AppPlayPluginsSlugRoute: AppPlayPluginsSlugRoute,
+  AppPlayPluginsEditRoute: AppPlayPluginsEditRoute,
+  AppPlayPluginsMemoryRoute: AppPlayPluginsMemoryRoute,
+  AppPlayPluginsShiganRoute: AppPlayPluginsShiganRoute,
   AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
   AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
   AppPlayGamesIndexRoute: AppPlayGamesIndexRoute,
+  AppPlayPluginsIndexRoute: AppPlayPluginsIndexRoute,
   AppPlayToolsIndexRoute: AppPlayToolsIndexRoute,
 }
 

@@ -579,27 +579,12 @@ function MeSections({ tab }: { tab: MeTab }) {
       </Section>
 
       {/*
-        时感的地址 —— 挪到这儿了。
-        原来它在「玩乐 → 时感」那一页上有条地址栏 + 「换地址」按钮；
-        但用户要求那一页"整个就是纯时感画面"，所以地址栏撤掉了。
-        设置归设置、画面归画面：换地址来这一页改。
+        时感地址 —— **2026-10 挪到「玩乐 → 插件 → 时感」里去了**。
+        用户把时感收进了"插件"这个类别，那"插件的事在插件里管"：
+        插件编辑器里改地址，设置页不再留重复的一份
+        （同一件事两处能改 = 迟早走散，这是这份文档反复在治的毛病）。
+        老存档里的 `shiganUrl` 不变，插件那边读的就是同一个字段。
       */}
-      <Section title="时感">
-        <label className="block">
-          <span className="text-[12px] text-muted">时感地址</span>
-          <input
-            value={settings.shiganUrl}
-            onChange={(e) => patch({ shiganUrl: e.target.value.trim() })}
-            placeholder="/shigan/index.html"
-            aria-label="时感地址"
-            className="mt-1 w-full rounded-2xl bg-chip px-3 py-2.5 font-mono text-[12px] outline-none placeholder:text-subtle"
-          />
-        </label>
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          留空就用跟随 App 一起打包的本地副本（<span className="font-mono">/shigan/index.html</span>）——
-          不用联网、不用梯子。想把时感指到别处（比如局域网另一台机器）才需要改这里。
-        </p>
-      </Section>
 
       <Section title="个性化">
         <p className="mb-2 text-[12px] text-muted">主题</p>
