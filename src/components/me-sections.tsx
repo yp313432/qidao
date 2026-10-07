@@ -1187,11 +1187,46 @@ function MeSections({ tab }: { tab: MeTab }) {
         */}
         <div className="mt-3 mb-4 rounded-2xl bg-chip px-3.5 py-3">
           <p className="text-[12px] font-medium">他主动找你</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted">
-            {wakeSupported()
-              ? "系统每 15 分钟把他叫醒看一眼；只有到了下面那个「最短间隔」，才真去问 AI 要不要说话（没到就继续睡，不花钱、不响）。"
-              : "这条只有装成 App 之后有用（网页里没有后台任务）。"}
+          {/*
+            **总开关**（用户原话："这个定时唤醒要做个开关，哪一天我不想他跑了，可以一键关闭"）。
+            关掉之后：Worker 一次 AI 都不问、不弹通知；后台那段 JS 还会把"静音"记下来，
+            接下来 4 小时连请求都不发（省电）。
+            唯一关不掉的是"系统每 25 分钟叫醒"这个节拍 —— 它写在打包配置里。
+          */}
+          <Row
+            label="让他主动找我"
+            hint="关掉就完全安静：不问 AI、不弹通知、后台几小时内也不发请求"
+            checked={settings.wakeEnabled ?? true}
+            onChange={(v) => patch({ wakeEnabled: v })}
+          />
+
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            {settings.wakeEnabled ?? true
+              ? "系统每 25 分钟把他叫醒一次，每次他都可以选择说不说。"
+              : "已经关掉了 —— 他不会再主动找你（包括后台。要重新开就打开上面这个开关）。"}
           </p>
+
+          {(settings.wakeEnabled ?? true) && (
+            <>
+          {/*
+            「程度」的规矩（用户拍板）：
+              25 分醒 → 25；50 分 → 50；75 分 → 75；100 分 → **必定说**；他中途说了就从头计时。
+            ⚠️ 这里原来有个「最短间隔」选择器，**已经拿掉** ——
+            按用户第二版的规则，"叫醒和发消息是一块的"，不需要再单独设一个间隔。
+            （他讲得最清楚的那句："不是隔多少把它叫醒，而是叫醒和连着发消息是一块的"）
+          */}
+          <div className="mt-2 rounded-2xl bg-elevated px-3 py-2.5">
+            <p className="text-[11px] leading-5 text-muted">
+              <strong>他多久会开口</strong>：按&ldquo;距你们上次说话过了多久&rdquo;来定 ——
+            </p>
+            <ul className="mt-1 space-y-0.5 text-[11px] leading-5 text-subtle">
+              <li>· 每过 <strong>25 分钟</strong>，程度升一档：25 → 50 → 75</li>
+              <li>· 这几档里他<strong>自己判断</strong>说不说（可能不说）</li>
+              <li>· 到 <strong>100</strong>（约 100 分钟没说话）：<strong>必定开口</strong></li>
+              <li>· 他一旦开口，就<strong>从头计时</strong></li>
+              <li>· 你俩任何一方刚聊过，也从头计时</li>
+            </ul>
+          </div>
 
           {/* 通道状态：地址是打包注入的还是手填的、通不通 */}
           <p className="mt-2 text-[11px] leading-4">
@@ -1203,30 +1238,6 @@ function MeSections({ tab }: { tab: MeTab }) {
                   ? "打包时已注入"
                   : "还没配（这个包里没注入地址）"}
             </span>
-          </p>
-
-          {/* 最短间隔 —— 用户点名的"我能自己调节时间吗" */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted">最短间隔</span>
-            {[30, 60, 120, 180, 240].map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => patch({ wakeMinGapMinutes: m })}
-                className={
-                  (settings.wakeMinGapMinutes ?? 60) === m
-                    ? "rounded-full bg-accent/20 px-3 py-1.5 text-[11px] text-accent"
-                    : "rounded-full bg-elevated px-3 py-1.5 text-[11px] text-muted"
-                }
-              >
-                {m >= 60 ? `${m / 60} 小时` : `${m} 分钟`}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] leading-4 text-subtle">
-            他两次主动开口之间，至少隔这么久。这段时间里系统叫醒他也<strong>不会</strong>去问 AI
-            （所以不花钱、也不响）；到了才问一次&ldquo;现在要不要说话&rdquo;。
-            安卓的唤醒下限是 15 分钟，所以设更小也不会更勤。
           </p>
 
           {/* 夜间不打扰 */}
@@ -1283,9 +1294,11 @@ function MeSections({ tab }: { tab: MeTab }) {
           {wakePingMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>}
 
           <p className="mt-2 text-[11px] leading-4 text-subtle">
-            自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 15 分钟，
+            自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 25 分钟（到下一次叫醒），
             所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 / 上游没配&rdquo;分开。
           </p>
+            </>
+          )}
         </div>
 
         <div className="mb-2 flex flex-wrap gap-2">

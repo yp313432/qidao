@@ -103,8 +103,8 @@ function beijingHour() {
   return Number(p.find((x) => x.type === "hour")?.value ?? "12") % 24;
 }
 
-/** 不启用夜间（起止相同 = 关掉），这样"会不会说话"只受间隔影响 */
-const NO_QUIET = { minGapMinutes: 60, quietStart: 0, quietEnd: 0 };
+/** 不启用夜间（起止相同 = 关掉），这样结论只受"距上次说话多久"影响 */
+const NO_QUIET = { enabled: true, quietStart: 0, quietEnd: 0 };
 
 const ctx = (over = {}) => ({
   aiName: "星芒",
@@ -224,62 +224,101 @@ console.log("\n【七】上游密钥只进不出");
   check("上游报错时说清状态码", /500/.test(failRes.json?.why ?? ""), failRes.json?.why ?? "");
 }
 
-/* ───────── ⑧ 两道便宜闸门（省钱的点）───────── */
+/* ───────── ⑧ 程度按时间算（用户拍板的规则）───────── */
 
-console.log("\n【八】不该问的时候，一次都不许问 AI");
+console.log("\n【八】「想找你的程度」跟着「距上次说话多久」走");
+{
+  mode = "hi";
+  await post(ctx({ policy: NO_QUIET }));
+
+  /** 用户举的例子：25 分 → 25；50 分 → 50；75 分 → 75；100 分 → 必定发 */
+  const table = [
+    [0, 0],
+    [10, 0],
+    [24, 0],
+    [25, 25],
+    [49, 25],
+    [50, 50],
+    [74, 50],
+    [75, 75],
+    [99, 75],
+    [100, 100],
+    [240, 100],
+  ];
+  let allOk = true;
+  const detail = [];
+  for (const [min, want] of table) {
+    const r = await get(`?since=${min}`);
+    const got = r.json?.urge;
+    if (got !== want) {
+      allOk = false;
+      detail.push(`${min}分→${got}(期望${want})`);
+    }
+  }
+  check(
+    "0~24→0 / 25~49→25 / 50~74→50 / 75~99→75 / ≥100→100",
+    allOk,
+    allOk ? "11 个点全对" : detail.join(" "),
+  );
+
+  const r100 = await get("?since=100");
+  check("到 100 就是「必定发」那档（说出来了）", r100.json?.action === "speak" && r100.json?.urge === 100, `urge=${r100.json?.urge}`);
+}
+
+/* ───────── ⑨ 没说过话 / 刚聊过，都从 0 开始 ───────── */
+
+console.log("\n【九】刚聊过 → 从头计时（不然刚聊完他就来敲门）");
+{
+  mode = "hi";
+  await post(ctx({ policy: NO_QUIET, lastChatAt: Date.now() - 5 * 60000 }));
+  // 后台说"距他上次开口 3 小时"，但 App 说你俩 5 分钟前刚聊过 → 取更近的那个
+  const r = await get("?since=180");
+  check("取更近的那个（5 分钟）→ 程度回到 0", r.json?.urge === 0, `urge=${r.json?.urge}`);
+}
+
+/* ───────── ⑩ 夜间 + 总开关（都不许调 AI）───────── */
+
+console.log("\n【十】该安静的时候，一次 AI 都不许问");
 {
   mode = "hi";
 
-  // 8a 夜间不打扰：把"夜间"设成现在这一小时，结论就跟"现在几点"无关
+  // 10a 夜间：把"夜间"设成现在这一小时，结论与"现在几点"无关
   const h = beijingHour();
-  await post(ctx({ policy: { minGapMinutes: 60, quietStart: h, quietEnd: (h + 1) % 24 } }));
+  await post(ctx({ policy: { enabled: true, quietStart: h, quietEnd: (h + 1) % 24 } }));
   let before = hits;
   let r = await get("?since=9999");
   check("夜里 → wait，且一次都没调 AI", r.json?.action === "wait" && hits === before, `调了 ${hits - before} 次 · ${r.json?.why ?? ""}`);
 
-  // 8b 最短间隔
-  await post(ctx({ policy: NO_QUIET }));
-  before = hits;
-  r = await get("?since=10");
-  check("距上次才 10 分钟（最短 60）→ wait，且一次都没调 AI", r.json?.action === "wait" && hits === before, `调了 ${hits - before} 次 · ${r.json?.why ?? ""}`);
-
-  // 8c 隔够了就该问
+  // 10b 总开关关掉（用户要的"一键关闭"）
+  await post(ctx({ policy: { enabled: false, quietStart: 0, quietEnd: 0 } }));
   before = hits;
   r = await get("?since=9999");
-  check("隔够了 → speak（说明闸门不是把功能锁死）", r.json?.action === "speak" && hits > before, r.json?.text ?? "");
+  check("关掉 → wait，且一次都没调 AI", r.json?.action === "wait" && hits === before, `调了 ${hits - before} 次 · ${r.json?.why ?? ""}`);
+  check("关掉时回 `muted: true`（后台据此几小时内不再发请求）", r.json?.muted === true, `muted=${r.json?.muted}`);
 
-  // 8d 规则下限：安卓唤醒下限是 15 分钟，传 5 分钟要被夹住
-  await post(ctx({ policy: { minGapMinutes: 5, quietStart: 0, quietEnd: 0 } }));
-  r = await get("?since=6");
-  check("minGap 传 5 被夹到 15（就算放宽也不会比 15 更密）", r.json?.action === "wait" && /最短 15/.test(r.json?.why ?? ""), r.json?.why ?? "");
-
-  // 8e App 报的「上一次聊天时间」也要算：刚聊完不许立刻来敲门
-  await post(ctx({ policy: NO_QUIET, lastChatAt: Date.now() - 5 * 60000 }));
+  // 10c 重新打开 → 立刻恢复
+  await post(ctx({ policy: { enabled: true, quietStart: 0, quietEnd: 0 } }));
   before = hits;
   r = await get("?since=9999");
-  check("刚聊完 5 分钟（哪怕后台说隔了很久）→ wait，且没调 AI", r.json?.action === "wait" && hits === before, `调了 ${hits - before} 次 · ${r.json?.why ?? ""}`);
+  check("重新打开 → 马上恢复（还会调 AI）", r.json?.action === "speak" && hits > before, `调了 ${hits - before} 次`);
 }
 
-/* ───────── ⑨ 「想找你的程度」只能是那五档 ───────── */
+/* ───────── ⑪ 测试入口与非法值 ───────── */
 
-console.log("\n【九】「想找你的程度」的档位");
+console.log("\n【十一】?urge= 只是测试入口，非法值不许改语义");
 {
   mode = "hi";
   await post(ctx({ policy: NO_QUIET }));
-  const seen = new Set();
-  for (let i = 0; i < 60; i += 1) {
-    const r = await get("?since=9999");
-    if (typeof r.json?.urge === "number") seen.add(r.json.urge);
+  const legal = [0, 25, 50, 75, 100];
+  let ok = true;
+  for (const v of legal) {
+    const r = await get(`?since=120&urge=${v}`);
+    if (r.json?.urge !== v) ok = false;
   }
-  const allowed = [0, 25, 50, 75, 100];
-  check(
-    "只滚出 0/25/50/75/100 这五档",
-    [...seen].every((v) => allowed.includes(v)) && seen.size > 1,
-    `出现过 ${[...seen].sort((a, b) => a - b).join("/")}`,
-  );
+  check("传合法档位就按它来（手动试一次用）", ok);
 
-  const r = await get("?since=9999&urge=999");
-  check("传非法档位（999）不许改语义，退回随机档", allowed.includes(r.json?.urge), `urge=${r.json?.urge}`);
+  const bad = await get("?since=10&urge=999");
+  check("传非法值（999）忽略它，回按时间算出来的 0", bad.json?.urge === 0, `urge=${bad.json?.urge}`);
 }
 
 /* ───────── ⑩ 时间与人设 ───────── */

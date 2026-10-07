@@ -59,6 +59,11 @@ let kv = new Map();
 let notes = [];
 /** 注册进来的唤醒处理函数 */
 let handler = null;
+/** 后台这段 JS 一共发了几次请求（用来验"静音期内连请求都没发"） */
+let fetchCount = 0;
+/** 它最后请求的那个地址（用来验参数对不对） */
+let asked = "";
+const realFetchRef = globalThis.fetch;
 
 function makeEnv() {
   globalThis.CapacitorKV = {
@@ -68,6 +73,11 @@ function makeEnv() {
   globalThis.CapacitorNotifications = { schedule: (arr) => notes.push(...arr) };
   globalThis.addEventListener = (name, fn) => {
     if (name === "qidaoWake") handler = fn;
+  };
+  globalThis.fetch = (...args) => {
+    fetchCount += 1;
+    asked = String(args[0]);
+    return realFetchRef(...args);
   };
 }
 
@@ -131,7 +141,7 @@ function beijingHour() {
   return Number(p.find((x) => x.type === "hour")?.value ?? "12") % 24;
 }
 
-const NO_QUIET = { minGapMinutes: 60, quietStart: 0, quietEnd: 0 };
+const NO_QUIET = { enabled: true, quietStart: 0, quietEnd: 0 };
 
 /* ═════════ ① 正常：他该说话 ═════════ */
 
@@ -147,9 +157,10 @@ console.log("【一】正常：Worker 说他该说话 → 通知里就是那句�
   check("标题是他的名字（像微信那样显示发件人）", got[0]?.title === "星芒", `title=${got[0]?.title}`);
   check("正文就是他生成的那句话", got[0]?.body === reply, `body=${got[0]?.body}`);
   check("真的问过 AI（假上游被调了）", upstreamHits === 1, `调了 ${upstreamHits} 次`);
-  check("记下了「上次问他」的时间", Number(kv.get("last_ask_at")) > 0);
-  check("记下了「上次说话」的时间", Number(kv.get("last_spoke_at")) > 0);
+  check("说了之后记下了「他上次开口的时间」（程度从这里重新计时）", Number(kv.get("last_spoke_at")) > Date.now() - 60_000);
   check("通知 id 是正整数（安卓要求）", Number.isInteger(got[0]?.id) && got[0].id > 0, `id=${got[0]?.id}`);
+  check("请求里带的是「距他上次开口多久」（since=）", asked.includes("since="), asked);
+  check("不再自己传档位（档位由 Worker 按时间算）", !asked.includes("level="), asked);
 }
 
 /* ═════════ ② 他说不说由他定 ═════════ */
@@ -157,25 +168,39 @@ console.log("【一】正常：Worker 说他该说话 → 通知里就是那句�
 console.log("\n【二】他决定不说时，一条通知都不弹");
 {
   await seedContext(NO_QUIET);
-  kv = new Map([["last_ask_at", String(Date.now() - 3 * 60 * 60 * 1000)]]); // 早就过了间隔
+  /** 3 小时前他说过一次 → 这一轮的程度应该已经很高 */
+  const spokeAtBefore = Date.now() - 3 * 60 * 60 * 1000;
+  kv = new Map([["last_spoke_at", String(spokeAtBefore)]]);
   reply = "SKIP";
   const got = await wake(`${BASE}/api/wake?urge=0`);
   check("没弹通知", got.length === 0, `弹了 ${got.length} 条`);
-  check("但记下了「上次问他」（这一轮确实问过）", Number(kv.get("last_ask_at")) > Date.now() - 60_000);
+  /**
+   * ⚠️ 这条是**新规则的核心**：他没说 → `last_spoke_at` **不动** →
+   * 距上次开口的时间继续攒 → 下一轮的程度更高（25 → 50 → …→ 100 必发）。
+   * 旧版看的是 `last_ask_at`（"上次问他"），那套已经拿掉了。
+   */
+  check("没说 → 「他上次开口的时间」不动（程度继续往上爬）", Number(kv.get("last_spoke_at")) === spokeAtBefore);
 }
 
-/* ═════════ ③ 省钱那条闸门（整条链上）═════════ */
+/* ═════════ ③ 总开关（用户要的"一键关闭"）═════════ */
 
-console.log("\n【三】紧接着再醒一次 → 一次 AI 都不该问（省钱的关键）");
+console.log("\n【三】一键关闭：不弹通知，而且后台接下来连请求都不发（省电）");
 {
-  await seedContext(NO_QUIET);
-  kv = new Map([["last_ask_at", String(Date.now() - 5 * 60 * 1000)]]); // 5 分钟前刚问过（最短 60）
+  await seedContext({ enabled: false, quietStart: 0, quietEnd: 0 });
+  kv = new Map([["last_spoke_at", String(Date.now() - 3 * 60 * 60 * 1000)]]);
   upstreamHits = 0;
   reply = "不该被问到的句子";
-  const got = await wake(`${BASE}/api/wake?urge=100`); // 就算骰子掷到 100 也没用：根本没问
-  check("没弹通知", got.length === 0, `弹了 ${got.length} 条`);
-  check("**假上游一次都没被调**（AI 没被花钱）", upstreamHits === 0, `调了 ${upstreamHits} 次`);
-  check("间隔不够时也**不更新** last_ask_at（下一次仍从原来的时间算）", Number(kv.get("last_ask_at")) < Date.now() - 4 * 60_000);
+
+  const first = await wake(`${BASE}/api/wake?urge=100`);
+  check("关掉时没弹通知", first.length === 0, `弹了 ${first.length} 条`);
+  check("假上游一次都没被调（问你旁边那个人不算花钱）", upstreamHits === 0, `调了 ${upstreamHits} 次`);
+  check("后台把「静音」记下来了（muted_at）", Number(kv.get("muted_at")) > 0);
+
+  // 再醒一次：这次连请求都不该发
+  const before = fetchCount;
+  const second = await wake(`${BASE}/api/wake?urge=100`);
+  check("静音期内的下一次唤醒：**连请求都不发**", fetchCount === before, `发了 ${fetchCount - before} 次请求`);
+  check("同样没弹通知", second.length === 0, `弹了 ${second.length} 条`);
 }
 
 /* ═════════ ④ 夜间不打扰 ═════════ */
@@ -183,13 +208,12 @@ console.log("\n【三】紧接着再醒一次 → 一次 AI 都不该问（省�
 console.log("\n【四】夜间不打扰（不弹、也不问 AI）");
 {
   const h = beijingHour();
-  await seedContext({ minGapMinutes: 60, quietStart: h, quietEnd: (h + 1) % 24 });
-  kv = new Map(); // 不受间隔限制，唯一能拦住它的就是夜间
+  await seedContext({ enabled: true, quietStart: h, quietEnd: (h + 1) % 24 });
+  kv = new Map([["last_spoke_at", String(Date.now() - 3 * 60 * 60 * 1000)]]);
   upstreamHits = 0;
   const got = await wake(`${BASE}/api/wake?urge=100`);
   check("没弹通知", got.length === 0, `弹了 ${got.length} 条`);
   check("也没问 AI", upstreamHits === 0, `调了 ${upstreamHits} 次`);
-  check("没更新 last_ask_at（因为压根没问）", !kv.get("last_ask_at"));
 }
 
 /* ═════════ ⑤ 没注入地址 ═════════ */

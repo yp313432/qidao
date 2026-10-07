@@ -94,15 +94,21 @@ check("认 `action === \"speak\"`", /action\s*===\s*"speak"/.test(code));
 check("说的话取自 data.text", /data\.text/.test(code));
 check("通知的标题用他的名字（像微信那样显示发件人）", /data\.aiName/.test(code));
 check(
-  "`urge` 在 → 记下「上次问他」的时间（这是 Worker 定的规矩）",
-  /urge/.test(code) && /last_ask_at/.test(code),
+  "报的是「距他上次开口多久」（程度由它算出来）",
+  /last_spoke_at/.test(code) && /since=/.test(code),
 );
-check("真说了 → 记下「上次说话」的时间", /last_spoke_at/.test(code));
+check(
+  "说了才更新 last_spoke_at（没说就不动 → 程度继续往上爬）",
+  /kvSet\("last_spoke_at", now\)/.test(code),
+);
+check("认「总开关关掉」的静音标记（muted_at）", /muted_at/.test(code));
+check("静音期内不再发请求（省电）", /MUTED_RECHECK_MIN/.test(code));
+check("通知的标题用他的名字（像微信那样显示发件人）", /data\.aiName/.test(code));
 check(
   "没配地址时退回调试通知（绝不请求假地址）",
   /__QIDAO_WAKE_URL__/.test(code) && /第\s*"\s*\+\s*count\s*\+\s*"\s*次醒来/.test(code),
 );
-check("出错通知有冷却（别每 15 分钟吵一次）", /last_err_at/.test(code) && /COOLDOWN/.test(code));
+check("出错通知有冷却（别每 25 分钟吵一次）", /last_err_at/.test(code) && /COOLDOWN/.test(code));
 
 check("没用 toISOString（它给的是 UTC，会差 8 小时）", !/toISOString/.test(code));
 check("用的是本地时间（getFullYear / getHours）", /getFullYear\(\)/.test(code) && /getHours\(\)/.test(code));

@@ -43,26 +43,46 @@ const MAX_MSG_CHARS = 1200;
 const MAX_PERSONA_CHARS = 2000;
 
 /**
- * **「想找你的程度」的档位** —— 每次唤醒滚一个，决定"这一次要不要说"。
+ * **「想找你的程度」= 距上次说话过了多久**（用户拍板的规则）。
  *
- * 用户原话：
- *   "可以改成随机0 25 50 75 100，打了100，百分百发消息，其他时候自己判断"
+ * 用户原话（第二版，讲得最清楚的一次）：
+ *   "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的，比如 25 分钟时候他叫醒了，
+ *    但可以选择不发消息，然后到 50 叫醒，选择发不发，到了 100 叫醒，必定发，
+ *    如果 25 叫醒且发了，重新开始记就行。"
  *
- * 也就是：这个数字**不是概率**，是"他现在有多想找你"——
- *   · **100 = 必定说**（哪怕只是问一句"在干嘛"；连"不许 SKIP"的强制重试都要做）
- *   · **0 = 基本不说**（除非真有事、或者他刚说过什么让他放不下）
- *   · 25/50/75 = 按这个程度自己拿主意
- * 好处：他会时冷时热（有人味），而不是像闹钟一样每次必响或每次都不响。
+ * 所以：
+ *   · **不需要"最短间隔"那种闸门**了 —— 每醒一次都会问他一次
+ *   · 程度**只由时间决定**：0~24 分 = 0；25~49 = 25；50~74 = 50；75~99 = 75；≥100 = **100（必发）**
+ *   · 他**开口之后从头计时**（"重新开始记"）—— 那句话说完，程度回到 0
+ *   · 你俩**任何一方刚说过话**也算重新开始（不然你刚跟他聊完，他按 75 分来敲门很没分寸）
+ *
+ * 为什么用"时间"而不是"数唤醒次数"：安卓的定时任务**会被推迟/合并**（省电策略），
+ * 数次数会因为某次没醒就错位；按时间算，睡过头了醒来也照样知道该到哪一档。
  */
+const LADDER_STEP_MIN = 25;
+
+/** 合法档位（只用来校验 `?urge=` 那个测试入口；正常情况由时间算出来） */
 const URGE_STEPS = [0, 25, 50, 75, 100] as const;
 
-function rollUrge(override?: string | null): number {
+/** 距上次说话过了多久 → 该到哪一档（0/25/50/75/100） */
+function ladderLevel(elapsedMin: number | null): number {
+  if (elapsedMin === null || !Number.isFinite(elapsedMin)) return 0;
+  const step = Math.floor(Math.max(0, elapsedMin) / LADDER_STEP_MIN);
+  return Math.min(100, step * 25);
+}
+
+/**
+ * 这一轮用哪一档。
+ *
+ *   · 正常：**按时间算出来**（`ladderLevel`）
+ *   · `?urge=` —— 只在测试/手动时用（门后面只有他自己能调），传非法值忽略
+ */
+function pickUrge(level: number, override: string | null): number {
   if (override !== null && override !== undefined && override !== "") {
     const n = Number(override);
-    // 只认那五档：传别的值（比如 999）不许改变语义，退回随机
     if ((URGE_STEPS as readonly number[]).includes(n)) return n;
   }
-  return URGE_STEPS[Math.floor(Math.random() * URGE_STEPS.length)]!;
+  return level;
 }
 
 /** 这一档"想找他的程度"该怎么说给他听 */
@@ -79,25 +99,24 @@ function urgeText(urge: number, who: string): string {
 type Msg = { role: "user" | "assistant"; text: string };
 
 /**
- * **他主动找你的规矩** —— 全部由用户在 App 里调，跟着上下文一起同步过来。
+ * **他主动找你的规矩** —— 只剩"夜间不打扰"了。
  *
- * 为什么要这层（用户原话："15分钟太频繁了，我能自己调节时间吗"）：
- * 安卓对定时唤醒有**硬性下限 15 分钟**（改不了），所以：
- *   · 系统每 15 分钟叫他"睁眼看一次表"——很轻、不弹通知
- *   · **只有** `minGapMinutes` 到了，才真去问 AI 要不要说话
- * 这样"他多久找你一次"完全可调，而代价是几次很轻的唤醒。
+ * ⚠️ 原来还有个 `minGapMinutes`（两次问他之间至少隔多久），**已经拿掉**：
+ * 用户第二版说得很清楚 ——"不是隔多少把它叫醒，而是叫醒和连着发消息是一块的"，
+ * 每醒一次都会问他一次，"要不要说"由程度 + 他自己的判断决定。
+ * 那时候的注释里记着"两道闸门是省钱的关键"，现在按用户的选择只留夜间那一道。
  */
 type Policy = {
-  /** 最短间隔（分钟）：距离上次真说话不满这么久，就直接跳过、**不调 AI** */
-  minGapMinutes: number;
+  /** **总开关**（用户要的"一键关闭"）：关掉 = 一次 AI 都不问、不弹通知 */
+  enabled: boolean;
   /** 夜间不打扰：起始小时（0~23） */
   quietStart: number;
   /** 夜间不打扰：结束小时（0~23） */
   quietEnd: number;
 };
 
-/** 默认规矩：一小时最多一次，凌晨 1 点到早上 8 点不打扰 */
-const DEFAULT_POLICY: Policy = { minGapMinutes: 60, quietStart: 1, quietEnd: 8 };
+/** 默认规矩：开着；凌晨 1 点到早上 8 点不打扰 */
+const DEFAULT_POLICY: Policy = { enabled: true, quietStart: 1, quietEnd: 8 };
 
 type WakeContext = {
   /** AI 的名字（用户自己起的） */
@@ -224,8 +243,8 @@ function normalizePolicy(p: Partial<Policy> | undefined): Policy {
     return Number.isFinite(x) ? Math.min(max, Math.max(min, Math.round(x))) : fallback;
   };
   return {
-    // 下限就是安卓的唤醒下限 15 分钟 —— 比它更密也做不到，不如老老实实夹住
-    minGapMinutes: n(p?.minGapMinutes, DEFAULT_POLICY.minGapMinutes, 15, 24 * 60),
+    // 关掉是"关掉"，不是"没设"：所以这里不能像别的字段那样顺手夹一个默认值回去
+    enabled: p?.enabled === undefined ? DEFAULT_POLICY.enabled : Boolean(p.enabled),
     quietStart: n(p?.quietStart, DEFAULT_POLICY.quietStart, 0, 23),
     quietEnd: n(p?.quietEnd, DEFAULT_POLICY.quietEnd, 0, 23),
   };
@@ -240,48 +259,48 @@ function inQuietHours(hour: number, p: Policy): boolean {
 }
 
 /**
- * 这一轮到底该不该问 AI。
+ * **这一轮先过"夜间不打扰"**，然后程度**由时间算**。
  *
- * ⚠️ 这里是**省钱的关键**：不合格就直接 `wait`，**根本不调 AI**。
- * 用户担心的是"15 分钟一次太频繁"（那条通知会刷屏），而真正贵的是 AI 调用
- * （15 分钟一次 = 96 次/天）。所以两道闸都在调 AI **之前**。
+ * ⚠️ 注意这里**没有"最短间隔"那种闸门了** —— 用户第二版说得很清楚：
+ * "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的"。
+ * 每醒一次都会问他一次；"要不要说"由程度 + 他自己的判断决定，
+ * 而程度只由"距上次说话过了多久"决定。
+ *
+ * 代价要说清：**每次唤醒都会调一次 AI**（一天约 96 次）。
+ * 这是用户明确选择的玩法（叫醒和发消息是一块的），不是我们漏了优化。
  */
-function gate(ctx: WakeContext, sinceMinutes: number | null, nowHour: number): { action: "speak" } | { action: "wait"; why: string } {
+function gate(
+  ctx: WakeContext,
+  elapsedMin: number | null,
+  nowHour: number,
+): { action: "speak"; level: number } | { action: "wait"; why: string; muted?: boolean } {
+  /**
+   * **总开关**（用户："哪一天我不想他跑了，可以一键关闭"）。
+   * 关掉时**一次 AI 都不问**、不弹通知，而且回一个 `muted` 让后台那段 JS
+   * 把"静音"记下来 —— 它接下来几小时连请求都不发（省电、省流量）。
+   */
+  if (!ctx.policy.enabled) {
+    return { action: "wait", why: "你把它关掉了", muted: true };
+  }
   if (inQuietHours(nowHour, ctx.policy)) {
     return { action: "wait", why: `夜间不打扰（${ctx.policy.quietStart}:00–${ctx.policy.quietEnd}:00）` };
   }
+  return { action: "speak", level: ladderLevel(elapsedMin) };
+}
 
-  /**
-   * 距离"上一次有交流"过了多久 —— 取**两个来源里更近的那个更严格**：
-   *   · 他上次真说话（后台用 KV 记着，从 `?since=` 报上来）
-   *   · 上一次真人对话（App 报上来的 `lastChatAt`）
-   * 后者很重要：刚跟人聊完 20 分钟就主动发消息，会显得没分寸。
-   * 两个都没有 → 不设限（第一次唤醒就是这个情况）。
-   */
+/**
+ * 距**上一次有交流**过了多久（分钟）—— 程度就是从它算出来的。
+ *
+ * 两个来源取**更近的那个**（也就是时间更短的）：
+ *   · 后台报上来的 `?since=` —— 距**他上次开口**过了多久（"他开口就重新开始记"）
+ *   · App 报上来的 `lastChatAt` —— 你上次跟他说话的时间
+ * 两个都没有（刚装、还没聊过）→ `null`，程度从 0 开始。
+ */
+function elapsedMinutes(ctx: WakeContext, sinceMinutes: number | null): number | null {
   const sinceChat =
-    ctx.lastChatAt && Number.isFinite(ctx.lastChatAt)
-      ? (Date.now() - ctx.lastChatAt) / 60000
-      : null;
-  const candidates = [sinceMinutes, sinceChat].filter(
-    (v): v is number => v !== null && Number.isFinite(v),
-  );
-  const since = candidates.length ? Math.min(...candidates) : null;
-
-  if (since !== null) {
-    /**
-     * ⚠️ 这里**不加时间抖动**（原来加过 +0~30%，后来去掉了）：
-     * 随机性已经交给"想找你的程度"那个骰子 —— 两处都随机反而说不清
-     * 用户调的那个间隔到底管不管用。最低间隔就按用户设的**实打实**执行。
-     */
-    const need = ctx.policy.minGapMinutes;
-    if (since < need) {
-      return {
-        action: "wait",
-        why: `离上次交流才 ${Math.round(since)} 分钟（最短 ${need} 分钟）`,
-      };
-    }
-  }
-  return { action: "speak" };
+    ctx.lastChatAt && Number.isFinite(ctx.lastChatAt) ? (Date.now() - ctx.lastChatAt) / 60000 : null;
+  const list = [sinceMinutes, sinceChat].filter((v): v is number => v !== null && Number.isFinite(v));
+  return list.length ? Math.min(...list) : null;
 }
 
 function buildPrompt(ctx: WakeContext, urge: number): { system: string; user: string } {
@@ -430,22 +449,22 @@ export const Route = createFileRoute("/api/wake")({
         }
 
         /*
-          **两道便宜闸门**：不合格就直接让他继续睡，**根本不调 AI**。
-          这是省钱的关键 —— 15 分钟一次唤醒 = 96 次/天，但真问 AI 的只有他设的那个间隔
-          （默认 1 小时 → 一天十几次）。
+          **过夜间闸门，然后程度由时间算**（用户第二版的规则：叫醒和发消息是一块的，
+          所以这里**没有"最短间隔"那种闸门** —— 每醒一次都会问他一次）。
         */
         const t = nowInTz(ctx.tz);
-        const verdict = gate(ctx, sinceMinutes, t.hour);
+        const elapsed = elapsedMinutes(ctx, sinceMinutes);
+        const verdict = gate(ctx, elapsed, t.hour);
         if (verdict.action === "wait") {
-          return json({ ok: true, action: "wait", why: verdict.why });
+          return json({ ok: true, action: "wait", why: verdict.why, muted: Boolean(verdict.muted) });
         }
 
         /*
-          该问了：**滚一个"想找你的程度"**（0/25/50/75/100）。
-          100 = 必定说（用户原话："打了100，百分百发消息"），其余档让他自己判断。
-          `?urge=` 是给测试/手动试一次用的（门后面只有他自己能调），传别的值一律退回随机。
+          该问了：用**时间算出来的那一档**（0/25/50/75/100）。
+          100 = 必定说（用户原话："到了 100 叫醒，必定发"），其余档让他自己判断。
+          `?urge=` 只是测试/手动入口（门后面只有他自己能调），传非法值就当没传。
         */
-        const urge = rollUrge(new URL(request.url).searchParams.get("urge"));
+        const urge = pickUrge(verdict.level, new URL(request.url).searchParams.get("urge"));
         const { system, user } = buildPrompt(ctx, urge);
 
         const first = await askUpstream(ctx, system, user);

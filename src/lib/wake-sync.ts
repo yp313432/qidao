@@ -105,7 +105,7 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
     recent: recentMessages(),
     policy: {
-      minGapMinutes: s.wakeMinGapMinutes ?? 60,
+      enabled: s.wakeEnabled ?? true,
       quietStart: s.wakeQuietStart ?? 1,
       quietEnd: s.wakeQuietEnd ?? 8,
     },

@@ -50,8 +50,18 @@ var WAKE_URL = "__QIDAO_WAKE_URL__";
 /** 通知 id 的基数（安卓要 32 位整数）。用加法错开，避免几条通知互相覆盖。 */
 var NOTIFY_ID_BASE = 9000;
 
-/** 出错时的调试通知最短间隔（分钟）—— 上游一直挂的话，别每 15 分钟吵他一次 */
+/** 出错时的调试通知最短间隔（分钟）—— 上游一直挂的话，别每 25 分钟吵他一次 */
 var ERR_NOTIFY_COOLDOWN_MIN = 60;
+
+/**
+ * 被"关掉"之后，隔多久才再去问一次（分钟）。
+ *
+ * 用户在 App 里一键关闭后，Worker 会回 `muted: true`；
+ * 这里就把它记下来，接下来这几小时**连请求都不发**（省电、省流量）。
+ * 为什么还要定期去问一次：万一你改了主意重新打开，得有个机会知道 ——
+ * 4 小时是个折中（一天最多 6 次很轻的请求）。
+ */
+var MUTED_RECHECK_MIN = 240;
 
 /** 时间戳 —— 必须是**本地时间**，理由见上面纪律 ④ */
 function localStamp() {
@@ -152,12 +162,35 @@ addEventListener("qidaoWake", function (resolve, reject) {
     }
 
     /**
-     * 距**上一次真问过 AI**过了多久 —— 这是 Worker 判断"最短间隔"的依据。
-     * ⚠️ 是"上次问他"，不是"上次说话"：否则他回一次 SKIP，15 分钟后又要问一遍。
+     * **被关掉期间连请求都不发**（用户在 App 里一键关闭之后）。
+     * 上次 Worker 回过 `muted: true` 就记了时间；没到复查时间直接收工。
      */
-    var lastAsk = kvNum("last_ask_at");
-    var since = lastAsk > 0 ? String(Math.max(0, Math.round((now - lastAsk) / 60000))) : "";
-    var url = WAKE_URL + (WAKE_URL.indexOf("?") === -1 ? "?" : "&") + "since=" + since;
+    var mutedAt = kvNum("muted_at");
+    if (mutedAt > 0 && (now - mutedAt) / 60000 < MUTED_RECHECK_MIN) {
+      logLine("#" + count + " " + stamp + " 静音中（你关掉了，不发请求）");
+      resolve();
+      return;
+    }
+
+    /**
+     * 距**上一次他开口**过了多久（分钟）—— **程度就是从它算出来的**。
+     *
+     * 用户拍板的规则（原话）：
+     *   "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的，比如 25 分钟时候他叫醒了，
+     *    但可以选择不发消息，然后到 50 叫醒，选择发不发，到了 100 叫醒，必定发，
+     *    如果 25 叫醒且发了，重新开始记就行。"
+     *
+     * 所以后台**不用自己数档位**（数次数会在系统推迟唤醒时错位）——
+     * 只报"距他上次开口多久"，Worker 按时间算该到哪一档（0/25/50/75/100）。
+     * 他开口之后这个时间自然从 0 重新开始（"重新开始记"）。
+     *
+     * ⚠️ 是"**他开口**"不是"上次问他"：没说话就一直攒着，越久越想找你。
+     */
+    var lastSpoke = kvNum("last_spoke_at");
+    var since = lastSpoke > 0 ? String(Math.max(0, Math.round((now - lastSpoke) / 60000))) : "";
+
+    var url =
+      WAKE_URL + (WAKE_URL.indexOf("?") === -1 ? "?" : "&") + "since=" + since;
 
     fetch(url, { method: "GET", headers: { Accept: "application/json" } })
       .then(function (res) {
@@ -177,19 +210,24 @@ addEventListener("qidaoWake", function (resolve, reject) {
           return;
         }
 
-        /** 带 `urge` = 这一轮**真问过 AI**（Worker 那边定的规矩）→ 记下时间，供下一轮算间隔 */
-        if (typeof data.urge === "number") kvSet("last_ask_at", now);
+        /**
+         * **总开关的状态跟着每次回复更新**：
+         *   · `muted: true`（你关掉了）→ 记下时间，接下来 4 小时连请求都不发
+         *   · 没有 muted（你重新打开了）→ 抹掉这个标记，恢复正常节奏
+         */
+        if (data.muted) kvSet("muted_at", now);
+        else if (mutedAt > 0) kvSet("muted_at", 0);
 
         if (data.action === "speak" && data.text) {
           kvSet("last_spoke_at", now);
           notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text);
-          logLine("#" + count + " " + stamp + " 说了（urge " + data.urge + "）：" + String(data.text).slice(0, 40));
+          logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）：" + String(data.text).slice(0, 40));
         } else if (data.ok === false) {
           logLine("#" + count + " " + stamp + " 失败：" + String(data.why || "").slice(0, 60));
           errorNotify(count, stamp, data.why || "他没答上来");
         } else {
-          // 他决定不说 / 还没到间隔 / 夜间不打扰 —— 都是"正常地保持安静"，不弹任何东西
-          logLine("#" + count + " " + stamp + " 没说：" + String(data.why || "").slice(0, 50));
+          /** 他决定不说 / 夜间不打扰 —— 都是"正常地保持安静"，不弹任何东西 */
+          logLine("#" + count + " " + stamp + " 没说（程度 " + data.urge + "）：" + String(data.why || "").slice(0, 40));
         }
         resolve();
       })

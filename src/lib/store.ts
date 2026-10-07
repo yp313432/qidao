@@ -99,13 +99,15 @@ const defaultSettings: Settings = {
   // 自建插件（玩乐 → 插件）；内置的时感/记忆宇宙写在 lib/plugins.ts，不占这里
   customPlugins: [],
   /*
-    「主动找你」的默认规矩（用户可调，见 lib/wake-sync.ts）：
-      · 最短间隔 60 分钟 —— 两次"问 AI"之间至少隔这么久（控花销）
+    「主动找你」的默认规矩（见 lib/wake-sync.ts）：
+      · 程度跟着"距上次说话多久"走：0~24 分 = 0 → 25~49 = 25 → 50~74 = 50
+        → 75~99 = 75 → ≥100 = **100 必定开口**；他开口之后从头计时
       · 夜间 1:00–8:00 不打扰
     地址默认留空：打包时会从 GitHub 密钥注入，不写进公开仓库。
   */
   wakeUrl: "",
-  wakeMinGapMinutes: 60,
+  // 总开关（用户要的"一键关闭"）：关掉后 Worker 直接回"别说话"，一次 AI 都不问
+  wakeEnabled: true,
   wakeQuietStart: 1,
   wakeQuietEnd: 8,
   /*

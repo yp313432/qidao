@@ -92,16 +92,20 @@ console.log("\n【二】通知里是他说的那句话，标题是他的名字")
   check("弹了一条通知", r.notes.length === 1, `弹了 ${r.notes.length} 条`);
   check("标题 = 他的 AI 名字（像微信那样显示发件人）", r.notes[0]?.title === "星芒", `title=${r.notes[0]?.title}`);
   check("正文 = 他生成的那句话", r.notes[0]?.body === "刚看你把咖啡换成了热的。", `body=${r.notes[0]?.body}`);
-  check("记下了「上次问他」和「上次说话」", Number(r.kv.get("last_ask_at")) > 0 && Number(r.kv.get("last_spoke_at")) > 0);
+  check("记下了「他上次开口的时间」（程度从这里重新计时）", Number(r.kv.get("last_spoke_at")) > 0);
 }
 
 /* ───────── ③ 他说不说由 Worker 定 ───────── */
 
-console.log("\n【三】Worker 说「别说」时，一条通知都不弹");
+console.log("\n【三】一键关闭 / 他说别说 时，一条通知都不弹");
 {
-  const r = await runInjected({ serverReply: { ok: true, action: "wait", why: "夜间不打扰", urge: 0 } });
+  const r = await runInjected({
+    serverReply: { ok: true, action: "wait", why: "你把它关掉了", muted: true },
+  });
   check("没弹通知", r.notes.length === 0, `弹了 ${r.notes.length} 条`);
-  check("但记下了「上次问他」（这一轮确实问过）", Number(r.kv.get("last_ask_at")) > 0);
+  /** 新规则的核心：他没说 → 时间继续攒 → 下一轮程度更高（25 → 50 → …→ 100 必发） */
+  check("没说 → 「他上次开口的时间」不动（程度继续往上爬）", Number(r.kv.get("last_spoke_at") ?? 0) === 0);
+  check("认「总开关关掉」的静音标记并记下来（接下来几小时连请求都不发）", Number(r.kv.get("muted_at") ?? 0) > 0);
 }
 
 /* ───────── ④ 地址没注入（占位符还在）───────── */

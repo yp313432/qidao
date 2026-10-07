@@ -32,7 +32,10 @@ export function WakeDaemon() {
     const conv = s.conversations.find((c) => c.id === s.activeId);
     return conv ? `${conv.id}:${conv.messages.length}` : "";
   });
-  const policy = useApp((s) => `${s.settings.wakeMinGapMinutes}:${s.settings.wakeQuietStart}:${s.settings.wakeQuietEnd}`);
+  /** 「他主动找你」的开关 + 夜间时段：改了要立刻同步过去（不然 Worker 还用旧规矩） */
+  const policy = useApp(
+    (s) => `${s.settings.wakeEnabled ?? true}:${s.settings.wakeQuietStart}:${s.settings.wakeQuietEnd}`,
+  );
   const upstream = useApp((s) => `${s.settings.customBaseUrl}|${s.settings.upstreamModel}`);
 
   /** ① 打开 App：同步一次 */
