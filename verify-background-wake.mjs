@@ -76,6 +76,20 @@ check(
   /resolve\s*\(/.test(runner),
 );
 check("有 reject() 兜底（出错也要收尾）", /reject\s*\(/.test(runner));
+
+/**
+ * ⚠️ **不许用 `toISOString()`** —— 它返回的是 **UTC**，不是本地时间。
+ *
+ * 踩过的坑：第一版用它，用户在 UTC+8，通知上写 `09:09:16`、真实本地时间 `17:09:16`，
+ * 差了整 8 小时 —— 看到的人第一反应是"这时间不对、是不是之前那条通知"，
+ * 白白绕一圈才排除掉。**给人看的时间必须是他手机上的时间。**
+ */
+check("没用 toISOString（它给的是 UTC，会差 8 小时）", !/toISOString/.test(code));
+check(
+  "用的是本地时间（getFullYear / getHours 那一套）",
+  /getFullYear\(\)/.test(code) && /getHours\(\)/.test(code),
+);
+
 check("用到了 CapacitorNotifications（要弹通知）", /CapacitorNotifications/.test(code));
 check("用到了 CapacitorKV（要能跨唤醒记东西）", /CapacitorKV/.test(code));
 check(

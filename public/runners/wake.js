@@ -39,9 +39,38 @@
 /** 通知 id 的基数（安卓要 32 位整数）。用加法错开，避免几条通知互相覆盖。 */
 var NOTIFY_ID_BASE = 9000;
 
+/**
+ * 时间戳 —— **必须用本地时间，不能用 `toISOString()`**。
+ *
+ * 踩过的坑：第一版用的 `new Date().toISOString()`，它返回的是 **UTC**。
+ * 用户在 UTC+8，于是通知上写 `09:09:16`、实际本地时间是 `17:09:16` ——
+ * 差了 8 小时，看到的人第一反应是"这时间不对/是不是之前那条"，白白绕一圈。
+ *
+ * `getFullYear()/getHours()` 这些返回的就是**本地时间**，自己拼一下最稳
+ * （不依赖 `toLocaleString` / Intl —— 这个精简 JS 引擎里不一定有）。
+ */
+function localStamp() {
+  var d = new Date();
+  var p = function (n) {
+    return (n < 10 ? "0" : "") + n;
+  };
+  return (
+    d.getFullYear() +
+    "-" +
+    p(d.getMonth() + 1) +
+    "-" +
+    p(d.getDate()) +
+    " " +
+    p(d.getHours()) +
+    ":" +
+    p(d.getMinutes()) +
+    ":" +
+    p(d.getSeconds())
+  );
+}
+
 addEventListener("qidaoWake", function (resolve, reject) {
-  var now = new Date();
-  var stamp = now.toISOString().replace("T", " ").slice(0, 19);
+  var stamp = localStamp();
 
   var count = 1;
 
@@ -59,7 +88,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
       {
         id: NOTIFY_ID_BASE + (count % 1000),
         title: "栖岛 · 后台唤醒",
-        body: "第 " + count + " 次醒来：" + stamp,
+        // 写明"本地时间"：第一版写的 UTC 让人以为时间不对（见上面 localStamp 的注释）
+        body: "第 " + count + " 次醒来：" + stamp + "（本地时间）",
       },
     ]);
   } catch (notifyErr) {
