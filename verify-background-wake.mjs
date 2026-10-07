@@ -64,11 +64,39 @@ check(
   /resolve\s*\(/.test(runner),
 );
 check("有 reject() 兜底（出错也要收尾）", /reject\s*\(/.test(runner));
-check("用到了 CapacitorNotifications（要弹通知）", /CapacitorNotifications/.test(runner));
-check("用到了 CapacitorKV（要能跨唤醒记东西）", /CapacitorKV/.test(runner));
+check("用到了 CapacitorNotifications（要弹通知）", /CapacitorNotifications/.test(code));
+check("用到了 CapacitorKV（要能跨唤醒记东西）", /CapacitorKV/.test(code));
 check(
   "没有 fetch 之外的网络依赖 —— 这一版还不联网（联网是下一步）",
-  !/fetch\s*\(/.test(runner) || /以后|下一步/.test(runner),
+  !/fetch\s*\(/.test(code) || /以后|下一步/.test(runner),
+);
+
+/**
+ * ⚠️ **后台里 API 用错是无声失败**（不报错、不弹通知、什么都没有），
+ * 所以形状也对一遍 —— 这三条是照插件 README 的示例和它自己的 Kotlin 实现核过的：
+ *   · `CapacitorKV.get(key)` 返回 `{ value: string }`（不是直接返回字符串！）
+ *   · `CapacitorKV.set(key, value)` 两个参数
+ *   · `CapacitorNotifications.schedule([...])` 收的是**数组**
+ */
+check(
+  "KV 取值用的是 `.value`（插件返回的是 { value } 而不是字符串）",
+  /CapacitorKV\.get\([^)]*\)[^;]*\.value/.test(code) || /\.value\s*\|\|/.test(code),
+);
+check("KV 写入是 set(key, value) 两个参数", /CapacitorKV\.set\(\s*"[^"]+"\s*,/.test(code));
+check(
+  "通知用的是 schedule([...])（数组！）",
+  /CapacitorNotifications\.schedule\(\s*\[/.test(code),
+);
+/**
+ * ⚠️ 这里必须是**真的解析那个常量**。第一版我写的是去匹配 `id: NOTIFY_ID_BASE ...`
+ * 后面的数字，结果一个数字都抓不到、默认成 0 → 断言**假绿**（等于没考）。
+ * 假绿比没有还糟：它会让人以为查过了。
+ */
+const notifyBase = Number((code.match(/NOTIFY_ID_BASE\s*=\s*(\d+)/) ?? [])[1] ?? "NaN");
+check(
+  "通知 id 是正的、且在 32 位整数范围内（安卓限制）",
+  Number.isFinite(notifyBase) && notifyBase > 0 && notifyBase < 2_000_000_000,
+  `base=${notifyBase}`,
 );
 
 /* ───────── ② 配置与常量的对账 ───────── */
