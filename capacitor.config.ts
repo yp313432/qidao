@@ -49,6 +49,31 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: "https",
   },
+  plugins: {
+    /**
+     * **后台唤醒**（`public/runners/wake.js`）—— 让 App 关着时也能"自己醒过来"。
+     *
+     * 为什么需要：定时任务原来靠**页面里每 30 秒查一次**，而安卓一切后台就冻结
+     * 网页的定时器 → App 一关就什么都不会发生。用户原话：
+     *   "那个定时任务还是只有点开 app 才可以发消息，即使我后台一直开着"
+     *   "我们现在已经是一个 app 了，不要再留网页的设计思路了"
+     *
+     * 这条路是**原生**的：系统按 interval 叫醒一段跑在 webview 外面的 JS，
+     * 它能联网、能弹真通知 —— 所以以后可以在后台直接问 AI"现在该说什么"。
+     *
+     * ⚠️ `interval` 在安卓上**最短 15 分钟**（官方限制），而且系统会按省电策略推迟；
+     *    荣耀/Huawei 这类"杀后台"最凶的机型还需要用户在系统设置里放行
+     *    （参考 https://dontkillmyapp.com）。
+     */
+    BackgroundRunner: {
+      label: "com.yanping.qidao.wake",
+      src: "runners/wake.js",
+      event: "qidaoWake",
+      repeat: true,
+      interval: 15,
+      autoStart: true,
+    },
+  },
 };
 
 export default config;

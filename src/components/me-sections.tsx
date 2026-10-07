@@ -32,6 +32,7 @@ import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { toolProtocolLabel } from "@/lib/tool-protocol";
+import { wakeSupported, wakeTestOnce } from "@/lib/background-wake";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -340,6 +341,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
+  /** 后台唤醒的"现在试一次"（见 lib/background-wake） */
+  const [wakeBusy, setWakeBusy] = useState(false);
+  const [wakeMsg, setWakeMsg] = useState("");
 
   async function probeModels() {
     setProbing(true);
@@ -1160,6 +1164,39 @@ function MeSections({ tab }: { tab: MeTab }) {
                   : "服务端还没配 VAPID 密钥"}
             </span>
           </p>
+        </div>
+
+        {/*
+          **后台唤醒的验证入口**（2026-10 加）。
+          用户的诉求："定时任务还是只有点开 app 才可以发消息" / "不要再留网页的设计思路了"
+          —— 原来的定时任务靠页面里每 30 秒查一次，一关 App 就没了。
+          新的做法是交给安卓系统定时叫醒一段跑在网页外面的 JS（见 public/runners/wake.js）。
+          这一版只**验证机制**：点一下立刻试一次，再关掉 App 等半小时看会不会自己醒。
+        */}
+        <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
+          <p className="text-[12px] font-medium">后台唤醒（实验）</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">
+            让 App **关着**时也能自己醒过来看一眼（现在定时任务做不到，因为它靠页面里自己数时间）。
+            {wakeSupported()
+              ? "先点下面「现在试一次」：应该马上弹一条通知 —— 那说明这条路是通的。然后把 App 关掉、锁屏、等半小时，看看会不会自己醒。"
+              : "这条只有装成 App 之后有用（网页里没有后台任务）。"}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              disabled={!wakeSupported() || wakeBusy}
+              onClick={() => {
+                setWakeBusy(true);
+                void wakeTestOnce()
+                  .then((r) => setWakeMsg(r.message))
+                  .finally(() => setWakeBusy(false));
+              }}
+              className="rounded-full bg-elevated px-3.5 py-2 text-[12px] font-medium disabled:opacity-40"
+            >
+              {wakeBusy ? "正在叫他…" : "现在试一次"}
+            </button>
+          </div>
+          {wakeMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{wakeMsg}</p>}
         </div>
 
         <div className="mb-2 flex flex-wrap gap-2">
