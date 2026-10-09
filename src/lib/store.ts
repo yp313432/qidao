@@ -308,7 +308,7 @@ export type AppState = {
   stateSamples: StateSample[];
   addStateSample: (s: Omit<StateSample, "id" | "at">) => void;
   /**
-   * 他上报的**情绪事件**（新词表 13 组）—— 「情绪生命体」插件的数据源。
+   * 他上报的**情绪事件**（新词表 13 组）—— 「星屿」插件的数据源。
    *
    * ⚠️ 跟 `stateSamples`（那朵花的 11 个维度）**是两套**，各存各的：
    * 用户拍板"旧花瓣先别拆"，所以这里只是**新增**一份，没动旧的。

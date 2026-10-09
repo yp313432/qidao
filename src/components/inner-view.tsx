@@ -1,36 +1,26 @@
-import { useMemo } from "react";
-import { InnerFlower } from "@/components/inner-flower";
+import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { useApp } from "@/lib/store";
-import { resolveAiName } from "@/lib/branding";
-import { DIMS, averageDims, dimsOf, moodDisplay, strongest } from "@/lib/state-dims";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 
 /**
  * 内在 · 状态。
  *
- * 那些数字不是算法拼的 —— 是他**每轮回复时自己报的**
- * （动作协议里的 state.report，L0 静默执行）。
+ * ⚠️ 2026-10：**这页原来那朵花瓣图拆了**（组件 `inner-flower.tsx` 一并删掉）。
  *
- * 2026-10 改版：
- *   · **折线 → 一朵花**（`InnerFlower`）：一圈花瓣，每瓣一个情绪维度，长度=数值
- *   · 维度 3 → 11（`lib/state-dims.ts`），每轮**只报此刻明显的那几个**（稀疏、省 token）
- *   · **背景改成整页铺满**（`.tide-bg`：粉紫渐变 + 珍珠光斑 + 两条正弦波纹）——
- *     原来那层背景塞在卡片里，跟整页底色不搭（用户真机反馈："和底层背景不符合"）
+ * 用户："这个新的做完旧的情绪那个就不用留了" —— 新的是「星屿」插件
+ * （玩乐 → 插件 → 星屿 · `/play/plugins/emotion`）：对话里的情绪在那儿
+ * 长成一个活的灵体，比一圈静态花瓣更能看出"他现在什么状态"。
  *
- * 三样东西：此刻 / 最近 30 天的平均 / 心情分布。
+ * 所以这一页**只留一条入口**，不再画图、也不再列那 11 个词
+ * （用户："在那个位置留一条简洁的入口，不要新做界面"）。
+ *
+ * ── 拆的是图，不是数据 ──────────────────────────────────────────────
+ * `lib/state-dims.ts` 的 11 个维度、AI 每轮的 `state.report` 上报、
+ * store 里的 `stateSamples` **一条都没动**（数据通道照旧）。
+ * 想再看那些数字，别在这儿重画一张图 —— 那正是这次要拆掉的东西。
  */
-
-/**
- * 心情分布用的词表。
- *
- * **跟花瓣共用同一张表**（`lib/state-dims.ts` 的 DIMS）—— 用户："ai 的心情描述
- * 还是那六个吗，太少了，而且不好分类，直接改成图上的这十一个吧。"
- * 颜色也直接取词表里的 `d.color`（走 inline style），不再各写一套 Tailwind 色类 ——
- * 否则色类和词表迟早有一处对不上。
- */
-const MOODS = DIMS.map((d) => ({ id: d.id, label: d.label, color: d.color }));
 
 /** 珍珠光斑：位置/大小/延迟都写死（不用随机数 —— 免得 SSR 首帧跟客户端不一致） */
 const PEARLS = [
@@ -47,48 +37,9 @@ function wavePath(amp: number, base: number) {
   return `M0 ${base} Q 25 ${base - amp} 50 ${base} T 100 ${base} T 150 ${base} T 200 ${base} V 100 H0 Z`;
 }
 
-function relTime(ts: number): string {
-  const mins = Math.floor((Date.now() - ts) / 60000);
-  if (mins < 1) return "刚刚";
-  if (mins < 60) return `${mins} 分钟前`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  return `${Math.floor(hours / 24)} 天前`;
-}
-
 export function InnerView() {
   useActivity("在看他的状态");
   const scrollRef = useScrollMemory("inner");
-  const samples = useApp((s) => s.stateSamples);
-  /**
-   * 按时间排一遍再用 —— 正常写入本来就是新的在前，
-   * 但备份导入 / 手改存档可能顺序不对，排一下免得"此刻"显示成最旧的那笔。
-   */
-  const sorted = useMemo(() => samples.slice().sort((a, b) => b.at - a.at), [samples]);
-  const aiName = useApp((s) => resolveAiName(s.settings.aiName));
-
-  const latest = sorted[0];
-  const nowDims = useMemo(() => (latest ? dimsOf(latest) : null), [latest]);
-  const topNow = nowDims ? strongest(nowDims) : null;
-
-  /** 最近 30 天 */
-  const recent = useMemo(() => {
-    const from = Date.now() - 30 * 86_400_000;
-    return sorted.filter((s) => s.at >= from);
-  }, [sorted]);
-  const avgDims = useMemo(() => averageDims(recent), [recent]);
-  const activeDims = recent.length ? DIMS.filter((d) => avgDims[d.id] > 0.12) : [];
-
-  const moodCounts = useMemo(
-    () =>
-      MOODS.map((m) => ({
-        ...m,
-        n: recent.filter((s) => s.mood === m.id).length,
-        total: recent.length,
-      })),
-    [recent],
-  );
-  const moodTotal = moodCounts[0]?.total ?? 0;
 
   return (
     <div ref={scrollRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
@@ -119,102 +70,26 @@ export function InnerView() {
       <div className="relative z-10">
         <PageHeader title="内在" />
 
-        {samples.length === 0 || !latest || !nowDims || !topNow ? (
-          <section className="px-4">
-            <div className="tide-card rounded-3xl px-4 py-6 text-center">
-              <p className="text-[13px] leading-6 text-fg/70">
-                他还没报过状态。
-                {"\n"}跟他聊两句，这朵花就会慢慢长出来。
-              </p>
-            </div>
-          </section>
-        ) : (
-          <>
-            {/* 此刻 */}
-            <section className="px-4">
-              <div className="tide-card rounded-3xl px-4 py-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-serif text-2xl text-fg">
-                    {/* 老存档的 mood 是 "calm" 这种（新词表里没有）—— moodDisplay 会兜成当时的中文名，不留空白 */}
-                    {moodDisplay(latest.mood).label}
-                  </span>
-                  <span className="text-[12px] text-fg/55">此刻 · {relTime(latest.at)}</span>
-                </div>
-                {latest.note && (
-                  <p className="mt-1 text-[12px] leading-5 text-fg/70">「{latest.note}」</p>
-                )}
-
-                <InnerFlower dims={nowDims} mode="now" className="mt-1" />
-
-                {/* 花瓣下面把那几个"亮着的"写成数值 —— 图看不出精确数字，文字补上 */}
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg/70">
-                  {DIMS.filter((d) => nowDims[d.id] > 0.12).map((d) => (
-                    <span key={d.id} className="inline-flex items-center gap-1">
-                      <span className="size-1.5 rounded-full" style={{ background: d.color }} />
-                      {d.label} {Math.round(nowDims[d.id] * 100)}%
-                    </span>
-                  ))}
-                  {DIMS.every((d) => nowDims[d.id] <= 0.12) && (
-                    <span className="text-fg/50">这一笔他没报出明显的情绪</span>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {/* 最近 30 天的平均 */}
-            <section className="mt-3 px-4">
-              <div className="tide-card rounded-3xl px-4 py-4">
-                <div className="mb-1 flex items-baseline justify-between">
-                  <p className="text-[13px] font-medium text-fg">最近 30 天 · 平均</p>
-                  <p className="text-[11px] text-fg/55">
-                    {recent.length} 次记录
-                    {activeDims.length ? ` · 常在的是 ${activeDims.map((d) => d.label).join("、")}` : ""}
-                  </p>
-                </div>
-                <InnerFlower dims={avgDims} mode="avg" />
-                <p className="mt-1 text-center text-[11px] leading-4 text-fg/50">
-                  没记录的日子<span className="text-fg/70">不算 0</span>
-                  （不然"某天没聊"会被当成"那天没情绪"）
-                </p>
-              </div>
-            </section>
-
-            {/* 心情分布 */}
-            {moodTotal > 0 && (
-              <section className="mt-3 px-4">
-                <div className="tide-card rounded-3xl px-4 py-4">
-                  <p className="text-[13px] font-medium text-fg">这 30 天的心情分布</p>
-                  <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-white/50">
-                    {moodCounts
-                      .filter((m) => m.n > 0)
-                      .map((m) => (
-                        <span
-                          key={m.id}
-                          style={{ width: `${(m.n / moodTotal) * 100}%`, background: m.color }}
-                          title={`${m.label} ${m.n} 次`}
-                        />
-                      ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg/70">
-                    {moodCounts.map((m) => (
-                      <span key={m.id} className="inline-flex items-center gap-1">
-                        <span className="size-1.5 rounded-full" style={{ background: m.color }} />
-                        {m.label} {m.n}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            )}
-          </>
-        )}
-
-        <p className="mt-3 px-5 text-[11px] leading-5 text-fg/55">
-          这朵花是{aiName}
-          <span className="text-fg">自己报</span>的 —— 不是估算，也不是拿聊天频率凑的。
-          每轮他只会报<span className="text-fg">此刻明显的那几样</span>，
-          没报的就是没有；只存在这台设备上。他报得诚实，这朵花才有意义。
-        </p>
+        {/* 唯一的内容：一条去「星屿」的入口（原来花瓣图的位置） */}
+        <section className="px-4">
+          <div className="tide-card rounded-3xl px-4 py-5">
+            <p className="text-[13px] font-medium text-fg">他的情绪</p>
+            <p className="mt-1 text-[11px] leading-5 text-fg/70">
+              原来这页那张花瓣图不用了 —— 他每轮自己报的情绪，
+              现在在「星屿」里长成一个活的灵体。
+            </p>
+            <Link
+              to="/play/plugins/emotion"
+              className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+            >
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium">星屿</span>
+                <span className="mt-0.5 block text-[11px] text-subtle">玩乐 → 插件 → 星屿</span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

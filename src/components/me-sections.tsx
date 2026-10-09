@@ -1662,7 +1662,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         </Link>
       </Section>
 
-      {/* 内在：他自己报的状态，画成起伏曲线 */}
+      {/* 内在：他自己报的状态样本（那页现在只留入口，不画图了） */}
       <Section title="内在" hidden>
         <Link
           to="/inner"
@@ -1676,7 +1676,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 : "还没报过 —— 跟他聊两句就有了"}
             </span>
             <span className="mt-0.5 block text-[11px] text-subtle">
-              精力 / 想念 / 好奇 —— 每轮他<span className="text-fg">自己报</span>的，不是估算
+              他每轮<span className="text-fg">自己报</span>的状态样本 —— 那页现在只留一条入口，不画图
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted" />

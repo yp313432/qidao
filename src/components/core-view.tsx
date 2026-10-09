@@ -67,7 +67,7 @@ export function CoreView() {
             {[
               { to: "/permissions", label: "感知权限", hint: `${PERMISSIONS.length} 项能力，按 ${GROUPS.length} 组收着` },
               { to: "/worldbook", label: "怎么和你相处", hint: "给他的规矩 · 说话风格 · 思考引导" },
-              { to: "/inner", label: "他的状态", hint: "他最近的情绪（标注来源，不是绝对事实）" },
+              { to: "/inner", label: "他的状态", hint: "他最近的状态样本（数据还在，只是这张图不用了）" },
               { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图" },
             ].map((it) => (
               <Link

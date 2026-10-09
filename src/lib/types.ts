@@ -237,7 +237,7 @@ export type EmotionSceneCategory = "base" | "intimacy" | "tension" | "cognition"
  * AI 上报的一笔情绪事件（**新词表**，13 组 / 约 217 词）。
  *
  * 谁写的：AI 自己，用 `emotion.report` 动作（L0 静默，见 lib/actions.ts）。
- * 给谁看：「情绪生命体」插件 —— `src/plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`
+ * 给谁看：「星屿」插件 —— `src/plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`
  * 把它映射成插件要的 `EmotionEvent`（0~1 → 0~100 之类的换算也在那一层）。
  *
  * ⚠️ 跟旧的 `StateSample`（那朵花的 11 个维度）**是两套**，各存各的：
@@ -854,7 +854,7 @@ export type FeatureId =
   /**
    * **上报一笔情绪**（新词表）。
    *
-   * 跟 `state.report` 的分工：那个是那朵花的 11 个维度，这个是「情绪生命体」
+   * 跟 `state.report` 的分工：那个是那朵花的 11 个维度，这个是「星屿」
    * 插件的 13 组新词表 —— 用户说"旧的先别拆"，所以两个动作并存，各存各的。
    * 词表不在这里（也不在每轮提示词里）：用 `emotion.lexicon` 现取一份。
    */

@@ -33,7 +33,7 @@
   --color-ok: var(--aster-ok);
 
   /**
-   * **只给「情绪生命体」插件用的那套令牌**（2026-10 搬进来时补的）。
+   * **只给「星屿」插件用的那套令牌**（2026-10 搬进来时补的）。
    *
    * 为什么必须写在这里：Tailwind v4 的 `text-faint` / `bg-blush` / `font-display`
    * 这类类名，只有 `@theme` 里声明过对应的名字，构建时才会生成 ——
@@ -229,7 +229,7 @@
 }
 
 /**
- * 横向滚动条藏起来（情绪生命体插件的场景 / 词库筛选用）。
+ * 横向滚动条藏起来（星屿插件的场景 / 词库筛选用）。
  * 照抄情绪库 `src/styles.css` 里那条 `@utility scroll-x`，一个字没改 ——
  * 栖岛别处没人用这个类名，所以它对现有页面是"闲置"的。
  */
@@ -908,40 +908,6 @@ html[data-drawer-open] .glass-nav-bar {
 @keyframes tide-wave-drift {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-50%, 0, 0); }
-}
-
-/* 花：呼吸 + 入场时"缓缓长出来"（spring 缓动） */
-.flower-breathe {
-  transform-origin: 50% 50%;
-  animation: flower-breathe 4.2s ease-in-out infinite;
-}
-@keyframes flower-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-
-.flower-grow {
-  transform-origin: 50% 50%;
-  animation: flower-grow 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-@keyframes flower-grow {
-  from { transform: scale(0.62); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-/* 最明显的那一瓣：边缘光晕呼吸。
-   ⚠️ 只加在**一瓣**上（CSS drop-shadow）—— 22 条路径都加就会卡。 */
-.flower-lobe-glow {
-  animation: flower-lobe-glow 3.2s ease-in-out infinite;
-}
-@keyframes flower-lobe-glow {
-  0%, 100% { filter: drop-shadow(0 0 1.5px rgba(255, 120, 180, 0.5)); }
-  50% { filter: drop-shadow(0 0 5px rgba(255, 120, 180, 0.85)); }
-}
-
-/* 数值变化时花瓣平滑生长（Chromium 支持 d 的过渡；不支持就直接换，不影响使用） */
-.flower-petal {
-  transition: d 900ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease;
 }
 
 /* 内容卡片：半透明，让底下的潮水透上来（不用 backdrop-blur —— 那是重活） */

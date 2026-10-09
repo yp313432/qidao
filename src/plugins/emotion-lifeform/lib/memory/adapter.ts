@@ -5,7 +5,17 @@ export type MemoryRecord = {
   sourceLabel: string;
   createdAt: string;
   tags: string[];
-  isDemoData: true;
+  /**
+   * 这条记录是不是**模拟数据**。
+   *
+   * 原来是写死的 `true`（因为当时只有 MockMemoryAdapter）；接上栖岛真记忆之后
+   * 必须是 boolean —— 真适配器填 `false`，mock 填 `true`。
+   */
+  isDemoData: boolean;
+  /** 被想起的次数（`Memory.recallCount`）。展开详情时才用到，平时只显示一行 */
+  recallCount?: number;
+  /** 记忆全文。展开详情时用；不展开就不渲染 */
+  fullContent?: string;
 };
 
 export type MemoryLink = {
@@ -24,7 +34,7 @@ export type MemorySearchResult = {
   memories: MemoryRecord[];
   links: MemoryLink[];
   relationNote: string;
-  isDemoData: true;
+  isDemoData: boolean;
 };
 
 /**

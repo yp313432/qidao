@@ -237,6 +237,57 @@ check(
   /死锁|主线程/.test(helper) || /死锁|主线程/.test(read(join(process.cwd(), "src/lib/background-wake.ts"))),
 );
 
+/* ───────── 【三·b】通道自检的 key：不许拿抽屉里那份（打码成中文）去拼 header ───────── */
+
+console.log("\n【三·b】自检拼 authorization 用的是设置里的真 key（抽屉里那份打码成「已设置」）");
+/**
+ * 这是 `d0480c3` 修掉的**我自己的 bug**，真机上见过：
+ *
+ *   通道自检拿**抽屉里读回来的** apiKey 去拼 `authorization: Bearer …`，
+ *   而抽屉插件出于安全把 key 打码成中文「已设置」（`WakeBridgePlugin.java:79`）
+ *   → fetch 直接抛
+ *     `Failed to read the 'headers' property from 'RequestInit': String contains non ISO-8859-1 code point`
+ *   它长得像"网络问题"，非常误导（用户真机上看到的就是这条）。
+ *
+ * 契约：**拼 header 只能用设置里那份真 key**（`settings.customApiKey`）；
+ * 抽屉读回来的 `cfg[...]` 只允许用来判断"后台到底拿到配置没有"。
+ * ⚠️ 判据**必须先剥注释**（见上面的 `strip`）—— 说明这段坑的注释里就写着 `Bearer` 和 `cfg`，
+ *    拿原文扫会把自己那份说明判成违规。
+ */
+{
+  const src = strip(helper);
+
+  /** 判据本体（抽出来是为了能拿"反例"单独验它一回 —— 见反向验证） */
+  const authBuiltFromDrawer = (codeText) => {
+    const i = codeText.search(/authorization/i);
+    if (i < 0) return false; // 没有 authorization 这件事由下面第一条单独报
+    // 从 `authorization` 往后截一段（同一个 header 对象的写法都在近旁），看有没有沾 `cfg`
+    return /\bcfg\b/.test(codeText.slice(i, i + 200));
+  };
+
+  const authAt = src.search(/authorization/i);
+  check("自检里确实拼了 authorization（不然下面这条是空断言）", authAt >= 0);
+  check(
+    "拼 authorization 用的**不是**抽屉里那份 cfg[...]（打码成中文 → header 抛 non ISO-8859-1）",
+    !authBuiltFromDrawer(src),
+    authAt < 0 ? "" : src.slice(authAt, authAt + 60).split("\n")[0].trim(),
+  );
+
+  /** 正向：自检取的是**设置里**那份真 key */
+  const pingAt = src.search(/export async function pingWake/);
+  check("找得到通道自检那一段（pingWake）", pingAt >= 0);
+  const ping = pingAt < 0 ? "" : src.slice(pingAt);
+  check("自检从设置里取真 key（s.customApiKey）", /s\.customApiKey/.test(ping));
+  check(
+    "拼进 header 的就是那份真 key（authorization: `Bearer ${apiKey}`）",
+    /authorization\s*:\s*`Bearer \$\{\s*apiKey\s*\}`/.test(ping),
+  );
+  check(
+    "抽屉读回来的那份只用来判断「后台拿到配置没有」，不参与拼 header",
+    /pushedToBackground/.test(ping),
+  );
+}
+
 /* ───────── 【四】安卓工程的接线 ───────── */
 
 console.log("\n【四】安卓工程的接线");

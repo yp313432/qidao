@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { EmotionLifeformPluginView } from "@/components/play/plugins/emotion-lifeform";
 
 /**
- * 情绪生命体 —— **原生型插件**：`src/plugins/emotion-lifeform/` 那个 App 直接渲染，
+ * 星屿 —— **原生型插件**：`src/plugins/emotion-lifeform/` 那个 App 直接渲染，
  * 整页铺满、隐藏底部导航、自带返回钮（跟记忆宇宙同一个套路）。
  *
  * 层级 / 导航不用在这里写：`nav-tree.ts` 里

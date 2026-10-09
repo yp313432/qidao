@@ -3,6 +3,7 @@ import { CATEGORY_LABEL, DIMENSIONS, MODE_LABEL, MODES, SOURCE_LABEL, type Intim
 import { LEXICON } from "@/plugins/emotion-lifeform/lib/emotion/lexicon";
 import { useEmotionView } from "@/plugins/emotion-lifeform/lib/emotion/present";
 import { useEmotionStore } from "@/plugins/emotion-lifeform/lib/store";
+import { MemoryCite } from "./memory-cite";
 
 function formatWhen(iso: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -267,20 +268,17 @@ export function DetailPanel() {
 
       <div>
         <p className="mb-2 text-xs text-faint">记忆引用</p>
-        {view.memoryLoading ? <p className="text-sm text-muted">正在检索模拟记忆…</p> : null}
+        {view.memoryLoading ? <p className="text-sm text-muted">正在检索记忆…</p> : null}
         {view.memory && !view.memoryLoading && view.memory.memories.length === 0 ? (
           <p className="rounded-lg border border-dashed border-line px-3 py-4 text-sm text-muted">{view.memory.relationNote}</p>
         ) : null}
         {view.memory?.memories.map((memory) => (
-          <article key={memory.id} className="mb-2 rounded-lg border border-line bg-surface px-3 py-3">
-            <p className="text-xs text-blush">
-              {memory.title} · {memory.sourceLabel}
-            </p>
-            <p className="mt-2 text-sm text-fg">{memory.summary}</p>
-            <p className="mt-2 text-xs text-faint">
-              {memory.id} · {formatWhen(memory.createdAt)} · 模拟
-            </p>
-          </article>
+          <MemoryCite
+            key={memory.id}
+            memory={memory}
+            explanation={view.memory?.links.find((link) => link.memoryId === memory.id)?.explanation}
+            sourceLabelOverride={memory.isDemoData ? "模拟检索" : undefined}
+          />
         ))}
         {view.memory && view.memory.memories.length > 0 ? <p className="text-xs text-faint">{view.memory.relationNote}</p> : null}
       </div>
@@ -486,7 +484,10 @@ export function SettingsPanel() {
         清除本地演示记录
       </button>
       {notice ? <p className="text-sm text-primary">{notice}</p> : null}
-      <p className="text-xs text-faint">记忆接入点是 MemoryAdapter。现在使用的是 MockMemoryAdapter，界面不会假设栖岛记忆库的字段。</p>
+      <p className="text-xs text-faint">
+        记忆接入点是 MemoryAdapter。有真记忆时走 QidaoMemoryAdapter（只读栖岛记忆库、标签/连线真命中才连），
+        一条都没有时才回落到 MockMemoryAdapter。展开某条记忆能看到全文和它被想起的次数。
+      </p>
     </div>
   );
 }

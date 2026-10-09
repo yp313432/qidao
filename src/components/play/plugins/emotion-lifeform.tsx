@@ -10,7 +10,7 @@ import { useApp } from "@/lib/store";
 import "@/plugins/emotion-lifeform/emotion-lifeform.css";
 
 /**
- * **情绪生命体**（原生型插件）—— 把 `src/plugins/emotion-lifeform/` 里的
+ * **星屿**（原生型插件）—— 把 `src/plugins/emotion-lifeform/` 里的
  * `EmotionApp` 整屏渲染进来（原本是独立工程，2026-10 搬进栖岛）。
  *
  * 搬运的纪律跟记忆宇宙那次一样：
@@ -22,7 +22,7 @@ import "@/plugins/emotion-lifeform/emotion-lifeform.css";
  * ── 两处跟记忆宇宙不一样的地方，都是**宿主结构**逼出来的，不是设计 ──
  *
  *   ① **要有一层滚动容器**。记忆宇宙的画布是 `absolute inset-0`（自己不滚），
- *      而情绪生命体原来整页应用是**文档在滚**（画布 320px + 下面很长的面板）。
+ *      而星屿原来整页应用是**文档在滚**（画布 320px + 下面很长的面板）。
  *      栖岛的 AppShell 是 `h-dvh overflow-hidden`（它自己的注释说过为什么），
  *      所以这里必须补一个 `overflow-y-auto` 的框，否则下面几屏会被直接裁掉。
  *

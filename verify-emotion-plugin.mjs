@@ -1,12 +1,12 @@
 /**
- * 验收：「情绪生命体」插件真的渲染出来了（不是白屏 / 不报错）。
+ * 验收：「星屿」插件真的渲染出来了（不是白屏 / 不报错）。
  *
  * 跑法：`node verify-emotion-plugin.mjs`（dev server 在 127.0.0.1:8080）
  *
  * 任务书要求的硬断言：
  *   ① canvas 存在，且 getImageData 里非黑像素 > 1000（画布真有内容）
  *   ② 没有 pageerror
- *   ③ 页面文字里有「情绪生命体」或「平静」这类真实文案
+ *   ③ 页面文字里有「星屿」或「平静」这类真实文案
  * 另外顺手验的（都跟"接线对不对"有关，不是设计）：
  *   ④ 有返回钮、点了能回插件目录  ⑤ 宿主那条主导航被整屏规则藏掉了
  *   ⑥ 插件目录里跟 时感 / 记忆宇宙 并列  ⑦ 记忆宇宙没被这次改动碰坏
@@ -78,10 +78,10 @@ async function canvasStats(selector = "canvas") {
 
 /* ── 1. 从插件目录点进去（这样返回钮有上一页可回） ─────────── */
 await page.goto(`${BASE}/play/plugins`, { waitUntil: "domcontentloaded", timeout: 90000 });
-await page.getByText("情绪生命体").first().waitFor({ timeout: 30000 });
+await page.getByText("星屿").first().waitFor({ timeout: 30000 });
 const hubText = await page.evaluate(() => document.body.innerText || "");
 const hubLists =
-  hubText.includes("情绪生命体") && hubText.includes("记忆宇宙") && hubText.includes("时感");
+  hubText.includes("星屿") && hubText.includes("记忆宇宙") && hubText.includes("时感");
 
 await page.locator('a[href="/play/plugins/emotion"]').click();
 await page.waitForSelector("canvas", { timeout: 30000 });
@@ -90,7 +90,7 @@ console.log(`HTTP           200（目录 → 插件，客户端跳转）`);
 
 const canvas = await canvasStats();
 const text = await page.evaluate(() => document.body.innerText || "");
-const hasCopy = text.includes("情绪生命体") || text.includes("平静");
+const hasCopy = text.includes("星屿") || text.includes("平静");
 const hasBack = (await page.locator('button[aria-label="返回插件"]').count()) > 0;
 const hostNavHidden = (await page.locator('nav[aria-label="主导航"]').count()) === 0;
 
@@ -153,7 +153,7 @@ console.log("-".repeat(60));
 check("canvas 存在且拿到 2d context", canvas.found && canvas.got2d);
 check("画布非黑像素 > 1000", (canvas.nonBlack ?? 0) > 1000, `nonBlack=${canvas.nonBlack}`);
 check("没有 pageerror", errors.length === 0);
-check("页面有真实文案（情绪生命体 / 平静）", hasCopy);
+check("页面有真实文案（星屿 / 平静）", hasCopy);
 check("有返回钮（aria-label=返回插件）", hasBack);
 check("宿主的底部主导航被整屏规则藏掉了", hostNavHidden);
 check("插件内部能切 tab（详情）", tabWorks);

@@ -4,7 +4,7 @@ import { getScene } from "./scenes";
 import type { EmotionEvent, IntimacyMode, SceneCategory, Settings, UserCorrection } from "./types";
 import { familyOf, resolveVisual } from "./visual";
 import type { VisualParams } from "./types";
-import { memoryAdapter, type MemorySearchResult } from "../memory";
+import { memoryAdapter, subscribeMemorySource, type MemorySearchResult } from "../memory";
 import { useEmotionStore } from "../store";
 
 export type EmotionView = {
@@ -147,6 +147,19 @@ export function useEmotionView(): EmotionView & {
   const emotion = view.event.memoryQuery.emotion ?? "";
   const topic = view.event.memoryQuery.topic ?? "";
 
+  /**
+   * **栖岛的记忆变了就重算一次**（记忆适配器接真数据之后加的这一条）。
+   *
+   * 为什么需要：检索是"一个场景查一次"。宿主 store 的记忆是异步 hydrate 的
+   * （IndexedDB），如果第一遍在它 ready 之前跑，面板就会一直停在旧的答案上 ——
+   * 看起来像"接上了"，其实没接。订阅之后，记忆一到就当场重查。
+   *
+   * 真实值仍然是下面那个 effect 查出来的（`search()` 是异步接口），
+   * 这里只用订阅来触发它重跑。
+   */
+  const [memoryVersion, setMemoryVersion] = useState(0);
+  useEffect(() => subscribeMemorySource(() => setMemoryVersion((v) => v + 1)), []);
+
   useEffect(() => {
     let live = true;
     setMemoryLoading(true);
@@ -170,7 +183,7 @@ export function useEmotionView(): EmotionView & {
     return () => {
       live = false;
     };
-  }, [queryKey, emotion, topic, view.masked, view.hiddenByLabel]);
+  }, [queryKey, emotion, topic, view.masked, view.hiddenByLabel, memoryVersion]);
 
   return { ...view, memory, memoryLoading };
 }

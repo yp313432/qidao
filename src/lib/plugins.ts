@@ -74,14 +74,14 @@ export const BUILTIN_PLUGINS: PluginEntry[] = [
   },
   {
     /**
-     * 情绪生命体（2026-10 从独立工程搬进来，原生型）。
+     * 星屿（2026-10 从独立工程搬进来，原生型）。
      * 源码在 `src/plugins/emotion-lifeform/`，外壳页是
      * `src/components/play/plugins/emotion-lifeform.tsx`，路由
      * `src/routes/_app/play/plugins/emotion.tsx`。
      * 层级 / 整屏规则由 `nav-tree.ts` 的**前缀表**覆盖，这里不用再写路径。
      */
     id: "plugin_emotion",
-    name: "情绪生命体",
+    name: "星屿",
     hint: "把对话里的情绪画成一个活的灵体",
     kind: "native",
     slug: "emotion",

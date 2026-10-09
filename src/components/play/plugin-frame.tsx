@@ -29,6 +29,93 @@ import { useNavigate } from "@tanstack/react-router";
  * 3) **返回钮不能省**：整页 iframe 里是对方的页面，它不知道栖岛的存在；
  *    用户真机实测过"时感没做返回键，我按系统返回直接退出应用了"。
  */
+/** 包过的 `matchMedia` 上挂的标记（判断"这次拿到的还是不是原生那个"，见下） */
+const MOTION_PATCHED = "__qidaoMotionPatched";
+
+/**
+ * 这一条查询该由**宿主**回答（返回固定值），还是**原样听系统**？
+ *
+ * 返回 `null` = **不干预**。只有 `prefers-reduced-motion` 这一个查询会被接管，
+ * 别的查询（`(min-width: …)` 之类）一律透传；`no-preference` 那个方向也要一并对上，
+ * 不然插件写 `if (!mq.matches)` 反而会被带反。
+ */
+function forcedReducedMotion(query: string, host: string | undefined): boolean | null {
+  if (!/prefers-reduced-motion/i.test(query)) return null; // 只管这一个查询
+  if (host !== "on" && host !== "off") return null; // auto / 没设 → 听系统的
+  const wantsReduced = !/no-preference/i.test(query);
+  return host === "on" ? !wantsReduced : wantsReduced;
+}
+
+/**
+ * 把 iframe 里的 `matchMedia` 包一层：**只对 `prefers-reduced-motion`** 按栖岛
+ * 写在 `<html data-motion>` 上的「动画」开关回答，别的查询原样透传。
+ *
+ * 为什么要在**宿主这一侧**做（这**不是 hack，是规则**）：栖岛的「动画」开关是
+ * **纯 CSS** 实现的（`root.dataset.motion`，见 `store.ts` 的 `applyAppearance`），
+ * 它管得到栖岛自己的动画，**管不到插件里用 JS 画的动画**（canvas / rAF）。
+ * 时感是**打包好的产物**（`public/shigan/**`，源码不在我们这边，改不了），
+ * 它里面直接读 `matchMedia('(prefers-reduced-motion: reduce)')`
+ * → 系统一开「关闭动画」就"栖岛活着、时感死着"（真机踩过：
+ * "网页里线上有粒子在跑，手机里的只有线"）。
+ * 规则原文：`qidao-docs/规则-插件的动效要听宿主的.md`；
+ * 原生插件（记忆宇宙）已按同一规则改过源码
+ * （`src/plugins/memory-universe/MemoryUniverse.tsx`），这里补的是**同源 iframe 的兜底** ——
+ * 产物一个字节都不动（也不许动美术/动画参数，规则里写了）。
+ *
+ * ⚠️ 只接管 `matches` 的**读取**：返回的仍是**原生 MediaQueryList**
+ * （`addEventListener` / `removeEventListener` / `onchange` / `media` 全都在，
+ * 不会被弄坏）。`auto` / 没设时这条查询**原样听系统**（`matches` 就是系统的值）；
+ * 跨域、拿不到 `contentWindow` → **安全跳过**，
+ * 绝不因此报错或白屏（嵌不进去本来就是常态，见本文件上面的规矩 2）。
+ */
+function patchFrameMotion(win: Window | null): void {
+  if (!win) return;
+  try {
+    const mm = win.matchMedia as unknown as (Record<string, unknown> & typeof win.matchMedia) | undefined;
+    if (!mm || mm[MOTION_PATCHED]) return; // 没有 matchMedia / 已经包过
+    const original = win.matchMedia.bind(win);
+    const patched = (query: string): MediaQueryList => {
+      const mql = original(query);
+      /**
+       * 每次都**现读**宿主的设置（不是装载时读一次）——
+       * 用户在设置里改「动画」开关时不用重开插件。
+       */
+      const forced = forcedReducedMotion(String(query), document.documentElement.dataset.motion);
+      if (forced === null) return mql; // 不干预：原样透传
+      try {
+        Object.defineProperty(mql, "matches", {
+          configurable: true,
+          get: () => {
+            const now = forcedReducedMotion(String(query), document.documentElement.dataset.motion);
+            return now === null ? original(query).matches : now;
+          },
+        });
+      } catch {
+        /* 定义不上就保持原样 —— 宁可不改，也不能把 MediaQueryList 弄坏 */
+      }
+      return mql;
+    };
+    // 标记挂在**函数自己**身上：导航把它冲掉 = 原生函数回来了 = 该重新包一次
+    (patched as unknown as Record<string, unknown>)[MOTION_PATCHED] = true;
+    win.matchMedia = patched as typeof win.matchMedia;
+  } catch {
+    /* 跨域（读写 contentWindow 会抛）→ 安全跳过 */
+  }
+}
+
+/** 拿到 iframe 里的 window —— **仅同源**；跨域 / 还没有文档时返回 null，绝不抛 */
+function sameOriginFrameWindow(): Window | null {
+  try {
+    const el = document.getElementById("plugin-frame") as HTMLIFrameElement | null;
+    if (!el) return null;
+    // 跨域时 contentDocument 是 null（读它本身也可能抛 → 外层 catch）
+    if (!el.contentDocument) return null;
+    return el.contentWindow;
+  } catch {
+    return null;
+  }
+}
+
 export function PluginFrame({
   url,
   title,
@@ -95,6 +182,23 @@ export function PluginFrame({
     return "ok";
   }
 
+  /**
+   * 「动画」开关 → iframe 里的 `matchMedia`（见 `patchFrameMotion`）。
+   *
+   * 两个时机都补一次，因为**哪个先到不确定**：
+   *   · 挂载时（这时是同源可读的 `about:blank`）—— 先包上，
+   *     同源导航在浏览器里会复用这个 window，于是插件脚本**跑之前**就已经兜住了；
+   *   · 宿主设置变了（`<html data-motion>`）—— 用户改开关不用重开插件。
+   * 跨域时 `patchFrameMotion` 自己会安全跳过。
+   */
+  useEffect(() => {
+    const apply = () => patchFrameMotion(sameOriginFrameWindow());
+    apply();
+    const mo = new MutationObserver(apply);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-motion"] });
+    return () => mo.disconnect();
+  }, [url]);
+
   useEffect(() => {
     setState("loading");
     setDismissed(false);
@@ -120,6 +224,8 @@ export function PluginFrame({
       if (p === "ok") {
         loadedRef.current = true;
         setState("ok");
+        // 同源的插件这时文档已经在了 —— 顺手把它的 matchMedia 兜住（见 patchFrameMotion）
+        patchFrameMotion(sameOriginFrameWindow());
         return;
       }
       if (p === "blank") {
@@ -143,6 +249,8 @@ export function PluginFrame({
         onLoad={() => {
           loadedRef.current = true;
           setState(probe() === "ok" ? "ok" : "stuck");
+          // 加载完成 = 文档在了 → 把插件的 matchMedia 兜住（跨域会自己跳过）
+          patchFrameMotion(sameOriginFrameWindow());
         }}
         className="size-full border-0 bg-white"
       />

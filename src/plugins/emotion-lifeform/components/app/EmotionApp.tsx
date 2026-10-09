@@ -69,7 +69,7 @@ export function EmotionApp({ realScenes = [] }: { realScenes?: EmotionEvent[] })
           <header className="absolute inset-x-0 top-0 z-10 flex h-14 items-center justify-between bg-gradient-to-b from-bg px-4">
             <div>
               <p className="font-display text-sm tracking-widest text-primary">QIDAO 栖岛</p>
-              <p className="text-xs text-muted">情绪生命体</p>
+              <p className="text-xs text-muted">星屿</p>
             </div>
             <p className="rounded-full border border-line bg-bg-elev px-3 py-1 text-xs text-muted">{MODE_LABEL[settings.intimacyMode]}</p>
           </header>
