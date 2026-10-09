@@ -95,7 +95,32 @@ const origFiles = walk(ORIGINAL);
 const absent = origFiles.filter((f) => !existsSync(join(MINE, f)));
 check("③ 原版的每个文件都在（没漏拷）", absent.length === 0, absent.join(", "));
 
-/** 关键几个文件单独点名（它们决定视觉） */
+/**
+ * 关键几个文件单独点名（它们决定视觉）。
+ *
+ * ⚠️ 豁免名单里的文件**不能简单跳过** —— 那样就没人守得住"只改了一处"这句话了。
+ * 对它们做**外科还原测试**：把我们改的那一段换回原版那句，换完如果逐字节一致，
+ * 就证明"改动真的只有那一处"（比"跳过"强得多）。
+ */
+const SURGICAL = {
+  "MemoryUniverse.tsx": {
+    what: "动效听谁的（先问宿主 data-motion，宿主没说才问系统）",
+    ours: /const reduced =[\s\S]*?\}\)\(\)/,
+    original:
+      'const reduced =\n' +
+      '      typeof window !== "undefined" &&\n' +
+      '      window.matchMedia("(prefers-reduced-motion: reduce)").matches',
+  },
+};
+
+/**
+ * 比之前先把不可见差异统一掉，否则会误报：
+ *   · 换行：工作副本是 CRLF、原始那份是 LF
+ *   · **BOM**：文件开头那个看不见的 U+FEFF（我们这份有、原始那份没有，
+ *     是复制时留下的，跟代码改动无关 —— 但会让"外科还原"测试假失败）
+ */
+const norm = (s) => s.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+
 for (const key of [
   "memory-universe.css",
   "MemoryUniverse.tsx",
@@ -105,6 +130,22 @@ for (const key of [
   "engine/memory-node.ts",
   "engine/star-field.ts",
 ]) {
+  if (EXEMPT.has(key)) {
+    const s = SURGICAL[key];
+    if (!s) {
+      check(`④ ${key} 在豁免名单里，但没写"外科还原测试"（豁免必须可验证）`, false);
+      continue;
+    }
+    const ours = norm(readFileSync(join(MINE, key), "utf8"));
+    const orig = norm(readFileSync(join(ORIGINAL, key), "utf8"));
+    const reverted = ours.replace(s.ours, s.original);
+    check(
+      `④ ${key} 的改动只有「${s.what}」这一处（外科还原后逐字节一致）`,
+      reverted === orig,
+      reverted === orig ? "" : "换回去之后还是不一样 ⇒ 一定还动了别的地方",
+    );
+    continue;
+  }
   check(`④ ${key} 与原版逐字节一致`, sha(join(MINE, key)) === sha(join(ORIGINAL, key)));
 }
 
