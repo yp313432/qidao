@@ -245,6 +245,63 @@ export const ACTION_SCHEMA = [
     ],
   },
   {
+    kind: "emotion.report",
+    group: "自我",
+    summary: "上报一笔情绪（新词表）",
+    fields: [
+      {
+        name: "primaryEmotion",
+        type: "string",
+        required: true,
+        note: "主情绪，**必须是情绪词表里的原词**（13 组 / 约 217 词）；表外的词会被判无效",
+      },
+      {
+        name: "secondaryEmotions",
+        type: "string[]",
+        required: false,
+        note: "次情绪 0~2 个，也要在词表里（如 羞涩 / 克制）",
+      },
+      { name: "intensity", type: "number", required: false, note: "强度 0~1" },
+      { name: "confidence", type: "number", required: false, note: "置信度 0~1（跟强度分开看）" },
+      {
+        name: "dimensions",
+        type: "object",
+        required: false,
+        note: "六个维度 0~1，稀疏：attraction 吸引 / longing 渴望 / shyness 羞涩 / restraint 克制 / warmth 温度 / unease 不安",
+      },
+      {
+        name: "suggestedMode",
+        type: "string",
+        required: false,
+        note: "档位：daily 日常 / affectionate 亲昵 / flirtatious 暧昧 / intense 浓烈",
+      },
+      {
+        name: "category",
+        type: "string",
+        required: false,
+        note: "大类：base / intimacy / tension / cognition / expression（不写就按主情绪那一组来）",
+      },
+      {
+        name: "evidence",
+        type: "object",
+        required: false,
+        note: "依据，最多 1 条（纠结时 2 条）：[{quote 引起波动的那一句，≤40 字}] 或 [{summary 自己写的摘要，≤20 字}]；不许引整段对话",
+      },
+      {
+        name: "memoryQuery",
+        type: "object",
+        required: false,
+        note: "{emotion: 用哪个词去记忆里找, topic?: 话题}",
+      },
+    ],
+  },
+  {
+    kind: "emotion.lexicon",
+    group: "自我",
+    summary: "取一份情绪词表",
+    fields: [],
+  },
+  {
     kind: "memory.add",
     group: "记忆",
     summary: "记住一件事（他以后能想起来）",

@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { EmotionApp } from "@/plugins/emotion-lifeform/components/app/EmotionApp";
+import { toEmotionEvents } from "@/plugins/emotion-lifeform/lib/emotion/qidao-scenes";
+import { useApp } from "@/lib/store";
 /* 插件自带的那套主题令牌（收在 `.emotion-lifeform` 作用域里，见文件头注释） */
 import "@/plugins/emotion-lifeform/emotion-lifeform.css";
 
@@ -35,12 +38,23 @@ import "@/plugins/emotion-lifeform/emotion-lifeform.css";
  */
 export function EmotionLifeformPluginView() {
   const navigate = useNavigate();
+  /**
+   * **真数据是这里喂进去的**（跟记忆宇宙那一页同一个套路）：
+   * 宿主 store 里 `emotionEvents`（AI 用 `emotion.report` 上报的，见 `lib/actions.ts`）
+   * → `qidao-scenes.ts` 映射成插件要的 `EmotionEvent`（0~1 → 0~100 之类的换算在那一层）
+   * → 交给 `EmotionApp` 的 `realScenes`。
+   *
+   * 一条都没有时传空数组：插件那边会**回落它自带的 10 个模拟场景**，不会白屏。
+   * `emotionEvents` 加了 `?? []` 是防老存档（那个字段是后加的）。
+   */
+  const emotionEvents = useApp((s) => s.emotionEvents);
+  const realScenes = useMemo(() => toEmotionEvents(emotionEvents ?? []), [emotionEvents]);
 
   return (
     <div className="emotion-lifeform flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 插件本体（未改动）。外面这层只负责给它一个能滚的高度 */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <EmotionApp />
+        <EmotionApp realScenes={realScenes} />
       </div>
 
       {/* 本页唯一加在插件外面的东西：返回钮 */}

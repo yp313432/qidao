@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { ChevronLeft, ChevronRight, Gem, History, Library, ScrollText, SlidersHorizontal } from "lucide-react";
 import { LifeformCanvas } from "@/plugins/emotion-lifeform/components/lifeform/LifeformCanvas";
-import { SCENES } from "@/plugins/emotion-lifeform/lib/emotion/scenes";
-import { MODE_LABEL } from "@/plugins/emotion-lifeform/lib/emotion/types";
+import { MODE_LABEL, type EmotionEvent } from "@/plugins/emotion-lifeform/lib/emotion/types";
 import { useEmotionView } from "@/plugins/emotion-lifeform/lib/emotion/present";
 import { useEmotionStore, type TabId } from "@/plugins/emotion-lifeform/lib/store";
 import { DetailPanel, LexiconPanel, SettingsPanel, StatePanel, TimelinePanel } from "./panels";
@@ -15,12 +14,21 @@ const TABS: { id: TabId; label: string; icon: typeof Gem }[] = [
   { id: "settings", label: "设置", icon: SlidersHorizontal },
 ];
 
-export function EmotionApp() {
+/**
+ * 插件本体。
+ *
+ * `realScenes`（可选）= **栖岛真上报的情绪事件**（已经由宿主侧用
+ * `lib/emotion/qidao-scenes.ts` 映射好）。空数组 / 不传 = 保持原来的
+ * 10 个模拟场景 —— 所以空库不会白屏（用户明确要求的那条）。
+ */
+export function EmotionApp({ realScenes = [] }: { realScenes?: EmotionEvent[] }) {
   const tab = useEmotionStore((s) => s.tab);
   const setTab = useEmotionStore((s) => s.setTab);
   const sceneId = useEmotionStore((s) => s.sceneId);
+  const scenes = useEmotionStore((s) => s.scenes);
   const setScene = useEmotionStore((s) => s.setScene);
   const stepScene = useEmotionStore((s) => s.stepScene);
+  const setRealScenes = useEmotionStore((s) => s.setRealScenes);
   const settings = useEmotionStore((s) => s.settings);
   const hydrate = useEmotionStore((s) => s.hydrate);
   const view = useEmotionView();
@@ -28,6 +36,11 @@ export function EmotionApp() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  /** 宿主的数据一变就登记进来（空数组 = 回落模拟场景） */
+  useEffect(() => {
+    setRealScenes(realScenes);
+  }, [realScenes, setRealScenes]);
 
   useEffect(() => {
     document.getElementById(`scene-${sceneId}`)?.scrollIntoView({ inline: "center", block: "nearest" });
@@ -61,7 +74,9 @@ export function EmotionApp() {
             <p className="rounded-full border border-line bg-bg-elev px-3 py-1 text-xs text-muted">{MODE_LABEL[settings.intimacyMode]}</p>
           </header>
           <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-3">
-            <p className="w-fit rounded-full border border-line bg-bg-elev px-3 py-1 text-xs text-muted">模拟数据 · 非生理测量</p>
+            <p className="w-fit rounded-full border border-line bg-bg-elev px-3 py-1 text-xs text-muted">
+              {view.event.isDemoData ? "模拟数据 · 非生理测量" : "他自己上报的 · 非生理测量"}
+            </p>
           </div>
         </section>
 
@@ -74,10 +89,13 @@ export function EmotionApp() {
               <button type="button" aria-label="下一个状态" onClick={() => stepScene(1)} className="inline-flex size-11 items-center justify-center rounded-full border border-line">
                 <ChevronRight className="size-5" />
               </button>
-              <p className="text-xs text-faint">演示流程 · {SCENES.findIndex((scene) => scene.eventId === sceneId) + 1}/{SCENES.length}</p>
+              <p className="text-xs text-faint">
+                {view.event.isDemoData ? "演示流程" : "真实上报"} ·{" "}
+                {scenes.findIndex((scene) => scene.eventId === sceneId) + 1}/{scenes.length}
+              </p>
             </div>
             <div className="scroll-x flex gap-2 overflow-x-auto pb-3">
-              {SCENES.map((scene) => {
+              {scenes.map((scene) => {
                 const active = scene.eventId === sceneId && !view.isPreview;
                 return (
                   <button

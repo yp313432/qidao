@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { CATEGORY_LABEL, DIMENSIONS, MODE_LABEL, MODES, SOURCE_LABEL, type IntimacyMode, type SceneCategory } from "@/plugins/emotion-lifeform/lib/emotion/types";
 import { LEXICON } from "@/plugins/emotion-lifeform/lib/emotion/lexicon";
-import { SCENES } from "@/plugins/emotion-lifeform/lib/emotion/scenes";
 import { useEmotionView } from "@/plugins/emotion-lifeform/lib/emotion/present";
 import { useEmotionStore } from "@/plugins/emotion-lifeform/lib/store";
 
@@ -215,7 +214,7 @@ export function DetailPanel() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <p className="text-xs text-faint">情绪详情 · 模拟</p>
+        <p className="text-xs text-faint">{view.event.isDemoData ? "情绪详情 · 模拟" : "情绪详情 · 他自己上报的"}</p>
         <h2 className="mt-1 font-display text-3xl">{view.masked || view.hiddenByLabel ? "已隐藏" : view.event.title}</h2>
       </div>
       {settings.showConfidence && !view.masked ? (
@@ -257,7 +256,7 @@ export function DetailPanel() {
           <div className="flex flex-col gap-2">
             {view.event.evidenceRefs.map((item) => (
               <blockquote key={item.id} className="rounded-lg border border-line bg-surface px-3 py-3">
-                <p className="text-xs text-blush">模拟对话片段</p>
+                <p className="text-xs text-blush">{view.event.isDemoData ? "模拟对话片段" : "他引的那一句"}</p>
                 <p className="mt-2 text-fg">「{item.quote}」</p>
                 <p className="mt-2 text-sm text-muted">{item.note}</p>
               </blockquote>
@@ -300,14 +299,23 @@ export function TimelinePanel() {
   const sceneId = useEmotionStore((s) => s.sceneId);
   const setScene = useEmotionStore((s) => s.setScene);
   const setTab = useEmotionStore((s) => s.setTab);
+  /** 有真数据就是真数据，没有才是模拟场景（空库不白屏） */
+  const scenes = useEmotionStore((s) => s.scenes);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
-  const items = useMemo(() => SCENES.filter((scene) => filter === "all" || scene.category === filter), [filter]);
+  const items = useMemo(
+    () => scenes.filter((scene) => filter === "all" || scene.category === filter),
+    [scenes, filter],
+  );
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="font-display text-3xl">轨迹</h2>
-        <p className="mt-2 text-sm text-muted">这是系统对一段模拟对话的判断记录，不是生理情绪日志。</p>
+        <p className="mt-2 text-sm text-muted">
+          {scenes[0]?.isDemoData
+            ? "这是系统对一段模拟对话的判断记录，不是生理情绪日志。"
+            : "这是他自己上报的情绪记录（按时间倒序），不是生理情绪日志。"}
+        </p>
       </div>
       <div className="scroll-x flex gap-2 overflow-x-auto">
         {FILTERS.map((item) => (
@@ -332,7 +340,8 @@ export function TimelinePanel() {
             <li key={scene.eventId}>
               <button type="button" onClick={() => setScene(scene.eventId)} className="w-full rounded-lg px-2 py-2 text-left">
                 <p className="text-xs text-faint">
-                  {formatWhen(scene.timestamp)} · {CATEGORY_LABEL[scene.category]} · 模拟
+                  {formatWhen(scene.timestamp)} · {CATEGORY_LABEL[scene.category]} ·{" "}
+                  {scene.isDemoData ? "模拟" : "真实上报"}
                 </p>
                 <p className={active ? "mt-1 text-fg" : "mt-1 text-muted"}>{scene.title}</p>
                 <p className="text-xs text-faint">

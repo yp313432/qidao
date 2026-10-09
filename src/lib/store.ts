@@ -54,6 +54,7 @@ import type {
   Letter,
   Memory,
   MemoryKind,
+  EmotionEventRecord,
   PanelId,
   PendingAction,
   PermissionId,
@@ -306,6 +307,16 @@ export type AppState = {
    */
   stateSamples: StateSample[];
   addStateSample: (s: Omit<StateSample, "id" | "at">) => void;
+  /**
+   * 他上报的**情绪事件**（新词表 13 组）—— 「情绪生命体」插件的数据源。
+   *
+   * ⚠️ 跟 `stateSamples`（那朵花的 11 个维度）**是两套**，各存各的：
+   * 用户拍板"旧花瓣先别拆"，所以这里只是**新增**一份，没动旧的。
+   * 存的是 `EmotionEventRecord`（0~1 的原始值）；换算成插件要的 0~100、
+   * 拟标题之类的映射在插件侧的 `lib/emotion/qidao-scenes.ts` 里做。
+   */
+  emotionEvents: EmotionEventRecord[];
+  addEmotionEvent: (e: Omit<EmotionEventRecord, "id" | "at"> & { at?: number }) => string;
   /** 世界书 / 思考引导（默认只留几条关着的预设，用户自己开） */
   worldBook: WorldEntry[];
   addWorldEntry: (e: {
@@ -506,6 +517,7 @@ export const useApp = create<AppState>()(
       ringing: null,
       tasks: [],
       stateSamples: [],
+      emotionEvents: [],
       // 预设全都默认关着（用户自己开），见 lib/world-presets.ts
       worldBook: worldPresets(),
       keyboardUp: false,
@@ -767,6 +779,20 @@ export const useApp = create<AppState>()(
           // 留最近 2000 条就够画半年多的曲线了（再多纯占地方）
           stateSamples: [{ ...s, id: uid("st"), at: Date.now() }, ...st.stateSamples].slice(0, 2000),
         })),
+      /**
+       * 他上报的一笔情绪事件（新词表）—— 插件的「当前状态」看第 0 条、轨迹看整列。
+       *
+       * 留最近 60 条：插件那边一屏能看十几条轨迹，60 条够翻好几屏，
+       * 而每条都很小（几个词 + 六个 0~1 的数），不占地方。
+       */
+      addEmotionEvent: (e) => {
+        const id = uid("emo");
+        const at = e.at ?? Date.now();
+        set((st) => ({
+          emotionEvents: [{ ...e, id, at }, ...st.emotionEvents].slice(0, 60),
+        }));
+        return id;
+      },
       setKeyboardUp: (v) => set((s) => (s.keyboardUp === v ? {} : { keyboardUp: v })),
       addTask: ({ prompt, time, at, notify }) => {
         const id = uid("task");
@@ -1355,6 +1381,7 @@ export const useApp = create<AppState>()(
         reminders: s.reminders,
         tasks: s.tasks,
         stateSamples: s.stateSamples,
+        emotionEvents: s.emotionEvents,
         worldBook: s.worldBook,
         chatDrafts: s.chatDrafts,
         memories: s.memories,

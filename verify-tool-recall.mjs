@@ -97,6 +97,8 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["reminder.add", "提醒"],
   ["cron.add", "提醒"],
   ["state.report", "自我"],
+  ["emotion.report", "自我"],
+  ["emotion.lexicon", "自我"],
   ["memory.add", "记忆"],
   ["persona.set", "自我"],
   ["play.gobang", "玩"],
@@ -136,7 +138,12 @@ const ACTION_SCHEMA_KIND_GROUP = [
 
 const ALL_KINDS = ACTION_SCHEMA_KIND_GROUP.map((pair) => pair[0]);
 const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
-/** 61 —— 全发的基线数量（断言里到处用到，别写成字面量）。 */
+/**
+ * 全发的基线数量（断言里到处用到，别写成字面量）。
+ * 61（P0）→ **63**：加了「情绪词表」那两个动作（`emotion.report` / `emotion.lexicon`）。
+ * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
+ */
+const EXPECTED_TOTAL = 63;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -412,7 +419,7 @@ async function main() {
   );
   check(
     `抄件共 ${TOTAL} 个动作，kind 无重复`,
-    TOTAL === 61 && new Set(ALL_KINDS).size === TOTAL,
+    TOTAL === EXPECTED_TOTAL && new Set(ALL_KINDS).size === TOTAL,
     `TOTAL=${TOTAL}，唯一 ${new Set(ALL_KINDS).size}`,
   );
   check(

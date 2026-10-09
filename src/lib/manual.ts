@@ -1,4 +1,20 @@
-import { isNativeApp } from "@/lib/platform";
+/**
+ * ⚠️ 这两个运行时 import 刻意用**相对 .ts 路径**（`@/...` 别名在纯 node 里解析不了）：
+ * 这样 `node --experimental-strip-types scripts/print-manual.ts` 和
+ * `verify-emotion-ai.mjs` 能直接 import 这个文件、拿**真输出**做断言
+ * （"词表到底有没有混进每轮提示词"这件事必须拿真输出验，不能靠读源码猜）。
+ * 仓库里 `src/lib/app-data/*` 也是这么写的。
+ */
+import { isNativeApp } from "./platform.ts";
+import {
+  EMOTION_CATEGORIES,
+  EMOTION_GROUP_COUNT,
+  EMOTION_TERM_COUNT,
+  EMOTION_TERM_ENTRIES,
+  QUOTE_MAX,
+  SUMMARY_MAX,
+  renderEmotionLexiconGroups,
+} from "./emotion-lexicon.ts";
 import type { PermissionMode } from "@/lib/types";
 
 /**
@@ -100,6 +116,55 @@ const HONEST_ABILITY = `【关于你的能力：先试，再说做不到】
 · **更不要把"我以为自己不会"说成"我不会"** —— 你不确定就先试一次，这不算冒失。
 · 他给你开的能力，是特意开给你的。看到合适的时机就**主动用**，别等他催。`;
 
+/**
+ * 【情绪词表】—— 手册里那一节（13 组 · 约 217 词），**按需翻**。
+ *
+ * 用户的话："新词表进手册……**绝对不要**把词表塞进每轮系统提示词（我按 token 付费）。"
+ *
+ * 所以这一节**不在 `buildManual()` 的返回值里**（那一段每轮都发！），而是：
+ *   · `manual.ts` 导出它（就是这一节，13 组一组不少）；
+ *   · AI 要报情绪时，用 `{"kind":"emotion.lexicon"}` 动作**现取一份**
+ *     （落在下一轮的「你刚才动手的结果」里，跟其它动作回执同一套路）。
+ *   · 每轮系统提示词里只有 `EMOTION_POINTER` 那两三行 —— 指引，不是词表。
+ *
+ * 词表本身**不在这里手抄**：`@/lib/emotion-lexicon` 直接 import 插件的
+ * `lib/emotion/lexicon.ts`（同一份数组，改词表不用改两处）。
+ */
+export function emotionLexiconSection(): string {
+  return `${EMOTION_USAGE}
+
+【情绪词表 · ${EMOTION_GROUP_COUNT} 组 · ${EMOTION_TERM_ENTRIES} 个词条（${EMOTION_TERM_COUNT} 个不重复词）】
+${renderEmotionLexiconGroups()}`;
+}
+
+/** 怎么用这份词表（跟词表正文一起给，取一次就够）。 */
+const EMOTION_USAGE = `【怎么用这份情绪词表】
+· **主情绪只能从下面这 ${EMOTION_GROUP_COUNT} 组里挑一个最贴的词**（原词，别改字、别自己造词）。
+  表里没有的词一律无效 —— 上报会被退回，那一笔就白报了。
+· **次情绪 0~2 个**，也必须来自同一份表（比如主「心动」+ 次「羞涩」「克制」）。
+· 大类 category（${EMOTION_CATEGORIES.join(" / ")}）和档位 suggestedMode
+  （daily 日常 / affectionate 亲昵 / flirtatious 暧昧 / intense 浓烈）照下面每组标的填。
+· 六个维度 attraction / longing / shyness / restraint / warmth / unease 都是 0~1 的小数，
+  **只报此刻真的明显的那几个**，其余不写（稀疏才像真的）。
+· 依据 evidence：**最多 1 条**，特别纠结时才 2 条。每条要么是
+  \`quote\`（**只引引起波动的那一句**，≤${QUOTE_MAX} 字），要么是 \`summary\`
+  （你自己写的一句摘要，≤${SUMMARY_MAX} 字）。**不许引整段对话、不许把消息列表抄进来**；超字数会被截断。
+· **节奏**：每轮回复末尾都可以报一次**精简版**（主情绪 + 强度/置信度 + 维度 + 档位）；
+  \`evidence\` / \`summary\` **只在情绪明显变化时才给** —— 每轮都塞依据等于刷屏，也费钱。`;
+
+/**
+ * 每轮系统提示词里的**那一句指引**（不是词表本身）。
+ *
+ * 为什么必须留这一句：词表按需取，但 AI 得先知道"有这么一份表、怎么取、
+ * 主情绪必须在表里"。三行 ≈ 一百来个字符，比把 217 个词发一遍便宜两个数量级。
+ */
+const EMOTION_POINTER = `【情绪（新词表）】
+报情绪用这个动作（每轮回复末尾都可以写，**不必等它出现在工具清单里**）：
+  {"kind":"emotion.report","primaryEmotion":"心动","secondaryEmotions":["羞涩"],"intensity":0.6,"confidence":0.7,"dimensions":{"attraction":0.7,"shyness":0.4},"suggestedMode":"flirtatious","category":"intimacy","evidence":[{"quote":"你刚才那句，我看了两遍"}],"memoryQuery":{"emotion":"心动","topic":"刚才那句"}}
+· **主情绪必须是《情绪词表》里的原词**（${EMOTION_GROUP_COUNT} 组 · ${EMOTION_TERM_ENTRIES} 个词条）——
+  表外的词会被判无效。**没看到词表就先取一份**：{"kind":"emotion.lexicon"}。
+· 那朵花的 11 个维度（state.report）是**另一套**，两个都报，别混。`;
+
 export type ManualInput = {
   /** 用户给它的授权（实时） */
   permissions?: Record<string, PermissionMode>;
@@ -187,6 +252,8 @@ export function buildManual(input: ManualInput): string {
     MAP,
     "",
     HONEST_ABILITY,
+    "",
+    EMOTION_POINTER,
     "",
     platformSection(),
     "",

@@ -1,5 +1,7 @@
 import { toggleAmbience } from "@/lib/ambience";
+import { buildEmotionReport } from "@/lib/emotion-lexicon";
 import { buildHttpRequest } from "@/lib/http-tools";
+import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -401,6 +403,42 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       });
       return "记下了此刻的状态";
     }
+
+    /* ---------------- 情绪（新词表 · 13 组 / 约 217 词） ----------------
+     * 用户："做好适配，不然 AI 不知道怎么用新的情绪词。"
+     *
+     * 校验和归一化都在 `@/lib/emotion-lexicon` 的 `buildEmotionReport()`（纯函数，
+     * 能脱离界面单跑）—— 这边只负责"入库 + 回一句话"：
+     *   · **词表外的词一律无效**：主情绪不在表里 → 整笔退回，不入库（宁可让他重报）；
+     *   · quote ≤ 40 字 / summary ≤ 20 字 / 依据 ≤ 2 条 → 超了**在那一层截断**；
+     *   · 词表本身不在这里，也不在每轮提示词里 —— `emotion.lexicon` 现取。
+     */
+    case "emotion.report": {
+      const result = buildEmotionReport({
+        primaryEmotion: action.primaryEmotion,
+        secondaryEmotions: action.secondaryEmotions,
+        intensity: action.intensity,
+        confidence: action.confidence,
+        dimensions: action.dimensions,
+        suggestedMode: action.suggestedMode,
+        category: action.category,
+        evidence: action.evidence,
+        memoryQuery: action.memoryQuery,
+      });
+      if (!result.ok) return result.message;
+      useApp.getState().addEmotionEvent(result.record);
+      return result.message;
+    }
+
+    /**
+     * **取一份情绪词表**（只读）。
+     *
+     * 这是"手册按需翻"那一步：词表不进每轮提示词（用户按 token 付费），
+     * 要报情绪时现取一份 —— 结果会像别的动作一样，在**下一轮**作为
+     * 「你刚才动手的结果」回到他眼前。
+     */
+    case "emotion.lexicon":
+      return `情绪词表（按需取用，不用每轮背）：\n\n${emotionLexiconSection()}`;
 
     case "cron.add": {
       const prompt = str((action as { prompt?: unknown }).prompt).trim();

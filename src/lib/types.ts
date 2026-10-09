@@ -202,6 +202,69 @@ export type StateSample = {
   note?: string;
 };
 
+/* ------------------------- 情绪事件（新词表） ------------------------- */
+
+/**
+ * 情绪事件的六个维度（跟插件的 `EmotionDimensions` 一一对应）。
+ * 都是 0~1。**稀疏上报**：没报的当 0。
+ */
+export type EmotionDimensionScores = {
+  attraction: number;
+  longing: number;
+  shyness: number;
+  restraint: number;
+  warmth: number;
+  unease: number;
+};
+
+/**
+ * 一条依据。**要么引原话、要么自己写摘要**，不许两样都塞。
+ * · `quote`：只引引起波动的那一句，≤ 40 字（截断在 `lib/emotion-lexicon.ts`）
+ * · `summary`：他自己写的一句摘要，≤ 20 字
+ */
+export type EmotionEvidenceInput = { quote?: string; summary?: string };
+
+/** 去记忆里检索相关条目的钥匙。 */
+export type EmotionMemoryQuery = { emotion: string; topic?: string };
+
+/** 氛围档位（跟插件 `IntimacyMode` 同一套值）。 */
+export type EmotionSuggestedMode = "daily" | "affectionate" | "flirtatious" | "intense";
+
+/** 五个大类（跟插件 `SceneCategory` 同一套值）。 */
+export type EmotionSceneCategory = "base" | "intimacy" | "tension" | "cognition" | "expression";
+
+/**
+ * AI 上报的一笔情绪事件（**新词表**，13 组 / 约 217 词）。
+ *
+ * 谁写的：AI 自己，用 `emotion.report` 动作（L0 静默，见 lib/actions.ts）。
+ * 给谁看：「情绪生命体」插件 —— `src/plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`
+ * 把它映射成插件要的 `EmotionEvent`（0~1 → 0~100 之类的换算也在那一层）。
+ *
+ * ⚠️ 跟旧的 `StateSample`（那朵花的 11 个维度）**是两套**，各存各的：
+ *    用户拍板"旧的先别拆"，所以这里不碰 `stateSamples`。
+ */
+export type EmotionEventRecord = {
+  id: string;
+  /** 事件时间（ms）—— 插件的时间轴用它，别用"读出来的时间" */
+  at: number;
+  /** 主情绪：**必须**是新词表里的原词（表外的当场退回，不入库） */
+  primaryEmotion: string;
+  /** 次情绪 0~2 个，同样来自词表 */
+  secondaryEmotions: string[];
+  /** 0~1 */
+  intensity: number;
+  /** 0~1 */
+  confidence: number;
+  dimensions: EmotionDimensionScores;
+  suggestedMode: EmotionSuggestedMode;
+  category: EmotionSceneCategory;
+  /** 最多 2 条（通常 1 条） */
+  evidence: EmotionEvidenceInput[];
+  memoryQuery: EmotionMemoryQuery;
+  /** 目前只有这一种来源（当前文本推断） */
+  sourceType: "conversation_inference";
+};
+
 /**
  * 定时任务：到点让他自己醒过来说一句 / 做一件事。
  *
@@ -788,6 +851,31 @@ export type FeatureId =
       curious?: number;
       note?: string;
     }
+  /**
+   * **上报一笔情绪**（新词表）。
+   *
+   * 跟 `state.report` 的分工：那个是那朵花的 11 个维度，这个是「情绪生命体」
+   * 插件的 13 组新词表 —— 用户说"旧的先别拆"，所以两个动作并存，各存各的。
+   * 词表不在这里（也不在每轮提示词里）：用 `emotion.lexicon` 现取一份。
+   */
+  | {
+      kind: "emotion.report";
+      primaryEmotion: string;
+      secondaryEmotions?: string[];
+      /** 0~1 */
+      intensity?: number;
+      /** 0~1 */
+      confidence?: number;
+      /** 六个维度 0~1，稀疏（没报的当 0） */
+      dimensions?: Partial<EmotionDimensionScores>;
+      suggestedMode?: EmotionSuggestedMode;
+      category?: EmotionSceneCategory;
+      /** 最多 1 条（纠结时 2 条）；每条要么 quote（≤40 字）要么 summary（≤20 字） */
+      evidence?: EmotionEvidenceInput | EmotionEvidenceInput[];
+      memoryQuery?: EmotionMemoryQuery;
+    }
+  /** **取一份情绪词表**（按需翻手册里那一节；只读，不改任何数据） */
+  | { kind: "emotion.lexicon" }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
   | { kind: "play.gobang" }

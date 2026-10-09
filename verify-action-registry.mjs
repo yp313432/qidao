@@ -7,7 +7,7 @@
  *
  *   1. `types.ts` 里 `AppAction` 的 kind 集合
  *      = `action-meta.ts` 里 `Record<AppAction["kind"], PermissionId>` 的键集合
- *      = 61 个（三边集合相等，不等就列出差异）
+ *      = 63 个（三边集合相等，不等就列出差异）
  *   2. `ACTION_SCHEMA` 的 kind 集合跟上面完全一致（一个不多一个不少）
  *   3. 每个 kind：`ACTION_SCHEMA` 声明的字段必须**覆盖** `actions.ts` 里那个 case
  *      实际读到的字段（少一个就 FAIL）；多了也列出来（不算致命）
@@ -25,8 +25,14 @@ const ACTIONS_SRC = readFileSync(new URL("./src/lib/actions.ts", import.meta.url
 const SCHEMA_SRC = readFileSync(new URL("./src/lib/action-schema.ts", import.meta.url), "utf8");
 const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url), "utf8");
 
-/** 期望的 kind 总数（题面：61）。 */
-const EXPECTED_KIND_COUNT = 61;
+/**
+ * 期望的 kind 总数。
+ *
+ * 61（P0 那次）→ **63**：2026-10 加「情绪词表」那两个动作
+ * （`emotion.report` 上报一笔情绪 / `emotion.lexicon` 按需取词表，见 `lib/action-schema.ts`）。
+ * 加动作就往这里 +1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
+ */
+const EXPECTED_KIND_COUNT = 63;
 
 const fails = [];
 const warns = [];
@@ -375,7 +381,7 @@ const tools = runtime
 const uniq = (arr) => [...new Set(arr)];
 const dups = (arr) => arr.filter((k, i) => arr.indexOf(k) !== i);
 
-console.log("=== 1) 三边 kind 集合（types.ts / action-meta.ts / 61）===");
+console.log("=== 1) 三边 kind 集合（types.ts / action-meta.ts / 63）===");
 const dupTypes = uniq(dups(typeKinds));
 const dupMeta = uniq(dups(metaKinds));
 if (dupTypes.length) fail(`types.ts 里 kind 有重复: ${dupTypes.join(", ")}`);
@@ -605,7 +611,7 @@ console.log("");
 console.log("=== 5) 提示词原文覆盖（只是交接信息，**不是本步门禁**）===");
 console.log(
   `prompt.ts 提到 ${promptKinds.length}/${typeKinds.length} 个 kind，` +
-    `没提到 ${promptMissing.length} 个（P4 切到 renderActionCatalog() 后应为 61）：`,
+    `没提到 ${promptMissing.length} 个（P4 切到 renderActionCatalog() 后应为 63）：`,
 );
 console.log(`  ${promptMissing.join(" ")}`);
 

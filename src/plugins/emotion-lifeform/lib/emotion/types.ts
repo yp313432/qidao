@@ -41,7 +41,14 @@ export type EmotionEvent = {
   category: SceneCategory;
   dimensions: EmotionDimensions;
   coach: string;
-  isDemoData: true;
+  /**
+   * 这条是**插件自带的模拟场景**（true）还是**栖岛真上报的情绪事件**（false）。
+   *
+   * 原来写死成字面量 `true` —— 真数据一接进来就没法表达"这是真的"了
+   * （类型上过不去）。所以放宽成 boolean：界面靠它决定标不标"模拟"。
+   * 美术 / 动画 / 配色一个字节都没动。
+   */
+  isDemoData: boolean;
 };
 
 export type VisualParams = {

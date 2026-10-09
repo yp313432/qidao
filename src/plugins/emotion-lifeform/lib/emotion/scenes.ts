@@ -264,5 +264,37 @@ export const SCENES: EmotionEvent[] = [
 ];
 
 export function getScene(id: string): EmotionEvent {
-  return SCENES.find((scene) => scene.eventId === id) ?? SCENES[0];
+  const list = activeScenes();
+  return list.find((scene) => scene.eventId === id) ?? list[0];
+}
+
+/* ─────────────────────── 真数据（栖岛上报的情绪事件） ───────────────────────
+ *
+ * 用户的要求："有真数据用真数据，没有才回落模拟，**不许白屏**。"
+ *
+ * 做法：这里只是一个**模块级的登记处** ——
+ *   · 空着 ⇒ `activeScenes()` 返回下面这 10 个模拟场景（老行为，一个字没变）
+ *   · 有真数据 ⇒ 用它（栖岛的 `emotion.report` 上报的，映射见 `qidao-scenes.ts`）
+ *
+ * 为什么放这儿而不是改 `present.ts`：`present.ts` 里的 `getScene` 是**界面唯一的
+ * 取数入口**，它属于"美术/动效"那一侧（用户要求不许动）。把登记处放在数据层，
+ * `present.ts` 一行都不用改就跟着走。
+ *
+ * ⚠️ 上面那 10 个模拟场景**一个都没删**（用户要先看效果，拆是下一步）。
+ */
+let externalScenes: EmotionEvent[] = [];
+
+/** 登记真数据（传空数组 = 回到模拟场景）。由插件 store 在宿主数据变化时调用。 */
+export function setExternalScenes(list: EmotionEvent[]): void {
+  externalScenes = list.filter((scene) => !scene.isDemoData);
+}
+
+/** 当前该显示哪些场景：有真的用真的，没有回落模拟。 */
+export function activeScenes(): EmotionEvent[] {
+  return externalScenes.length > 0 ? externalScenes : SCENES;
+}
+
+/** 现在用的是不是真数据（界面标"真实上报 / 模拟数据"靠它）。 */
+export function hasRealScenes(): boolean {
+  return externalScenes.length > 0;
 }

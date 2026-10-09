@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { SCENES } from "./emotion/scenes";
-import type { IntimacyMode, Settings, UserCorrection } from "./emotion/types";
+import { SCENES, activeScenes, setExternalScenes } from "./emotion/scenes";
+import type { EmotionEvent, IntimacyMode, Settings, UserCorrection } from "./emotion/types";
 
 export type TabId = "state" | "detail" | "timeline" | "lexicon" | "settings";
 
@@ -28,6 +28,21 @@ const STORAGE_KEY = "qidao-emotion-demo";
 type Store = {
   tab: TabId;
   sceneId: string;
+  /**
+   * 现在能看的场景列表：**有真数据就是真数据，没有才是那 10 个模拟场景**。
+   *
+   * 用户的要求："只有'存在真情绪事件'时才用真的，否则保持现在的模拟场景
+   * （这样空库也不会白屏）。" 所以这个字段永远非空。
+   */
+  scenes: EmotionEvent[];
+  /**
+   * 栖岛真上报的情绪事件（已经映射成插件的 `EmotionEvent`）。
+   *
+   * 空数组 = 库里一条都还没有 ⇒ 回落模拟场景。宿主那边一变就调
+   * `setRealScenes()`（见 `components/app/EmotionApp.tsx` 里那个 effect）。
+   */
+  realScenes: EmotionEvent[];
+  setRealScenes: (list: EmotionEvent[]) => void;
   settings: Settings;
   corrections: Record<string, UserCorrection>;
   preview: Preview;
@@ -59,6 +74,27 @@ function persist(state: Pick<Store, "settings" | "corrections" | "sceneId">) {
 export const useEmotionStore = create<Store>((set, get) => ({
   tab: "state",
   sceneId: SCENES[0].eventId,
+  scenes: SCENES,
+  realScenes: [],
+  /**
+   * 登记真数据 → 数据层（`scenes.ts` 的登记处）+ 界面用的列表一起更新。
+   *
+   * 两条行为，都是"用户要看见变化"逼出来的：
+   *   · 出现**新的一笔**（最新那条换了 id）→ 直接把镜头挪过去；
+   *   · 原来选中的那条不在新列表里了（比如从模拟切到真数据）→ 也挪到最新那条。
+   *   其余情况**保持用户手里的选择**（别因为他多报一笔就把人正在看的翻掉）。
+   */
+  setRealScenes: (list) => {
+    setExternalScenes(list);
+    const scenes = activeScenes();
+    const newest = scenes[0];
+    const prevNewest = get().realScenes[0];
+    const sceneId = get().sceneId;
+    const stale = !scenes.some((scene) => scene.eventId === sceneId);
+    const changed = list.length > 0 && newest?.eventId !== prevNewest?.eventId;
+    const nextId = changed || stale ? (newest?.eventId ?? SCENES[0].eventId) : sceneId;
+    set({ realScenes: list, scenes, sceneId: nextId });
+  },
   settings: DEFAULT_SETTINGS,
   corrections: {},
   preview: null,
@@ -69,9 +105,9 @@ export const useEmotionStore = create<Store>((set, get) => ({
     persist(get());
   },
   stepScene: (dir) => {
-    const { sceneId } = get();
-    const index = Math.max(0, SCENES.findIndex((scene) => scene.eventId === sceneId));
-    const next = SCENES[(index + dir + SCENES.length) % SCENES.length];
+    const { sceneId, scenes } = get();
+    const index = Math.max(0, scenes.findIndex((scene) => scene.eventId === sceneId));
+    const next = scenes[(index + dir + scenes.length) % scenes.length];
     set({ sceneId: next.eventId, preview: null, tab: "state" });
     persist(get());
   },
@@ -105,7 +141,7 @@ export const useEmotionStore = create<Store>((set, get) => ({
     set({
       settings: DEFAULT_SETTINGS,
       corrections: {},
-      sceneId: SCENES[0].eventId,
+      sceneId: activeScenes()[0]?.eventId ?? SCENES[0].eventId,
       preview: null,
       notice: "本地的演示修正和开关已清除。",
     });
@@ -141,7 +177,14 @@ export const useEmotionStore = create<Store>((set, get) => ({
       }
       const data = JSON.parse(raw) as Persisted;
       if (data.v !== 1) return;
-      const sceneId = SCENES.some((scene) => scene.eventId === data.sceneId) ? data.sceneId : SCENES[0].eventId;
+      /**
+       * 存档里的 sceneId 要跟**当前能看的列表**对一遍（真数据 / 模拟都可能）。
+       * 对不上就取第一条 —— 绝不能让界面停在一条不存在的记录上（那就是白屏）。
+       */
+      const list = activeScenes();
+      const sceneId = list.some((scene) => scene.eventId === data.sceneId)
+        ? data.sceneId
+        : (list[0]?.eventId ?? SCENES[0].eventId);
       set({
         settings: { ...DEFAULT_SETTINGS, ...data.settings },
         corrections: data.corrections ?? {},

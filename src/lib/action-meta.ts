@@ -29,6 +29,14 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "reminder.add": "reminder",
   "cron.add": "scheduled_job",
   "state.report": "state_report",
+  /**
+   * 上报情绪 / 取词表都落在「给自己记一笔状态」这项权限上（L0 静默、无副作用）。
+   *
+   * 为什么不新开一项权限：这是**同一件事**（他给自己记一笔），用户已有的授权
+   * 就该覆盖它 —— 新开一项等于偷偷把它变成"要重新点同意"，那是坑他。
+   */
+  "emotion.report": "state_report",
+  "emotion.lexicon": "state_report",
   "memory.add": "memory",
   "persona.set": "persona",
   "play.gobang": "gobang_play",
@@ -146,6 +154,16 @@ export function actionTitle(action: AppAction): string {
         parts.length ? `（${parts.join("、")}）` : ""
       }`;
     }
+    case "emotion.report": {
+      // 词表外的词在 actions.ts 会被退回 —— 这里只负责把那笔写成人话
+      const secondary = (action.secondaryEmotions ?? []).slice(0, 2);
+      const pct = Math.round(Number(action.intensity ?? 0.5) * 100);
+      return `上报一笔情绪：${action.primaryEmotion}${
+        secondary.length ? `（+${secondary.join("、")}）` : ""
+      } · 强度 ${pct}%`;
+    }
+    case "emotion.lexicon":
+      return "取一份情绪词表看看";
     case "memory.add":
       return `记住：${action.note.slice(0, 20)}`;
     case "persona.set":

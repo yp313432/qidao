@@ -165,22 +165,32 @@ async function postToWorker(url: string, payload: unknown): Promise<string> {
  * 点一下就能把前三种分开 —— 剩下那种（上游）Worker 会明说。
  */
 export async function pingWake(): Promise<WakeSyncResult> {
+  const s = useApp.getState().settings;
   /**
-   * **先看抽屉里有没有配置**（甲这条路）——有就直接试你的上游：
-   * 这是最有用的一次自检（"后台醒来能不能问到他"关键就在这一步）。
+   * ⚠️ **必须用 App 里这份真 key，不能用抽屉里读回来的那份**（踩过）：
+   * 抽屉插件的 `get()` 出于安全把 key 打码成中文「已设置」（`WakeBridgePlugin.java:79`），
+   * 拿它去拼 `Bearer` 会直接抛
+   *   `Failed to read the 'headers' property from 'RequestInit': String contains non ISO-8859-1 code point`
+   * —— 用户真机上看到的就是这条（而且它长得像"网络问题"，很有误导性）。
+   * 所以：**抽屉只用来判断"后台到底拿到配置没有"**，真正的 key/地址/模型从设置里取。
    */
+  const baseUrl = (s.customBaseUrl ?? "").trim().replace(/\/+$/, "");
+  const apiKey = (s.customApiKey ?? "").trim();
+  const model = (s.upstreamModel ?? "").trim();
   const cfg = await readWakeConfig();
-  if (cfg && cfg[WAKE_KEYS.baseUrl] && cfg[WAKE_KEYS.apiKey]) {
+  const pushedToBackground = Boolean(cfg && cfg[WAKE_KEYS.baseUrl] && cfg[WAKE_KEYS.apiKey]);
+
+  if (baseUrl && apiKey && model) {
     const t0 = Date.now();
     try {
-      const res = await fetch(`${cfg[WAKE_KEYS.baseUrl]}/chat/completions`, {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${cfg[WAKE_KEYS.apiKey]}`,
+          authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: cfg[WAKE_KEYS.model],
+          model,
           messages: [{ role: "user", content: "只回两个字：在的" }],
           max_tokens: 20,
           stream: false,
@@ -200,14 +210,23 @@ export async function pingWake(): Promise<WakeSyncResult> {
       }
       return {
         ok: true,
-        message: `这条是通的 ✅ 你的上游 ${ms}ms 就回了${said ? `「${said.trim().slice(0, 20)}」` : ""}。他已经能问到他了。`,
+        message:
+          `这条是通的 ✅ 你的上游 ${ms}ms 就回了${said ? `「${said.trim().slice(0, 20)}」` : ""}。他已经能问到他了。` +
+          (pushedToBackground
+            ? "（后台也已经拿到同一份配置。）"
+            : "⚠️ 但这台还没把配置交给后台 —— 打开一次 App、切到后台才算交上去。"),
       };
     } catch (err) {
-      return { ok: false, message: `连不上你的上游：${(err as Error).message}（地址或网络的问题）` };
+      /**
+       * ⚠️ 这里不要写死"地址或网络的问题" —— 用户真机上那条报错其实是
+       * **header 里塞了非 ISO-8859-1 字符**（我们把打码后的中文 key 当 key 用了），
+       * 长得却像网络故障。所以：**把原始原因原样带出来**，别替他下结论。
+       */
+      return { ok: false, message: `连不上你的上游：${(err as Error).message}` };
     }
   }
 
-  /* 抽屉里没有 → 退回"Worker 那条路"的自检（配了地址才有意义） */
+  /* 抽屉里没有 / 设置不全 → 退回"Worker 那条路"的自检（配了地址才有意义） */
   const url = wakeUrl();
   if (!url) {
     return {
