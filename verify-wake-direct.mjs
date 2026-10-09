@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 验收脚本：**甲那条路 —— 后台那段 JS 直接问你的 AI**（本地，不用真机）。
  *
  * 这是用户选的方案：`qidao.…workers.dev` 在国内被 DNS 污染，而他的 AI 是国内那条快的 ——
@@ -210,6 +210,8 @@ console.log("\n【三·b】② 他说不说：没说 → 下次必定说");
   r = await wake(drawer(), new Map([["speak_acc", "1"]]), [0.1]);
   check("必说档正常说 → 弹通知", r.notes.length === 1 && /在忙啥/.test(r.notes[0]?.body ?? ""), JSON.stringify(r.notes.map((n) => n.body)));
   check("说了之后「没说」的标记清掉", Number(r.kv.get("speak_acc")) === 0);
+  /** 用户："都跑到 82 次了，看着好多" —— 说成一句就该把"醒了几次"清零 */
+  check("说了之后「醒了几次」归零（下次从第 1 次算）", Number(r.kv.get("wake_count")) === 0);
 }
 
 /* ═════════ ③·c 把你算的"最坏 4 小时"量出来 ═════════ */

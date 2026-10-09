@@ -352,6 +352,12 @@ addEventListener("qidaoWake", function (resolve, reject) {
         if (said) {
           kvSet("last_spoke_at", now);
           kvSet("speak_acc", 0);
+          /**
+           * **说成一句 → "醒了几次"归零**（用户："都跑到 82 次了，看着好多"）。
+           * 之前它是"装上以来一共醒了多少次"，从不清零，所以能累到 82；
+           * 现在它变成"**他还没说上话之前，已经醒了第几次**" —— 按规矩最多只到 4。
+           */
+          kvSet("wake_count", 0);
           notify(NOTIFY_ID_BASE + (count % 1000), aiName, said);
           logLine("#" + count + " " + stamp + " 说了" + (forced ? "（上次没说 → 这次必定说）" : "") + "：" + said.slice(0, 40));
         } else {
@@ -396,6 +402,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
         if (data.muted) kvSet("muted_at", now);
         if (data.action === "speak" && data.text) {
           kvSet("last_spoke_at", now);
+          /** 说成一句 → "醒了几次"归零（同主路；用户要求） */
+          kvSet("wake_count", 0);
           notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text);
           logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）");
         } else if (data.ok === false) {
