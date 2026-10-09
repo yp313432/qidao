@@ -1,0 +1,58 @@
+/*
+ * 「情绪生命体」—— 插件外壳的作用域。
+ *
+ * 这份 CSS 是**搬运时唯一新写的样式**，它不加任何装饰、不改任何画面，
+ * 只做两件"接线"的事：
+ *
+ *   ① **把这套暗紫主题收在一棵子树里**。
+ *      情绪库原来是个独立工程（`src/styles.css` 里 `@theme` 直接写死
+ *      `--color-bg: #09070e` 等）。搬进栖岛后不能那么干 ——
+ *      栖岛的 `--color-bg` / `--color-fg` / `--color-muted` / `--color-surface` /
+ *      `--color-line` 是跟着 `--aster-*` 换主题的（dawn / dusk / ink 三套），
+ *      在全局改成深紫会把整站变黑。
+ *      所以只在 `.emotion-lifeform` 里覆盖同名变量：Tailwind 的
+ *      `bg-bg` / `text-fg` / `border-line` 生成的就是 `var(--color-*)`，
+ *      子树里自然取到插件自己的值，宿主一点不受影响（已实测三套主题）。
+ *
+ *   ② **让插件里那些 `fixed` 浮层（它自带的底部五项导航、状态浮标）
+ *      以"插件这一屏"为准**，而不是以整个浏览器窗口为准。
+ *      原来它是整页应用，`fixed` 就是屏幕；现在它住在栖岛的
+ *      `max-w-lg` 手机宽栏目里，`contain: paint` 让 `fixed` 子元素的
+ *      包含块变成这个壳 —— 等于**还原了它原来在整页里的位置**。
+ *      （`contain: paint` 同时把它裁在自己的范围里，这正是"整页应用"的语义。）
+ *
+ * ⚠️ 没有任何颜色/字体/动效参数是"我调的" —— 下面每个值都是从
+ *    情绪库的 `src/styles.css` @theme 原样抄过来的；`--radius-lg` 也是
+ *    （栖岛那边是 1rem，情绪库画的是 1.25rem，圆角只在插件子树里还原）。
+ */
+
+.emotion-lifeform {
+  /* —— 颜色（照抄情绪库 @theme） —— */
+  --color-bg: #09070e;
+  --color-bg-elev: #110e16;
+  --color-surface: #19141f;
+  --color-surface-2: #241c2e;
+  --color-fg: #f6f1f8;
+  --color-muted: #b3a6c2;
+  --color-faint: #8a7d9a;
+  --color-line: #342b40;
+  --color-primary: #d4b7ee;
+  --color-primary-deep: #5c4678;
+  --color-blush: #efc6d4;
+
+  /* —— 字体（照抄情绪库 @theme；只在插件里生效） —— */
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif;
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", "WenQuanYi Zen Hei", serif;
+
+  /* —— 圆角（情绪库的 --radius-lg 是 1.25rem） —— */
+  --radius-lg: 1.25rem;
+
+  /* —— 壳本身 —— */
+  position: relative;
+  isolation: isolate;
+  contain: paint;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+}

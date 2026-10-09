@@ -48,7 +48,7 @@ import type { CustomPlugin } from "@/lib/types";
 
 export type { CustomPlugin };
 
-/* ─────────────────── 内置插件（写在代码里的两个） ─────────────────── */
+/* ─────────────────── 内置插件（写在代码里的三个） ─────────────────── */
 
 export const BUILTIN_PLUGINS: PluginEntry[] = [
   {
@@ -71,6 +71,20 @@ export const BUILTIN_PLUGINS: PluginEntry[] = [
     hint: "你的记忆连成一片星空",
     kind: "native",
     slug: "memory",
+  },
+  {
+    /**
+     * 情绪生命体（2026-10 从独立工程搬进来，原生型）。
+     * 源码在 `src/plugins/emotion-lifeform/`，外壳页是
+     * `src/components/play/plugins/emotion-lifeform.tsx`，路由
+     * `src/routes/_app/play/plugins/emotion.tsx`。
+     * 层级 / 整屏规则由 `nav-tree.ts` 的**前缀表**覆盖，这里不用再写路径。
+     */
+    id: "plugin_emotion",
+    name: "情绪生命体",
+    hint: "把对话里的情绪画成一个活的灵体",
+    kind: "native",
+    slug: "emotion",
   },
 ];
 

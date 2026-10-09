@@ -33,6 +33,28 @@
   --color-ok: var(--aster-ok);
 
   /**
+   * **只给「情绪生命体」插件用的那套令牌**（2026-10 搬进来时补的）。
+   *
+   * 为什么必须写在这里：Tailwind v4 的 `text-faint` / `bg-blush` / `font-display`
+   * 这类类名，只有 `@theme` 里声明过对应的名字，构建时才会生成 ——
+   * 写在插件自己的 CSS 文件里生成不出来（那边没有 `@import "tailwindcss"`）。
+   *
+   * 所以这里只做两件事：**登记名字**（让类名能生成）+ 给一个兜底值。
+   * 插件真正的颜色值全部收在 `src/plugins/emotion-lifeform/emotion-lifeform.css`
+   * 的 `.emotion-lifeform` 作用域里 —— 那五个跟栖岛重名的
+   * （`--color-bg` / `-fg` / `-muted` / `-surface` / `-line`）**只在那棵子树里被覆盖**，
+   * 宿主（含 dawn/dusk/ink 三套主题）一个像素都不受影响。
+   * 下面这些名字栖岛别处一个都没用，所以生成出来的类名是"闲置"的，不会有视觉变化。
+   */
+  --color-bg-elev: #110e16;
+  --color-surface-2: #241c2e;
+  --color-faint: #8a7d9a;
+  --color-primary: #d4b7ee;
+  --color-primary-deep: #5c4678;
+  --color-blush: #efc6d4;
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", "WenQuanYi Zen Hei", serif;
+
+  /**
    * 装饰色 —— 分成**两个独立变量**。
    *
    * 起因：用户原话"球体颜色和字体颜色做个切割吧，她两分开，不放一起，
@@ -203,6 +225,18 @@
 
   p {
     text-wrap: pretty;
+  }
+}
+
+/**
+ * 横向滚动条藏起来（情绪生命体插件的场景 / 词库筛选用）。
+ * 照抄情绪库 `src/styles.css` 里那条 `@utility scroll-x`，一个字没改 ——
+ * 栖岛别处没人用这个类名，所以它对现有页面是"闲置"的。
+ */
+@utility scroll-x {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 

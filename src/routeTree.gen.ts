@@ -54,6 +54,7 @@ import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.
 import { Route as AppPlayPluginsIndexRouteImport } from './routes/_app/play.plugins.index'
 import { Route as AppPlayPluginsSlugRouteImport } from './routes/_app/play/plugins/$slug'
 import { Route as AppPlayPluginsEditRouteImport } from './routes/_app/play/plugins/edit'
+import { Route as AppPlayPluginsEmotionRouteImport } from './routes/_app/play/plugins/emotion'
 import { Route as AppPlayPluginsMemoryRouteImport } from './routes/_app/play/plugins/memory'
 import { Route as AppPlayPluginsShiganRouteImport } from './routes/_app/play/plugins/shigan'
 import { Route as AppPlayToolsIndexRouteImport } from './routes/_app/play.tools/index'
@@ -284,6 +285,11 @@ const AppPlayPluginsEditRoute = AppPlayPluginsEditRouteImport.update({
   path: '/plugins/edit',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayPluginsEmotionRoute = AppPlayPluginsEmotionRouteImport.update({
+  id: '/plugins/emotion',
+  path: '/plugins/emotion',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayPluginsMemoryRoute = AppPlayPluginsMemoryRouteImport.update({
   id: '/plugins/memory',
   path: '/plugins/memory',
@@ -353,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -403,6 +410,7 @@ export interface FileRoutesByTo {
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -456,6 +464,7 @@ export interface FileRoutesById {
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
   '/_app/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/_app/play/plugins/edit': typeof AppPlayPluginsEditRoute
+  '/_app/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/_app/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/_app/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
@@ -509,6 +518,7 @@ export interface FileRouteTypes {
     | '/play/games/truth'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
+    | '/play/plugins/emotion'
     | '/play/plugins/memory'
     | '/play/plugins/shigan'
     | '/play/tools/alarms'
@@ -559,6 +569,7 @@ export interface FileRouteTypes {
     | '/play/games/truth'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
+    | '/play/plugins/emotion'
     | '/play/plugins/memory'
     | '/play/plugins/shigan'
     | '/play/tools/alarms'
@@ -611,6 +622,7 @@ export interface FileRouteTypes {
     | '/_app/play/games/truth'
     | '/_app/play/plugins/$slug'
     | '/_app/play/plugins/edit'
+    | '/_app/play/plugins/emotion'
     | '/_app/play/plugins/memory'
     | '/_app/play/plugins/shigan'
     | '/_app/play/tools/alarms'
@@ -951,6 +963,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayPluginsEditRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/plugins/emotion': {
+      id: '/_app/play/plugins/emotion'
+      path: '/plugins/emotion'
+      fullPath: '/play/plugins/emotion'
+      preLoaderRoute: typeof AppPlayPluginsEmotionRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/plugins/memory': {
       id: '/_app/play/plugins/memory'
       path: '/plugins/memory'
@@ -1003,6 +1022,7 @@ interface AppPlayRouteChildren {
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
   AppPlayPluginsSlugRoute: typeof AppPlayPluginsSlugRoute
   AppPlayPluginsEditRoute: typeof AppPlayPluginsEditRoute
+  AppPlayPluginsEmotionRoute: typeof AppPlayPluginsEmotionRoute
   AppPlayPluginsMemoryRoute: typeof AppPlayPluginsMemoryRoute
   AppPlayPluginsShiganRoute: typeof AppPlayPluginsShiganRoute
   AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
@@ -1026,6 +1046,7 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
   AppPlayPluginsSlugRoute: AppPlayPluginsSlugRoute,
   AppPlayPluginsEditRoute: AppPlayPluginsEditRoute,
+  AppPlayPluginsEmotionRoute: AppPlayPluginsEmotionRoute,
   AppPlayPluginsMemoryRoute: AppPlayPluginsMemoryRoute,
   AppPlayPluginsShiganRoute: AppPlayPluginsShiganRoute,
   AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
