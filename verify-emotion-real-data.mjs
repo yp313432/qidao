@@ -211,6 +211,18 @@ for (const dir of SHOT_DIRS) {
   await page.screenshot({ path: resolve(dir, "emotion-real.png") });
 }
 
+/* ────────────── ⑥b 按需取词表（真动作）+ 详情页的真依据 ────────────── */
+
+const lexiconText = await reportEmotion({ kind: "emotion.lexicon" });
+await page.getByRole("button", { name: "详情" }).click();
+await page.waitForTimeout(500);
+const detailText = await page.evaluate(() => document.body.innerText || "");
+for (const dir of SHOT_DIRS) {
+  await page.screenshot({ path: resolve(dir, "emotion-real-detail.png") });
+}
+await page.getByRole("button", { name: "状态", exact: true }).click();
+await page.waitForTimeout(400);
+
 /* ────────────── ② 第二笔：轨迹里两条都在（历史留得住） ────────────── */
 
 const second = await reportEmotion({
@@ -229,6 +241,16 @@ const afterSecond = await readEmotionEvents();
 const secondTitle = await page.evaluate(
   () => document.querySelector("h2.font-display")?.innerText?.trim() ?? "",
 );
+
+/* ────────────── 刷新一遍：真数据真的存下来了（不是只活在内存里） ────────────── */
+
+await page.reload({ waitUntil: "domcontentloaded", timeout: 90000 });
+await page.waitForSelector("canvas", { timeout: 60000 });
+await page.waitForTimeout(2200);
+const reloadTitle = await page.evaluate(
+  () => document.querySelector("h2.font-display")?.innerText?.trim() ?? "",
+);
+const reloadText = await page.evaluate(() => document.body.innerText || "");
 
 await browser.close();
 
@@ -315,9 +337,25 @@ check(
 );
 check("真数据下画布照旧有内容（> 1000）", (realCanvas.nonBlack ?? 0) > 1000, `nonBlack=${realCanvas.nonBlack}`);
 check(
+  "详情页显示的是**他真引的那一句**（不是模拟对话片段）",
+  detailText.includes("他引的那一句") && detailText.includes("他他他"),
+  detailText.includes("模拟对话片段") ? "还在标模拟" : "",
+);
+check(
+  "按需取词表（emotion.lexicon 真动作）→ 13 组一次给全",
+  (lexiconText.match(/^[A-M]\. /gm) ?? []).length === 13 &&
+    ["怦然", "吃醋", "欲言又止"].every((t) => lexiconText.includes(t)),
+  `${(lexiconText.match(/^[A-M]\. /gm) ?? []).length} 组 · ${lexiconText.length} 字符`,
+);
+check(
   "第二笔接得上（轨迹留得住历史），而且镜头跟到最新那笔",
   afterSecond.length === before.length + 2 && secondTitle === "吃醋 · 不甘",
   `库里 ${afterSecond.length} 条 · 标题「${secondTitle}」`,
+);
+check(
+  "刷新之后真数据还在（真的存下来了：IndexedDB + 插件按 id 找回那一条）",
+  reloadTitle === "吃醋 · 不甘" && reloadText.includes("真实上报"),
+  `刷新后标题「${reloadTitle}」`,
 );
 
 console.log("-".repeat(64));

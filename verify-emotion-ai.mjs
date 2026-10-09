@@ -485,7 +485,8 @@ console.log("");
 console.log("-".repeat(64));
 console.log(
   `词表：13 组 / ${lex.EMOTION_TERM_ENTRIES} 个词条（去重 ${lex.EMOTION_TERM_COUNT}） · ` +
-    `手册那一节 ${section.length} 字符 · 每轮提示词 ${manualText.length} 字符（词表命中 ${leaked.length} 个：${leaked.join("、") || "无"}）`,
+    `手册那一节 ${section.length} 字符（按需取） · 每轮提示词里只留 ${pointer.length} 字符的指引` +
+    `（词表命中 ${leaked.length} 个：${leaked.join("、") || "无"}）`,
 );
 console.log(
   failures === 0

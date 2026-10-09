@@ -124,6 +124,13 @@ const EXEMPT = new Set([
   "工具 → HTTP", "工具 → MCP", "我的 → 系统", "做不到", "看这里", "直接允许", "每次要问",
   "你帮我切一下", "做不到", "这个还没做", "会做", "不会", "我以为自己不会", "我不会",
   "不相信", "明白", "以为",
+  /**
+   * 「情绪词表」= 说明书里**那一节的标题**（2026-10 新增，见 `lib/manual.ts` 的
+   * `emotionLexiconSection()`）—— 它不是权限名，是"按需翻的那一节"的名字。
+   * 手册里只有一句指引（"主情绪必须是《情绪词表》里的原词"）；词表正文靠
+   * `emotion.lexicon` 动作现取（用户按 token 付费，不许塞进每轮提示词）。
+   */
+  "情绪词表",
 ]);
 const suspicious = [...mentioned].filter((w) => !permTitles.has(w) && !EXEMPT.has(w));
 check(

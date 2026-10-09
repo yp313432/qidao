@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 自适应图标的底色。默认白色，配暖陶土色的八芒星对比度太低；
          换成和启动图同一个深色，桌面上才好看。 -->
-    <color name="ic_launcher_background">#12161C</color>
+    <color name="ic_launcher_background">#07060C</color>
 </resources>
