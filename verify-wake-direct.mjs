@@ -70,7 +70,7 @@ const realFetch = globalThis.fetch;
 
 /** App 交过来的那份配置（就是抽屉里的东西） */
 function drawer(over = {}) {
-  const base = {
+  return {
     cfg_base_url: `http://127.0.0.1:${FAKE_PORT}/v1`,
     cfg_api_key: "sk-FAKE-DIRECT-KEY",
     cfg_model: "fake-model",
@@ -78,18 +78,16 @@ function drawer(over = {}) {
     cfg_enabled: "1",
     cfg_quiet_start: "0",
     cfg_quiet_end: "0",
+    /** 平时那段（允许他回 SKIP） */
+    cfg_prompt_normal: `你是星芒。现在是 {{TIME}}。距上次说话 {{ELAPSED}}。【平时档】想说就说，没话说回 SKIP。`,
+    /** "上次没说 → 这次必定说"那段 */
+    cfg_prompt_force: `你是星芒。现在是 {{TIME}}。距上次说话 {{ELAPSED}}。【必说档】你必须说一句，不许回 SKIP。`,
+    ...over,
   };
-  for (let i = 0; i < 5; i += 1) {
-    const level = i * 25;
-    base[`cfg_prompt_${i}`] =
-      `你是星芒。现在是 {{TIME}}。距上次说话 {{ELAPSED}}。【程度 ${level}%】` +
-      (level === 100 ? " 一定要说，不许回 SKIP。" : " 自己判断，可以回 SKIP。");
-  }
-  return { ...base, ...over };
 }
 
 /** 模拟"系统叫醒它一次" */
-async function wake(config, kvSeed = new Map()) {
+async function wake(config, kvSeed = new Map(), randoms = null) {
   kv = kvSeed;
   notes = [];
   asked = [];
@@ -107,9 +105,17 @@ async function wake(config, kvSeed = new Map()) {
     asked.push(String(args[0]));
     return realFetch(...args);
   };
+  /**
+   * ⚠️ 掷骰子在这段 JS 里用的是 `Math.random()` —— 验收要**确定**，
+   * 所以能传一串"预设的随机数"进来（按顺序消费）。不传就用真的随机。
+   */
+  const realRandom = Math.random;
+  if (randoms) {
+    let i = 0;
+    Math.random = () => randoms[Math.min(i++, randoms.length - 1)];
+  }
 
   // 执行：占位符留着（反正 direct 优先，用不到 Worker）
-  // eslint-disable-next-line no-new-func
   new Function(RUNNER_SRC)();
   if (!handler) throw new Error("后台 JS 没有注册 addEventListener(\"qidaoWake\")");
 
@@ -129,6 +135,7 @@ async function wake(config, kvSeed = new Map()) {
       },
     );
   });
+  Math.random = realRandom;
   return { notes, kv, asked };
 }
 
@@ -138,7 +145,7 @@ console.log("【一】抽屉里有配置 → 直接问你的 AI（不碰 Worker�
 {
   reply = "刚看你把咖啡换成了热的，胃是不是又不舒服了。";
   hits = 0;
-  const r = await wake(drawer());
+  const r = await wake(drawer(), new Map(), [0.1]);
 
   check("真的去请求了（而且只有一处：你的上游）", r.asked.length === 1, r.asked.join(" , "));
   check("请求的是**你的上游**（不是 Worker 域名）", (r.asked[0] ?? "").includes(`127.0.0.1:${FAKE_PORT}`), r.asked[0] ?? "");
@@ -153,7 +160,7 @@ console.log("【一】抽屉里有配置 → 直接问你的 AI（不碰 Worker�
 
 console.log("\n【二】指令里的时间占位符要换成「此刻」的值");
 {
-  const r = await wake(drawer());
+  await wake(drawer(), new Map(), [0.1]);
   const system = lastBody?.messages?.[0]?.content ?? "";
   const now = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -163,32 +170,92 @@ console.log("\n【二】指令里的时间占位符要换成「此刻」的值")
   check("没聊过时说的是人话（很久/还没聊过）", /很久|还没聊过/.test(system), system.slice(0, 90));
 }
 
-/* ═════════ ③ 程度选对指令 ═════════ */
+/* ═════════ ③ 两个 50%（用户定的规矩）═════════ */
 
-console.log("\n【三】程度 → 选对那一段指令（每 25 分钟一档）");
+console.log("\n【三】① 叫不叫他：50%，没叫下次必定叫");
 {
-  const cases = [
-    [null, 0],
-    [10, 0],
-    [30, 25],
-    [60, 50],
-    [80, 75],
-    [130, 100],
-  ];
-  let allOk = true;
-  const detail = [];
-  for (const [mins, want] of cases) {
-    const seed = new Map();
-    if (mins !== null) seed.set("last_spoke_at", String(Date.now() - mins * 60000));
-    await wake(drawer(), seed);
-    const system = lastBody?.messages?.[0]?.content ?? "";
-    if (!system.includes(`【程度 ${want}%】`)) {
-      allOk = false;
-      detail.push(`${mins}分→期望${want}%`);
+  reply = "在忙吗";
+  // 随机数 0.9 > 0.5 → "没看他"
+  let r = await wake(drawer(), new Map(), [0.9]);
+  check("掷到 0.9（>50%）→ 这次不看他：一次请求都不发", r.asked.length === 0, `请求 ${r.asked.length} 次`);
+  check("没弹通知", r.notes.length === 0, `弹了 ${r.notes.length} 条`);
+  check("记下「这次没看」→ 下次必定看", Number(r.kv.get("look_acc")) === 1);
+
+  // 下次带着 look_acc=1：就算随机数又是 0.9，也必须看
+  r = await wake(drawer(), new Map([["look_acc", "1"]]), [0.9]);
+  check("上次没看 → 这次必定看（真的去问了）", r.asked.length === 1, `请求 ${r.asked.length} 次`);
+  check("看了之后「没看」的标记清掉", Number(r.kv.get("look_acc")) === 0);
+
+  // 随机数 0.1 < 0.5 → 直接就看
+  r = await wake(drawer(), new Map(), [0.1]);
+  check("掷到 0.1（<50%）→ 直接看他", r.asked.length === 1, `请求 ${r.asked.length} 次`);
+}
+
+console.log("\n【三·b】② 他说不说：没说 → 下次必定说");
+{
+  reply = "SKIP";
+  let r = await wake(drawer(), new Map(), [0.1]);
+  check("他说 SKIP → 不弹通知", r.notes.length === 0, `弹了 ${r.notes.length} 条`);
+  check("记下「这次没说」→ 下次必定说", Number(r.kv.get("speak_acc")) === 1);
+  check("这次用的是「平时档」指令（允许 SKIP）", /【平时档】/.test(lastBody?.messages?.[0]?.content ?? ""));
+
+  // 下次带着 speak_acc=1：用"必说档"，而且模型耍赖也带"不许 SKIP"重问
+  reply = "SKIP";
+  hits = 0;
+  r = await wake(drawer(), new Map([["speak_acc", "1"]]), [0.1]);
+  check("上次没说 → 这次用「必说档」指令", /【必说档】/.test(lastBody?.messages?.[0]?.content ?? ""));
+  check("模型还说 SKIP → 带「不许 SKIP」再问一次（问了 2 次）", hits === 2, `问了 ${hits} 次`);
+
+  reply = "行，那我说一句：在忙啥？";
+  r = await wake(drawer(), new Map([["speak_acc", "1"]]), [0.1]);
+  check("必说档正常说 → 弹通知", r.notes.length === 1 && /在忙啥/.test(r.notes[0]?.body ?? ""), JSON.stringify(r.notes.map((n) => n.body)));
+  check("说了之后「没说」的标记清掉", Number(r.kv.get("speak_acc")) === 0);
+}
+
+/* ═════════ ③·c 把你算的"最坏 4 小时"量出来 ═════════ */
+
+console.log("\n【三·c】模拟：最坏几小时一定有一句？平均几小时？");
+{
+  /**
+   * 纯逻辑模拟（跟后台那段 JS 同一套规则）：
+   *   每次节拍：没看吗？(50%) → 没看就记着，下次必看
+   *             看了 → 说吗？(50%) → 没说就记着，下次必说
+   * 用户自己算的是"最坏 4 小时"，这里量一下对不对。
+   */
+  const oneRun = () => {
+    let lookAcc = false;
+    let speakAcc = false;
+    let ticks = 0;
+    while (ticks < 1000) {
+      ticks += 1;
+      const look = lookAcc || Math.random() < 0.5;
+      if (!look) {
+        lookAcc = true;
+        continue;
+      }
+      lookAcc = false;
+      const speak = speakAcc || Math.random() < 0.5;
+      if (speak) return ticks;
+      speakAcc = true;
     }
+    return ticks;
+  };
+
+  let worst = 0;
+  let total = 0;
+  const N = 200_000;
+  for (let i = 0; i < N; i += 1) {
+    const t = oneRun();
+    worst = Math.max(worst, t);
+    total += t;
   }
-  check("没聊过/10/30/60/80/130 分 → 0/0/25/50/75/100 档", allOk, allOk ? "6 个点全对" : detail.join(" "));
-  check("ELAPSED 说的是人话（分钟/小时）", /分钟|小时/.test(lastBody?.messages?.[0]?.content ?? ""));
+  const avg = total / N;
+  check(`最坏就是 ${worst} 次节拍（= ${worst} 小时，跟你算的一致）`, worst === 4, `量出来 ${worst}`);
+  check(
+    `平均 ${avg.toFixed(2)} 小时一句（一天约 ${(24 / avg).toFixed(1)} 次，扣掉夜间更少）`,
+    avg > 2 && avg < 2.6,
+    `平均 ${avg.toFixed(3)} 小时`,
+  );
 }
 
 /* ═════════ ④ 他说 SKIP ═════════ */
@@ -197,28 +264,9 @@ console.log("\n【四】他说 SKIP：不弹通知，时间不动（程度继续
 {
   reply = "SKIP";
   const seed = new Map([["last_spoke_at", String(Date.now() - 30 * 60000)]]);
-  const r = await wake(drawer(), seed);
+  const r = await wake(drawer(), seed, [0.1]);
   check("没弹通知", r.notes.length === 0, `弹了 ${r.notes.length} 条`);
   check("「上次开口的时间」一点没动", Number(r.kv.get("last_spoke_at")) === Number(seed.get("last_spoke_at")));
-}
-
-/* ═════════ ⑤ 100% 保底 ═════════ */
-
-console.log("\n【五】100% 那档是保底：SKIP 也要带「不许 SKIP」重问一次");
-{
-  reply = "SKIP_ONCE";
-  hits = 0;
-  const seed = new Map([["last_spoke_at", String(Date.now() - 130 * 60000)]]);
-  const r = await wake(drawer(), seed);
-  check("一共问了两次（先 SKIP、再重问）", hits === 2, `问了 ${hits} 次`);
-  check("第二次带着「不许 SKIP」", /不许回 SKIP/.test(lastBody?.messages?.[0]?.content ?? ""));
-  check("第二次说了 → 照样弹通知", r.notes.length === 1 && /在忙啥/.test(r.notes[0]?.body ?? ""), `notes=${JSON.stringify(r.notes.map((n) => n.body))}`);
-
-  // 低档位不该重试
-  reply = "SKIP";
-  hits = 0;
-  await wake(drawer(), new Map([["last_spoke_at", String(Date.now() - 30 * 60000)]]));
-  check("低档位（25%）不会做这个重试", hits === 1, `问了 ${hits} 次`);
 }
 
 /* ═════════ ⑥ 关掉 / 夜间：一次请求都不发 ═════════ */
@@ -248,11 +296,11 @@ console.log("\n【六】关掉 / 夜间 → 一次请求都不发");
 console.log("\n【七】通知里不该出现引号或「他：」前缀");
 {
   reply = "「在忙吗？刚才那句我记着了。」";
-  const r = await wake(drawer());
+  const r = await wake(drawer(), new Map(), [0.1]);
   check("中文引号被清掉", !/[「」『』“”"]/.test(r.notes[0]?.body ?? "x"), `body=${JSON.stringify(r.notes[0]?.body)}`);
 
   reply = "星芒：我在呢。";
-  const r2 = await wake(drawer());
+  const r2 = await wake(drawer(), new Map(), [0.1]);
   check("「名字：」前缀被清掉", r2.notes[0]?.body === "我在呢。", `body=${JSON.stringify(r2.notes[0]?.body)}`);
 }
 
@@ -262,7 +310,7 @@ console.log("\n【八】上游挂掉：也要弹得出来、也要收尾");
 {
   reply = "随便";
   await new Promise((r) => fake.close(r)); // 端口没人听了
-  const r = await wake(drawer());
+  const r = await wake(drawer(), new Map(), [0.1]);
   check("处理函数仍按约定收尾了", true);
   check("弹了一条「没成功」的调试通知", r.notes.length >= 1 && /没成功/.test(r.notes[0]?.title ?? ""), `title=${r.notes[0]?.title}`);
   check("记了错误冷却时间", Number(r.kv.get("last_err_at")) > 0);

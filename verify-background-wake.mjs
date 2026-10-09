@@ -195,10 +195,17 @@ console.log("\n【二·b】「配置抽屉」两端必须对得上（写错一�
     /cfg_base_url/.test(bridgeJs) && /cfg_base_url/.test(runner),
   );
 
-  /** 档位间隔两端也要一致：App 生成五段、后台按 25 分钟一档挑 */
-  const promptTs = read(join(process.cwd(), "src", "lib", "wake-prompt.ts"));
-  check("App 生成的是五段指令（0/25/50/75/100）", /URGE_LEVELS\s*=\s*\[0,\s*25,\s*50,\s*75,\s*100\]/.test(promptTs));
-  check("后台按 25 分钟一档挑（LADDER_STEP_MIN = 25）", /LADDER_STEP_MIN\s*=\s*25/.test(code));
+  /** 两个 50% 的累加标记（用户定的规矩：这次没中就下次必定） */
+  check("认「上次没看 → 这次必定看」（look_acc）", /look_acc/.test(code));
+  check("认「上次没说 → 这次必定说」（speak_acc）", /speak_acc/.test(code));
+  check("两个骰子都在（看 / 说各一次 Math.random）", (code.match(/Math\.random\(\)/g) ?? []).length >= 1);
+  check(
+    "有两段指令：平时档（允许 SKIP）/ 必说档（不许 SKIP）",
+    /cfg_prompt_normal/.test(code) && /cfg_prompt_force/.test(code),
+  );
+  /** 节拍：用户定的是"每 1 小时起程序"——它跟"他多久说一句"不是一回事 */
+  check("节拍是每 1 小时（interval = 60）", /interval:\s*60/.test(capCode), `interval=${interval}`);
+
   /**
    * ⚠️ 别断言"代码里有裸的 `{{TIME}}`" —— 它是写在正则里的（`/\{\{TIME\}\}/`），
    * 裸串根本不会出现。要断言的是"它在 replace 里处理了这两个占位符"。

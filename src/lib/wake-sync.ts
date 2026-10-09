@@ -95,15 +95,14 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
       [WAKE_KEYS.enabled]: (s.wakeEnabled ?? true) ? "1" : "0",
       [WAKE_KEYS.quietStart]: String(s.wakeQuietStart ?? 1),
       [WAKE_KEYS.quietEnd]: String(s.wakeQuietEnd ?? 8),
+      [WAKE_KEYS.promptNormal]: prompts.normal,
+      [WAKE_KEYS.promptForce]: prompts.force,
     };
-    prompts.forEach((p, i) => {
-      data[WAKE_KEYS.prompt(i)] = p;
-    });
 
     const pushed = await pushWakeConfig(data);
     notes.push(
       pushed
-        ? `已交给他（${prompts.length} 段指令 + 最近 ${input.recent.length} 条对话）`
+        ? `已交给他（两段指令 + 最近 ${input.recent.length} 条对话）`
         : "这台上交不进去（网页版没有后台；或者这个包还没带上那个抽屉插件）",
     );
   }

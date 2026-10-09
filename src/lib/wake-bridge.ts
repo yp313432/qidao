@@ -35,8 +35,13 @@ export const WAKE_KEYS = {
   enabled: "cfg_enabled",
   quietStart: "cfg_quiet_start",
   quietEnd: "cfg_quiet_end",
-  /** 五段指令：程度 0/25/50/75/100 各一段 */
-  prompt: (i: number) => `cfg_prompt_${i}`,
+  /**
+   * 两段指令（用户最后定的规矩：叫不叫他 50%、说不说 50%、没中就下次必定）：
+   *   · `normal` —— 平时那段：允许他回 SKIP
+   *   · `force`  —— "上次没说 → 这次必定说"那段：不许 SKIP
+   */
+  promptNormal: "cfg_prompt_normal",
+  promptForce: "cfg_prompt_force",
 } as const;
 
 /** 把配置写进抽屉（只在真机上有用；网页版静默跳过） */

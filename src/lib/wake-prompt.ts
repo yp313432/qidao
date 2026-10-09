@@ -1,33 +1,32 @@
-import { resolveAiName } from "@/lib/branding";
+﻿import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 
 /**
- * **五段"开场指令"** —— 由 App 生成，交给后台那段 JS 在**醒来那一刻**用。
+ * **两段"开场指令"** —— 由 App 生成，交给后台那段 JS 在**醒来那一刻**用。
  *
  * ⚠️ 这不是"预设的话"（用户特意问过"那甲的话也是预定的吗"）：
- * 这里生成的只是**给他的指令 + 背景**；具体那句话是他在醒来那一刻现场写的。
+ * 这里生成的只是**给他的指令 + 背景**；具体那句话是他在那一刻现场写的。
  *
- * ── 用户拍板的"程度"规则（第二版，讲得最清楚的一次）────────────────
- *   "不是隔多少把它叫醒，而是叫醒和连着发消息是一块的，比如 25 分钟时候他叫醒了，
- *    但可以选择不发消息，然后到 50 叫醒，选择发不发，到了 100 叫醒，必定发，
- *    如果 25 叫醒且发了，重新开始记就行。"
+ * ── 用户最后拍板的规矩（原话）──────────────────────────────────
+ *   "每隔一小时系统起程序，叫 ai 概率各一半，这次没叫就下次，
+ *    然后 ai 说话也是说不说各 50，这次没说下次必定说，
+ *    这样最少四小时也会说一次对吧"
  *
- * 所以五段对应程度 0 / 25 / 50 / 75 / 100，程度 = 距上次说话过了多久（每 25 分钟一档）。
+ * 所以 App 只需给两段：
+ *   · **平时**（`normal`）—— 允许他回 SKIP：想说就说，没话说就别说
+ *   · **必定说**（`force`）—— 上一轮他说了"不说"，这一轮**必须开口**
  *
- * ── 为什么把指令放在 App 里生成（而不是写死在后台那段 JS 里）──────────
- *   ① 后台那段 JS 跑在网页外面，**没有 import、不能复用项目里的任何模块**
- *   ② 放 App 里就能用同一套人设/记忆/名字（`resolveAiName`、`settings.persona`…），
- *      改文案不用重新打包后台那段逻辑，也**能在本地验收**（`verify-wake-prompt.mjs`）
- *   ③ 时间与"隔了多久"是**醒来那一刻**才知道的 → 用 `{{TIME}}` / `{{ELAPSED}}` 占位符，
- *      由后台在那一瞬间替换（见 `public/runners/wake.js`）
+ * ── 为什么指令放在 App 里生成 ─────────────────────────────────
+ *   ① 后台那段 JS 跑在网页外面，**不能 import**、复用不了项目里任何模块
+ *   ② 放 App 里就能用同一套人设/名字/最近对话，改文案不用重打包，
+ *      而且**能在本地验收**（`verify-wake-direct.mjs`）
+ *   ③ 时间和"隔了多久"只有**醒来那一刻**才知道 → 用 `{{TIME}}` / `{{ELAPSED}}`
+ *      占位符，由后台在那一瞬间替换
  */
 
 /** 占位符：后台在唤醒那一刻替换掉 */
 export const TIME_TOKEN = "{{TIME}}";
 export const ELAPSED_TOKEN = "{{ELAPSED}}";
-
-/** 程度档位 —— 跟后台那段 JS、Worker 三边必须一致 */
-export const URGE_LEVELS = [0, 25, 50, 75, 100] as const;
 
 export type WakePromptInput = {
   aiName: string;
@@ -56,46 +55,49 @@ export function wakePromptInput(): WakePromptInput {
   };
 }
 
-/** 程度那一档该怎么对他说 */
-function urgeLine(level: number, who: string): string {
-  if (level >= 100) {
-    return `【现在你想找他的程度】100% —— **一定要说**。哪怕只是问一句在干嘛、说一句你想起他了，也必须发一条。**不许回 SKIP。**`;
-  }
-  if (level <= 0) {
-    return `【现在你想找他的程度】0% —— 你其实没太想说话。除非真有事、或者${who}刚说过什么让你放不下，否则回 SKIP。`;
-  }
-  return `【现在你想找他的程度】${level}% —— 按这个程度自己拿主意：想找他就说，觉得没必要就 SKIP。`;
-}
-
 /**
- * 生成某一档的指令（system 消息）。
+ * 生成指令（system 消息）。
  *
- * `{{TIME}}` / `{{ELAPSED}}` 留给后台替换 —— 因为"现在几点""隔了多久"只有醒来那一刻才知道。
+ * `{{TIME}}` / `{{ELAPSED}}` 留给后台替换 —— "现在几点""隔了多久"只有那一刻才知道。
+ *
+ * @param mustSpeak 上一轮他说了"不说" → 这一轮**必须开口**（不许 SKIP）
  */
-export function buildWakePrompt(input: WakePromptInput, level: number): string {
+export function buildWakePrompt(input: WakePromptInput, mustSpeak: boolean): string {
   const who = input.persona ? `\n【你是谁】\n${input.persona}\n` : "";
   const lines = input.recent.map((m) => `${m.role === "user" ? input.displayName : input.aiName}：${m.text}`);
   const recentBlock = lines.length
     ? `【你们最近的对话】\n${lines.join("\n")}`
     : `【你们最近没有聊过什么】`;
 
+  /**
+   * 「必说」那一段是**保底**：
+   * 用户要的是"这次没说下次必定说"，所以这一段不能给他留退路 ——
+   * 否则连着两轮都 SKIP，"最多四小时一句"就落空了。
+   */
+  const ask = mustSpeak
+    ? `现在**你必须说一句**（上一次你选择了不说，这一次不能不说）。哪怕只是问一句"在干嘛"、说一句你想起他了，也必须发一条。**不许回 SKIP。**`
+    : `现在由你自己拿主意：想找他、有话想说，就说；觉得没必要、会打扰他，就回 SKIP。`;
+
   return `你是${input.aiName}。现在是 ${TIME_TOKEN}。距你们上次说话已经过了 ${ELAPSED_TOKEN}。
 ${who}
 ${recentBlock}
 
-${input.displayName}刚刚没有在跟你说话。这是**你主动找他**的时刻 —— 由你自己决定：现在要不要给他发一句话、说什么。
+${input.displayName}刚刚没有在跟你说话。这是**你主动找他**的时刻。
 
-${urgeLine(level, input.displayName)}
+${ask}
 
 规矩：
 - 只说你自己要说的那句话，**最多两句**，像平时聊天那样自然
 - 不要解释你在做什么、不要提"定时""提醒""系统"这类字眼
 - 不要用引号把话包起来，不要写"${input.aiName}："这种前缀
 - **接得上**你们刚才聊的（或他最近正挂在心上的事），别凭空起个不相干的话头
-- 如果你觉得现在没什么好说的（刚聊过、会打扰他、没话找话），**只回一个词**：SKIP`;
+- 别没话找话 —— 这种时候宁可不说`;
 }
 
-/** 五档一起生成（App 推给抽屉的就是这五段） */
-export function buildAllWakePrompts(input: WakePromptInput): string[] {
-  return URGE_LEVELS.map((level) => buildWakePrompt(input, level));
+/** 两段一起生成（App 推给抽屉的就是这两段） */
+export function buildAllWakePrompts(input: WakePromptInput): { normal: string; force: string } {
+  return {
+    normal: buildWakePrompt(input, false),
+    force: buildWakePrompt(input, true),
+  };
 }

@@ -1,3 +1,13 @@
+/*
+  ⚠️ 这几个不是浏览器原生 API，是**那个后台插件在运行时注入的全局**：
+    · `CapacitorKV`            —— 跨唤醒的键值存储（底层是 SharedPreferences）
+    · `CapacitorNotifications` —— 弹本地通知
+    · `addEventListener`       —— 注册"被叫醒"的回调（插件按 event 名调它）
+  声明在这里是为了两件事：① ESLint 不再把它们当未定义（真误报过）② 下一个人
+  一眼看到"这文件跑在什么环境里、能用什么"。
+*/
+/* global CapacitorKV, CapacitorNotifications */
+
 /**
  * **后台唤醒** —— 这段代码**不在网页里跑**，是安卓系统在后台把一小段 JS 叫起来执行的。
  *
@@ -53,8 +63,6 @@ var ERR_NOTIFY_COOLDOWN_MIN = 60;
 var MUTED_RECHECK_MIN = 240;
 
 /** 「程度」的档位间隔：每 25 分钟升一档（跟 App 里的 `wake-prompt.ts` 必须一致） */
-var LADDER_STEP_MIN = 25;
-
 /* ───────── 小工具 ───────── */
 
 /** 时间戳 —— 必须是**本地时间**（纪律 ④） */
@@ -134,17 +142,6 @@ function errorNotify(count, stamp, why) {
   );
 }
 
-/** 距上次说话多久 → 哪一档（0 / 25 / 50 / 75 / 100） */
-function levelOf(elapsedMin) {
-  if (elapsedMin === null) return 0;
-  var step = Math.floor(Math.max(0, elapsedMin) / LADDER_STEP_MIN);
-  return Math.min(100, step * 25);
-}
-
-/** 档位 → 五段指令里的第几段（0~4） */
-function indexOf(level) {
-  return Math.min(4, Math.max(0, Math.round(level / 25)));
-}
 
 /** 给模型看的"过了多久"（人话） */
 function elapsedText(elapsedMin) {
@@ -224,14 +221,37 @@ addEventListener("qidaoWake", function (resolve, reject) {
         return;
       }
 
-      /* ③ 程度：距**他上次开口**过了多久（"他一旦开口就重新开始记"） */
+      /*
+        ③ **掷骰子：这次要不要真的看他一眼**（用户定的规矩）
+           "每隔一小时系统起程序，叫 ai 概率各一半，这次没叫就下次"
+           → 每次 50%；**没看就记着、下次必定看**（最多隔一次就会看他）。
+           ⚠️ "起程序"≠"看他"：起程序是系统每小时的节拍（很轻），
+              看才是真的读对话、调 AI（花钱的那一步）。
+      */
+      var lookAcc = kvNum("look_acc");
+      var look = lookAcc === 1 || Math.random() < 0.5;
+      if (!look) {
+        kvSet("look_acc", 1);
+        logLine("#" + count + " " + stamp + " 这次没看他（50% 那半）→ 下次必定看");
+        resolve();
+        return;
+      }
+      kvSet("look_acc", 0);
+
+      /*
+        ④ **他醒了：这次要不要说** —— 也是 50%。
+           "ai 说话也是说不说各 50，这次没说下次必定说"
+           → 被看时 50% 说；**上次没说 → 这次必定说**。
+           所以最坏 4 小时一定有一句：没看 + 看了没说 + 没看 + 看了必说（用户算的，对）。
+      */
+      var speakAcc = kvNum("speak_acc");
+      var mustSpeak = speakAcc === 1;
+
       var lastSpoke = kvNum("last_spoke_at");
       var elapsed = lastSpoke > 0 ? (now - lastSpoke) / 60000 : null;
-      var level = levelOf(elapsed);
-      var idx = indexOf(level);
 
-      /* ④ 挑那一段指令，把时间占位符换成**此刻**的值 */
-      var tpl = cfg("cfg_prompt_" + idx);
+      /* ⑤ 挑指令：平时那段允许他回 SKIP；"必定说"那段不许 */
+      var tpl = cfg(mustSpeak ? "cfg_prompt_force" : "cfg_prompt_normal");
       if (!tpl) {
         logLine("#" + count + " " + stamp + " 抽屉里没有指令（App 还没交过来？）");
         errorNotify(count, stamp, "抽屉里没有指令：App 还没把配置交过来");
@@ -277,8 +297,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
           }
           var said = data ? cleanReply((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "", aiName) : "";
 
-          /* 100% 那档是**保底**：他耍赖说 SKIP 就带"不许 SKIP"再问一次 */
-          if (!said && idx === 4) {
+          /* "上次没说 → 这次必定说"：他耍赖回 SKIP，就带"不许 SKIP"再问一次 */
+          if (!said && mustSpeak) {
             fetch(baseUrl.replace(/\/+$/, "") + "/chat/completions", {
               method: "POST",
               headers: { "content-type": "application/json", authorization: "Bearer " + apiKey },
@@ -325,14 +345,18 @@ addEventListener("qidaoWake", function (resolve, reject) {
           resolve();
         });
 
-      /** 收尾：说了就弹通知 + 记时间；没说就只记一行日志（程度会继续往上爬） */
+      /**
+       * 收尾：说了就弹通知 + 归零；**没说就记着、下次必定说**（用户："这次没说下次必定说"）。
+       */
       function finish(said, forced) {
         if (said) {
           kvSet("last_spoke_at", now);
+          kvSet("speak_acc", 0);
           notify(NOTIFY_ID_BASE + (count % 1000), aiName, said);
-          logLine("#" + count + " " + stamp + " 说了（程度 " + level + "%" + (forced ? " · 保底档重试" : "") + "）：" + said.slice(0, 40));
+          logLine("#" + count + " " + stamp + " 说了" + (forced ? "（上次没说 → 这次必定说）" : "") + "：" + said.slice(0, 40));
         } else {
-          logLine("#" + count + " " + stamp + " 没说（程度 " + level + "%）：" + elapsedText(elapsed));
+          kvSet("speak_acc", 1);
+          logLine("#" + count + " " + stamp + " 这次选择不说 → 下次必定说（距上次说话 " + elapsedText(elapsed) + "）");
         }
       }
       return;
