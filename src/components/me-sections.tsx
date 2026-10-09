@@ -33,7 +33,7 @@ import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { toolProtocolLabel } from "@/lib/tool-protocol";
 import { wakeSupported } from "@/lib/background-wake";
-import { pingWake, wakeUrlSource } from "@/lib/wake-sync";
+import { pingWake, readWakeLog, resetWake, wakeUrlSource } from "@/lib/wake-sync";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { moodDisplay } from "@/lib/state-dims";
@@ -345,6 +345,16 @@ function MeSections({ tab }: { tab: MeTab }) {
   /** 「他主动找你」的通道自检（见 lib/wake-sync）—— 安全：只 fetch Worker，不碰原生 */
   const [wakePinging, setWakePinging] = useState(false);
   const [wakePingMsg, setWakePingMsg] = useState("");
+  /**
+   * 「清空后台状态，重新来」（用户原话："你把他清空，重新来"）。
+   * `armed` = 二次确认（页面上没有现成的确认弹窗，就沿用"再点一下"的老办法，不新做一套 UI）。
+   */
+  const [wakeResetBusy, setWakeResetBusy] = useState(false);
+  const [wakeResetArmed, setWakeResetArmed] = useState(false);
+  const [wakeResetMsg, setWakeResetMsg] = useState("");
+  /** 后台最近几次醒来的记录（折叠的次要区域；null = 还没读过，[] = 有抽屉但没记录） */
+  const [wakeLogOpen, setWakeLogOpen] = useState(false);
+  const [wakeLogLines, setWakeLogLines] = useState<string[] | null | undefined>(undefined);
   /** 主路（直接问你的 AI）配好了没 —— 缺哪样都不能问 */
   const upstreamReady = () =>
     Boolean((settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() && (settings.upstreamModel ?? "").trim());
@@ -400,10 +410,53 @@ function MeSections({ tab }: { tab: MeTab }) {
     }
   }
 
+  /**
+   * **清空重来**（用户："你把他清空，重新来"）。
+   *
+   * 第一次点只是"装填"（把按钮变成"再点一下，确认清空"），第二次才真清 ——
+   * 页面上没有现成的确认弹窗，就沿用最小的二次点击，不为此新做一套 UI。
+   * 清空 → 立刻重新交一份配置（见 `lib/wake-sync.ts` 的 `resetWake`），
+   * 返回的话**原样显示**（网页版会说"这台上没有抽屉"，真机失败会说失败原因）。
+   */
+  async function doWakeReset() {
+    if (wakeResetBusy) return;
+    if (!wakeResetArmed) {
+      setWakeResetArmed(true);
+      setWakeResetMsg("再点一下确认：会清掉醒来次数、后台日志、上次说话时间、静音标记，还有交给后台的那份配置。");
+      return;
+    }
+    setWakeResetArmed(false);
+    setWakeResetBusy(true);
+    setWakeResetMsg("");
+    try {
+      const r = await resetWake();
+      setWakeResetMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`);
+      // 清完记录就没了 —— 正打开着的话跟着刷新一下，别显示上一轮的旧日志
+      if (wakeLogOpen) setWakeLogLines(await readWakeLog(6));
+    } catch (err) {
+      // 不吞错误：这是用户手机上唯一能自救的入口
+      setWakeResetMsg(`🔴 没跑起来：${(err as Error).message || "未知错误"}`);
+    } finally {
+      setWakeResetBusy(false);
+    }
+  }
+
+  /** 展开/收起「后台最近几次醒来」（只在展开时读一次抽屉） */
+  async function toggleWakeLog() {
+    const next = !wakeLogOpen;
+    setWakeLogOpen(next);
+    if (!next) return;
+    setWakeLogLines(undefined);
+    try {
+      setWakeLogLines(await readWakeLog(6));
+    } catch {
+      setWakeLogLines([]);
+    }
+  }
+
   useEffect(() => {
     // App 里权限要去问安卓系统，所以是异步的（同步版只会给个占位值）
-    void permissionStateAsync().then(setPerm);
-    setSecure(secureContextOk());
+    void permissionStateAsync().then(setPerm);    setSecure(secureContextOk());
     void (async () => {
       const reg = await swRegistration();
       if (reg) setSw({ ok: true, message: "已注册（不缓存、不拦截请求）" });
@@ -1292,26 +1345,87 @@ function MeSections({ tab }: { tab: MeTab }) {
             通道自检：安全，只是 fetch 一下 Worker。
             ⚠️ 绝不调插件的 dispatchEvent（那个会让整个 App 卡死）。
           */}
-          <button
-            type="button"
-            disabled={wakePinging}
-            onClick={() => {
-              setWakePinging(true);
-              setWakePingMsg("");
-              void pingWake()
-                .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
-                .finally(() => setWakePinging(false));
-            }}
-            className="mt-2.5 rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
-          >
-            {wakePinging ? "正在试…" : "通道自检"}
-          </button>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={wakePinging}
+              onClick={() => {
+                setWakePinging(true);
+                setWakePingMsg("");
+                void pingWake()
+                  .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
+                  .finally(() => setWakePinging(false));
+              }}
+              className="rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+            >
+              {wakePinging ? "正在试…" : "通道自检"}
+            </button>
+            {/*
+              「清空重来」（用户："你把他清空，重新来"）。
+              连点两下才真清（页面上没有现成的确认弹窗，就沿用"再点一次"的老办法）。
+              网页版没有抽屉 → lib 里会如实说"这台上没有抽屉"，不装成功。
+            */}
+            <button
+              type="button"
+              disabled={wakeResetBusy}
+              onClick={() => void doWakeReset()}
+              className="rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+            >
+              {wakeResetBusy ? "正在清…" : wakeResetArmed ? "再点一下，确认清空" : "清空后台状态，重新来"}
+            </button>
+          </div>
           {wakePingMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>}
+          {wakeResetMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakeResetMsg}</p>}
 
           <p className="mt-2 text-[11px] leading-4 text-subtle">
             自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 1 小时（到下一次节拍），
             所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 / 上游没配&rdquo;分开。
           </p>
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            「清空后台状态，重新来」会清掉：醒来次数、后台日志、上次说话时间、静音标记，
+            还有交给后台的那份配置（清完立刻重新交一份新的）。
+          </p>
+
+          {/*
+            后台记录（只读、折叠的次要区域）—— 用户手机上这块原来是黑盒：
+            连续失败 90 次他也只能看到通知里那一句英文报错。这里直接把 `wake_log` 摊开，
+            里面就带着后台**自己诊断出来的结论**（后台没网 / 只有你的上游解析不出来 / 上游连不上）。
+            ⚠️ 抽屉读回来的 key 被原生打码成「已设置」；日志里也从不写 key。
+          */}
+          <button
+            type="button"
+            onClick={() => void toggleWakeLog()}
+            aria-expanded={wakeLogOpen}
+            className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
+          >
+            {wakeLogOpen ? "收起后台记录" : "看后台最近几次醒来"}
+          </button>
+          {wakeLogOpen && (
+            <div className="mt-1.5 rounded-2xl bg-elevated px-3 py-2">
+              {wakeLogLines === undefined ? (
+                <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
+              ) : wakeLogLines && wakeLogLines.length > 0 ? (
+                <>
+                  <p className="text-[11px] leading-4 text-subtle">
+                    后台最近 {wakeLogLines.length} 次醒来（最近的在最上面）：
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {wakeLogLines.map((line, i) => (
+                      <li key={i} className="text-[11px] leading-4 break-all text-muted">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-[11px] leading-4 text-subtle">
+                  {wakeLogLines === null
+                    ? "后台还没有记录（这台上没有抽屉，网页版没有后台任务）。"
+                    : "后台还没有记录。"}
+                </p>
+              )}
+            </div>
+          )}
             </>
           )}
         </div>

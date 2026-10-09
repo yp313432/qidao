@@ -65,3 +65,32 @@ export async function readWakeConfig(): Promise<Record<string, string> | null> {
     return null;
   }
 }
+
+/** 「清空重来」的结果 —— 成功/失败都要有话说（**不吞错误**） */
+export type ClearWakeResult = { ok: boolean; message: string };
+
+/**
+ * **清空抽屉**（设置页那个「清空后台状态，重新来」按钮）。
+ *
+ * 原生那边 `WakeBridgePlugin.clear()` 一把清掉整个 SharedPreferences：
+ * 醒来次数、`wake_log`、上次说话时间、静音标记、交给后台的那份配置，全没。
+ * 清完还要**立刻重新交一份**（见 `lib/wake-sync.ts` 的 `resetWake`），
+ * 否则后台下次醒来只会看到空抽屉、什么都不做。
+ *
+ * ⚠️ 网页版没有抽屉（也没有后台任务）→ **优雅跳过**，并且如实说"这台上没有抽屉"，
+ * 不许假装清过了。
+ */
+export async function clearWakeConfig(): Promise<ClearWakeResult> {
+  if (!isNativeApp()) {
+    return {
+      ok: false,
+      message: "这台上没有抽屉（网页版没有后台任务）—— 后台那份配置不在这个浏览器里，没得清。",
+    };
+  }
+  try {
+    await WakeBridge.clear();
+    return { ok: true, message: "后台那份配置和记录已经清空" };
+  } catch (err) {
+    return { ok: false, message: `清空失败：${(err as Error).message || "未知错误"}` };
+  }
+}

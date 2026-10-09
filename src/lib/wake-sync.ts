@@ -1,6 +1,6 @@
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
-import { WAKE_KEYS, pushWakeConfig, readWakeConfig } from "@/lib/wake-bridge";
+import { WAKE_KEYS, clearWakeConfig, pushWakeConfig, readWakeConfig } from "@/lib/wake-bridge";
 import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
 
 /**
@@ -133,8 +133,49 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
   return { ok: !notes.some((n) => /还没|交不进去/.test(n)), message: notes.filter(Boolean).join("；") };
 }
 
-/** 把上下文 POST 给 Worker（备路；失败只留一句话，不抛） */
-async function postToWorker(url: string, payload: unknown): Promise<string> {
+/**
+ * **清空重来**（用户原话："你把他清空，重新来"）。
+ *
+ * 顺序不能反：先 `clear()` 把抽屉清空（醒来次数、`wake_log`、上次说话时间、
+ * 静音标记、交给后台的那份配置 —— 全在同一个 SharedPreferences 里），
+ * 再 `syncWakeContext()` **立刻交一份新的**过去；不然后台下次醒来看到的是空抽屉。
+ *
+ * 网页版没有抽屉 → `clearWakeConfig()` 会如实说"这台上没有抽屉"，
+ * 这里就**不去假装**重新交过了（也不编一句"已清空并重新交给他"）。
+ */
+export async function resetWake(): Promise<WakeSyncResult> {
+  const cleared = await clearWakeConfig();
+  if (!cleared.ok) return { ok: false, message: cleared.message };
+
+  const synced = await syncWakeContext();
+  return {
+    ok: synced.ok,
+    message: synced.ok
+      ? `已清空并重新交给他：${synced.message}`
+      : `已清空，但重新交的时候有问题：${synced.message}`,
+  };
+}
+
+/**
+ * **读后台那份日志**（设置页"后台记录"那一小块用）。
+ *
+ * `wake_log` 是一段多行字符串，后台每次醒来往**最前面**插一行（带本地时间），
+ * 所以最近的在最上面。只读展示 —— 用户手机上现在这一块是黑盒，看不到后台到底干了什么。
+ *
+ * 返回 `null` = 这台上根本没有抽屉（网页版）；返回 `[]` = 有抽屉但还没记录过。
+ * ⚠️ 抽屉里的 key 被原生打码成「已设置」，日志里也从不写 key（`maskSecrets`）。
+ */
+export async function readWakeLog(limit = 6): Promise<string[] | null> {
+  const cfg = await readWakeConfig();
+  if (!cfg) return null;
+  return String(cfg.wake_log ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+/** 把上下文 POST 给 Worker（备路；失败只留一句话，不抛） */async function postToWorker(url: string, payload: unknown): Promise<string> {
   try {
     const res = await fetch(url, {
       method: "POST",
