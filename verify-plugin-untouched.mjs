@@ -36,8 +36,19 @@ const ORIGINAL = join(
  *   · `adapter/qidao-integration.ts` —— 纯注释便条，写的是"怎么接进栖岛"，
  *     原来那份写的是"用 MockMemoryAdapter"（已经过时了）。
  *   · `adapter/qidao-memory.ts` —— **我们新加的适配层**（数据可以变就变在这里）。
+ *   · `MemoryUniverse.tsx` —— **只改了"动效听谁的"那一处**（2026-10 真机踩坑）：
+ *     原版直接问系统 `prefers-reduced-motion`，于是手机上系统一压制动效，
+ *     这个插件的粒子就整段被跳过（用户："网页里线上有粒子在跑，手机里只有线"）；
+ *     而栖岛自己的「动画」开关是 CSS 实现的（`<html data-motion>`），管不到 JS canvas。
+ *     改法：**先看宿主的 `data-motion`，宿主没说才问系统**。
+ *     ⚠️ 与美术无关 —— 颜色、形状、动画曲线、粒子，一个都没动。
+ *     规则见 `qidao-docs/规则-插件的动效要听宿主的.md`；用 `verify-plugin-motion.mjs` 守着。
  */
-const EXEMPT = new Set(["adapter/qidao-integration.ts", "adapter/qidao-memory.ts"]);
+const EXEMPT = new Set([
+  "adapter/qidao-integration.ts",
+  "adapter/qidao-memory.ts",
+  "MemoryUniverse.tsx",
+]);
 
 let bad = 0;
 const check = (name, ok, extra = "") => {
