@@ -62,7 +62,24 @@ export const ALL_GROUPS: GroupId[] = [
  *   · `memory.add`   —— "记住"太常见，而且真漏了他会不知道下次该怎么想起
  *   · `ui.highlight` —— 他解释东西时常用的引导手段
  */
-export const ALWAYS_KINDS = ["state.report", "navigate", "memory.add", "ui.highlight"] as const;
+/**
+ * 常驻动作（不靠关键词命中，**任何一轮都带上**）。
+ *
+ * ⚠️ `emotion.report` 是**用户特意要求常驻**的（2026-10）：
+ *   "常驻吧，我不能一直提醒他记情绪"
+ * 代价：它的工具定义每轮约几百 token（用户按量付费，知道并接受了）。
+ * 换来的：他**每轮都有"可以上报此刻情绪"的能力、不用人提醒** ——
+ * 这是「情绪生命体」那朵花能跟着对话活着的前提（不上报，插件就只能显示模拟数据）。
+ * ⚠️ 改这里必须同步 `tool-recall-corpus.ts` 的 `ALWAYS_ON`（顺序要一致，
+ *    `verify-tool-recall.mjs` 有一条断言专门盯这个）。
+ */
+export const ALWAYS_KINDS = [
+  "state.report",
+  "navigate",
+  "memory.add",
+  "ui.highlight",
+  "emotion.report",
+] as const;
 
 /**
  * 关键词 → 动作组。

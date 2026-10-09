@@ -15,8 +15,10 @@
  *     label: 这条在验什么 }
  */
 
-/** 常驻的四个（不靠关键词，任何一轮都该有）—— 单独一条样本守住 */
-export const ALWAYS_ON = ["state.report", "navigate", "memory.add", "ui.highlight"];
+/** 常驻的五个（不靠关键词，任何一轮都该有）—— 单独一条样本守住
+    ⚠️ 顺序必须跟 `src/lib/tool-select.ts` 的 `ALWAYS_KINDS` 完全一致（有断言盯着）
+    · `emotion.report` 是用户要求常驻的："常驻吧，我不能一直提醒他记情绪" */
+export const ALWAYS_ON = ["state.report", "navigate", "memory.add", "ui.highlight", "emotion.report"];
 
 /** 用户还可能这样问 —— 一个字都不提"工具"，但必须给到对应动作 */
 export const RECALL_CASES = [

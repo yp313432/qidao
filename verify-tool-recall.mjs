@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 验收脚本：P3 **按需注册**的召回对账 —— 拿 38 条"用户会这么说"的句子，
  * 逐条问一句：`selectActionKinds()` 到底有没有**漏发动作**？
  *
@@ -394,7 +394,7 @@ async function main() {
   );
   check(
     `tool-select.ts 导出 ALL_GROUPS（${ALL_GROUPS?.length} 组）与 ALWAYS_KINDS（${ALWAYS_KINDS?.length} 个）`,
-    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 11 && ALWAYS_KINDS.length === 4,
+    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 11 && ALWAYS_KINDS.length === 5,
     j([ALL_GROUPS?.length, ALWAYS_KINDS?.length]),
   );
   const firstImport = (TOOL_SELECT_SRC.match(/^\s*import\s.*$/m) ?? [""])[0].trim();

@@ -237,14 +237,25 @@ check(
   selected.kinds.includes("emotion.report") && selected.groups.includes("自我"),
   `命中组 ${selected.groups.join("/")} · 带上 ${selected.kinds.length}/${allKinds.length} 个`,
 );
+/**
+ * ⚠️ 这里原本断言的是"聊别的时不带它"（子代理当初的决定：省 token）。
+ * 2026-10 用户改主意了 —— **「常驻吧，我不能一直提醒他记情绪」**：
+ * 他不想每次都提醒他记情绪，所以宁可按量付费也要每轮都带上这个能力。
+ * 现在断言"常驻"，但**检验力度不减**：其他动作组仍要被按需筛掉，不许因为常驻就全发。
+ */
 check(
-  "按需注册：聊别的（放歌）时不带它 —— 一条工具定义都不白花（词表靠 emotion.lexicon 现取）",
-  !selectedOther.kinds.includes("emotion.report") && selectedOther.kinds.includes("media.play"),
+  "常驻（用户点名）：就算聊「放歌」，emotion.report 也在 —— 不用再提醒他记情绪",
+  selectedOther.kinds.includes("emotion.report"),
   `带上 ${selectedOther.kinds.length}/${allKinds.length} 个`,
 );
 check(
-  "tool-select.ts 的常驻集合没被这一轮改动（还是 4 个，不往每轮提示词里加肥工具）",
-  toolSelect.ALWAYS_KINDS.length === 4 && !toolSelect.ALWAYS_KINDS.includes("emotion.report"),
+  "按需注册没被废掉：聊放歌时仍只发相关的那些（媒体组在，无关组被筛掉）",
+  selectedOther.kinds.includes("media.play") && selectedOther.kinds.length < allKinds.length / 2,
+  `带上 ${selectedOther.kinds.length}/${allKinds.length} 个`,
+);
+check(
+  "tool-select.ts 的常驻集合 = 5 个，且包含 emotion.report（用户点名的常驻）",
+  toolSelect.ALWAYS_KINDS.length === 5 && toolSelect.ALWAYS_KINDS.includes("emotion.report"),
   toolSelect.ALWAYS_KINDS.join(","),
 );
 
