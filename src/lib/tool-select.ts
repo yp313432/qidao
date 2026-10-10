@@ -92,6 +92,16 @@ export const ALWAYS_KINDS = [
   "sense.time",
   "sense.device",
   "sense.place",
+  /**
+   * **发一张表情包**（2026-11 用户要的："他们自己就可以调用表情包"）。
+   *
+   * 为什么常驻而不是靠关键词：表情是**临场**的 —— 他"想说点什么又不想打字"
+   * 的时候要能直接发，字面上根本不会出现"表情"两个字（用户也不会说"发个表情"）。
+   * 代价：一条零参数工具定义（几十 token）；挑哪张由客户端决定，图不进提示词。
+   * ⚠️ 加在**末尾**：`tool-recall-corpus.ts` 的 `ALWAYS_ON` 顺序必须一致
+   * （`verify-tool-recall.mjs` 有一条断言盯这个）。
+   */
+  "sticker.send",
 ] as const;
 
 /**

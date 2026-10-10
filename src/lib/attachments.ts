@@ -1,4 +1,4 @@
-﻿import type { Attachment } from "@/lib/types";
+import type { Attachment } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
 /**
@@ -48,6 +48,51 @@ async function shrinkImage(file: File): Promise<string> {
     return canvas.toDataURL(keepPng ? "image/png" : "image/jpeg", 0.82);
   } catch {
     return original;
+  }
+}
+
+/**
+ * **表情包入库**（跟普通图片那条路分开走，原因很实在）：
+ *
+ * 用户原话（2026-11）："保存的话也是照片，然后传上也是照片，还是有白边的，
+ * 就不是表情包那个格式了。"
+ *
+ * 两个坑都在 `shrinkImage()` 那一步：
+ *   1. 它**总是走 canvas 重画** → **GIF 动图直接变成静态的第一帧**（表情包废一半）
+ *   2. 它不处理**白底** → 照片没有透明通道，贴到聊天里就是一块白边
+ *
+ * 所以这里：**动图/透明格式原样保留**（只要体积不离谱），其余才走缩放；
+ * 白底由 `stripWhiteBackground()` 单独处理（它需要真读像素）。
+ * 另外把长边限到 320 —— 表情在聊天里本来就只有一百多像素，存 4000px 是白占地方。
+ */
+const STICKER_MAX_EDGE = 320;
+const STICKER_KEEP_BYTES = 512 * 1024;
+
+export async function stickerFromFile(file: File): Promise<string> {
+  const animatedOrAlpha = /^image\/(gif|webp|png)$/.test(file.type);
+  if (animatedOrAlpha && file.size <= STICKER_KEEP_BYTES) return await readAsDataUrl(file);
+  try {
+    const original = await readAsDataUrl(file);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("图片解不开"));
+      i.src = original;
+    });
+    const scale = Math.min(1, STICKER_MAX_EDGE / Math.max(img.width, img.height));
+    if (scale >= 1 && file.size <= STICKER_KEEP_BYTES) return original;
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return original;
+    ctx.drawImage(img, 0, 0, w, h);
+    // ⚠️ 表情一律存 PNG：要保留透明（jpeg 会把透明变成黑/白底）
+    return canvas.toDataURL("image/png");
+  } catch {
+    return await readAsDataUrl(file);
   }
 }
 

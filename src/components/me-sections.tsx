@@ -352,6 +352,12 @@ function MeSections({ tab }: { tab: MeTab }) {
   /** 主路（直接问你的 AI）配好了没 —— 缺哪样都不能问 */
   const upstreamReady = () =>
     Boolean((settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() && (settings.upstreamModel ?? "").trim());
+  /**
+   * 他是不是正处于"我说了我在忙"的状态（`busyUntil` 是时间戳，过期自然失效）。
+   * 这个判断只影响这一个块显示什么 —— 真正的"不打扰"是后台那段 JS 读抽屉里的
+   * `cfg_busy_until` 做的（见 `wake.js` 的三道闸门）。
+   */
+  const busy = (settings.busyUntil ?? 0) > Date.now();
 
   async function probeModels() {
     setProbing(true);
@@ -1171,6 +1177,110 @@ function MeSections({ tab }: { tab: MeTab }) {
         </div>
       </Section>
 
+      {/*
+        ── 说话方式：**分段回复**（2026-11 用户要的）─────────────────────
+        用户原话："他这个回复只能我回一句，他回一句，就感觉不像真人；
+        能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
+        以及："分段做成可调节的吧，就是我自己设置最多几句。"
+
+        所以四个旋钮都摆在这儿，**不写死在代码里** —— 效果不对他自己拧，
+        不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
+      */}
+      <Section title="说话方式">
+        <Row
+          label="分段回复"
+          hint="像真人那样连着发几条"
+          checked={settings.segmentReply !== false}
+          onChange={(v) => patch({ segmentReply: v })}
+        />
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          打开后他可以把想说的分成几条发过来，一条一个气泡、一条接一条出现。
+          **一句能说完的回复不会被切开**（只有他确实有几句话要分开说时才分）。
+        </p>
+
+        {settings.segmentReply !== false && (
+          <>
+            <p className="mt-4 mb-2 text-[12px] text-muted">一次最多几条</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => patch({ segmentMaxParts: v })}
+                  className={cn(
+                    "rounded-2xl border px-3 py-2 text-[12px]",
+                    (settings.segmentMaxParts ?? 3) === v ? "border-fg" : "border-line",
+                  )}
+                >
+                  {v} 条
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-4 mb-2 text-[12px] text-muted">每条最多几句</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => patch({ segmentMaxSentences: v })}
+                  className={cn(
+                    "rounded-2xl border px-3 py-2 text-[12px]",
+                    (settings.segmentMaxSentences ?? 2) === v ? "border-fg" : "border-line",
+                  )}
+                >
+                  {v} 句
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-4 mb-2 text-[12px] text-muted">段间延迟</p>
+            <div className="flex flex-wrap gap-2">
+              {[400, 800, 1200, 1800, 2500].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => patch({ segmentDelayMs: v })}
+                  className={cn(
+                    "rounded-2xl border px-3 py-2 text-[12px]",
+                    (settings.segmentDelayMs ?? 1200) === v ? "border-fg" : "border-line",
+                  )}
+                >
+                  {(v / 1000).toFixed(1)} 秒
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+              两条之间隔多久出现。太短就没有"一句句发过来"的感觉，太长会显得他在发呆。
+            </p>
+          </>
+        )}
+      </Section>
+
+      {/*
+        ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
+        两块：① 入库时**去白底**（照片/白底截图 → 真正的透明表情）
+             ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
+        "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
+      */}
+      <Section title="表情包">
+        <Row
+          label="传表情时自动去白底"
+          hint="照片/白底截图 → 透明表情"
+          checked={settings.stickerRemoveWhite !== false}
+          onChange={(v) => patch({ stickerRemoveWhite: v })}
+        />
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          从相册选的表情常常是白底照片，贴到聊天里就是一块白边（不是表情包那个样子）。
+          打开这项会自动把**跟边缘连通的白色**变透明（图内部的白留住，比如眼白、白字）。
+          动图（GIF/WebP）不会被重画，动画保留。
+        </p>
+        <p className="mt-3 text-[11px] leading-4 text-subtle">
+          他**可以自己发表情**（不用你问）：想发的时候会从你的表情库里挑一张，
+          而且会避开上一次那张。想加表情就走输入框的「＋ → 表情包」。
+        </p>
+      </Section>
+
       <Section title="通知">
         <Row
           label="允许通知"
@@ -1333,6 +1443,94 @@ function MeSections({ tab }: { tab: MeTab }) {
           </div>
           <p className="mt-1 text-[11px] leading-4 text-subtle">
             这两格设成一样 = 不启用。（跨零点也对：比如 23:00 → 7:00。）
+          </p>
+
+          {/*
+            ── 主动说话的三个闸门（2026-11 用户要的）────────────────────
+            用户原话："设置一个回复的约定或按钮，我主动说忙，他自动调低，否则原来就行。"
+            ＋ "他自己情绪到了，也可以发吧……或者你给情绪那个加个按钮，只单独管情绪发消息这个。"
+            ＋ "降频那个不用"（所以**没有**"你不理他就自动降频"）。
+            默认值：最短 40 分钟、每天最多 8 条 —— 这两条是防骚扰的地板。
+          */}
+          <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 text-[12px] leading-5">
+                {busy ? (
+                  <>
+                    <span className="text-warn">我现在忙</span>
+                    <br />
+                    <span className="text-subtle">
+                      他不会再主动说话，到 {new Date(settings.busyUntil ?? 0).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 自动恢复
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    我没在忙
+                    <br />
+                    <span className="text-subtle">他还是按下面那两条频率规矩来找你</span>
+                  </>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => patch({ busyUntil: busy ? 0 : Date.now() + 2 * 60 * 60 * 1000 })}
+                className="shrink-0 rounded-2xl border border-line px-3 py-2 text-[12px]"
+              >
+                {busy ? "取消" : "我在忙（2 小时）"}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-subtle">
+              说忙之后是**彻底不打扰**（不是"少说点"）—— 你主动找他说话不受影响。
+            </p>
+          </div>
+
+          <Row
+            label="心情可以单独让他开口"
+            hint="情绪到了就能说，不用等由头"
+            checked={settings.emotionSpeak !== false}
+            onChange={(v) => patch({ emotionSpeak: v })}
+          />
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            打开：他情绪到了就能主动说一句。关掉：只有真有由头（隔了很久 / 深夜 / 你正挂在心上的事）才会开口，
+            心情只影响他怎么说。
+          </p>
+
+          <p className="mt-4 mb-2 text-[12px] text-muted">最短间隔（两次主动说话之间）</p>
+          <div className="flex flex-wrap gap-2">
+            {[30, 40, 60, 90, 120].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => patch({ wakeMinGapMin: v })}
+                className={cn(
+                  "rounded-2xl border px-3 py-2 text-[12px]",
+                  (settings.wakeMinGapMin ?? 40) === v ? "border-fg" : "border-line",
+                )}
+              >
+                {v} 分钟
+              </button>
+            ))}
+          </div>
+
+          <p className="mt-4 mb-2 text-[12px] text-muted">每天最多主动说几条</p>
+          <div className="flex flex-wrap gap-2">
+            {[4, 6, 8, 12].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => patch({ wakeDailyMax: v })}
+                className={cn(
+                  "rounded-2xl border px-3 py-2 text-[12px]",
+                  (settings.wakeDailyMax ?? 8) === v ? "border-fg" : "border-line",
+                )}
+              >
+                {v} 条
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            这两条是**地板**：不管什么理由都不会越过它们。他现在是每 1 小时醒一次、掷骰子决定说不说，
+            所以"最短间隔"实际很少碰到（醒来次数本来就少），真正管用的是每天上限。
           </p>
 
           {/*

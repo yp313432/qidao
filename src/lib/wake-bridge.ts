@@ -43,6 +43,20 @@ export const WAKE_KEYS = {
   promptNormal: "cfg_prompt_normal",
   promptForce: "cfg_prompt_force",
   /**
+   * ── 主动说话的三个新旋钮（2026-11）────────────────────────────
+   *   · `busyUntil` —— 他说了「我在忙」到什么时候（毫秒时间戳，0 = 不忙）。
+   *     由用户在设置页那个按钮写；后台醒来先看它，命中就**彻底不打扰**。
+   *   · `minGapMin` / `dailyMax` —— 最短间隔（分钟）/ 每天最多几条。
+   *     ⚠️ 后台读不到这两格时会用**默认值**（40 / 8），不会退化成"想发就发"。
+   *   · `mood` —— 他此刻的心情快照（App 从最近一笔情绪上报里取）。
+   *     醒来的那一刻**后台读不到网页层的 store**，所以只能靠这份快照 ——
+   *     这也是为什么只放"慢变量"（情绪基调），不放"这一秒的表情"。
+   */
+  busyUntil: "cfg_busy_until",
+  minGapMin: "cfg_min_gap_min",
+  dailyMax: "cfg_daily_max",
+  mood: "cfg_mood",
+  /**
    * **后台交给前台的"他说了一句"**（键名跟 `public/runners/wake.js` 的 `markPending` 一字不差）。
    *
    * 为什么要有它们：通知和会话原来是**两套存储** —— 后台只会弹通知、把话截成 40 字写进

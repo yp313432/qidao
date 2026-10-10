@@ -159,6 +159,43 @@ function kvSet(key, value) {
   }
 }
 
+/* ── 主动说话的"别烦人"计数（2026-11）──────────────────────────────
+   用户定的默认值：**至少隔 40 分钟**、**一天最多 8 条**。
+   ⚠️ 抽屉里没配这两个键时（老包的配置）用默认值 —— 不能因为读不到就不限流，
+      那样正好退化成"想发就发"，也就是用户最怕的骚扰。 */
+var DEFAULT_MIN_GAP_MIN = 40;
+var DEFAULT_DAILY_MAX = 8;
+
+/** 读一个"带默认值"的配置（抽屉里存的都是字符串） */
+function cfgNumOr(key, fallback) {
+  var raw = cfg(key);
+  if (!raw) return fallback;
+  var n = Number(raw);
+  return isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/** 本地日期（跨天要重置当天额度，所以用**本地**日期不是 UTC） */
+function dayStamp(now) {
+  var d = new Date(now);
+  return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+}
+
+/** 今天已经主动说了几条 */
+function spokeToday(now) {
+  return cfg("spoke_day") === dayStamp(now) ? kvNum("spoke_day_count") : 0;
+}
+
+/** 说成了一条 → 记当天一笔（跨天自动从 1 开始） */
+function bumpSpokeToday(now) {
+  var key = dayStamp(now);
+  if (cfg("spoke_day") !== key) {
+    kvSet("spoke_day", key);
+    kvSet("spoke_day_count", 1);
+  } else {
+    kvSet("spoke_day_count", kvNum("spoke_day_count") + 1);
+  }
+}
+
 /**
  * 弹通知。
  *
@@ -547,6 +584,33 @@ addEventListener("qidaoWake", function (resolve, reject) {
       var lastSpoke = kvNum("last_spoke_at");
       var elapsed = lastSpoke > 0 ? (now - lastSpoke) / 60000 : null;
 
+      /*
+        ④.5 **三道闸门**（2026-11 用户要的"别烦人"）：
+          · 他说了「我在忙」→ 彻底不打扰（他自己声明的，不是我们猜的）
+          · 最短间隔：两次主动说话至少隔这么久（用户定的 40 分钟）
+          · 每天上限：一天最多主动说几条（用户定的 8 条）
+        ⚠️ 顺序有意义：忙 > 间隔 > 上限。**任何一条命中都是"这次不说"，不是"出错"**，
+           所以只记一行日志、不弹错误通知（弹了就成了骚扰本身）。
+      */
+      var busyUntil = kvNum("cfg_busy_until");
+      if (busyUntil > now) {
+        logLine("#" + count + " " + stamp + " 他说了「我在忙」→ 这次不打扰（到 " + new Date(busyUntil).toLocaleString() + "）");
+        resolve();
+        return;
+      }
+      var minGapMs = cfgNumOr("cfg_min_gap_min", DEFAULT_MIN_GAP_MIN) * 60000;
+      if (minGapMs > 0 && lastSpoke > 0 && now - lastSpoke < minGapMs) {
+        logLine("#" + count + " " + stamp + " 距上次主动说话不到 " + minGapMs / 60000 + " 分钟 → 这次不说");
+        resolve();
+        return;
+      }
+      var dailyMax = cfgNumOr("cfg_daily_max", DEFAULT_DAILY_MAX);
+      if (dailyMax > 0 && spokeToday(now) >= dailyMax) {
+        logLine("#" + count + " " + stamp + " 今天主动说话的额度用完了（" + dailyMax + " 条）→ 这次不说");
+        resolve();
+        return;
+      }
+
       /* ⑤ 挑指令：平时那段允许他回 SKIP；"必定说"那段不许 */
       var tpl = cfg(mustSpeak ? "cfg_prompt_force" : "cfg_prompt_normal");
       if (!tpl) {
@@ -680,6 +744,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
       function finish(said, forced) {
         if (said) {
           kvSet("last_spoke_at", now);
+          bumpSpokeToday(now);
           kvSet("speak_acc", 0);
           /**
            * **说成一句 → "醒了几次"归零**（用户："都跑到 82 次了，看着好多"）。
@@ -747,6 +812,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
       if (data.muted) kvSet("muted_at", now);
       if (data.action === "speak" && data.text) {
         kvSet("last_spoke_at", now);
+        bumpSpokeToday(now);
         /** 说成一句 → "醒了几次"归零（同主路；用户要求） */
         kvSet("wake_count", 0);
         notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text, WAKE_NOTIFY_ACTION);

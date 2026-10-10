@@ -4,6 +4,7 @@ import { buildHttpRequest } from "@/lib/http-tools";
 import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
+import { pickSticker } from "@/lib/stickers";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
@@ -398,6 +399,26 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
      */
     case "emotion.lexicon":
       return `情绪词表（按需取用，不用每轮背）：\n\n${emotionLexiconSection()}`;
+
+    /**
+     * **发一张表情包**（用户 2026-11："他们自己就可以调用表情包"）。
+     *
+     * 挑哪张由**客户端**决定：表情库在手机本地（用户的图），
+     * 而目录塞进提示词是几百上千 token —— 所以只给他这个动作，图由我们挑。
+     *
+     * ⚠️ 这里**不直接写一条新消息**，而是把图挂到"这一轮即将发出的回复"上
+     * （`setReplySticker`，收尾时 `use-chat` 读走）—— 好处是它跟这句正文
+     * 是**同一轮**的，不会变成两条彼此不搭的消息。
+     */
+    case "sticker.send": {
+      const store = useApp.getState();
+      const chosen = pickSticker(store.stickers, store.lastStickerUrl);
+      if (!chosen) {
+        return "你的表情库里还是空的 —— 让用户在输入框的「＋ → 表情包」里加几张，你才发得出来。";
+      }
+      store.setReplySticker(chosen);
+      return "好，挑了一张表情，会跟这句话一起发出去。";
+    }
 
     case "cron.add": {
       const prompt = str((action as { prompt?: unknown }).prompt).trim();

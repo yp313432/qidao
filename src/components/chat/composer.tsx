@@ -13,7 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
-import { filesToAttachments, prettySize } from "@/lib/attachments";
+import { filesToAttachments, prettySize, stickerFromFile } from "@/lib/attachments";
+import { stripWhiteBackground } from "@/lib/white-removal";
 import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { startListening } from "@/lib/voice";
@@ -162,10 +163,20 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     if (list.length) setPending((p) => [...p, ...list].slice(0, 8));
   }
 
+  /**
+   * 把选中的图片**收进表情库**（跟"发图"那条路分开）：
+   *   · 动图/透明格式**不重画**（canvas 会把 GIF 动画吃掉，表情包就废一半）
+   *   · 自动**去白底** —— 照片/白底截图变成真正透明的表情（用户要的"表情包格式"）
+   */
   async function addStickers(files: File[]) {
-    const list = await filesToAttachments(files);
-    for (const a of list) {
-      if (a.kind === "image" && a.dataUrl) useApp.getState().addSticker(a.dataUrl);
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) continue;
+      let url = await stickerFromFile(f);
+      if (useApp.getState().settings.stickerRemoveWhite !== false) {
+        const transparent = await stripWhiteBackground(url);
+        if (transparent) url = transparent;
+      }
+      useApp.getState().addSticker(url);
     }
   }
 

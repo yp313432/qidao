@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { prettySize } from "@/lib/attachments";
+import { firstSegment } from "@/lib/segment";
 import { Avatar } from "@/components/avatar";
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
@@ -445,12 +446,73 @@ export function ChatView() {
                             既冗余又容易被消息区的滚动/重渲染带歪。 */}
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
-                        {m.content ? (
-                          <div className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
-                            <Markdown text={m.content} />
+                        {/*
+                          **分段回复**（2026-11 用户要的："像发消息似的，可以发好几条"）：
+                          · 流式期间**只显示第一段** —— 后面的等他写完再一条条冒出来。
+                            不这么做的话，整条先显示出来、收尾再重排，内容会跳一下。
+                          · 收尾后按 `m.parts` 一条一个气泡，**段间用 CSS 延迟**依次浮现
+                            （延迟 = 设置里那个旋钮）。为什么不用计时器逐条挂载：
+                            那样翻回历史会**重播一遍动画**，而且每多一条就多一份状态。
+                          · `bubble-in` 只在"刚生成的那 20 秒内"加：老消息渲染出来就是全的。
+                        */}
+                        {(() => {
+                          const parts =
+                            !streaming && m.parts && m.parts.length > 1 ? m.parts : null;
+                          const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
+                          const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
+
+                          if (parts) {
+                            return (
+                              <div className="space-y-1.5">
+                                {parts.map((p, i) => (
+                                  <div
+                                    key={i}
+                                    className={cn(
+                                      "max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      fresh && "bubble-in",
+                                    )}
+                                    style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
+                                  >
+                                    <Markdown text={p} />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+
+                          const liveText = streaming ? firstSegment(m.content) : m.content;
+                          return liveText ? (
+                            <div className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                              <Markdown text={liveText} />
+                            </div>
+                          ) : streaming ? (
+                            <p className="thinking-shimmer text-sm">正在写回复…</p>
+                          ) : null;
+                        })()}
+                        {/*
+                          他发过来的**表情包 / 图片**。
+                          `sticker.send` 挑好的图挂在这条消息的 `attachments` 上（见 use-chat 收尾），
+                          所以它天然跟在正文后面 —— 不会变成"两条彼此不搭的消息"。
+                          表情按**表情包尺寸**渲染（不超过 128px）：贴满屏就不像表情了。
+                        */}
+                        {m.attachments?.length ? (
+                          <div className="mt-1.5 flex flex-wrap items-end gap-1.5">
+                            {m.attachments.map((a) =>
+                              a.dataUrl && (a.kind === "sticker" || a.kind === "image") ? (
+                                <img
+                                  key={a.id}
+                                  src={a.dataUrl}
+                                  alt={a.kind === "sticker" ? "表情" : a.name}
+                                  className={cn(
+                                    "rounded-xl",
+                                    a.kind === "sticker"
+                                      ? "max-h-32 max-w-32"
+                                      : "max-h-48 max-w-[70%] rounded-2xl",
+                                  )}
+                                />
+                              ) : null,
+                            )}
                           </div>
-                        ) : streaming ? (
-                          <p className="thinking-shimmer text-sm">正在写回复…</p>
                         ) : null}
                         {/*
                           他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化。

@@ -164,6 +164,14 @@ export type ChatMessage = {
    * "他说他执行了，但什么都没发生" —— 有了这份记录，"哪一步没成"当场看得见。
    */
   rounds?: { round: number; calls: ToolCallRecord[] }[];
+  /**
+   * **分段回复**：这条正文该切成几个气泡显示（一条一个）。
+   *
+   * ⚠️ 它只是**渲染提示** —— `content` 仍然是完整原文（= `parts.join("")` 的那份内容）。
+   * 所以记忆 / 总结 / 导出 / 搜索 / 上下文拼装**一处都不用改**，它们只读 `content`。
+   * 只有真的切成 2 条以上才会写这一格；老消息没有它 → 按一条显示（向后兼容）。
+   */
+  parts?: string[];
 };
 
 /**
@@ -530,6 +538,45 @@ export type Settings = {
   /** 合成用的音色名（CosyVoice2 的叫 alex / bella 这种） */
   voiceTtsVoice?: string;
   replyStyle: ReplyStyle;
+  /**
+   * ── **分段回复**（2026-11 用户要的："一句就跟发消息似的，可以发好几条"）──
+   *
+   * 他一次输出里用 `|||` 分段，客户端切成几个气泡、一条一条冒出来（段间像在打字）。
+   * 四个旋钮都做成**用户在设置页可调**的（用户原话："分段做成可调节的吧，
+   * 就是我自己设置最多几句"）—— 效果不对他自己拧，不用改代码重推。
+   *
+   * 不填 = 按默认（开、最多 3 条、每条最多 2 句、段间 1.2 秒）。
+   */
+  segmentReply?: boolean;
+  /** 一次最多几条（1–6） */
+  segmentMaxParts?: number;
+  /** **每条最多几句**（1–4）—— 超过就按句末标点再切 */
+  segmentMaxSentences?: number;
+  /** 段间延迟（毫秒，400–3000）。界面上是"打字感"，固定值会假，所以实际会加抖动 */
+  segmentDelayMs?: number;
+  /**
+   * ── 主动说话（2026-11 用户要的"他自己察觉到、自己开口"）──────────
+   *
+   * `busyUntil`：他说了「我在忙」到什么时候（毫秒时间戳，0/空 = 不忙）。
+   * 后台醒来先看它，命中就**彻底不打扰**。用户原话："设置一个回复的约定或按钮，
+   * 我主动说忙，他自动调低，否则原来就行。"
+   */
+  busyUntil?: number;
+  /**
+   * **情绪能不能单独构成想说话的理由**（默认开）。
+   * 用户原话："他自己情绪到了，也可以发吧，应该不至于骚扰，或者你给情绪那个
+   * 加个按钮，只单独管情绪发消息这个。" → 就是这一格。
+   */
+  emotionSpeak?: boolean;
+  /** 两次主动说话至少隔多久（分钟，默认 40） */
+  wakeMinGapMin?: number;
+  /** 一天最多主动说几条（默认 8） */
+  wakeDailyMax?: number;
+  /**
+   * 表情包入库时**自动去白底**（默认开）。
+   * 白底照片存进表情库会带一块白边，看起来就不是表情包 —— 见 `lib/white-removal.ts`。
+   */
+  stickerRemoveWhite?: boolean;
   defaultModel: ModelId;
   customBaseUrl: string;
   customApiKey: string;
@@ -873,6 +920,15 @@ export type FeatureId =
     }
   /** **取一份情绪词表**（按需翻手册里那一节；只读，不改任何数据） */
   | { kind: "emotion.lexicon" }
+  /**
+   * **发一张表情包**（零参数）。
+   *
+   * 用户原话（2026-11）："他们自己就可以调用表情包，而且发的就是他的表情包格式。"
+   * 挑哪张由客户端决定（`lib/stickers.ts`：随机、避开上次那张）——
+   * 表情库在手机本地，**不把目录塞进提示词**（那是几百上千 token）。
+   * 「按情绪挑」要等"给表情打标签"那一步（下一步）。
+   */
+  | { kind: "sticker.send" }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
   | { kind: "play.gobang" }

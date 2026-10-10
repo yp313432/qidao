@@ -300,6 +300,12 @@ export const ACTION_SCHEMA = [
     fields: [],
   },
   {
+    kind: "sticker.send",
+    group: "自我",
+    summary: "发一张表情包（你决定发哪张由客户端挑）",
+    fields: [],
+  },
+  {
     kind: "memory.add",
     group: "记忆",
     summary: "记住一件事（他以后能想起来）",

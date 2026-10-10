@@ -105,6 +105,15 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
       [WAKE_KEYS.quietEnd]: String(s.wakeQuietEnd ?? 8),
       [WAKE_KEYS.promptNormal]: prompts.normal,
       [WAKE_KEYS.promptForce]: prompts.force,
+      /**
+       * 主动说话的三道闸门 + 心情快照（2026-11）。
+       * ⚠️ 这几个键**每次推配置都要一起推**：后台那段 JS 是按"抽屉里有没有"来读的，
+       * 漏掉一个就会退回默认（那还好），但 `busyUntil` 漏掉会变成"他明明在忙还在说"。
+       */
+      [WAKE_KEYS.busyUntil]: String(s.busyUntil ?? 0),
+      [WAKE_KEYS.minGapMin]: String(s.wakeMinGapMin ?? 40),
+      [WAKE_KEYS.dailyMax]: String(s.wakeDailyMax ?? 8),
+      [WAKE_KEYS.mood]: input.mood ?? "",
     };
 
     const pushed = await pushWakeConfig(data);

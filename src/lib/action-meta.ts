@@ -190,6 +190,8 @@ export function actionTitle(action: AppAction): string {
     }
     case "emotion.lexicon":
       return "取一份情绪词表看看";
+    case "sticker.send":
+      return "发一张表情包";
     case "memory.add":
       return `记住：${action.note.slice(0, 20)}`;
     case "persona.set":

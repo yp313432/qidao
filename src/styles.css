@@ -726,6 +726,33 @@ html[data-drawer-open] .glass-nav-bar {
   }
 }
 
+/*
+  分段回复：一条气泡逐条浮现（段间延迟由行内 `animationDelay` 给，见 chat-view）。
+  延迟期间靠 `both` 把元素**按起始态按住**（透明 + 下移），所以不会先闪出来再动。
+  只在"刚生成的那 20 秒内"才加这个类 —— 翻历史时消息直接是完整的，不重播。
+*/
+.bubble-in {
+  animation: bubbleIn 0.3s ease-out both;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 用户开了"减弱动态效果"就别做这个动画（同第 251 行那条总规矩） */
+@media (prefers-reduced-motion: reduce) {
+  .bubble-in {
+    animation: none;
+  }
+}
+
 /* ——— 五子棋 ———
    棋盘保持不透明（保证黑白棋子可读），但配色更柔和、边缘带一点玻璃质感。 */
 .gobang-board {

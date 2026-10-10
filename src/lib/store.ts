@@ -138,6 +138,22 @@ const defaultSettings: Settings = {
   voiceRate: 0.95,
   voicePitch: 1,
   replyStyle: "default",
+  /**
+   * 分段回复的默认值（用户可调，见 `lib/segment.ts` 与设置页「说话方式」）。
+   * 默认开：用户要的就是"像真人一样连发几条"；一句能说完的回复不会被切开
+   * （切分只在**真的出现分隔符**或**超过"每条最多几句"**时才发生）。
+   */
+  segmentReply: true,
+  segmentMaxParts: 3,
+  segmentMaxSentences: 2,
+  segmentDelayMs: 1200,
+  /** 表情包入库自动去白底（用户要的是"表情包格式"，不是白底照片） */
+  stickerRemoveWhite: true,
+  /** 主动说话：忙到什么时候（0 = 不忙）；情绪能不能单独触发；两个频率闸（默认 40 分钟 / 8 条） */
+  busyUntil: 0,
+  emotionSpeak: true,
+  wakeMinGapMin: 40,
+  wakeDailyMax: 8,
   defaultModel: "sonnet",
   customBaseUrl: "",
   customApiKey: "",
@@ -366,6 +382,15 @@ export type AppState = {
   stickers: string[];
   addSticker: (dataUrl: string) => void;
   removeSticker: (dataUrl: string) => void;
+  /**
+   * **他这一轮挑好的表情**（`sticker.send` 写、`use-chat` 收尾时读走并挂到回复上）。
+   * 只是本轮的中转：**不持久化**（不在导出的字段表里），也不会留在消息里 ——
+   * 挂完之后图就属于那条消息的 `attachments` 了。
+   */
+  replyStickerUrl?: string;
+  lastStickerUrl?: string;
+  setReplySticker: (dataUrl: string) => void;
+  takeReplySticker: () => string | undefined;
   addCustomWord: (card: Omit<WordCard, "id">) => void;
   removeCustomWord: (id: string) => void;
   addReminder: (r: { text: string; time?: string; ring?: boolean; date?: string }) => void;
@@ -959,6 +984,12 @@ export const useApp = create<AppState>()(
       removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
       addSticker: (dataUrl) => set((s) => ({ stickers: [dataUrl, ...s.stickers].slice(0, 60) })),
       removeSticker: (dataUrl) => set((s) => ({ stickers: s.stickers.filter((x) => x !== dataUrl) })),
+      setReplySticker: (dataUrl) => set({ replyStickerUrl: dataUrl, lastStickerUrl: dataUrl }),
+      takeReplySticker: () => {
+        const url = get().replyStickerUrl;
+        if (url) set({ replyStickerUrl: undefined });
+        return url;
+      },
       newChat: (opts) => {
         const id = uid("chat");
         const conv: Conversation = {

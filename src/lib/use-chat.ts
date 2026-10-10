@@ -23,9 +23,11 @@ import { useApp } from "@/lib/store";
 import { maybeSummarize } from "@/lib/summarizer";
 import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
+import { partsFor } from "@/lib/segment";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
+import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
 
 export type UseChatOpts = {
@@ -393,6 +395,17 @@ export function useChatStream(opts: UseChatOpts = {}) {
           model,
           messages: history,
           style: settings.replyStyle,
+          /**
+           * 分段回复：把"最多几条 / 每条最多几句"交给提示词（数字只有这一处来源）。
+           * 关掉时**不传** —— 那段规矩就不会出现，模型也就不会写分隔符。
+           */
+          segment:
+            settings.segmentReply === false
+              ? undefined
+              : {
+                  maxParts: settings.segmentMaxParts ?? 3,
+                  maxSentences: settings.segmentMaxSentences ?? 2,
+                },
           tools,
           customBaseUrl: settings.customBaseUrl || undefined,
           customApiKey: settings.customApiKey || undefined,
@@ -701,14 +714,41 @@ export function useChatStream(opts: UseChatOpts = {}) {
           "要继续跟他说一声就行。）";
       }
 
+      const finalText =
+        stripActions(content) ||
+        // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
+        // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
+        (thinking.trim().length > 0
+          ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
+          : "（空回复）");
+
+      /**
+       * **分段回复**：把正文切成几个气泡（见 `lib/segment.ts`）。
+       *
+       * ⚠️ `content` 照旧存**完整原文**，`parts` 只是"这条消息怎么渲染"的提示 ——
+       * 记忆 / 总结 / 导出 / 搜索 / 上下文拼装只读 `content`，所以它们一处都不用改。
+       */
+      const parts = partsFor(finalText, {
+        enabled: settings.segmentReply !== false,
+        maxParts: settings.segmentMaxParts,
+        maxSentences: settings.segmentMaxSentences,
+      });
+
+      /**
+       * 他这一轮挑好的**表情包**（`sticker.send` 写的）——挂在这条回复的附件上。
+       *
+       * 为什么挂附件而不是单发一条消息：这样它跟这句正文**属于同一条**，
+       * 渲染时天然跟在正文后面；单发一条会和"这句话"脱节。
+       */
+      const stickerUrl = useApp.getState().takeReplySticker();
+      const attachments: ChatMessage["attachments"] = stickerUrl
+        ? [{ id: uid("att"), kind: "sticker", name: "表情", mime: "image/png", size: 0, dataUrl: stickerUrl }]
+        : undefined;
+
       useApp.getState().finalizeAssistant(conversationId, messageId, {
-        content:
-          stripActions(content) ||
-          // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
-          // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
-          (thinking.trim().length > 0
-            ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
-            : "（空回复）"),
+        content: finalText,
+        parts,
+        attachments,
         thinking,
         thinkingDurationMs: Date.now() - started,
         usage,

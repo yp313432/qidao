@@ -36,9 +36,11 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * 用户原话："我给开他那么多权限，其实是希望他**主动的去用**" / "主动的感知就是知道目前的一个状态。"
  * → **70**（2026-10 加**联网**两个：`web.search` / `web.fetch`）——
  * 手机版第一次能搜网页、能读网页正文（`CapacitorHttp` 原生发请求，绕开 WebView 跨域）。
+ * → **71**（2026-11 加 `sticker.send`：他**自己发一张表情包**，用户原话
+ * "他们自己就可以调用表情包，而且发的就是他的表情包格式"）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 70;
+const EXPECTED_KIND_COUNT = 71;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。
@@ -48,8 +50,12 @@ const EXPECTED_KIND_COUNT = 70;
  * 两个都是 L0 静默写本机的东西，给他看的那道闸没有意义。
  * ⚠️ 没有权限 = **闸门直接执行、不弹卡片**（见 `action-gate.tsx`）。
  * 所以这份名单是**白名单**：多一个少一个都必须在这里明说，不许悄悄变成"免确认直接执行"。
+ *
+ * 2026-11 加 `sticker.send`：他往**自己的聊天里**发一张表情 —— 没有任何对外效果，
+ * 也不写任何别人的东西。用户明确要求"不新增一张卡片"（每次发表情都弹卡片会烦死），
+ * 所以它跟情绪那两个一样归"不需要授权"。
  */
-const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon"];
+const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon", "sticker.send"];
 const EXPECTED_PERMISSION_BOUND_COUNT = EXPECTED_KIND_COUNT - NO_PERMISSION_KINDS.length;
 
 const fails = [];

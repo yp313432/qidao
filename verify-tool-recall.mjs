@@ -98,6 +98,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["cron.add", "提醒"],
   ["emotion.report", "自我"],
   ["emotion.lexicon", "自我"],
+  ["sticker.send", "自我"],
   ["memory.add", "记忆"],
   ["persona.set", "自我"],
   ["play.gobang", "玩"],
@@ -160,10 +161,12 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * 61（P0）→ 63（加「情绪词表」那两个动作）→ 62（2026-10 旧的 `state.report`／
  * 11 维花瓣整条退场）→ 68（再加「主动感知」六个 `sense.*`：让 AI **主动**
  * 看一眼现在的状态，而不是每轮被系统塞一段）→ **70**（2026-10 再加**联网**两个
- * `web.search` / `web.fetch`：手机版第一次能搜网页、能读网页正文）。
+ * `web.search` / `web.fetch`：手机版第一次能搜网页、能读网页正文）→ **71**
+ * （2026-11 加 `sticker.send`：他自己发一张表情包，且它**常驻** —— 表情是临场的，
+ * 字面上匹配不到"表情"两个字）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 70;
+const EXPECTED_TOTAL = 71;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -414,7 +417,7 @@ async function main() {
   );
   check(
     `tool-select.ts 导出 ALL_GROUPS（${ALL_GROUPS?.length} 组）与 ALWAYS_KINDS（${ALWAYS_KINDS?.length} 个）`,
-    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 12 && ALWAYS_KINDS.length === 7,
+    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 12 && ALWAYS_KINDS.length === 8,
     j([ALL_GROUPS?.length, ALWAYS_KINDS?.length]),
   );
   const firstImport = (TOOL_SELECT_SRC.match(/^\s*import\s.*$/m) ?? [""])[0].trim();

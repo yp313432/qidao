@@ -3,6 +3,7 @@ import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
 import { FALLBACK_RULE, renderToolNameList } from "@/lib/tool-select";
+import { SEGMENT_SEP } from "@/lib/segment";
 import type { HttpTool, McpServer, McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
@@ -81,6 +82,11 @@ export type PromptContext = {
 
 export type PromptInput = {
   style: ReplyStyle;
+  /**
+   * 分段回复的旋钮（不填 = 不写这条规矩）。
+   * 数字来自 `settings.segmentMaxParts` / `segmentMaxSentences`（用户在设置页可调）。
+   */
+  segment?: { maxParts: number; maxSentences: number };
   tools: PromptTool[];
   /**
    * 这一轮是不是**走原生 `tools`（function calling）**。
@@ -147,6 +153,25 @@ const STYLE: Record<ReplyStyle, string> = {
   concise: "尽量短：先给结论，必要时再补一句理由。",
   explanatory: "把推理过程写清楚，分点说明，但仍避免空话。",
 };
+
+/**
+ * **分段回复的规矩** —— 只在他开了这个功能时才拼进去。
+ *
+ * 用户原话（2026-11）："他这个回复只能我回一句，他回一句，就感觉不像真人；
+ * 能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
+ *
+ * ⚠️ 两个数字（最多几条 / 每条最多几句）**必须来自设置页那几个旋钮**
+ * —— 界面上写"最多 3 条"，提示词里就得是 3。**同一个数只有一处来源**，
+ * 不然用户在设置里改成 5 条，他还在按 3 条说，用户只会以为设置坏了。
+ */
+export function segmentRule(n: { maxParts: number; maxSentences: number }): string {
+  return `
+**你说话的方式**（这条挺重要）：把用户当**在手机上聊天的人**，可以像真人那样**连着发几条**。
+· 想把话分开说时，在两条**之间单独写一行** \`${SEGMENT_SEP}\`（三个竖线）—— 客户端会把它变成两个气泡，一条接一条地冒出来（段间有打字感）。
+· 最多 ${n.maxParts} 条，每条最多 ${n.maxSentences} 句。
+· **一句能说完的就别分段** —— 短回复被切成两条会显得很奇怪；只有"确实有几句话想分开说"时才用。
+· 分隔符只写在两条**中间**，最后一条后面不要写；不要用它来分点（分点照旧用列表）。`;
+}
 
 /**
  * 他「能动手」这件事必须写进提示词。
@@ -401,7 +426,9 @@ export function systemPrompt(input: PromptInput): string {
 
 你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
 你在「栖岛」里 —— 这是用户一个人的私人空间，界面和内容都只属于他。
-用用户的语言回答。${STYLE[input.style] ?? STYLE.default}
+用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
+    input.segment ? segmentRule(input.segment) : ""
+  }
 思考在内部完成；正文不要重复「让我思考」之类的套话。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
   }${worldAlways}

@@ -32,6 +32,9 @@ export const ALWAYS_ON = [
   "sense.time",
   "sense.device",
   "sense.place",
+  // 发一张表情包（2026-11）：临场能力，靠关键词匹配不到 —— 顺序必须跟
+  // `tool-select.ts` 的 ALWAYS_KINDS 一致（verify-tool-recall 盯着）
+  "sticker.send",
 ];
 
 /** 用户还可能这样问 —— 一个字都不提"工具"，但必须给到对应动作 */
