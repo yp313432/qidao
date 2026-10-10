@@ -664,7 +664,12 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     case "sense.device":
       return await runSenseAction("sense.device");
     case "sense.place":
-      return await runSenseAction("sense.place");
+      /**
+       * ⚠️ 这里**要**读 `action.fresh`（`verify-action-registry.mjs` 会拿"代码真正读到的字段"
+       * 跟 schema 对账）：用户说"刷新 / 现在 / 实时"时，AI 带 `fresh: true` 才会真的重查一次；
+       * 不带就照旧走缓存（护住和风的免费额度）。
+       */
+      return await runSenseAction("sense.place", { fresh: action.fresh === true });
     case "sense.notifications":
       return await runSenseAction("sense.notifications");
     case "sense.foreground":

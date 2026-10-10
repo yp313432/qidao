@@ -131,7 +131,7 @@ async function readDevice(): Promise<Reading<DeviceFacts>> {
 }
 
 /** 我在哪 / 外面天气（复用现成的定位 + 和风那一套，不重写） */
-async function readPlace(): Promise<Reading<PlaceFacts>> {
+async function readPlace(fresh = false): Promise<Reading<PlaceFacts>> {
   const st = useApp.getState();
   if (!st.settings.geoEnabled) {
     return {
@@ -142,8 +142,13 @@ async function readPlace(): Promise<Reading<PlaceFacts>> {
     };
   }
   try {
-    // 不强制刷新：15 分钟内的天气、30 分钟内的地点直接用缓存（护住和风的免费额度）
-    const r = await refreshPlaceAndWeather(false);
+    /*
+      ⚠️ `fresh` 是 2026-11 加的（用户真机抱怨："让他刷天气跟地点全都抓的不对，缓存还是旧的，
+      也不刷新"）。以前这里**写死 false**，也就是"只读缓存"：地点 30 分钟、天气 15 分钟内
+      一律端旧的，只有设置页那个「刷新」按钮才会真查 —— AI 想"现在就查一次"是**做不到**的，
+      他只能如实告诉用户"这是缓存"。现在用户说"刷新/现在/实时"时，AI 可以带 `fresh: true`。
+    */
+    const r = await refreshPlaceAndWeather(fresh);
     if (!r.ok) return { ok: false, gap: "error", detail: r.reason };
     const live = useApp.getState().settings;
     return {
@@ -219,7 +224,10 @@ async function readScreen(): Promise<Reading<{ interactive: boolean; locked: boo
  * 感知读不到（比如没插插件）不能把整条链弄崩 —— 那里崩了的表现是
  * "他调了工具，但什么都没有回执"，正是用户最烦的那种沉默。
  */
-export async function runSenseAction(kind: SenseKind): Promise<string> {
+export async function runSenseAction(
+  kind: SenseKind,
+  opts: { fresh?: boolean } = {},
+): Promise<string> {
   try {
     switch (kind) {
       case "sense.time":
@@ -227,7 +235,7 @@ export async function runSenseAction(kind: SenseKind): Promise<string> {
       case "sense.device":
         return renderSense(senseDevice(await readDevice()));
       case "sense.place":
-        return renderSense(sensePlace(await readPlace()));
+        return renderSense(sensePlace(await readPlace(opts.fresh === true)));
       case "sense.notifications":
         return renderSense(senseNotifications(await readNotifications()));
       case "sense.foreground":

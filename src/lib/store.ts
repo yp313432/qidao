@@ -125,6 +125,10 @@ const defaultSettings: Settings = {
   manualPlace: "",
   /** 当前地点的和风编号（查天气用，省一次请求） */
   geoPlaceId: "",
+  /** 上面那个编号是**为哪串手填文字**查的（对不上就不敢用，见 types.ts 的说明） */
+  geoPlaceFor: "",
+  /** 上面那条天气是**为哪个地点查询**查的（对不上就重查） */
+  weatherFor: "",
   musicImage: "",
   diaryImage: "",
   motion: "auto",

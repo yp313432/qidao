@@ -28,6 +28,8 @@
 import { readFileSync } from "node:fs";
 
 import * as core from "./src/lib/sense-core.ts";
+import { ACTION_SCHEMA } from "./src/lib/action-schema.ts";
+import { toQWeatherFix, wgs84ToGcj02, outOfChina } from "./src/lib/coord.ts";
 
 const {
   SENSE_KINDS,
@@ -176,15 +178,46 @@ check(
     ),
   ),
 );
-/** 六个 case 各自那一小段里不许出现 action.xxx（零参数动作，读了就让注册表验收 FAIL） */
-const senseCaseBlocks = [...SENSE_KINDS].map((k) => {
-  const at = ACTIONS_SRC.indexOf(`case "${k}"`);
-  return { kind: k, body: at < 0 ? "" : ACTIONS_SRC.slice(at, at + 120) };
-});
+/**
+ * 取 `actions.ts` 里某个 case 的**完整分支体**（从 `case "x":` 到下一个 `case "` 为止）。
+ *
+ * ⚠️ 以前这里是**硬切 120 个字符** —— `sense.place` 后来多了一段注释就切不全了，
+ * 于是"每个 case 都转给了 runSenseAction"这条**假红**了（代码没问题）。
+ * 按"下一个 case"来切才稳。
+ */
+const caseBody = (src, kind) => {
+  const at = src.indexOf(`case "${kind}"`);
+  if (at < 0) return "";
+  const rest = src.slice(at + 1);
+  const next = rest.search(/\n\s*case "/);
+  return next < 0 ? rest : rest.slice(0, next);
+};
+const senseCaseBlocks = [...SENSE_KINDS].map((k) => ({ kind: k, body: caseBody(ACTIONS_SRC, k) }));
+
+/** 某个 kind 在 schema 里声明过的字段名 */
+const declaredFields = (kind) =>
+  (ACTION_SCHEMA.find((d) => d.kind === kind)?.fields ?? []).map((f) => f.name);
+
+/*
+  ⚠️ 2026-11 改了这条断言（原来是"六个 case 一律不许出现 action.xxx"）：
+  `sense.place` 现在**合法地**读 `action.fresh`（用户要"刷新一下"，见 action-schema 里的 note）。
+  所以真正要保的规矩是「**读的字段必须在 schema 里声明过**」——
+  直接对着真 schema 查，而不是拿源码文本猜；这样以后再加合法参数也不会假红。
+*/
 check(
-  "六个 case 都不读 action.*（读了 schema 里没声明的字段，注册表验收会直接 FAIL）",
-  senseCaseBlocks.every((b) => b.body && !/action\s*\./.test(b.body.replace(/case "[^"]+":/, ""))),
-  j(senseCaseBlocks.filter((b) => /action\s*\./.test(b.body)).map((b) => b.kind)),
+  "sense.* 里读到的每个 action.xxx 都在 schema 里声明过（合法参数才允许读）",
+  senseCaseBlocks.every((b) =>
+    [...b.body.matchAll(/action\.([A-Za-z_][A-Za-z0-9_]*)/g)].every((m) =>
+      declaredFields(b.kind).includes(m[1]),
+    ),
+  ),
+  j(
+    senseCaseBlocks.map((b) => ({
+      kind: b.kind,
+      fields: [...b.body.matchAll(/action\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]),
+      declared: declaredFields(b.kind),
+    })),
+  ),
 );
 check(
   "每个 sense case 都真的转给了 runSenseAction（不是空壳）",
@@ -817,6 +850,54 @@ check(
   !/sense\.(time|device|place|notifications|foreground|screen)/.test(perceptionBlockSrc),
   "perceptionBlock 里出现了 sense.* —— 那就变成每轮自动塞了",
 );
+
+/* ═══════════════ 【H】坐标系：境内 WGS-84 → GCJ-02，境外不动 ═══════════════ */
+
+console.log(
+  "\n【H】坐标系：和风文档说大陆用 GCJ-02，而系统定位/IP 给的是 WGS-84 —— 交出去之前必须转",
+);
+
+{
+  // 天安门附近的 WGS-84（GPS 原始值）
+  const bj = wgs84ToGcj02(39.908722, 116.397499);
+  const dLat = bj.lat - 39.908722;
+  const dLon = bj.lon - 116.397499;
+  check(
+    "北京：会转换，且偏移量落在合理区间（纬度 +0.0005~0.004，经度 +0.003~0.010）",
+    bj.converted && dLat > 0.0005 && dLat < 0.004 && dLon > 0.003 && dLon < 0.01,
+    `偏移 Δlat=${dLat.toFixed(6)} Δlon=${dLon.toFixed(6)}`,
+  );
+
+  // 东京：境外，必须原样返回（文档说境外用 WGS-84）
+  const tk = wgs84ToGcj02(35.6812, 139.7671);
+  check(
+    "境外（东京）：原样返回、不转换（转了就是往错误方向修）",
+    tk.converted === false && tk.lat === 35.6812 && tk.lon === 139.7671,
+    j(tk),
+  );
+
+  check(
+    "outOfChina 判据跟转换一致（境内 false / 境外 true）",
+    outOfChina(39.9, 116.4) === false && outOfChina(35.68, 139.76) === true,
+  );
+
+  check(
+    "脏数据不崩（NaN / 越界值都原样返回）",
+    (() => {
+      const a = wgs84ToGcj02(Number.NaN, 1);
+      const b = wgs84ToGcj02(999, 999);
+      return a.converted === false && b.converted === false;
+    })(),
+  );
+
+  check(
+    "交给和风用的是同一个函数（toQWeatherFix）—— 免得有人绕过转换直接查",
+    (() => {
+      const a = toQWeatherFix(39.908722, 116.397499);
+      return a.converted === true && Math.abs(a.lat - bj.lat) < 1e-12;
+    })(),
+  );
+}
 
 /* ══════════════════════════ 收尾 ══════════════════════════ */
 

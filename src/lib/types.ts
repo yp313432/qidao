@@ -401,6 +401,30 @@ export type Settings = {
   geoLabel?: string;
   /** 什么时候拿到的 */
   geoAt?: number;
+  /**
+   * `geoLabel` 是**哪条路**来的（"system" = 系统定位，"ip" = 按 IP 认的城市）。
+   *
+   * 为什么要记（2026-11 真机 bug）：IP 只能给到城市级、而且经常认错（用户人在河北，
+   * IP 库把他认成海南）。原来它和系统定位**共用同一个 30 分钟缓存**，于是一次 IP 失败
+   * 就把好地点覆盖掉、并且**粘住半小时**（用户："我点刷新还是刷到了海南"）。
+   * 现在按来源分开算新鲜度（见 where-am-i.ts 的 IP_PLACE_TTL）。
+   */
+  geoSource?: "system" | "ip";
+  /**
+   * `geoPlaceId` 是**为哪个手填地点**查出来的。
+   *
+   * 为什么要这个（2026-11 真机 bug）：原来只有 `geoPlaceId`，谁留下的都分不清 ——
+   * 用户在手填框里换了地方，代码仍然拿**上一个地方**的和风编号去查天气，
+   * 表现就是"名字变了、天气没变"。现在编号必须跟"它是为哪串文字查的"对得上才敢用。
+   */
+  geoPlaceFor?: string;
+  /**
+   * `weatherText` 是**为哪个查询**查出来的（和风 id 或「经度,纬度」）。
+   *
+   * 同一个 bug 的另一半：天气缓存原来只按"15 分钟内"判新鲜，不认地点 ——
+   * 换个地方点刷新，15 分钟内照样把旧天气端出来。现在查询对不上就重查。
+   */
+  weatherFor?: string;
   quotaAlerts: boolean;
   diaryReminders: boolean;
   /** 日记提醒时间，形如 "21:00" */
@@ -955,7 +979,7 @@ export type FeatureId =
    */
   | { kind: "sense.time" }
   | { kind: "sense.device" }
-  | { kind: "sense.place" }
+  | { kind: "sense.place"; /** true = 现在就真查一次（跳过缓存）；给用户说"刷新/实时"时用 */ fresh?: boolean }
   | { kind: "sense.notifications" }
   | { kind: "sense.foreground" }
   | { kind: "sense.screen" };

@@ -11,6 +11,8 @@
  */
 import { IS_APP } from "@/lib/platform";
 import { senseDiag } from "@/lib/sense-bridge";
+import { useApp } from "@/lib/store";
+import { weatherConfigured } from "@/lib/qweather";
 
 export type EnvStatus = "ok" | "warn" | "no";
 
@@ -22,7 +24,11 @@ export type EnvItem = {
   /** 用不了的话，怎么才能用 */
   fix?: string;
   /** 能一键跳的话跳哪儿（特殊权限那两级菜单各家 ROM 不一样，给按钮最省事） */
-  action?: { label: string; kind: "notifications" | "foreground" };
+  action?: {
+    label: string;
+    /** `locateProbe` = 在那一条下面就地跑一遍定位自检（结果贴在那一项里） */
+    kind: "notifications" | "foreground" | "locateProbe";
+  };
 };
 
 const HTTPS_HINT =
@@ -269,6 +275,24 @@ export async function collectEnv(): Promise<EnvItem[]> {
         action: diag.usageGranted ? undefined : { label: "去开「使用情况访问」", kind: "foreground" as const },
       });
     }
+  }
+
+  /* ---------- 7.7 定位是怎么来的（点一下才真跑，别拖慢这页） ---------- */
+  {
+    const s = useApp.getState().settings;
+    const manual = (s.manualPlace ?? "").trim();
+    items.push({
+      id: "locate-probe",
+      label: "定位是从哪儿来的",
+      status: s.geoEnabled ? (manual ? "warn" : "ok") : "warn",
+      detail: [
+        s.geoEnabled ? "定位开关开着" : "定位开关**关着**",
+        manual ? `手填地点「${manual}」—— 它优先级最高，会盖住实时定位` : "没填手动地点（走实时定位）",
+        weatherConfigured() ? "天气服务已配" : "天气服务**没配**（坐标翻不成地名）",
+        "点右边的按钮，每一步都真跑一遍（系统定位 / 反查 / 三家 IP 各给了什么）",
+      ].join("；"),
+      action: { label: "跑一遍定位自检", kind: "locateProbe" as const },
+    });
   }
 
   /* ---------- 8. Service Worker / 离线 / 推送 ---------- */

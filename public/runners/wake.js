@@ -172,12 +172,11 @@ function kvSet(key, value) {
  * 都先过一遍"（上游偶尔会把 key 回显进正文），而这里原来漏了这一步 ——
  * 顺手补上，正好也让"通知上那句"跟"交给会话那句"逐字一致。
  *
- * ⚠️ `smallIcon` 是**资源名**（`res/drawable` 里的文件名，不带扩展名），
- * 由 `scripts/make-notification-icon.py` 生成。不传的后果是系统那个 ⓘ 图标；
- * 传一个不存在的名字**也一样**（插件的 `Notifications.kt` 解析不到就退回默认），
- * 所以这个名字改不得、也别删。
+ * ⚠️ **不传 `smallIcon`**（2026-11 用户定的口径）：荣耀/华为会把"自定义的小图标"
+ * 单独画在通知右边，而别的 App 右边什么都没有 —— 用户要的是"跟其他通知一样"。
+ * 要恢复自定义图标，就在下面 `n` 里加 `smallIcon: "ic_stat_qidao"`（那张图还在包里）。
  * 这条路**只有小图标**：`Notifications.kt` 里压根没有大图标（没有 setLargeIcon），
- * 想给后台这条通知加头像/大图是做不到的 —— 别在这上面浪费时间。
+ * 所以"给后台这条通知加大图/头像"是做不到的 —— 别在这上面浪费时间。
  */
 function notify(id, title, body, actionTypeId) {
   try {
@@ -185,7 +184,6 @@ function notify(id, title, body, actionTypeId) {
       id: id,
       title: maskSecrets(title),
       body: maskSecrets(body),
-      smallIcon: "ic_stat_qidao",
     };
     if (actionTypeId) n.actionTypeId = actionTypeId;
     CapacitorNotifications.schedule([n]);

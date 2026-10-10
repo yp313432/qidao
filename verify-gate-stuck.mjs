@@ -65,6 +65,12 @@ registerHooks({
 
 const { runGuarded, GATE_RUN_TIMEOUT_MS } = await import("./src/lib/gate-run.ts");
 const { looksRefused } = await import("./src/lib/tool-loop.ts");
+const {
+  WEB_FETCH_DEFAULTS,
+  WEB_SEARCH_BUDGET_MS,
+  WEB_SEARCH_PER_ENDPOINT_MS,
+  NATIVE_HTTP_HARD_MS,
+} = await import("./src/lib/web-http.ts");
 
 let passed = 0;
 const failures = [];
@@ -120,6 +126,33 @@ check(
   String(GATE_RUN_TIMEOUT_MS),
 );
 
+/*
+  ⚠️ **保险丝必须比"动作层自己声明的最坏耗时"更长。**
+  2026-11 真机上就是这一条被违反了：网页搜索依次试两个地址、每地址 12 秒（最坏 24 秒），
+  而保险丝是 20 秒 → 动作还在正常跑，保险丝先响，用户看到的一律是"超时"。
+  这类"两个数字各自都合理、凑一起就错"的 bug，只有断言能拦住。
+*/
+check(
+  "保险丝 > 搜网页的总预算（不然动作还在跑，保险丝先响 —— 真机栽过）",
+  GATE_RUN_TIMEOUT_MS > WEB_SEARCH_BUDGET_MS + 1000,
+  `保险丝 ${GATE_RUN_TIMEOUT_MS}ms vs 搜索总预算 ${WEB_SEARCH_BUDGET_MS}ms`,
+);
+check(
+  "保险丝 > 取网页的单次上限 + 原生硬兜底",
+  GATE_RUN_TIMEOUT_MS > WEB_FETCH_DEFAULTS.timeoutMs + NATIVE_HTTP_HARD_MS + 1000,
+  `保险丝 ${GATE_RUN_TIMEOUT_MS}ms vs ${WEB_FETCH_DEFAULTS.timeoutMs}ms + ${NATIVE_HTTP_HARD_MS}ms`,
+);
+check(
+  "搜网页：总预算 ≥ 单地址上限（不然第二个地址永远轮不到）",
+  WEB_SEARCH_BUDGET_MS >= WEB_SEARCH_PER_ENDPOINT_MS,
+  `${WEB_SEARCH_BUDGET_MS}ms vs ${WEB_SEARCH_PER_ENDPOINT_MS}ms`,
+);
+check(
+  "搜网页：最坏耗时 ≤ 20 秒（一轮对话里不能让人等太久）",
+  WEB_SEARCH_BUDGET_MS <= 20_000,
+  `${WEB_SEARCH_BUDGET_MS}ms`,
+);
+
 /** 超时之后才抛的：不许变成"未处理的拒绝"（在 WebView 里那种东西只会安静地烂掉） */
 let unhandled = 0;
 const onUnhandled = () => {
@@ -143,7 +176,6 @@ check(
 );
 
 /* ───────────── 【B】那两句话必须被 loop 认成「没做成」 ───────────── */
-
 console.log("\n【B】闸门那两句到了 tool-loop 手里，必须算「没做成」（否则界面自相矛盾）");
 
 check("超时那句 → looksRefused = true", looksRefused(hangRun.message) === true, hangRun.message);
@@ -181,6 +213,12 @@ if (REVERSE) {
     new Promise((r) => setTimeout(() => r("hung"), 400)),
   ]);
   revCheck("卡住这条应当被判定为失败", bareHang === "returned");
+
+  /** 同一套"两个数字凑一起就错"的反向验证：把保险丝设得比动作层还短，必须被抓住 */
+  revCheck(
+    "保险丝比动作层最坏耗时还短时，应当被判定为失败",
+    GATE_RUN_TIMEOUT_MS > WEB_SEARCH_BUDGET_MS + 1000 && 1000 > WEB_SEARCH_BUDGET_MS + 1000,
+  );
 
   const wentRed = revFailures.length > 0;
   console.log(

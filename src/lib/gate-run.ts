@@ -22,8 +22,17 @@
  * 而不是"已经做好了"——措辞在下面，别改成乐观的说法。
  */
 
-/** 一笔动作最长等多久（超过就记账"没拿到结果"，让队列继续走） */
-export const GATE_RUN_TIMEOUT_MS = 20_000;
+/**
+ * 一笔动作最长等多久（超过就记账"没拿到结果"，让队列继续走）。
+ *
+ * ⚠️ **这个数必须比"动作层自己声明的最坏耗时"更长**，否则保险丝会在动作还正常跑的时候
+ * 先响 —— 2026-11 真机就是这样：`web.search` 要依次试两个地址（cn.bing.com → www.bing.com），
+ * 每地址 12 秒 = 最坏 24 秒，而当时这里是 20 秒 → 用户看到的全是"超时"，其实人家还在跑。
+ * 现在动作层把最坏耗时压到了 14 秒内（见 `web-http.ts` 的 WEB_SEARCH_BUDGET_MS），
+ * 这里留 45 秒的余量。**改动任一侧都要同时看另一侧** —— `verify-gate-stuck.mjs` 里
+ * 有一条断言专门盯这个关系（保险丝必须 > 动作层最坏耗时）。
+ */
+export const GATE_RUN_TIMEOUT_MS = 45_000;
 
 export type GuardedRun =
   | { ok: true; message: string }
@@ -63,7 +72,7 @@ export async function runGuarded(
         kind: "timeout",
         /**
          * 措辞里带"没有结果"是**故意的**：`tool-loop.ts` 的 `looksRefused()` 靠它
-         * 认出"这笔记的是没做成"，界面上才不会出现 `✅ 等了 20 秒没有结果`这种自相矛盾。
+         * 认出"这笔记的是没做成"，界面上才不会出现 `✅ 等了 45 秒没有结果`这种自相矛盾。
          */
         message: `等了 ${Math.round(timeoutMs / 1000)} 秒没有结果，这次没执行完 —— 别当成已经做了。`,
       };
@@ -71,7 +80,7 @@ export async function runGuarded(
     /** 措辞里带"失败"同理（`looksRefused` 认它） */
     return { ok: false, kind: "error", message: `执行时报错了（这次失败）：${r.message}` };
   } finally {
-    /** 清掉计时器：不让一个已经没人等的 20 秒定时器拖着（验收脚本里会因此白等 20 秒） */
+    /** 清掉计时器：不让一个已经没人等的定时器拖着（验收脚本里会因此白等那么久） */
     if (timer !== undefined) clearTimeout(timer);
   }
 }

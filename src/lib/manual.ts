@@ -177,10 +177,15 @@ const EMOTION_POINTER = `【情绪（新词表）】
  *    每轮都变、把前缀缓存全打掉（见 `prompt.ts` 那段说明）。
  */
 const SENSE_POINTER = `【你可以主动看一眼现在的状态（不必等他问）】
-· 六个动作，调用就"看一眼"，**零参数**：\`sense.time\` 现在几点 / 今天周几 →
+· 六个动作，调用就"看一眼"（只有 \`sense.place\` 带一个可选参数 \`fresh\`，其余零参数）：
+  \`sense.time\` 现在几点 / 今天周几 →
   \`sense.device\` 电量、充没充电、WiFi 还是流量 → \`sense.place\` 我在哪、外面天气 →
   \`sense.notifications\` 最近几条通知 → \`sense.foreground\` 当前前台是哪个 App →
   \`sense.screen\` 屏幕亮着没、锁没锁。
+· ⚠️ \`sense.place\` 的 \`fresh\`：**默认别带** —— 那时读的是缓存（天气 15 分钟、地点 30 分钟，
+  这是护住天气服务免费额度的设计，也是"看一眼"该有的成本）。他明确说
+  「刷新一下」「现在在哪」「实时的」「重新定个位」时**才带 \`fresh: true\`**，那会真的重新定位一次
+  （慢几秒；室内可能失败）。失败就如实说"这次没查成"，**不许**把缓存的旧地点说成刚查的。
 · 结果是**一行 JSON**：既有结构化字段（battery / charging / network / place / weather…），
   也有一句 \`summary\` —— 照着 summary 说人话就行。
 · 什么时候用：他说"现在几点了""外面下雨了吗""我刚才是不是有通知"，

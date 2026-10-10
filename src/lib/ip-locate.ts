@@ -1,4 +1,5 @@
 import { useApp } from "@/lib/store";
+import { toQWeatherFix } from "@/lib/coord";
 import { reversePlace } from "@/lib/qweather";
 
 /**
@@ -39,9 +40,58 @@ import { reversePlace } from "@/lib/qweather";
 
 type Fix = { lat: number; lon: number; city?: string };
 
+/** 一家 IP 服务这次的作答（自检用：谁给了什么、谁没给、为什么） */
+export type IpAttempt = {
+  name: string;
+  ok: boolean;
+  lat?: number;
+  lon?: number;
+  city?: string;
+  why?: string;
+  ms: number;
+};
+
+/** 挨家问一遍，**把所有尝试都记下来**（给「环境自检」看是哪家认的城市） */
+export async function probeIpProviders(timeoutMs = 6000): Promise<IpAttempt[]> {
+  const providers: { name: string; url: string; pick: (j: unknown) => Fix | null }[] = ipProviders();
+  const out: IpAttempt[] = [];
+  for (const p of providers) {
+    const t0 = Date.now();
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      const res = await fetch(p.url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) {
+        out.push({ name: p.name, ok: false, why: `HTTP ${res.status}`, ms: Date.now() - t0 });
+        continue;
+      }
+      const fix = p.pick(await res.json());
+      out.push(
+        fix
+          ? { name: p.name, ok: true, lat: fix.lat, lon: fix.lon, city: fix.city, ms: Date.now() - t0 }
+          : { name: p.name, ok: false, why: "返回里没有坐标", ms: Date.now() - t0 },
+      );
+    } catch (e) {
+      const why = e instanceof Error ? (e.name === "AbortError" ? "超时" : e.message) : "失败";
+      out.push({ name: p.name, ok: false, why, ms: Date.now() - t0 });
+    }
+  }
+  return out;
+}
+
 /** 挨家问，谁先给出坐标用谁 */
 async function askProviders(): Promise<Fix | null> {
-  const providers: { name: string; url: string; pick: (j: unknown) => Fix | null }[] = [
+  const attempts = await probeIpProviders();
+  const hit = attempts.find((a) => a.ok);
+  return hit && hit.lat !== undefined && hit.lon !== undefined
+    ? { lat: hit.lat, lon: hit.lon, city: hit.city }
+    : null;
+}
+
+/** 三家候选（顺序就是尝试顺序：谁先给出坐标用谁） */
+function ipProviders(): { name: string; url: string; pick: (j: unknown) => Fix | null }[] {
+  return [
     {
       name: "ipwho.is",
       url: "https://ipwho.is/",
@@ -75,21 +125,6 @@ async function askProviders(): Promise<Fix | null> {
       },
     },
   ];
-
-  for (const p of providers) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
-      const res = await fetch(p.url, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const fix = p.pick(await res.json());
-      if (fix) return fix;
-    } catch {
-      // 这家不行（可能又是 CORS），试下一家
-    }
-  }
-  return null;
 }
 
 /** 认城市：先拿坐标，再让和风反查中文地名；和风搜不动才退回英文城市名 */
@@ -105,7 +140,9 @@ export async function locateByIp(): Promise<
   }
 
   // 优先：坐标 → 和风反查中文地名
-  const rev = await reversePlace(fix.lat, fix.lon);
+  // ⚠️ IP 服务给的是 **WGS-84**，和风文档说大陆要 **GCJ-02** → 先转再查（见 lib/coord.ts）
+  const fixGcj = toQWeatherFix(fix.lat, fix.lon);
+  const rev = await reversePlace(fixGcj.lat, fixGcj.lon);
   if (rev.ok) return { ok: true, label: rev.label };
 
   // 退回英文城市名（和风搜不动时至少别空手）

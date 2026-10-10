@@ -1,4 +1,5 @@
 import { IS_APP } from "@/lib/platform";
+import { toQWeatherFix } from "@/lib/coord";
 import { reversePlace, weatherConfigured } from "@/lib/qweather";
 import { useApp } from "@/lib/store";
 
@@ -168,7 +169,14 @@ async function locateOnce(): Promise<PlaceResult> {
     if (!coords) return { ok: false, reason: "定位失败，或者你拒绝了浏览器的定位请求" };
   }
 
-  const geo = await reverseGeocode(coords.latitude, coords.longitude);
+  /*
+    ⚠️ 坐标系：到这里的坐标是 **WGS-84**（系统定位给的原始 GPS），
+    而和风文档明说大陆要用 **GCJ-02** —— 所以反查地名之前必须先转（见 lib/coord.ts）。
+    不转的后果是差几十~几百米，边界附近会反查到隔壁区/市（用户："抓的不对"）。
+    以后接了高德：那条路本来就是 GCJ-02，**不要**经过这里。
+  */
+  const fix = toQWeatherFix(coords.latitude, coords.longitude);
+  const geo = await reverseGeocode(fix.lat, fix.lon);
   if (!geo.ok) {
     // 坐标拿到了，只是翻译地名失败 —— **分开报**，用户才知道卡在哪一步
     return { ok: false, reason: geo.reason };

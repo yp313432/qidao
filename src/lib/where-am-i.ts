@@ -31,6 +31,15 @@ import { useApp } from "@/lib/store";
 export const WEATHER_TTL = 15 * 60_000;
 /** 自动定位的地点多久算新鲜 */
 export const PLACE_TTL = 30 * 60_000;
+/**
+ * **按 IP 认的城市只算"临时兜底"**：5 分钟。
+ *
+ * 为什么单独一个更短的：2026-11 真机 —— 用户人在河北，一次系统定位失败退到 IP，
+ * IP 库把他认成海南；而它和系统定位共用 30 分钟缓存，于是**整整半小时都显示海南**，
+ * 刷新也没用（用户："我点刷新还是刷到了海南"）。IP 是城市级、又常认错，
+ * 不配占用那 30 分钟。
+ */
+export const IP_PLACE_TTL = 5 * 60_000;
 
 /**
  * **这个地点是哪来的** —— 主动感知（`sense.place`）要把它一起报给 AI。
@@ -61,16 +70,38 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
   let locQuery: string | null = null;
   /** 这个地点是哪来的（`sense.place` 会把它一起报出去） */
   let source: PlaceSourceKind = "cache";
+  /** 额外要如实说的一句（例如"实时定位没成，先用你手填的"）—— 有就带回给界面和 AI */
+  let note: string | undefined;
 
   /* ---------------- 第 1 步：定地点 ---------------- */
 
-  if (manual && manual.ok) {
+  /** 手填的那份（`force` 时它只当**兜底**，不再无条件优先 —— 见下面「刷新」的语义） */
+  const manualText = manual && manual.ok ? manual.label : "";
+
+  /*
+    ⚠️ 「刷新」的语义（2026-11 用户实测逼出来的）：他说"点刷新还是刷到了海南"。
+    原来手填地点**无条件优先**，连 `force = true`（设置页那个「刷新」按钮、
+    AI 带 `fresh:true`）也绕不过去 —— 那个按钮等于假的。
+    现在：**带了 force 就真去定位一次**，只有实时这条路全断了才退回手填的（并如实说明）。
+  */
+  if (manualText && !force) {
     // 手动填的：直接用，不查任何服务
-    label = manual.label;
+    label = manualText;
     source = "manual";
-    // 手动地点也有和风编号（第一次查完就存下了）
-    locQuery = s.geoPlaceId || null;
-  } else if (!force && s.geoLabel && s.geoAt && now - s.geoAt < PLACE_TTL) {
+    /*
+      ⚠️ 这里原来写的是 `locQuery = s.geoPlaceId || null` —— **真机 bug 的根**：
+      那个编号可能是**上一个地方**留下的。用户在手填框里换了个地点，它照样拿旧编号
+      去查天气 → 界面名字是他新填的、天气是旧地方的（"我填哪天气都一样"）。
+      现在编号必须"就是为这串文字查出来的"才敢复用。
+    */
+    locQuery = s.geoPlaceFor && s.geoPlaceFor === manualText ? s.geoPlaceId || null : null;
+  } else if (
+    !force &&
+    s.geoLabel &&
+    s.geoAt &&
+    // ⚠️ IP 来的地点只当 5 分钟的临时兜底（见 IP_PLACE_TTL 的说明），别拿它糊住半小时
+    now - s.geoAt < (s.geoSource === "ip" ? IP_PLACE_TTL : PLACE_TTL)
+  ) {
     // 缓存还新鲜
     label = s.geoLabel;
     source = "cache";
@@ -104,37 +135,66 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
         geoLabel: sys.label,
         geoAt: now,
         ...(sys.placeId ? { geoPlaceId: sys.placeId } : {}),
+        // 这条编号不是"为某串手填文字"查的 —— 清掉标记，免得被手填那条路复用
+        geoPlaceFor: "",
+        // 来源要记：IP 来的地点只算 5 分钟临时兜底（见 IP_PLACE_TTL）
+        geoSource: "system",
       });
     } else {
       const ip = await locateByIpCached();
       if (!ip.ok) {
-        return {
-          ok: false,
-          reason:
-            `${sys.reason}\n\n` +
-            `按 IP 也没认出城市（${ip.reason}）。\n` +
-            `最省事的办法：在上面「你常待的地方」填一个，比如「北京市朝阳区」` +
-            `—— 那样不用定位、不用网络，点刷新立刻就出天气。`,
-        };
+        /**
+         * 实时这条路全断了。**这时候才退回手填的那份**（它本来就是"不依赖任何服务"的兜底），
+         * 而且必须说清是兜底 —— 不能让用户以为这就是实时定位的结果。
+         */
+        if (manualText) {
+          label = manualText;
+          source = "manual";
+          locQuery = null; // 交给下面第 2 步去搜一次编号
+          note = `实时定位这次没成（${sys.reason}），先用你手填的「${manualText}」`;
+        } else {
+          return {
+            ok: false,
+            reason:
+              `${sys.reason}\n\n` +
+              `按 IP 也没认出城市（${ip.reason}）。\n` +
+              `最省事的办法：在上面「你常待的地方」填一个，比如「北京市朝阳区」` +
+              `—— 那样不用定位、不用网络，点刷新立刻就出天气。`,
+          };
+        }
+      } else {
+        label = ip.label;
+        source = "ip";
+        // IP 只给到城市，还得搜一次拿和风的编号
+        const sres = await searchPlace(ip.label);
+        if (!sres.ok) {
+          return { ok: false, reason: `按 IP 认出「${ip.label}」，但和风查不到这个地方：${sres.reason}` };
+        }
+        const p = sres.places[0]!;
+        locQuery = p.id;
+        label = niceLabel(p) || ip.label;
+        st.patchSettings({
+          geoLabel: label,
+          geoAt: now,
+          geoPlaceId: p.id,
+          geoPlaceFor: "",
+          // ⚠️ 标成 ip：它只值 5 分钟（这一条就是"海南粘住半小时"的修复）
+          geoSource: "ip",
+        });
       }
-      label = ip.label;
-      source = "ip";
-      // IP 只给到城市，还得搜一次拿和风的编号
-      const sres = await searchPlace(ip.label);
-      if (!sres.ok) {
-        return { ok: false, reason: `按 IP 认出「${ip.label}」，但和风查不到这个地方：${sres.reason}` };
-      }
-      const p = sres.places[0]!;
-      locQuery = p.id;
-      label = niceLabel(p) || ip.label;
-      st.patchSettings({ geoLabel: label, geoAt: now, geoPlaceId: p.id });
     }
   }
 
   /* ---------------- 没有和风：地点有了就行 ---------------- */
 
   if (!weatherConfigured()) {
-    return { ok: true, label, weather: null, source, note: "没配和风天气，所以只有地点、没有天气" };
+    return {
+      ok: true,
+      label,
+      weather: null,
+      source,
+      note: note ?? "没配和风天气，所以只有地点、没有天气",
+    };
   }
 
   /* ---------------- 第 2 步：拿地点 id ---------------- */
@@ -148,26 +208,45 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
     const p = sres.places[0]!;
     locQuery = p.id;
     const nice = niceLabel(p);
-    st.patchSettings({ geoPlaceId: p.id, geoLabel: nice || label, geoAt: now });
+    // ⚠️ 一起记下"这个编号是为哪串文字查的" —— 下次只有文字没变才敢复用（见文件头那个 bug）
+    st.patchSettings({ geoPlaceId: p.id, geoPlaceFor: manual.label, geoLabel: nice || label, geoAt: now });
     if (nice) label = nice;
   }
 
   if (!locQuery) {
-    return { ok: true, label, weather: null, source, note: "有地点但拿不到它的编号，天气没查" };
+    return {
+      ok: true,
+      label,
+      weather: null,
+      source,
+      note: note ?? "有地点但拿不到它的编号，天气没查",
+    };
   }
 
   /* ---------------- 第 3 步：查天气（带缓存）---------------- */
 
-  if (!force && s.weatherText && s.weatherAt && now - s.weatherAt < WEATHER_TTL) {
-    return { ok: true, label, weather: s.weatherText, source };
+  /*
+    ⚠️ 缓存必须**跟地点绑定**：原来只判"15 分钟内"，于是换个地方点刷新照样端出旧天气
+    （真机表现："我填哪天气都一样"）。现在 `weatherFor` 跟当前查询对不上就重查。
+    `force`（用户说"刷新/现在就查"）则连这个都跳过。
+  */
+  if (
+    !force &&
+    s.weatherText &&
+    s.weatherAt &&
+    s.weatherFor === locQuery &&
+    now - s.weatherAt < WEATHER_TTL
+  ) {
+    return { ok: true, label, weather: s.weatherText, source, ...(note ? { note } : {}) };
   }
 
   const w = await weatherNow(locQuery);
   if (!w.ok) return { ok: false, reason: w.reason };
 
   const line = weatherLine(w.now);
-  st.patchSettings({ weatherText: line, weatherAt: Date.now() });
-  return { ok: true, label, weather: line, source };
+  // 一起记下"这条天气是为哪个查询查的" —— 下次只有查询没变才敢当缓存用
+  st.patchSettings({ weatherText: line, weatherAt: Date.now(), weatherFor: locQuery });
+  return { ok: true, label, weather: line, source, ...(note ? { note } : {}) };
 }
 
 /** 「省+市+区」拼一个给人看的地名（跟 qweather.ts 里的规则一致） */

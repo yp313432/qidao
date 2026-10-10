@@ -13,28 +13,29 @@
 import { IS_APP } from "@/lib/platform";
 
 /**
- * 通知用的两个图标 —— **名字就是 `res/drawable` 里的文件名（不带扩展名）**。
+ * ⚠️ **通知里不自定义图标** —— 这是用户 2026-11 定的口径（原话：
+ * "小图标那个你就复原形了，就跟其他通知一样，右边不单独画就行了"）。
  *
- * ⚠️ 三个坑（都读过插件源码，不是猜的）：
- *   1. 名字写错**不报错**，插件解析不到就退回 `android.R.drawable.ic_dialog_info`
- *      （系统自带那个 ⓘ）—— 表现是"通知上还是原来那个图标"，查半天查不出来。
- *      原来这里写的是 `ic_stat_icon_config_sample`（插件 README 的示例名），
- *      **仓库里根本没有这个资源**，所以一直显示的是系统图标。
- *   2. `largeIcon` **只认资源名，不认文件路径**：插件里是
- *      `AssetUtil.getResourceID(名字, "drawable")` → `decodeResource`，
- *      给 `/data/…/avatar.png` 会被取 basename 后查不到 → 大图标空着。
- *      所以大图标只能用**打进包里的图**，跟着头像变那条路在插件层走不通。
- *   3. 别想着在 `capacitor.config.ts` 的 `plugins.LocalNotifications` 里配默认值 ——
- *      这一版插件的 `getDefaultSmallIcon()` 读的是 `bridge.config.getString("smallIcon")`，
- *      也就是**根级**配置，`plugins.` 那一层它不读（配了也不会生效，纯静默无效）。
- *      所以每一处 `schedule()` 都必须显式带上。
+ * 为什么这么定：荣耀/华为把**自定义的小图标**单独画在通知右边，而别的 App
+ * （不自定义、用系统默认那套）右边什么都没有 —— 用户要的是"跟其他通知一样"。
  *
- * 图片由 `scripts/make-notification-icon.py` 生成（小图标是重画的单色剪影：
- * 安卓只留 alpha 再染色，彩色进去会变白块；且实际只显示 24dp，细节全丢）。
- * 改图标 = 改那个脚本再跑一遍，别手改 PNG。
+ * ── 这一块踩过的坑（别再犯，也别再照着旧代码改回去）────────────
+ *   1. **名字写错不报错**：插件解析不到就退回 `android.R.drawable.ic_dialog_info`
+ *      （系统那个 ⓘ）。原来这里写的 `ic_stat_icon_config_sample` 是插件 README 的
+ *      示例名，仓库里**根本没有这个资源** —— 所以一直显示的是系统图标。
+ *   2. ⚠️ **现在完全不传时，插件照样会兜底成那个 ⓘ**（它内部一定调 setSmallIcon）。
+ *      也就是说"不自定义"未必等于"右边什么都没有" —— 装上后要看一眼：
+ *      如果右边冒出灰圈 ⓘ，那就得换个办法（自建通知口子才行）。
+ *   3. `largeIcon` **只认资源名、不认文件路径**（插件里是
+ *      `AssetUtil.getResourceID(名字, "drawable")` → `decodeResource`）——
+ *      所以"大图标跟着头像换"那条路在插件层走不通，别试。
+ *   4. 别指望在 `capacitor.config.ts` 的 `plugins.LocalNotifications` 里配默认值：
+ *      这一版插件读的是**根级**配置（`plugins.` 那层不读），配了纯静默无效。
+ *
+ * 那张单色剪影（`ic_stat_qidao`）和彩图（`ic_notif_large`）**还在 res 里留着备用**，
+ * 由 `scripts/make-notification-icon.py` 生成（改图标 = 改脚本再跑，别手改 PNG）。
+ * 要重新启用，就在下面的 `schedule()` 里把 `smallIcon` / `largeIcon` 加回去。
  */
-const SMALL_ICON = "ic_stat_qidao";
-const LARGE_ICON = "ic_notif_large";
 
 /** App 里临时拿到的原生通知模块（只在需要时动态加载，网页版不受影响）。 */
 type NativeNotify = {
@@ -228,8 +229,6 @@ export async function scheduleNative(o: {
           title: o.title,
           body: o.body,
           sound: o.sound === false ? undefined : "default",
-          smallIcon: SMALL_ICON,
-          largeIcon: LARGE_ICON,
           schedule: o.daily
             ? {
                 on: { hour: o.daily.hour, minute: o.daily.minute },
@@ -307,8 +306,6 @@ export async function localNotify(title: string, body: string): Promise<boolean>
             id: Math.floor(Date.now() % 2147483647),
             title,
             body,
-            smallIcon: SMALL_ICON,
-            largeIcon: LARGE_ICON,
           },
         ],
       });

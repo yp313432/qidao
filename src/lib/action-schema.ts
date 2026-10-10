@@ -599,7 +599,15 @@ export const ACTION_SCHEMA = [
     kind: "sense.place",
     group: "感知",
     summary: "看一眼我在哪、外面天气",
-    fields: [],
+    fields: [
+      {
+        name: "fresh",
+        type: "boolean",
+        required: false,
+        // 给 AI 看的说明（原生 function calling 时这些字**直接进请求**）
+        note: "填 true 就是「现在立刻真查一次」，不要缓存。他说「刷新一下」「现在在哪」「实时」时填；平时别填（缓存够用，也省服务额度）。",
+      },
+    ],
   },
   {
     kind: "sense.notifications",

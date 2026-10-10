@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { collectEnv, summarize, type EnvItem } from "@/lib/env-check";
 import { openSenseSettings } from "@/lib/sense-bridge";
+import { probeLocation, type ProbeStep } from "@/lib/locate-probe";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,22 @@ export function EnvView() {
   const scrollRef = useScrollMemory("env");
   const [items, setItems] = useState<EnvItem[] | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * 定位自检的结果（点按钮才跑）。
+   * 为什么不做成"进页面就自动跑"：那一步会真去定位一次 + 同时问三家 IP，
+   * 最坏要等十几二十秒 —— 打开一页诊断就要盯着转圈，不值当。
+   */
+  const [probe, setProbe] = useState<{ steps: ProbeStep[]; verdict: string } | null>(null);
+  const [probeBusy, setProbeBusy] = useState(false);
+
+  async function runLocateProbe() {
+    setProbeBusy(true);
+    try {
+      setProbe(await probeLocation());
+    } finally {
+      setProbeBusy(false);
+    }
+  }
 
   async function load() {
     setBusy(true);
@@ -110,11 +127,33 @@ export function EnvView() {
                   {it.action && (
                     <button
                       type="button"
-                      onClick={() => void openSenseSettings(it.action!.kind)}
-                      className="mt-1.5 rounded-full bg-chip px-3 py-1.5 text-[11px] font-medium text-fg"
+                      disabled={it.action.kind === "locateProbe" && probeBusy}
+                      onClick={() => {
+                        if (it.action!.kind === "locateProbe") void runLocateProbe();
+                        else void openSenseSettings(it.action!.kind);
+                      }}
+                      className="mt-1.5 rounded-full bg-chip px-3 py-1.5 text-[11px] font-medium text-fg disabled:opacity-50"
                     >
-                      {it.action.label}
+                      {it.action.kind === "locateProbe" && probeBusy ? "正在跑…" : it.action.label}
                     </button>
+                  )}
+                  {it.action?.kind === "locateProbe" && probe && (
+                    <div className="mt-2 rounded-xl bg-fg/8 px-2.5 py-2">
+                      {probe.steps.map((st) => (
+                        <p key={st.name} className="mt-1 text-[11px] leading-4 first:mt-0">
+                          <span className={st.ok ? "text-ok" : "text-warn"}>
+                            {st.ok ? "✅ " : "⚠️ "}
+                            {st.name}
+                          </span>
+                          {st.ms > 0 && <span className="text-subtle"> · {st.ms}ms</span>}
+                          <br />
+                          <span className="text-muted">{st.detail}</span>
+                        </p>
+                      ))}
+                      <p className="mt-2 border-t border-line pt-1.5 text-[11px] leading-4 text-fg">
+                        结论：{probe.verdict}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

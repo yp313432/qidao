@@ -43,6 +43,21 @@ export const WEB_FETCH_DEFAULTS = {
   maxBytes: 2_000_000,
 } as const;
 
+/**
+ * 搜网页的**总预算**与**单地址预算**。
+ *
+ * 为什么要有"总预算"这一层：搜索是**依次试两个地址**（cn.bing.com → www.bing.com）。
+ * 2026-11 之前在真机上出事的那次：每地址 12 秒、最坏 24 秒，而闸门那把保险丝是 20 秒
+ * → 保险丝先响，用户看到的全是"超时"，可其实搜索还在跑。
+ * 现在：单地址最多 8 秒、**总共最多 14 秒**，第二个地址只能花"总预算剩下来的时间"
+ * （所以真的卡住时不会 8+8 叠成 16 秒）。**这两个数一改，闸门那把保险丝也要跟着看**
+ * （`verify-gate-stuck.mjs` 有断言盯着这个关系）。
+ */
+export const WEB_SEARCH_PER_ENDPOINT_MS = 8_000;
+export const WEB_SEARCH_BUDGET_MS = 14_000;
+/** 原生请求**没有**按我们给的时限返回时的硬兜底（见 fetchWebText） */
+export const NATIVE_HTTP_HARD_MS = 3_000;
+
 export type WebFetchResult =
   | {
       ok: true;
@@ -134,8 +149,30 @@ export async function fetchWebText(
 
   const http = await nativeHttp();
   if (http) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const res = await http.request({ url, method: "GET", headers, connectTimeout: timeoutMs, readTimeout: timeoutMs });
+      /**
+       * ⚠️ **JS 这侧再加一道硬超时**，不只依赖原生给的 `connectTimeout`/`readTimeout`。
+       *
+       * 为什么非加不可（2026-11 真机）：那次"动作全挂着"里，就有一条是原生请求
+       * 迟迟不返回 —— 原生那侧的时限在某些 ROM/场景下没兜住，于是 JS 一直 await 下去，
+       * 整个动作队列就堵在那儿。这里用 `Promise.race` 把上限钉死：
+       * 到点无论原生回不回，我们都拿到一个错误，而不是无限等。
+       */
+      const hard = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`原生请求超过 ${Math.round((timeoutMs + NATIVE_HTTP_HARD_MS) / 1000)} 秒没返回`)),
+          timeoutMs + NATIVE_HTTP_HARD_MS,
+        );
+      });
+      // ⚠️ 原生那个 promise 也要挂 catch：超时之后它才 reject 的话，
+      //    不挂就会变成"未处理的拒绝"（在 WebView 里只会安静地烂掉）
+      const req = http
+        .request({ url, method: "GET", headers, connectTimeout: timeoutMs, readTimeout: timeoutMs })
+        .catch((e: unknown) => {
+          throw e instanceof Error ? e : new Error(String(e ?? "原生请求失败"));
+        });
+      const res = await Promise.race([req, hard]);
       const status = Number(res.status ?? 0);
       if (!status) return { ok: false, why: "原生请求没拿到状态码" };
       const full = typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "");
@@ -146,6 +183,9 @@ export async function fetchWebText(
       return { ok: true, status, finalUrl: res.url || url, text, truncated, via: "native" };
     } catch (err) {
       return { ok: false, why: (err as Error)?.message || "原生请求失败" };
+    } finally {
+      /** 清掉硬超时那把定时器：不然它白挂着（验收脚本里还会白等十几秒） */
+      if (timer !== undefined) clearTimeout(timer);
     }
   }
 
@@ -281,7 +321,8 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
   const q = rawQuery.trim();
   if (!q) return { ok: false, why: "要给我一个搜索词" };
   const limit = Math.max(1, Math.min(opts.limit ?? 8, 10));
-  const timeoutMs = opts.timeoutMs ?? 12_000;
+  /** 总预算（默认 14 秒）—— 两个地址加起来不许超过它 */
+  const deadline = Date.now() + (opts.timeoutMs ?? WEB_SEARCH_BUDGET_MS);
 
   const endpoints = [
     `https://cn.bing.com/search?q=${encodeURIComponent(q)}&format=rss`,
@@ -289,7 +330,20 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
   ];
   const tried: string[] = [];
   for (const endpoint of endpoints) {
-    const got = await fetchWebText(endpoint, { timeoutMs, maxBytes: 600_000 });
+    /*
+      ⚠️ 单个地址只能花「总预算剩下的时间」，且不超过单地址上限（8 秒）。
+      2026-11 真机教训：原来是「每地址 12 秒、总共最坏 24 秒」，
+      比闸门那把保险丝（当时 20 秒）还长 → 用户看到的一律是"超时"。
+    */
+    const left = deadline - Date.now();
+    if (left < 1_500) {
+      tried.push("总时间用完了，没轮到它");
+      break;
+    }
+    const got = await fetchWebText(endpoint, {
+      timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, left),
+      maxBytes: 600_000,
+    });
     if (!got.ok) {
       tried.push(got.why);
       continue;
