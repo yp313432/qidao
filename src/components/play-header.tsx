@@ -32,7 +32,7 @@ export function PlayHeader({
   const label = backLabel ?? backLabelOf(pathname);
 
   return (
-    <header className="flex items-center gap-1 px-2 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
+    <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
       <Link to={target} aria-label={label} className="flex size-11 items-center justify-center">
         <ChevronLeft className="size-6" strokeWidth={1.6} />
       </Link>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
+import { backupAt, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
@@ -26,6 +27,21 @@ export function MemoryView() {
   const [summarizing, setSummarizing] = useState(false);
   /** 「现在就总结一次」点完的那句话（成功/没得可摘都要说清） */
   const [summaryMsg, setSummaryMsg] = useState("");
+  /** 存档自动备份的时间（0 = 还没有）—— 见 lib/idb-storage 的"安全网" */
+  const [backupAtMs, setBackupAtMs] = useState(0);
+  useEffect(() => {
+    void backupAt().then(setBackupAtMs);
+  }, []);
+  /** 「多久之前」直接算（`relShort` 在 me-sections 里是局部的，没导出） */
+  const backupWhen = backupAtMs
+    ? (() => {
+        const min = Math.max(0, Math.round((Date.now() - backupAtMs) / 60000));
+        if (min < 1) return "刚刚";
+        if (min < 60) return `${min} 分钟前`;
+        const h = Math.round(min / 60);
+        return h < 24 ? `${h} 小时前` : `${Math.round(h / 24)} 天前`;
+      })()
+    : "";
   /** 当前这条对话的 id —— 摘要是**按对话**存的，所以要有它 */
   const conversationId = useApp((s) => s.activeId);
   /** 当前对话那版摘要的正文（卡片里直接摊开，省得用户跑去对话顶部找） */
@@ -381,6 +397,21 @@ export function MemoryView() {
                   本地音乐（IndexedDB）· <span className="text-fg">{prettyBytes(store.musicBytes)}</span>
                   <span className="text-subtle"> · {store.musicTracks} 首</span>
                 </li>
+                {/*
+                  **存档安全网**的状态（2026-11，起因："数据全没了，我又没卸载过"）。
+                  存档现在是两份轮换 + 读坏自动退备份，这一行让人看得见它有没有在工作。
+                */}
+                <li>
+                  自动备份 ·{" "}
+                  <span className={backupWhen ? "text-fg" : "text-warn"}>
+                    {backupWhen ? `${backupWhen}（读坏了会自动用它）` : "还没有（下次写入后就有了）"}
+                  </span>
+                </li>
+                {recoveredFromBackup && (
+                  <li className="text-warn">
+                    ⚠️ 上次是从备份恢复的 —— 主存档当时读不出来（原文件已保留，可去「数据」导出）
+                  </li>
+                )}
               </ul>
               {store.breakdown.length > 0 && (
                 <ul className="mt-3 space-y-1 border-t border-line pt-2.5 text-[11px] leading-4 text-subtle">

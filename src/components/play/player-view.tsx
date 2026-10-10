@@ -224,7 +224,7 @@ export function PlayerView() {
       {/* 这一页自己的背景；没设就跟着主页那张走 —— 和下面装饰块的配图用**同一个来源**，
           否则会出现「换了背景只有小组件变、页面不变」的错位。 */}
       <SceneBackdrop image={settings.musicImage || settings.background.image} />
-      <header className="flex items-center gap-1 px-2 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
+      <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
         <Link
           to="/play/listen"
           aria-label="返回音乐列表"
@@ -536,7 +536,7 @@ export function PlayerView() {
       {/* 全屏歌词 */}
       {fullLyrics && hasLocal && (
         <div className="fixed inset-0 z-40 flex flex-col bg-bg">
-          <header className="flex items-center gap-1 px-2 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
+          <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
             <button
               type="button"
               aria-label="收起歌词"

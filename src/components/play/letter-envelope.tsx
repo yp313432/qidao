@@ -80,7 +80,7 @@ export function LetterViewer({
       {/* 展开的信 */}
       {phase === "open" && (
         <div className="flex min-h-0 flex-1 flex-col">
-          <header className="flex items-center gap-1 px-2 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+          <header className="flex items-center gap-1 px-2 inset-top-75 pb-1">
             <span className="size-9" />
             <p className="flex-1 text-center text-[10px] tracking-[0.3em] text-subtle uppercase">
               from her

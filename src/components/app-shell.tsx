@@ -65,8 +65,14 @@ export function AppShell() {
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，
     // 于是整个「窗口」在滚 —— 页面里那些 overflow-y-auto 全是摆设，
     // 长对话打开时停在最旧的一条，输入框在几千像素以外。
-    // `app-inset-top`：给状态栏让出安全区（背景照样铺上去，见 styles.css）
-    <div className="app-inset-top relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg">
+    //
+    // ⚠️ **外壳这里不再加安全区内边距**（2026-11 用户："只有聊天界面有延伸，别的页
+    // 还是能看到电量 —— 逻辑要统一"）：
+    // 外壳一让位，页面**自己的背景**就被挤到那条下面去了，所以插件页/五子棋会露出
+    // 一条"底"。现在口径统一成：
+    //   · 页面背景**铺满**（外壳不给内边距，谁的背景都能铺到最上面）
+    //   · **每一页自己的顶栏**吃 `--q-inset-top`（见各 header 的 `pt-[max(...)]`）
+    <div className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg">
       <GlassHighlight />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
       <UiEffects />

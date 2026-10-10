@@ -22,7 +22,7 @@ import { backLabelOf, parentOf } from "@/lib/nav-tree";
  * 以后新增二级页照抄 `PageHeader`，不会再长出第六套。
  *
  * 规格固定为（A 组那套，因为用它的页面最多、改动面最小）：
- *   · 容器  flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1
+ *   · 容器  flex items-center gap-1 px-2 inset-top-50 pb-1
  *   · 返回  size-11 的圆形按钮，图标 size-6 / strokeWidth 1.6
  *   · 标题  font-serif text-lg font-medium
  *   · 右边  任意节点（动作按钮 / 一行状态），会自己撑开剩余宽度
@@ -62,7 +62,7 @@ export function PageHeader({
   const label = backLabel ?? backLabelOf(pathname);
 
   return (
-    <header className="px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
+    <header className="px-2 inset-top-50 pb-1">
       <div className="flex items-center gap-1">
         <Link
           to={target as never}

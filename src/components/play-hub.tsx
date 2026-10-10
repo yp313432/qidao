@@ -55,7 +55,7 @@ export function PlayHub() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-above-nav">
         {/* 顶部那片：飘逸英文 + 名字 + SINCE */}
-        <header className="pt-[max(1.75rem,env(safe-area-inset-top))] pb-1 text-center">
+        <header className="inset-top-175 pb-1 text-center">
           <Phrases className="mb-3" />
           {/*
             顺序统一成「AI 在左、我在右」。

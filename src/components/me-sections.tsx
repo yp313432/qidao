@@ -182,7 +182,7 @@ export function MeHub() {
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+      <header className="px-5 inset-top-100 pb-4">
         <p className="text-xs tracking-wide text-muted">账号与系统</p>
         <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
       </header>

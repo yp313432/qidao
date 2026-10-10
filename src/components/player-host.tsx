@@ -124,7 +124,7 @@ export function PlayerHost() {
 
       {/* 迷你播放条：证明播放器是全局的，别的页面也能控制 */}
       {showMini && current && (
-        <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.4rem)] z-30 flex justify-center px-3">
+        <div className="pointer-events-none fixed inset-x-0 inset-chip z-30 flex justify-center px-3">
           <div className="glass-nav pointer-events-auto flex w-full max-w-md items-center gap-1 rounded-full border border-line px-3 py-1.5">
             <Link to="/play/listen" className="min-w-0 flex-1 truncate py-1 text-[12px]">
               <span className="text-muted">{playing ? "♪ " : "❚❚ "}</span>

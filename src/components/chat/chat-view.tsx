@@ -158,7 +158,7 @@ export function ChatView() {
         这里只要再留一点点呼吸感 —— 原来是 0.75rem(12px)，加上状态栏那 30~44px 就显得空。
         ⚠️ 网页版没有外壳 inset，env() 也是 0，所以这里仍留 0.25rem 兜底，别把它删成 0。
       */}
-      <header className="flex items-center gap-1 px-4 pt-[max(0.25rem,env(safe-area-inset-top))] pb-2">
+      <header className="flex items-center gap-1 px-4 inset-top-25 pb-2">
         <button
           type="button"
           aria-label="对话列表"
@@ -626,7 +626,7 @@ export function ChatView() {
             className="absolute inset-0 bg-fg/20"
             onClick={() => setMenu(false)}
           />
-          <aside className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <aside className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75">
             {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
                 用户："上面那个从顶部开始，不是从我画的框开始" */}
             <DrawerSky />

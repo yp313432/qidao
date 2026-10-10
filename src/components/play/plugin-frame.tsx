@@ -263,7 +263,7 @@ export function PluginFrame({
           if (window.history.length > 1) window.history.back();
           else void navigate({ to: "/play/plugins" });
         }}
-        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-10 flex size-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm active:bg-black/55"
+        className="absolute inset-back left-3 z-10 flex size-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm active:bg-black/55"
       >
         <ChevronLeft className="size-5" strokeWidth={2} />
       </button>

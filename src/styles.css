@@ -1309,12 +1309,43 @@ html[data-drawer-open] .glass-nav-bar {
 /* ══════════════════════════════════════════════════════════════════
    **系统栏安全区**（2026-11，用户："背景能自然地延伸到导航栏和上面电量时间那块"）
 
-   系统栏现在是透明的（原生 ShellBridgePlugin 做的），所以背景会铺上去 ——
-   但内容得让出那一条，否则顶栏会被状态栏压住（第一次就是少了这一步）。
+   系统栏现在是透明的（原生 ShellBridgePlugin 做的），所以**页面自己的背景**会铺上去 ——
+   但每一页的**顶栏**要让出那一条，否则会被状态栏压住。
 
    高度从哪儿来：**原生推的 CSS 变量** `--q-inset-top`（安卓 WebView 里
    `env(safe-area-inset-top)` 恒为 0，所以不能只靠 env()；env 只作兜底）。
+
+   ⚠️ 两个坑（都踩过）：
+   1. **别把内边距加在外壳上**：外壳一让位，页面自己的背景就被挤到那条下面去 →
+      只有聊天页看着是铺满的，插件页/五子棋会露一条"底"（用户："逻辑要统一"）。
+      口径：**背景铺满 + 每页顶栏自己让位**。
+   2. **别写成 Tailwind 任意值**：`pt-[max(1rem,var(--q-inset-top,env(...)))]`
+      这种嵌套逗号/括号 Tailwind 生成不出来（实测 padding 直接是 0 → 顶栏又贴到状态栏上）。
+      所以下面是**普通 CSS 类**，数值就是各页原本的最小留白。
    ══════════════════════════════════════════════════════════════════ */
-.app-inset-top {
-  padding-top: var(--q-inset-top, env(safe-area-inset-top, 0px));
+.inset-top-25 {
+  padding-top: max(0.25rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+.inset-top-50 {
+  padding-top: max(0.5rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+.inset-top-60 {
+  padding-top: max(0.6rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+.inset-top-75 {
+  padding-top: max(0.75rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+.inset-top-100 {
+  padding-top: max(1rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+.inset-top-175 {
+  padding-top: max(1.75rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
+}
+/** 悬浮小胶囊（播放器/嵌入页那条）：状态栏下面 3.4rem 处 */
+.inset-chip {
+  top: calc(var(--q-inset-top, env(safe-area-inset-top, 0px)) + 3.4rem);
+}
+/** 插件页左上角那个返回钮（绝对定位，位置是 top） */
+.inset-back {
+  top: max(0.75rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
 }

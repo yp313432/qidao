@@ -92,7 +92,7 @@ export function EmbedHost() {
       {/* 不在播放页时给它一条自己的迷你条 —— 这样不用进播放页也能停掉它。
           位置从底部搬到**顶部**：用户反馈它挡到输入框了。 */}
       {!onPlayerPage && (
-        <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.4rem)] z-30 flex justify-center">
+        <div className="pointer-events-none fixed inset-x-0 inset-chip z-30 flex justify-center">
           <div className="glass-menu pointer-events-auto flex items-center gap-2 rounded-full border border-line py-1.5 pr-1.5 pl-4">
             <Link2 className="size-3.5 shrink-0 text-accent" />
             <Link to="/play/player" className="min-w-0 max-w-40 truncate text-[12px]">

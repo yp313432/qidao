@@ -57,7 +57,7 @@ export function ToolsView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
+      <header className="px-5 inset-top-100 pb-3">
         <p className="text-xs tracking-wide text-muted">功能区</p>
         <h1 className="mt-1 font-serif text-2xl font-medium">工具</h1>
       </header>
