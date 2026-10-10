@@ -16,6 +16,8 @@
  * 跑法：node verify-store-recovery.mjs
  * 反向：QIDAO_MUTATE_REVERSE=1 node verify-store-recovery.mjs
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { looksLikeSnapshot, pickSnapshot } from "./src/lib/idb-storage.ts";
 
 const REVERSE = process.env.QIDAO_MUTATE_REVERSE === "1";
@@ -58,6 +60,22 @@ check("③ 三份都坏 → none", pickSnapshot({ main: "坏", backup: "坏", le
 check(
   "② 主档好但备份更好看时**不许越级**（用户的当前数据优先）",
   pickSnapshot({ main: GOOD, backup: GOOD2 }).text === GOOD,
+);
+
+/* ── ⑤ 两条"防覆盖"的硬保护（这次真机上唯一能确定的事实：只有主档那条没了） ── */
+const storageSrc = readFileSync(join(process.cwd(), "src/lib/idb-storage.ts"), "utf8");
+check(
+  "⑤ 读档失败时**暂停自动保存**（不许拿空状态盖掉老记录）",
+  storageSrc.includes("readFailedThisSession") &&
+    /readFailedThisSession\s*\)\s*\{\s*skippedWrites/s.test(storageSrc),
+);
+check(
+  "⑤ 读不出来的坏档要**挪到一边留证**（aster-app::corrupt），不静默丢",
+  storageSrc.includes("::corrupt") && storageSrc.includes("corruptKeyOf"),
+);
+check(
+  "⑤ 备份是「覆盖前先存」（不是事后补）",
+  /if \(name === MAIN_KEY && looksLikeSnapshot\(value\)\)/.test(storageSrc),
 );
 
 if (REVERSE) {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
-import { backupAt, recoveredFromBackup } from "@/lib/idb-storage";
+import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
@@ -410,6 +410,12 @@ export function MemoryView() {
                 {recoveredFromBackup && (
                   <li className="text-warn">
                     ⚠️ 上次是从备份恢复的 —— 主存档当时读不出来（原文件已保留，可去「数据」导出）
+                  </li>
+                )}
+                {readFailedThisSession && (
+                  <li className="text-warn">
+                    ⚠️ 这次启动**没读到本地存档** —— 已暂停自动保存，免得用空白把它盖掉。
+                    重启一次 App 试试。
                   </li>
                 )}
               </ul>

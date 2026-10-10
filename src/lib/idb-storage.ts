@@ -34,6 +34,8 @@ const STORE_NAME = "kv";
 const MAIN_KEY = "aster-app";
 const backupKeyOf = (name: string) => `${name}::bak`;
 const backupAtOf = (name: string) => `${name}::bak-at`;
+/** 读不出来的那份主存档会被挪到这个键留证（见 getItem） */
+const corruptKeyOf = (name: string) => `${name}::corrupt`;
 /** 备份节流：至少隔这么久才刷新一次备份（避免每次 set 都写两遍大档） */
 const BACKUP_MIN_GAP_MS = 60_000;
 
@@ -110,6 +112,18 @@ export function pickSnapshot(input: {
 export let lastSnapshotSource: SnapshotSource = "none";
 /** 主存档坏掉、靠备份救回来的次数（>0 就值得告诉用户） */
 export let recoveredFromBackup = false;
+/**
+ * **这次启动没能读到主存档**（IndexedDB 打不开/事务失败）—— 见下面 `setItem` 的保护。
+ *
+ * 为什么单独一个标记：2026-11 真机上"数据全没了"，用户并没有卸载、也没清数据，
+ * 而音乐和别的小键都还在 —— 也就是说**主存档那一条**没读出来。这种时候最危险的动作是
+ * "拿一份默认状态把它盖掉"（那就真没了）。所以：
+ *   读失败 → 这次会话**暂停自动保存** → 老记录原样留着，重启 App 再试。
+ * 代价：这次会话里新产生的消息不会存（只活在内存里），但**老数据保住了**。
+ */
+export let readFailedThisSession = false;
+/** 因为上面那条保护而跳过写入的次数（界面可以如实告诉用户） */
+export let skippedWrites = 0;
 
 /** 备份节流用的内存时间戳（跨启动不记，够用） */
 let lastBackupAt = 0;
@@ -137,9 +151,32 @@ export const idbStorage: StateStorage = {
           /* 写不回去也不影响这次能用 */
         }
       }
+      /**
+       * 主存档**存在但读不出来**、而且备份也不顶用 → 先把那份坏档**挪到一边留证**
+       * （`aster-app::corrupt`），再让 App 继续跑。这样"写坏"这件事不会静默丢东西，
+       * 以后还能拿出来看是坏在哪一步。
+       */
+      if (typeof main === "string" && main.length > 0 && !looksLikeSnapshot(main) && picked.source !== "main") {
+        try {
+          const already = await tx<string | undefined>(
+            "readonly",
+            (s) => s.get(corruptKeyOf(name)) as IDBRequest<string | undefined>,
+          );
+          if (!already) {
+            await tx("readwrite", (s) => s.put(main, corruptKeyOf(name)) as IDBRequest<IDBValidKey>);
+          }
+        } catch {
+          /* 留证失败不影响主流程 */
+        }
+      }
       return picked.text;
     } catch {
-      // 打不开 IndexedDB（隐私模式等）→ 退回 localStorage，至少还能用
+      /**
+       * ⚠️ **IndexedDB 这次读不了**（打不开 / 事务失败）—— 关键：**别把这个当成"没有存档"**。
+       * 老实现就是把它当成"没有"，于是从空状态开始，空状态随后又被写回主格 → 真没了。
+       * 现在：标记一下，`setItem` 会**暂停自动保存**，老记录原样留着。
+       */
+      readFailedThisSession = true;
       const legacy = globalThis.localStorage?.getItem(name) ?? null;
       const picked = pickSnapshot({ legacy });
       lastSnapshotSource = picked.source;
@@ -148,6 +185,14 @@ export const idbStorage: StateStorage = {
   },
 
   setItem: async (name, value) => {
+    /**
+     * 这次启动没读到存档 → **绝不写入**。
+     * 宁可让这次会话的新消息只留在内存里，也不能拿一份（可能空的）状态把老记录盖掉。
+     */
+    if (name === MAIN_KEY && readFailedThisSession) {
+      skippedWrites += 1;
+      return;
+    }
     try {
       /** ① 覆盖主存档**之前**，先把"现在这份好的"存进备份格（节流） */
       if (name === MAIN_KEY && looksLikeSnapshot(value)) {
