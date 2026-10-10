@@ -687,10 +687,24 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
     .filter((m) => m.content.trim() || m.role === "user")
     .map((m) => {
       const text = m.content + attachmentsToText(m.attachments);
-      // 只有图片/表情走图片通道；语音、文件都只发文字部分
-      const images = (m.attachments ?? []).filter(
-        (a) => (a.kind === "image" || a.kind === "sticker") && a.dataUrl,
-      );
+      /**
+       * ⚠️ **图片只能挂在用户消息上**（2026-11 真机，报错原文：
+       * `Image in assistant message is not supported`）。
+       *
+       * 起因：他发了一张表情 → 那条**助手**消息带上了 `sticker` 附件 →
+       * 下一轮把历史发回上游时就成了 `role:"assistant"` + `image_url`，
+       * 而 DeepSeek 这类接口**只允许 user 消息带图** → 整轮直接失败，
+       * 界面上还会说成"连接被掐断 / 地址密钥不对"，连点两次都一样。
+       *
+       * 所以：图片通道**只给 user**；assistant 的附件一律靠
+       * `attachmentsToText()` 折成文字（表情会折成「【表情包】」，他照样知道自己发过）。
+       */
+      const images =
+        m.role === "user"
+          ? (m.attachments ?? []).filter(
+              (a) => (a.kind === "image" || a.kind === "sticker") && a.dataUrl,
+            )
+          : [];
       // 没有图片就走纯文本（兼容所有上游）；
       // 有图片就发 content parts，模型支持视觉时自然就看得见。
       if (images.length === 0) return { role: m.role, content: text };

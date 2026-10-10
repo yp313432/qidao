@@ -1147,7 +1147,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ maxTokens: o.v })}
               className={cn(
                 "rounded-2xl border px-3 py-2 text-[12px]",
-                settings.maxTokens === o.v ? "border-fg" : "border-line",
+                settings.maxTokens === o.v ? "border-ink bg-ink text-ink-fg" : "border-line",
               )}
             >
               {o.label}
@@ -1209,7 +1209,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentMaxParts: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxParts ?? 3) === v ? "border-fg" : "border-line",
+                    (settings.segmentMaxParts ?? 3) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
                   )}
                 >
                   {v} 条
@@ -1226,7 +1226,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentMaxSentences: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxSentences ?? 2) === v ? "border-fg" : "border-line",
+                    (settings.segmentMaxSentences ?? 2) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
                   )}
                 >
                   {v} 句
@@ -1243,7 +1243,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentDelayMs: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentDelayMs ?? 1200) === v ? "border-fg" : "border-line",
+                    (settings.segmentDelayMs ?? 1200) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
                   )}
                 >
                   {(v / 1000).toFixed(1)} 秒
@@ -1504,7 +1504,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeMinGapMin: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeMinGapMin ?? 40) === v ? "border-fg" : "border-line",
+                  (settings.wakeMinGapMin ?? 40) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
                 )}
               >
                 {v} 分钟
@@ -1521,7 +1521,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeDailyMax: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeDailyMax ?? 8) === v ? "border-fg" : "border-line",
+                  (settings.wakeDailyMax ?? 8) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
                 )}
               >
                 {v} 条

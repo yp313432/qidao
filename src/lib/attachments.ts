@@ -148,6 +148,14 @@ export function attachmentsToText(list: Attachment[] | undefined): string {
       );
     } else if (a.kind === "image") {
       parts.push(`【图片：${a.name}】`);
+    } else if (a.kind === "sticker") {
+      /**
+       * 表情包：**他（或用户）发过来时，上游看到的就这一句**。
+       *
+       * 为什么不发图：图片只能挂在**用户**消息上（上游对 assistant 带图直接报错，
+       * 见 `chat-client.ts` 的 `historyForApi`）。所以助手那句里的表情就折成这一行。
+       */
+      parts.push("【表情包】");
     } else if (a.text) {
       parts.push(`【附件：${a.name}】\n${a.text}${a.truncated ? "\n（内容过长，已截断）" : ""}`);
     } else {

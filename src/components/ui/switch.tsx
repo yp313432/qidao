@@ -18,7 +18,13 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
-        checked ? "bg-ink" : "bg-chip",
+        /**
+         * ⚠️ 原来"开"是 `bg-ink`（深色底）、"关"是 `bg-chip`（浅色底）——
+         * 在深色主题下这两个**一眼看不出来**（用户 2026-11："心情让他开口那个
+         * 也是选了哪档，看不出来"）。
+         * 现在"开"用**主题色**（accent），跟"关"的灰底拉出明显差别。
+         */
+        checked ? "bg-accent" : "bg-line",
       )}
     >
       <span

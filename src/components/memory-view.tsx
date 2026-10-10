@@ -24,8 +24,14 @@ export function MemoryView() {
   const [toast, setToast] = useState("");
   /** 「现在就总结一次」那一下在跑 */
   const [summarizing, setSummarizing] = useState(false);
+  /** 「现在就总结一次」点完的那句话（成功/没得可摘都要说清） */
+  const [summaryMsg, setSummaryMsg] = useState("");
   /** 当前这条对话的 id —— 摘要是**按对话**存的，所以要有它 */
   const conversationId = useApp((s) => s.activeId);
+  /** 当前对话那版摘要的正文（卡片里直接摊开，省得用户跑去对话顶部找） */
+  const activeSummaryText = useApp(
+    (s) => s.conversations.find((c) => c.id === s.activeId)?.summary?.text ?? "",
+  );
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -239,7 +245,25 @@ export function MemoryView() {
               onClick={() => {
                 if (!conversationId) return;
                 setSummarizing(true);
-                void summarizeNow(conversationId).finally(() => setSummarizing(false));
+                setSummaryMsg("");
+                /**
+                 * ⚠️ **点完必须有回话**（2026-11 用户："这个摘要总结完在哪，没看到啊"）。
+                 *
+                 * `summarizeNow()` 在"没得可摘"时返回 null（对话还不够长 ——
+                 * 它只压「最近 N 条之外」的更早消息），原来这里**一个字都不说**，
+                 * 用户只能以为按钮坏了。现在两种情况都当场说清，并把摘要正文
+                 * 直接摊在下面（不用跑去对话顶部找）。
+                 */
+                void summarizeNow(conversationId)
+                  .then((text) => {
+                    setSummaryMsg(
+                      text
+                        ? `摘好了（约 ${text.length} 字）—— 下面就是，点开能看；对话顶部那条线也在。`
+                        : `没得可摘 —— 摘要压的是「最近 ${settings.keepRecent ?? 16} 条之外」的更早消息；` +
+                            "这段对话还不够长（或者那一截已经摘过了）。聊长了它会自己摘。",
+                    );
+                  })
+                  .finally(() => setSummarizing(false));
               }}
               className="rounded-full bg-chip px-3.5 py-2 text-[12px] font-medium disabled:opacity-40"
             >
@@ -255,6 +279,19 @@ export function MemoryView() {
               </button>
             )}
           </div>
+
+          {/* 点完的那句话 + 现在这版摘要的正文（不用跑去对话顶部找） */}
+          {summaryMsg && <p className="mt-2 text-[11px] leading-4 text-ok">{summaryMsg}</p>}
+          {activeSummaryText && (
+            <details className="mt-2 rounded-2xl bg-chip px-3.5 py-2.5">
+              <summary className="cursor-pointer text-[12px] text-muted">
+                现在这版摘要（约 {activeSummaryText.length} 字）· 点开看
+              </summary>
+              <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-[12px] leading-5 text-muted">
+                {activeSummaryText}
+              </p>
+            </details>
+          )}
         </div>
       </section>
 

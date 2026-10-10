@@ -4,6 +4,7 @@ import { FileText, Plus, Puzzle, Smile, Trash2, Zap } from "lucide-react";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
 import { StickerLibrary } from "@/components/tools/sticker-library";
+import { SummaryList } from "@/components/tools/summary-list";
 import { useApp } from "@/lib/store";
 import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
 import { cn, formatDay } from "@/lib/utils";
@@ -12,7 +13,7 @@ import { cn, formatDay } from "@/lib/utils";
 const TABS = [
   { id: "http", label: "HTTP", icon: Zap },
   { id: "mcp", label: "MCP", icon: Puzzle },
-  { id: "docs", label: "文档", icon: FileText },
+  { id: "summary", label: "摘要", icon: FileText },
   /**
    * **表情库**（2026-11 用户要的）："表情包能不能做成一个库，我传到库里，
    * 他从我传的库里挑，并且库里带分组，我自己分，然后他就可以用了。"
@@ -86,53 +87,72 @@ export function ToolsView() {
 
         {tab === "stickers" && <StickerLibrary />}
 
-        {tab === "docs" && (
-          <div className="space-y-2">
-            {/*
-              原来是 window.prompt 弹两次原生输入框（标题一次、正文一次）——
-              同一个「新建」动作，HTTP / MCP 是自绘表单，文档是浏览器弹窗，
-              就是用户说的"换一个组件又是另一套写法"。现在跳同一个编辑器页面。
-            */}
-            <Link
-              to="/tools/docs"
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
-            >
-              <Plus className="size-4" />
-              新建文档
-            </Link>
-            {docs.length === 0 && <p className="py-10 text-center text-sm text-muted">还没有文档</p>}
-            {docs.map((d) => (
-              <article key={d.id} className="rounded-2xl border border-line bg-surface px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <button
-                    type="button"
-                    className="text-left"
-                    onClick={() => setOpenDoc(openDoc === d.id ? null : d.id)}
-                  >
-                    <p className="font-medium">{d.title}</p>
-                    <p className="text-[12px] text-muted">
-                      {d.source === "chat" ? "来自对话" : "手写"} · {formatDay(d.createdAt)}
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="删除文档"
-                    onClick={() => useApp.getState().deleteDoc(d.id)}
-                    className="size-9 text-muted"
-                  >
-                    <Trash2 className="mx-auto size-4" />
-                  </button>
-                </div>
-                {openDoc === d.id && (
-                  <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] leading-6 text-muted">
-                    {d.content}
-                  </pre>
+        {/*
+          ── 摘要（2026-11）──────────────────────────────────────
+          用户原话："这个摘要总结完在哪，没看到啊" → 然后："你把摘要后的直接写到工具区的
+          那个文档里面，就把那个文档改做摘要总结吧。因为那个文档我看一直没用上……
+          但是聊天页面也要里保留，因为他不是要当做 AI 能知道的上下文吗？"
+
+          所以：**这个 tab 从「文档」改成「摘要」**（摘要终于有个看得见的地方）；
+          **文档没被删** —— 收进下面的折叠区（AI 那边 `docs.write` / `docs.archive`
+          也照旧能用），想用随时展开。
+        */}
+        {tab === "summary" && (
+          <div className="space-y-4">
+            <SummaryList />
+            <details className="rounded-2xl border border-line bg-surface px-4 py-3">
+              <summary className="cursor-pointer text-[12px] text-muted">
+                文档（{docs.length} 篇 · 点开看）
+              </summary>
+              <div className="mt-3 space-y-2">
+                {/*
+                  原来是 window.prompt 弹两次原生输入框（标题一次、正文一次）——
+                  同一个「新建」动作，HTTP / MCP 是自绘表单，文档是浏览器弹窗，
+                  就是用户说的"换一个组件又是另一套写法"。现在跳同一个编辑器页面。
+                */}
+                <Link
+                  to="/tools/docs"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
+                >
+                  <Plus className="size-4" />
+                  新建文档
+                </Link>
+                {docs.length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted">还没有文档</p>
                 )}
-              </article>
-            ))}
+                {docs.map((d) => (
+                  <article key={d.id} className="rounded-2xl border border-line bg-surface px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <button
+                        type="button"
+                        className="text-left"
+                        onClick={() => setOpenDoc(openDoc === d.id ? null : d.id)}
+                      >
+                        <p className="font-medium">{d.title}</p>
+                        <p className="text-[12px] text-muted">
+                          {d.source === "chat" ? "来自对话" : "手写"} · {formatDay(d.createdAt)}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="删除文档"
+                        onClick={() => useApp.getState().deleteDoc(d.id)}
+                        className="size-9 text-muted"
+                      >
+                        <Trash2 className="mx-auto size-4" />
+                      </button>
+                    </div>
+                    {openDoc === d.id && (
+                      <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] leading-6 text-muted">
+                        {d.content}
+                      </pre>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </details>
           </div>
         )}
-
       </div>
     </div>
   );

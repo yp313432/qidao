@@ -32,9 +32,13 @@ register(
     [
       "export async function resolve(specifier, context, next) {",
       `  if (specifier.startsWith("@/")) return next(${JSON.stringify(base)} + specifier.slice(2) + ".ts", context);`,
-      /** ⚠️ store.ts 那条链里有**相对且不带后缀**的 import（`./action-meta`）—— 也要补 .ts，否则 ERR_MODULE_NOT_FOUND */
-      "  if (specifier.startsWith('.') && !/\\.[a-z]+$/i.test(specifier)) {",
-      "    return next(new URL(specifier + '.ts', context.parentURL).href, context);",
+      /** ⚠️ 相对且**不带后缀**的 import（`./action-meta`、`./models` 这种）也要补 .ts。
+       *  注意判据要取**最后一段**：`./models` 里那个点不是扩展名，直接拿整个 specifier 判会漏。 */
+      "  if (specifier.startsWith('.')) {",
+      "    const seg = specifier.slice(specifier.lastIndexOf('/') + 1);",
+      "    if (!/\\.[a-z]+$/i.test(seg)) {",
+      "      return next(new URL(specifier + '.ts', context.parentURL).href, context);",
+      "    }",
       "  }",
       "  return next(specifier, context);",
       "}",
