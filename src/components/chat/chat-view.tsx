@@ -349,9 +349,16 @@ export function ChatView() {
                       <span className="text-[13px] font-medium text-fg">
                         {mine ? settings.displayName : aiName}
                       </span>
+                      {/*
+                        来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
+                        所以要看 `origin` 分开说（用户要求）：
+                          · origin === "wake" → 「他主动说的」
+                          · 其余（"cron" 或老消息没这个字段）→ 「定时 · 他自己说的」
+                        ⚠️ 老消息没有 origin，必须保持原样显示，不能因为"读不到来源"就不显示。
+                      */}
                       {m.scheduled && (
                         <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
-                          定时 · 他自己说的
+                          {m.origin === "wake" ? "他主动说的" : "定时 · 他自己说的"}
                         </span>
                       )}
                       <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>

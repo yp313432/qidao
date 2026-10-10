@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 上网：只有跟模型说话那一下出网，界面是本地资源 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -28,6 +29,23 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
     <!--
+      ——— 主动感知那两项（`SenseBridgePlugin` 的「电量与网络」「前台是哪个 App」）———
+      2026-10 补：那批只写了 Java 侧，manifest 没敢动 —— 少这两条的表现分别是
+      "网络类型恒为空 / 一调就抛 SecurityException"和"拿不到使用情况、永远 ok:false"。
+    -->
+    <!-- 看网络类型（getActiveNetwork + getNetworkCapabilities 要它；没有它返回 null） -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+      看"当前前台是哪个 App"（UsageStatsManager + AppOpsManager.OPSTR_GET_USAGE_STATS）。
+      ⚠️ 这是**特殊权限**：声明了也只是"有资格申请"，真正开还得用户自己去
+        设置 → 特殊应用权限 → 使用情况访问 里给栖岛打勾（插件那边用 AppOps 查这个状态）。
+      声明它会被 lint 判成 ProtectedPermissions —— 那是预期的，用 tools:ignore 显式压掉。
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
       安卓 11+ 的包可见性：不声明这一段，应用**查不到**系统的语音识别服务，
       原生语音识别会直接报"没有可用的识别引擎"。
       （用户实测：语音页一直"识别不到你的声音"、转文字是空的。）
@@ -35,6 +53,16 @@
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!--
+          主动感知：`QidaoNotificationListener.appLabel()` / `SenseBridgePlugin` 要把
+          "com.tencent.mm" 这种包名换成「微信」给人看。安卓 11+ 的包可见性限制下，
+          没在这里声明过的应用查不到 → 只能退回包名（难看但不是假话）。
+          这两条就是官方给的"看得见能启动的 App"的写法（不用 QUERY_ALL_PACKAGES 那种全量）。
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 
@@ -79,7 +107,57 @@
                 <data android:scheme="qidao" android:host="oauth" />
             </intent-filter>
 
+            <!--
+              「点通知直达他说过的那句话」—— 后台那段 JS 弹的通知被点时走的就是这个 intent。
+
+              谁发的：`@capacitor/background-runner` 的 `Notifications.kt`，它建的点按 intent 是
+                  Intent(".NOTIFICATION_CLICKED").setPackage(包名)
+                  putExtra("actionTypeId" / "notificationId")
+              谁收：同一个插件的 `BackgroundRunnerPlugin.handleOnNewIntent()` —— 它把 App 拉到前台，
+                  再 `notifyListeners("backgroundRunnerNotificationReceived", …, true)`
+                  （true = **保留着**，所以 JS 那边注册得晚一点也照样收得到）。
+
+              ⚠️ 为什么必须在这里声明：那个 intent 只有 action + package、**没有 component**，
+              而 MainActivity 原来只有 MAIN/LAUNCHER 和 qidao:// 两个 filter —— 这个 action
+              一个 activity 都匹配不上，系统 startActivity 直接 ActivityNotFoundException，
+              **点通知根本唤不起 App**。加上之后两边都通：
+                · App 还活着 → onNewIntent
+                · App 被杀掉 → onCreate → BridgeActivity.load() 里那句
+                  `onNewIntent(getIntent())` 同样会通知到插件（读过源码，不是猜的）
+              于是前台总能收到事件，能"落进会话 + 滚到那一条"。
+
+              action 名以点开头是**原样的字符串**（manifest 只对 activity 名做包名展开），
+              这里必须跟插件里那一字不差。
+            -->
+            <intent-filter>
+                <action android:name=".NOTIFICATION_CLICKED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
         </activity>
+
+        <!--
+          「最近几条通知」的收信箱（读系统通知的唯一合法通道）。
+
+          谁能收到：只有用户在 设置 → 特殊应用权限 → 通知使用权 里亲手给栖岛打勾之后，
+          系统才会把新通知推给这个 Service（`QidaoNotificationListener.onNotificationPosted`）。
+          没打勾时这个类**根本不会被实例化**；"有没有这个权限"由插件用
+          `NotificationManagerCompat.getEnabledListenerPackages()` 去问系统，不靠猜。
+
+          ⚠️ `android:exported="false"` 是对的写法（官方文档里这段就是这么写的）：
+          它的调用方是 system_server（系统 UID 不受 exported 限制），
+          普通 App 之类的外部调用方**不该**能绑上来 —— 权限本身也由
+          `BIND_NOTIFICATION_LISTENER_SERVICE` 把住（那是系统签名级权限，只有系统拿得到）。
+        -->
+        <service
+            android:name=".QidaoNotificationListener"
+            android:label="@string/app_name"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

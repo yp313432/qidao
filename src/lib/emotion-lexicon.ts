@@ -147,6 +147,65 @@ export function isEmotionDimension(raw: unknown): raw is EmotionDimension {
   return typeof raw === "string" && (EMOTION_DIMENSIONS as readonly string[]).includes(raw);
 }
 
+/* ───────────────── 界面用：心情 → 中文名 / 颜色（**唯一一处**） ─────────────────
+ *
+ * 2026-10：旧的 11 维词表（`lib/state-dims.ts`）连同动作 `state.report` 一起退场，
+ * 用户原话："原来的那个情绪一项……就是那 11 个就不用了。" —— 所以
+ * **心情、花瓣、上报、提示词现在全部只认这一份词表**（13 组 / 217 词）。
+ *
+ * 为什么界面这里只给**13 个代表词**（每组取第一个），而不是把 217 个词都铺成按钮：
+ *   · 日记 / 动态那个心情选择器原来只有 11 个按钮；换成 217 个就不是"改词表"，
+ *     是把界面重做一遍 —— 用户明说"不要新做界面"。
+ *   · 报告侧不受影响：AI 用 `emotion.report` 报的是**完整的 217 词**，
+ *     只有人手动挑心情时用这 13 个"每组一个"的代表（分组见 `LEXICON`）。
+ */
+export const MOOD_TERMS: readonly string[] = LEXICON.map((group) => group.terms[0]!).filter(
+  (term): term is string => Boolean(term),
+);
+
+/**
+ * 每一组一个颜色 —— 顺序跟 A~M 一一对应。
+ *
+ * 这些值就是旧 11 维那套颜色（`state-dims.ts` 的 `DIMS[].color`）**原样搬过来**：
+ * 用户说了不许动美术，所以只是把"哪个颜色给哪个词"重新按新词表的分组分配一次。
+ */
+const GROUP_COLORS: readonly string[] = [
+  "rgb(251,113,133)", // A 基础积极
+  "rgb(96,165,250)", // B 平静与安全
+  "rgb(129,140,248)", // C 悲伤与低落
+  "rgb(248,113,113)", // D 愤怒与冲突
+  "rgb(161,161,170)", // E 焦虑与不确定
+  "rgb(251,146,60)", // F 亲密与依恋
+  "rgb(244,114,182)", // G 心动与浪漫
+  "rgb(45,212,191)", // H 吃醋与占有
+  "rgb(168,85,247)", // I 暧昧与撩拨
+  "rgb(139,92,246)", // J 欲望与亲密
+  "rgb(148,163,184)", // K 克制与拉扯
+  "rgb(52,211,153)", // L 认知与探索
+  "rgb(217,119,6)", // M 互动与表达
+];
+const FALLBACK_COLOR = "rgb(148,163,184)";
+
+/** 词 → 颜色（不在表里就给个中性灰，绝不返回空）。 */
+export function moodColor(term: string): string {
+  const word = normalizeEmotionTerm(term);
+  const at = LEXICON.findIndex((group) => group.terms.includes(word));
+  return at >= 0 ? (GROUP_COLORS[at] ?? FALLBACK_COLOR) : FALLBACK_COLOR;
+}
+
+/**
+ * 展示用：心情词 → `{ label, color }`。
+ *
+ * 三种情况都不让界面空着（跟旧 `state-dims.ts` 那个 `moodDisplay()` 同一个契约，
+ * 消费侧只是换了个 import 来源）：
+ *   · 表里的词（"心动"）→ 词本身 + 它那一组的颜色
+ *   · 不认识的词 / 老存档留下的旧值 → 原样显示，借中性灰（总比一片空白强）
+ */
+export function moodDisplay(term: string): { label: string; color: string } {
+  const word = normalizeEmotionTerm(term);
+  return { label: word || String(term ?? ""), color: moodColor(term) };
+}
+
 /** 把 13 组按组渲染成文本（组名 + family + category + note + 全部词）。 */
 export function renderEmotionLexiconGroups(): string {
   return LEXICON.map((group) => {

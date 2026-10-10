@@ -43,6 +43,17 @@ export const ACTION_GROUPS = [
   "自我",
   "数据",
   "工具",
+  /**
+   * 「感知」= **他主动看一眼现在的状态**（2026-10 新增那一组）。
+   *
+   * 为什么单开一组而不是塞进「工具」：按需注册是按**组**发的（见 `tool-select.ts`），
+   * 塞进「工具」会让查天气这类句子顺手把通知/前台那三个也带上；
+   * 而且这一组在界面上正对权限页那句「感知 · 他能知道什么」，概念对得上。
+   *
+   * ⚠️ 这段注释里**一个英文引号都不许有**：验收脚本拿正则从这个数组的源码文本里抽组名
+   * （把每个英文双引号包着的短串当成一个组名），注释里的引号会被算成第 13 个组名。
+   */
+  "感知",
 ] as const;
 
 export type ActionGroup = (typeof ACTION_GROUPS)[number];
@@ -232,19 +243,6 @@ export const ACTION_SCHEMA = [
     ],
   },
   {
-    kind: "state.report",
-    group: "自我",
-    summary: "给自己记一笔此刻状态",
-    fields: [
-      { name: "mood", type: "string", required: true, note: "心情词表里的一个词" },
-      { name: "dims", type: "object", required: false, note: "此刻明显的维度 {词: 0~1}，稀疏，没报的当 0" },
-      { name: "energy", type: "number", required: false, note: "旧字段，新写法改用 dims" },
-      { name: "missing", type: "number", required: false, note: "旧字段，新写法改用 dims" },
-      { name: "curious", type: "number", required: false, note: "旧字段，新写法改用 dims" },
-      { name: "note", type: "string", required: false, note: "一句给自己的备注" },
-    ],
-  },
-  {
     kind: "emotion.report",
     group: "自我",
     summary: "上报一笔情绪（新词表）",
@@ -420,7 +418,7 @@ export const ACTION_SCHEMA = [
     group: "记录",
     summary: "发一条动态",
     fields: [
-      { name: "mood", type: "string", required: true, note: "心情词表里的一个词" },
+      { name: "mood", type: "string", required: true, note: "《情绪词表》里的一个词" },
       { name: "text", type: "string", required: true },
     ],
   },
@@ -550,6 +548,76 @@ export const ACTION_SCHEMA = [
       { name: "tool", type: "string", required: true, note: "工具名，要跟清单里一模一样" },
       { name: "args", type: "object", required: false, note: "只传他配好、允许改的那几个参数" },
     ],
+  },
+  /**
+   * ——— 联网：搜网页 / 读正文（2026-10 新增）———
+   *
+   * 手机版这条路走 Capacitor 自带的**原生 HTTP**（绕开 WebView 跨域），
+   * 所以**装了 App 才有**；网页版要么走服务端那条中转、要么如实说做不到。
+   * 两个动作共用 `web_search` 那项权限（理由写在 `action-meta.ts`）。
+   */
+  {
+    kind: "web.search",
+    group: "工具",
+    summary: "去网上搜一下（返回几条标题、链接、摘要）",
+    fields: [
+      {
+        name: "query",
+        type: "string",
+        required: true,
+        note: "搜索词。想查什么就写什么，跟他在搜索引擎里打的一样",
+      },
+    ],
+  },
+  {
+    kind: "web.fetch",
+    group: "工具",
+    summary: "读一个网页的正文（纯文本）",
+    fields: [
+      { name: "url", type: "string", required: true, note: "要读的完整网址，http(s) 开头" },
+    ],
+  },
+  /**
+   * ——— 主动感知：零参数，调用即"看一眼" ———
+   *
+   * 字段一律为空：看一眼状态没什么可传的（`actions.ts` 那六个 case 也**不许读
+   * `action.*`** —— 验收脚本会按"schema 必须覆盖代码真正读到的字段"对账）。
+   */
+  {
+    kind: "sense.time",
+    group: "感知",
+    summary: "看一眼现在几点、今天周几",
+    fields: [],
+  },
+  {
+    kind: "sense.device",
+    group: "感知",
+    summary: "看一眼电量、充电与网络",
+    fields: [],
+  },
+  {
+    kind: "sense.place",
+    group: "感知",
+    summary: "看一眼我在哪、外面天气",
+    fields: [],
+  },
+  {
+    kind: "sense.notifications",
+    group: "感知",
+    summary: "看一眼最近几条通知",
+    fields: [],
+  },
+  {
+    kind: "sense.foreground",
+    group: "感知",
+    summary: "看一眼当前前台是哪个 App",
+    fields: [],
+  },
+  {
+    kind: "sense.screen",
+    group: "感知",
+    summary: "看一眼屏幕亮着没、锁没锁",
+    fields: [],
   },
 ] as const satisfies readonly ActionDef[];
 

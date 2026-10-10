@@ -64,7 +64,6 @@ import type {
   SavedDoc,
   ScheduledTask,
   Settings,
-  StateSample,
   WorldEntry,
   TextTone,
   ThemeId,
@@ -302,16 +301,11 @@ export type AppState = {
   /** 定时任务：到点让他自己开口 */
   tasks: ScheduledTask[];
   /**
-   * 他的内在状态采样（「内在」页那条波浪线）。
-   * 由他自己每轮回报（state.report，L0 静默），只存本机，只留最近这些。
-   */
-  stateSamples: StateSample[];
-  addStateSample: (s: Omit<StateSample, "id" | "at">) => void;
-  /**
    * 他上报的**情绪事件**（新词表 13 组）—— 「星屿」插件的数据源。
    *
-   * ⚠️ 跟 `stateSamples`（那朵花的 11 个维度）**是两套**，各存各的：
-   * 用户拍板"旧花瓣先别拆"，所以这里只是**新增**一份，没动旧的。
+   * ⚠️ 2026-10：这是**唯一**一份情绪档案。旧的 `stateSamples`（那朵花的 11 个维度）
+   * 跟着 `state.report` 一起删掉了 —— 用户："就是那 11 个就不用了"，
+   * 而且他明说"数据都是测试数据，没啥要保存的"，所以**没写迁移**。
    * 存的是 `EmotionEventRecord`（0~1 的原始值）；换算成插件要的 0~100、
    * 拟标题之类的映射在插件侧的 `lib/emotion/qidao-scenes.ts` 里做。
    */
@@ -516,7 +510,6 @@ export const useApp = create<AppState>()(
       reminders: [],
       ringing: null,
       tasks: [],
-      stateSamples: [],
       emotionEvents: [],
       // 预设全都默认关着（用户自己开），见 lib/world-presets.ts
       worldBook: worldPresets(),
@@ -548,8 +541,8 @@ export const useApp = create<AppState>()(
       diary: [
         {
           id: "d1",
-          // 心情跟花瓣共用同一张 11 个词的表（`lib/state-dims.ts`）
-          mood: "reflect",
+          // 心情取新词表里的「平静」（lib/emotion-lexicon.ts 的 B 组代表词）
+          mood: "平静",
           body: "把界面做成清晨纸页的感觉。它应该安静，而不是吵。",
           createdAt: SEED_AT - 3600_000 * 8,
         },
@@ -587,10 +580,15 @@ export const useApp = create<AppState>()(
         })),
       requestAction: (action, from = "AI") =>
         set((s) => {
+          /**
+           * ⚠️ `undefined` = 这个动作**不挂权限**（现在只有 `emotion.report` /
+           * `emotion.lexicon`）→ 不是"默认 ask"，而是"不需要授权"：
+           * `action-gate.tsx` 见到没有权限就直接执行、不弹卡片。
+           */
           const permission = ACTION_PERMISSION[action.kind];
           // L4（密钥、数据外传、上传文件）永不入队 —— 从源头就拦掉，
           // 连「问一次」的机会都不给。
-          if (permissionDef(permission)?.risk === "L4") {
+          if (permission && permissionDef(permission)?.risk === "L4") {
             return {
               actionLog: [
                 {
@@ -632,15 +630,15 @@ export const useApp = create<AppState>()(
             message,
             at: Date.now(),
           };
+          /** 没有权限的动作不存在"记住这次选择"（`item.permission` 是 undefined） */
+          const remembered =
+            remember && item.permission
+              ? { permissions: { ...s.settings.permissions, [item.permission]: nextMode } }
+              : {};
           return {
             pendingActions: s.pendingActions.filter((p) => p.id !== id),
             actionLog: [entry, ...s.actionLog.filter((e) => Date.now() - e.at < 7 * 864e5)].slice(0, 30),
-            settings: remember
-              ? {
-                  ...s.settings,
-                  permissions: { ...s.settings.permissions, [item.permission]: nextMode },
-                }
-              : s.settings,
+            settings: remember ? { ...s.settings, ...remembered } : s.settings,
           };
         }),
       clearActionLog: () => set({ actionLog: [] }),
@@ -773,11 +771,6 @@ export const useApp = create<AppState>()(
       toggleWorldEntry: (id) =>
         set((s) => ({
           worldBook: s.worldBook.map((e) => (e.id === id ? { ...e, enabled: !e.enabled } : e)),
-        })),
-      addStateSample: (s) =>
-        set((st) => ({
-          // 留最近 2000 条就够画半年多的曲线了（再多纯占地方）
-          stateSamples: [{ ...s, id: uid("st"), at: Date.now() }, ...st.stateSamples].slice(0, 2000),
         })),
       /**
        * 他上报的一笔情绪事件（新词表）—— 插件的「当前状态」看第 0 条、轨迹看整列。
@@ -1380,7 +1373,6 @@ export const useApp = create<AppState>()(
         customWords: s.customWords,
         reminders: s.reminders,
         tasks: s.tasks,
-        stateSamples: s.stateSamples,
         emotionEvents: s.emotionEvents,
         worldBook: s.worldBook,
         chatDrafts: s.chatDrafts,

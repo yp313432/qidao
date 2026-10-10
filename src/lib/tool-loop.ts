@@ -288,13 +288,67 @@ function stampOf(e: { title: string; at: number }): string {
  * 而用户那边什么都没有。用户报过的正是这个："他说他执行了，但是是空的"。
  *
  * 判据**故意保守**（宁可不标红，也不要把成功说成失败）：
- * 只认这些"否定式开头/固定说法"，而且只在**短句**上生效（长报告里出现"没"字很正常）。
+ * 只认这些"否定式开头/固定说法"，而且只在**短句**上生效（长报告里出现"没"字很正常）；
+ * 另外**加了一条结构化判据**：结果自己写了 `ok:false` 的（感知动作那种 JSON 回执）
+ * 一律算没做成 —— 那条跟长度无关，因为"权限没给要说清去哪个设置页"必然很长。
  */
 const REFUSED_HINT =
   /(没找到|没有|没说|没内容|没什么|没给|不能空着|得有|都得有|还是空的|是空的|读不出来|只能在浏览器|不会交给模型|^需要一个|失败)/;
+
+/**
+ * 从一句回话里抠出**那段 JSON 回执**。
+ *
+ * ⚠️ 不能要求整句都是 JSON：闸门记账时会加前缀 —— 真跑出来的是
+ *     `按你的授权直接执行：{"ok":false,…}`（或没挂权限那句「这个动作不用授权，直接执行：…」），
+ * 只看 `startsWith("{")` 会**一条都判不到**（第一版就是这么漏的，靠
+ * `verify-sense-ui.mjs` 的 B-观察 那行 ✅ 才发现的）。所以按首尾花括号取那段来解析。
+ */
+function jsonOutcome(text: string): { ok?: unknown; summary?: unknown } | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const data = JSON.parse(text.slice(start, end + 1)) as unknown;
+    if (!data || typeof data !== "object") return null;
+    return data as { ok?: unknown; summary?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ⚠️ **结构化判据**（2026-10 补的那一条）：结果**自己说**了 `ok:false`。
+ *
+ * 为什么非加不可（`verify-sense-ui.mjs` 把这条现状打印出来过）：
+ * 主动感知那几个动作（`sense.*`）回的是一行 JSON，失败时长这样：
+ *   `{"ok":false,"gap":"web","summary":"读最近的通知要装成 App…","fix":"…去哪个设置页开"}`
+ * —— 而"权限没给要说清设置页路径"那句话**必然长于 48 字**，所以只看长度的
+ * `looksRefused()` 永远判不到它：界面上于是出现
+ * `✅ sense.notifications · {ok:false,…}`（图标 ✅ 内容却是失败）。
+ * 这里直接看结构化字段，跟长度无关 —— **不削弱**原来那条，只是多一条入口。
+ */
+function saysFailed(text: string): boolean {
+  return jsonOutcome(text)?.ok === false;
+}
+
+/** 那一行回话给人看的部分：JSON 回执取 `summary`（人话），别把整串字段甩到界面上 */
+function refusalDetail(text: string): string {
+  const data = jsonOutcome(text);
+  const summary = typeof data?.summary === "string" ? data.summary.trim() : "";
+  if (!summary) return text;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  /** 前缀（"按你的授权直接执行："之类）留着 —— 它解释了这一步是怎么跑起来的 */
+  return `${text.slice(0, start)}${summary}${text.slice(end + 1)}`;
+}
+
 export function looksRefused(message: string): boolean {
   const text = (message ?? "").trim();
-  if (!text || text.length > 48) return false;
+  if (!text) return false;
+  /** ① 结构化：结果自己是 `ok:false`（感知那类 JSON 回执）—— 跟长度无关 */
+  if (saysFailed(text)) return true;
+  /** ② 原来那条：只在**短句**上按措辞判（长报告里出现"没"字很正常，别误伤） */
+  if (text.length > 48) return false;
   return REFUSED_HINT.test(text);
 }
 
@@ -342,11 +396,16 @@ async function waitForResolution(
        * 这时候**不能打 ✅** —— 否则模型会接着说"我记好了"，而库里什么都没有。
        */
       if (looksRefused(fresh.message)) {
+        /**
+         * 界面上那一行**只放人话**：感知动作回的是 JSON，整串字段甩上去没法看
+         * （`summary` 才是给人读的那句，`fix` 那句"去哪个设置页开"留给模型）。
+         */
+        const detail = refusalDetail(fresh.message);
         return {
           ok: false,
           category: "refused",
           title: fresh.title,
-          notice: `❌ ${kind} · ${fresh.message}`,
+          notice: `❌ ${kind} · ${detail}`,
           result: `「${fresh.title}」没做成：${fresh.message}。别当成已经做了。`,
         };
       }

@@ -32,8 +32,17 @@ export const WEATHER_TTL = 15 * 60_000;
 /** 自动定位的地点多久算新鲜 */
 export const PLACE_TTL = 30 * 60_000;
 
+/**
+ * **这个地点是哪来的** —— 主动感知（`sense.place`）要把它一起报给 AI。
+ *
+ * 为什么必须带上来源：定位有个已知的"飘"（用户机器上显示海南）。
+ * 只说"你在海南"是一句没法判断真假的话；说清"按 IP 认的城市"，
+ * 他和用户就都知道这句该信几分（用户原话："照实返回即可，带上来源"）。
+ */
+export type PlaceSourceKind = "manual" | "system" | "ip" | "cache";
+
 export type RefreshResult =
-  | { ok: true; label: string; weather: string | null; note?: string }
+  | { ok: true; label: string; weather: string | null; note?: string; source: PlaceSourceKind }
   | { ok: false; reason: string };
 
 /** 两处界面都调它。结果写进设置，界面从设置里读，不各自记状态。 */
@@ -50,17 +59,21 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
   let label = "";
   /** 查天气要用的地点标识（id 或 "经度,纬度"） */
   let locQuery: string | null = null;
+  /** 这个地点是哪来的（`sense.place` 会把它一起报出去） */
+  let source: PlaceSourceKind = "cache";
 
   /* ---------------- 第 1 步：定地点 ---------------- */
 
   if (manual && manual.ok) {
     // 手动填的：直接用，不查任何服务
     label = manual.label;
+    source = "manual";
     // 手动地点也有和风编号（第一次查完就存下了）
     locQuery = s.geoPlaceId || null;
   } else if (!force && s.geoLabel && s.geoAt && now - s.geoAt < PLACE_TTL) {
     // 缓存还新鲜
     label = s.geoLabel;
+    source = "cache";
     locQuery = s.geoPlaceId || null;
   } else {
     if (!weatherConfigured()) {
@@ -85,6 +98,7 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
     const sys = await currentPlace();
     if (sys.ok) {
       label = sys.label;
+      source = "system";
       locQuery = sys.placeId ?? null;
       st.patchSettings({
         geoLabel: sys.label,
@@ -104,6 +118,7 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
         };
       }
       label = ip.label;
+      source = "ip";
       // IP 只给到城市，还得搜一次拿和风的编号
       const sres = await searchPlace(ip.label);
       if (!sres.ok) {
@@ -119,7 +134,7 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
   /* ---------------- 没有和风：地点有了就行 ---------------- */
 
   if (!weatherConfigured()) {
-    return { ok: true, label, weather: null, note: "没配和风天气，所以只有地点、没有天气" };
+    return { ok: true, label, weather: null, source, note: "没配和风天气，所以只有地点、没有天气" };
   }
 
   /* ---------------- 第 2 步：拿地点 id ---------------- */
@@ -138,13 +153,13 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
   }
 
   if (!locQuery) {
-    return { ok: true, label, weather: null, note: "有地点但拿不到它的编号，天气没查" };
+    return { ok: true, label, weather: null, source, note: "有地点但拿不到它的编号，天气没查" };
   }
 
   /* ---------------- 第 3 步：查天气（带缓存）---------------- */
 
   if (!force && s.weatherText && s.weatherAt && now - s.weatherAt < WEATHER_TTL) {
-    return { ok: true, label, weather: s.weatherText };
+    return { ok: true, label, weather: s.weatherText, source };
   }
 
   const w = await weatherNow(locQuery);
@@ -152,7 +167,7 @@ export async function refreshPlaceAndWeather(force = false): Promise<RefreshResu
 
   const line = weatherLine(w.now);
   st.patchSettings({ weatherText: line, weatherAt: Date.now() });
-  return { ok: true, label, weather: line };
+  return { ok: true, label, weather: line, source };
 }
 
 /** 「省+市+区」拼一个给人看的地名（跟 qweather.ts 里的规则一致） */

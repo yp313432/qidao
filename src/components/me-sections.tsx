@@ -36,7 +36,6 @@ import { wakeSupported } from "@/lib/background-wake";
 import { pingWake, readWakeLog, resetWake, wakeUrlSource } from "@/lib/wake-sync";
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
-import { moodDisplay } from "@/lib/state-dims";
 import { useApp } from "@/lib/store";
 import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -76,11 +75,7 @@ const STYLES: { id: ReplyStyle; label: string }[] = [
   { id: "explanatory", label: "详尽" },
 ];
 
-/**
- * 「内在」入口上那行小字要用到的心情中文名与相对时间。
- * 心情名**从词表派生**（`lib/state-dims.ts`）—— 老存档的 mood 也能兜住，不留空白。
- */
-const moodLabel = (m: string) => moodDisplay(m).label;
+/** 「此刻的情况」那几行小字要用到的相对时间。 */
 function relShort(ts: number): string {
   const mins = Math.floor((Date.now() - ts) / 60000);
   if (mins < 60) return `${Math.max(1, mins)} 分钟前`;
@@ -291,7 +286,6 @@ function MeSections({ tab }: { tab: MeTab }) {
   const settings = useApp((s) => s.settings);
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
-  const stateSamples = useApp((s) => s.stateSamples);
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
   const requestLog = useApp((s) => s.requestLog);
   const usageToday = (() => {
@@ -1749,14 +1743,18 @@ function MeSections({ tab }: { tab: MeTab }) {
       </Section>
 
       {/*
-        这两块**已经不显示了**（`hidden`）—— 它们的内容都搬到「AI 概览」里了：
+        这块**已经不显示了**（`hidden`）—— 它的内容搬到「AI 概览」里了：
           · 权限与感知 → /permissions（从 AI 概览进）
-          · 内在（他的状态）→ /inner（从 AI 概览进）
-        「我的」页面留着它们只会又长又重复。
+        「我的」页面留着它只会又长又重复。
 
         用户要求："我之前让你删掉的那些外面还有就把它给调整了吧免得误导"——
         所以这里**不再是"留着以后用"**：要么删掉，要么明确它就是废弃的。
         保持 hidden 但写清原因，免得以后有人以为漏了又把它打开。
+
+        ⚠️ 2026-10：原来这里还有一块 hidden 的「内在」（他自己报的状态样本）。
+        旧的 11 维花瓣连 `state.report` 一起退场之后，`stateSamples` 已经不存在了，
+        所以那一块**整块删掉**（不是留个 hidden 的空壳）。
+        现在的情绪看「星屿」：玩乐 → 插件 → 星屿，或者 /inner 那条入口。
       */}
       <Section title="AI 权限" hidden>
         <Link
@@ -1770,27 +1768,6 @@ function MeSections({ tab }: { tab: MeTab }) {
             </span>
             <span className="mt-0.5 block text-[11px] text-subtle">
               分级说明、他能感知到什么、动作记录都在那一页
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
-      </Section>
-
-      {/* 内在：他自己报的状态样本（那页现在只留入口，不画图了） */}
-      <Section title="内在" hidden>
-        <Link
-          to="/inner"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-        >
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium">他的状态起伏</span>
-            <span className="mt-0.5 block text-[11px] text-muted">
-              {stateSamples.length > 0
-                ? `最近一笔：${moodLabel(stateSamples[0]!.mood)} · ${relShort(stateSamples[0]!.at)} · 共 ${stateSamples.length} 笔`
-                : "还没报过 —— 跟他聊两句就有了"}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              他每轮<span className="text-fg">自己报</span>的状态样本 —— 那页现在只留一条入口，不画图
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted" />

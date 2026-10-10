@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { permissionDef } from "@/lib/permissions";
+import type { PermissionMode } from "@/lib/types";
 import { runAction } from "@/lib/actions";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,8 @@ import { cn } from "@/lib/utils";
  *  - 「询问」→ 弹这张卡片，你点同意才执行
  *  - **L3 破坏性动作（删除、清空、重置）→ 无论你设成什么，都要再确认一次**，
  *    而且不给「以后都允许」—— 破坏性操作不该被记住
+ *  - **没有挂权限的动作（`permission` 是 undefined，如 `emotion.report`）→ 直接执行**，
+ *    既不弹卡片也没有权限可记（2026-10 删掉「情绪权限」那一项之后就是这条路）
  *
  * L4（密钥、数据外传、上传文件）根本不会到达这里，在入队前就被拒了。
  */
@@ -23,9 +26,18 @@ export function ActionGate() {
   const navigate = useNavigate();
 
   const current = pending[0] ?? null;
-  const def = current ? permissionDef(current.permission) : undefined;
+  const def = current?.permission ? permissionDef(current.permission) : undefined;
   const critical = def?.risk === "L3";
-  const mode = current ? (permissions[current.permission] ?? "ask") : "ask";
+  /**
+   * ⚠️ 这里**不能**写成 `permissions[current.permission] ?? "ask"`：没有权限的动作
+   * 会掉进"询问"那条路、弹出一张"某项权限"的卡片，等于把已经删掉的情绪权限
+   * 变相塞回来（情绪上报会被卡住等人点）。没有权限 = **不需要授权 = 直接放行**。
+   */
+  const mode: PermissionMode = !current
+    ? "ask"
+    : !current.permission
+      ? "allow"
+      : (permissions[current.permission] ?? "ask");
 
   const go = (p: string) => void navigate({ to: p as unknown as "/" });
 
@@ -37,7 +49,14 @@ export function ActionGate() {
     if (mode === "allow") {
       void (async () => {
         const msg = await runAction(action, { navigate: go });
-        useApp.getState().resolveAction(id, true, false, `按你的授权直接执行：${msg}`);
+        useApp
+          .getState()
+          .resolveAction(
+            id,
+            true,
+            false,
+            current.permission ? `按你的授权直接执行：${msg}` : `这个动作不用授权，直接执行：${msg}`,
+          );
       })();
     } else {
       useApp.getState().resolveAction(id, false, false, "你之前把这项设为「拒绝」");
@@ -82,7 +101,7 @@ export function ActionGate() {
         <p className="mt-3 text-[17px] leading-7 font-medium">{current.title}</p>
 
         <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-          <p className="text-[12px] font-medium">{def?.title ?? current.permission}</p>
+          <p className="text-[12px] font-medium">{def?.title ?? current.permission ?? ""}</p>
           <p className="mt-0.5 text-[12px] leading-5 text-muted">{def?.hint ?? ""}</p>
           {critical && (
             <p className="mt-1.5 text-[11px] leading-4 text-warn">

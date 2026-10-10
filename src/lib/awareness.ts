@@ -1,10 +1,10 @@
 import { ACTION_PERMISSION } from "@/lib/action-meta";
 import type { ChatContext } from "@/lib/chat-client";
+import { moodDisplay } from "@/lib/emotion-lexicon";
 import { READINGS } from "@/lib/learn-data";
 import { MODELS } from "@/lib/models";
 import { permissionDef } from "@/lib/permissions";
 import { usePlayer } from "@/lib/player";
-import { moodDisplay } from "@/lib/state-dims";
 import { useApp } from "@/lib/store";
 
 /**
@@ -236,8 +236,11 @@ export function buildContext(): ChatContext {
   const p = usePlayer.getState();
   const t = p.tracks.find((x) => x.id === p.currentId);
 
-  // 「已授权」只列真正有动作可执行的那些，读权限不算
-  const actionable = [...new Set(Object.values(ACTION_PERMISSION))];
+  // 「已授权」只列真正有动作可执行的那些，读权限不算。
+  // ⚠️ 没有挂权限的动作（emotion.report 这种）不在里面 —— 它本来就不需要授权。
+  const actionable = [
+    ...new Set(Object.values(ACTION_PERMISSION).filter((id): id is string => Boolean(id))),
+  ];
 
   return {
     now: new Date().toLocaleString("zh-CN", { hour12: false }),

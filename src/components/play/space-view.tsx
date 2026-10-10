@@ -5,16 +5,19 @@ import { PlayHeader } from "@/components/play-header";
 import { DiaryWall } from "@/components/play/diary-view";
 import { LetterViewer } from "@/components/play/letter-envelope";
 import { useApp } from "@/lib/store";
-import { DIMS, moodDisplay } from "@/lib/state-dims";
+import { MOOD_TERMS, moodColor, moodDisplay } from "@/lib/emotion-lexicon";
 import type { Letter, MoodId } from "@/lib/types";
 import { cn, formatClock, formatDay } from "@/lib/utils";
 
 /**
- * 心情词表：**跟花瓣共用同一张 11 个词的表**（`lib/state-dims.ts`）。
- * 颜色也取词表里的 `d.color` 走 inline style —— 不再各写一套 Tailwind 色类，
- * 否则改了词表还得记得改颜色。
+ * 心情词表：**只有新词表这一份**（`lib/emotion-lexicon.ts`，13 组 / 约 217 词）。
+ * 旧的 11 维花瓣词表已随 `state.report` 退场（用户："就是那 11 个就不用了"）。
+ *
+ * 这里取**每组一个代表词**（13 个）而不是全部 217 个：选择器原来是 11 个按钮，
+ * 铺满 217 个就是重做界面了（用户明说"不要新做界面"）。
+ * 颜色从词表那一组派生（`moodColor`），不再各写一套 Tailwind 色类。
  */
-const MOODS = DIMS.map((d) => ({ id: d.id, label: d.label, color: d.color }));
+const MOODS = MOOD_TERMS.map((term) => ({ id: term, label: term, color: moodColor(term) }));
 
 const EN_TOP: Record<string, string> = {
   moments: "how are you feeling, right now",
@@ -103,7 +106,8 @@ export function SpaceView() {
 
 function MomentsSection() {
   const moments = useApp((s) => s.moments);
-  const [mood, setMood] = useState<MoodId>("missing");
+  // 默认「平静」（新词表 B 组的代表词），不再是旧 id "missing"
+  const [mood, setMood] = useState<MoodId>(MOOD_TERMS[1] ?? "平静");
   const [text, setText] = useState("");
 
   function post() {
@@ -166,7 +170,7 @@ function MomentsSection() {
       ) : (
         <ul className="space-y-2">
           {moments.map((m) => {
-            // 老存档的 mood 是 "calm" 这种 —— moodDisplay 兜成当时的中文名，不留空白
+            // 词表里没有的旧值（老存档的 "calm" 之类）由 moodDisplay 原样显示，不留空白
             const info = moodDisplay(m.mood);
             return (
               <li key={m.id}>

@@ -132,9 +132,21 @@ const EXEMPT = new Set([
    */
   "情绪词表",
 ]);
-const suspicious = [...mentioned].filter((w) => !permTitles.has(w) && !EXEMPT.has(w));
+/**
+ * ⚠️ **动作 kind 不算权限名**（2026-10 补的判定）。
+ *
+ * 起因：联网那两个动作在手册里必须**点名**（`web.search` / `web.fetch`）——
+ * 因为走工具定义那一轮可能没带上它们，那时 AI 得直接在正文里写动作块
+ * （见 `tool-select.ts` 的 `FALLBACK_RULE`），所以名字必须出现在说明书里。
+ * 而这条断言原本的假设是"引号里的短名字一定是权限名"——`web.search` 里有 `.`
+ * 跟权限 id 的 `[a-z_]` 风格明显不同，属于**误报**，不是写错。
+ */
+const ACTION_KIND_LIKE = /^[a-z][a-z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
+const suspicious = [...mentioned].filter(
+  (w) => !permTitles.has(w) && !EXEMPT.has(w) && !ACTION_KIND_LIKE.test(w),
+);
 check(
-  "引号里的名字要么是真实权限名，要么在豁免表里",
+  "引号里的名字要么是真实权限名、要么是动作 kind、要么在豁免表里",
   suspicious.length === 0,
   suspicious.length ? `可疑：${suspicious.join(" / ")}` : "",
 );
@@ -170,20 +182,38 @@ for (const re of STALE) {
 
 console.log("\n【四】手机版和网页版说的能力边界不一样");
 check("两端文本不同（说明真的按平台生成了）", web !== app);
+/*
+  ⚠️ 2026-10 **这条断言被产品改动反过来了**（原文是"手机版明说做不到"）：
+  联网落地之后（`web.search` / `web.fetch` 走 Capacitor 自带的原生 HTTP、
+  绕开 WebView 的跨域），手机上**真的能搜、能读**了。手册要是还教他说
+  "手机版做不到"，那就是在教他否认自己已经会的能力 —— 所以这里改成
+  断言**新的正确说法**：两端都明说能做，并且让 AI 知道"没授权时会先弹卡片"。
+*/
 check(
-  "手机版明说「网页搜索/抓取正文」做不到",
-  /网页搜索 \/ 抓取网页正文[^\n]*做不到/.test(app) || /网页搜索[^\n]*手机版做不到/.test(app),
-  app.split("\n").find((l) => l.includes("网页搜索"))?.slice(0, 90) ?? "没找到那句",
+  "手机版明说「搜网页 / 读网页正文」**能做了**（不再是「做不到」）",
+  /搜网页 \/ 读网页正文[^\n]*能做了/.test(app) && !/搜网页[^\n]*手机版做不到/.test(app),
+  app.split("\n").find((l) => l.includes("搜网页 / 读网页正文"))?.slice(0, 90) ?? "没找到那句",
 );
 check(
-  "网页版说的是「要靠中转」，不是「做不到」",
-  /网页搜索 \/ 抓取网页正文[^\n]*中转/.test(web),
-  web.split("\n").find((l) => l.includes("网页搜索"))?.slice(0, 90) ?? "没找到那句",
+  "手机版那句点名了动作名 web.search / web.fetch（他才知道怎么用）",
+  /web\.search/.test(app) && /web\.fetch/.test(app),
+  app.split("\n").find((l) => l.includes("web.search"))?.slice(0, 90) ?? "没找到那句",
+);
+check(
+  "网页版同样是「能做了」（不再说「只有中转才行」）",
+  /搜网页 \/ 读网页正文[^\n]*能做了/.test(web),
+  web.split("\n").find((l) => l.includes("搜网页 / 读网页正文"))?.slice(0, 90) ?? "没找到那句",
 );
 check(
   "手机版**没有**承诺中转/服务端能力（APK 里没有服务端）",
   !/中转/.test(app) || !/中转[^\n]*能/.test(app),
   "",
+);
+/* 改完之后，那两句"做不到"的旧文案必须一个字都不剩（给 AI 的文案要跟着代码改） */
+check(
+  "旧文案「手机版做不到」彻底没了",
+  !/手机版做不到/.test(app) && !/手机版没有/.test(app.split("\n").find((l) => l.includes("搜网页")) ?? ""),
+  app.split("\n").find((l) => l.includes("做不到"))?.slice(0, 90) ?? "（全文没有「做不到」的行）",
 );
 
 /* ───────── 七、⑤ 权限那节的瘦身没把「允许 / 拒绝」丢掉 ───────── */

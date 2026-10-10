@@ -24,6 +24,8 @@
  *     ③ 算「程度」：距**他上次开口**过了多久（每 25 分钟一档：0/25/50/75/100）
  *     ④ 按档位从 App 交过来的**五段指令**里挑一段，把 `{{TIME}}`/`{{ELAPSED}}` 换成此刻的值
  *     ⑤ 直接 POST 到你自己的上游（国内那条快的）→ 拿到他生成的那句话 → 弹通知
+ *     ⑥ **把完整那句话写回抽屉**（`wake_pending_*`）—— 通知只是一条提醒，
+ *        这句话要能被 App **落进会话**才算真的"他说了"（见 `markPending`）
  *
  * ── 问不到上游时它会**自己诊断**（2026-10 加，用户真机上连续 90 次失败那件事）──
  *   前台自检 380ms 就通，后台却连续报
@@ -66,6 +68,12 @@ var WAKE_URL = "__QIDAO_WAKE_URL__";
 
 /** 通知 id 的基数（安卓要 32 位整数）。用加法错开，避免几条通知互相覆盖。 */
 var NOTIFY_ID_BASE = 9000;
+
+/**
+ * "他说了一句"那条通知的**身份标记**（进点按 intent，点通知时传回前台）。
+ * 前台用它认出该跳到哪条消息；别的调试/失败通知不带这个标记。
+ */
+var WAKE_NOTIFY_ACTION = "qidao-wake-said";
 
 /** 出错时的调试通知最短间隔（分钟）—— 上游一直挂的话，别每 25 分钟吵他一次 */
 var ERR_NOTIFY_COOLDOWN_MIN = 60;
@@ -151,9 +159,24 @@ function kvSet(key, value) {
   }
 }
 
-function notify(id, title, body) {
+/**
+ * 弹通知。
+ *
+ * 第 4 个参数 `actionTypeId` 会**原样进那条通知的点按 intent**（插件的
+ * `Notifications.kt` 把它塞进 `Intent(".NOTIFICATION_CLICKED")`），点通知时前台
+ * 收到的 `backgroundRunnerNotificationReceived` 事件里就带着它 ——
+ * 前台靠它认出"这是'他说了一句'那条"，好跳到那条消息（见 `src/lib/wake-sync.ts`）。
+ * 不认识这个键的旧版插件会直接忽略它，不会把通知弄坏。
+ *
+ * ⚠️ 标题和正文都过 `maskSecrets`：文件顶上那条纪律是"**任何写出去的日志/通知**
+ * 都先过一遍"（上游偶尔会把 key 回显进正文），而这里原来漏了这一步 ——
+ * 顺手补上，正好也让"通知上那句"跟"交给会话那句"逐字一致。
+ */
+function notify(id, title, body, actionTypeId) {
   try {
-    CapacitorNotifications.schedule([{ id: id, title: title, body: body }]);
+    var n = { id: id, title: maskSecrets(title), body: maskSecrets(body) };
+    if (actionTypeId) n.actionTypeId = actionTypeId;
+    CapacitorNotifications.schedule([n]);
   } catch (e) {
     /* 弹不出来就算了 */
   }
@@ -179,6 +202,46 @@ function logLine(text) {
   } catch (e) {
     /* 同上 */
   }
+}
+
+/**
+ * 「程度」：距他上次开口多久 → 0/25/50/75/100（每 25 分钟一档，跟文件顶上那条注释一致）。
+ * 只当**小标记**用（界面上看得出"这句他攒了一会儿才说"），不参与任何判断。
+ */
+function urgeFromElapsed(elapsedMin) {
+  if (!elapsedMin || elapsedMin <= 0) return 0;
+  return Math.min(100, Math.floor(elapsedMin / 25) * 25);
+}
+
+/**
+ * **他说成一句的那一刻，把这句完整写回抽屉** —— 这是"通知"和"会话"之间原来缺的那条通道。
+ *
+ * 为什么必须写（用户真机原话）：
+ *   "我能收到弹窗通知，但是那个通知**不在上下文里**……这样如果我想回他那句消息的话，
+ *    进对话里的 AI 是不知道这回事的。"
+ *
+ * 为什么不能只靠 `wake_log`：那是**给人看的日志**，而且被截成 40 字（见 `logLine`）——
+ *   而会话要的是**完整那句话**，一个字都不能少。
+ *
+ * 谁来收：App 一到前台/被点通知就调 `flushPendingWake()`（`src/lib/wake-sync.ts`），
+ *   走 `beginScheduledReply()` 把这句话**当成他发的消息**落进当前会话，然后把下面这几个键**置空**。
+ *
+ * 四个键：
+ *   · `wake_pending_text`    完整那句话
+ *   · `wake_pending_at`      本地时间（`localStamp()`，给人看）
+ *   · `wake_pending_at_ms`   机器可读的时间戳（排序/去重用）
+ *   · `wake_pending_urge`    程度（可选小标记）
+ *
+ * ⚠️ 只写"他说了"；他回 SKIP 时**一个字都不写** —— 否则会话里会冒出他没说过的话。
+ * ⚠️ 过一遍 `maskSecrets`：key 绝不能跟着这句话进通知、日志**或会话**。
+ */
+function markPending(text, urge) {
+  var full = maskSecrets(String(text == null ? "" : text).trim());
+  if (!full) return;
+  kvSet("wake_pending_text", full);
+  kvSet("wake_pending_at", localStamp());
+  kvSet("wake_pending_at_ms", String(Date.now()));
+  kvSet("wake_pending_urge", urge === null || urge === undefined ? "" : String(urge));
 }
 
 /**
@@ -614,7 +677,9 @@ addEventListener("qidaoWake", function (resolve, reject) {
            * 现在它变成"**他还没说上话之前，已经醒了第几次**" —— 按规矩最多只到 4。
            */
           kvSet("wake_count", 0);
-          notify(NOTIFY_ID_BASE + (count % 1000), aiName, said);
+          notify(NOTIFY_ID_BASE + (count % 1000), aiName, said, WAKE_NOTIFY_ACTION);
+          /** 这句话**完整**交给前台，好让它落进会话（不只是弹一条点不开的通知） */
+          markPending(said, urgeFromElapsed(elapsed));
           logLine("#" + count + " " + stamp + " 说了" + (forced ? "（上次没说 → 这次必定说）" : "") + "：" + said.slice(0, 40));
         } else {
           kvSet("speak_acc", 1);
@@ -674,7 +739,9 @@ addEventListener("qidaoWake", function (resolve, reject) {
         kvSet("last_spoke_at", now);
         /** 说成一句 → "醒了几次"归零（同主路；用户要求） */
         kvSet("wake_count", 0);
-        notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text);
+        notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text, WAKE_NOTIFY_ACTION);
+        /** 备路也是"他说了" → 同样要**完整**交给前台（跟甲那条路一样，不截断） */
+        markPending(data.text, data.urge);
         logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）");
       } else if (data.ok === false) {
         logLine("#" + count + " " + stamp + " 失败：" + String(data.why || "").slice(0, 60));

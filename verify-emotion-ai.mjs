@@ -20,7 +20,7 @@
  *
  * 退出码：有任何 FAIL 就是 1。
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 let failures = 0;
 function check(name, ok, extra = "") {
@@ -162,15 +162,39 @@ check(
   !manualText.includes(groupsText.slice(0, 120)) && !manualText.includes(groupsText.slice(-120)),
   `词表正文 ${groupsText.length} 字符`,
 );
-const ptrStart = manualText.indexOf("【情绪（新词表）】");
-const ptrEnd = manualText.indexOf("【这个 App 的边界");
-const pointer = ptrStart >= 0 && ptrEnd > ptrStart ? manualText.slice(ptrStart, ptrEnd) : "";
+/**
+ * ⚠️ 2026-10 修掉一处**会漂的写法**：这里原来从「【情绪（新词表）】」一路切到
+ * 「【这个 App 的边界」，可那中间后来又插进了**两节新的话**（感知那一句、联网那一句，
+ * 见 `manual.ts` 的 `SENSE_POINTER` / `WEB_POINTER`）—— 于是切出来的是三节之和
+ * （实测 1509 字符），断言里写死的 `< 900` 就成了一个**跟意图无关的数字**。
+ *
+ * 这一条要验的意图是：**每轮只留一句情绪指引、绝不内联整张词表**。所以：
+ *   · 按**节**取（锚点 → 下一个 `\n【` 为止），后面那几节不算进来；
+ *   · 用**比例**（指引必须远小于词表正文）而不是写死字符数。
+ */
+const sectionOf = (text, marker) => {
+  const start = text.indexOf(marker);
+  if (start < 0) return "";
+  const next = text.indexOf("\n【", start + marker.length);
+  return text.slice(start, next < 0 ? undefined : next);
+};
+const pointer = sectionOf(manualText, "【情绪（新词表）】");
 check(
-  "每轮提示词里只留了**一句指引**（几百字符，而不是那份 2000 多字符的词表）",
-  pointer.length > 0 && pointer.length < 900,
-  `指引 ${pointer.length} 字符 vs 词表正文 ${groupsText.length} 字符（省下约 ${round(
-    (1 - pointer.length / (groupsText.length + pointer.length)) * 100,
+  "每轮提示词里只留了**一句指引**（就是那一节，不是整张词表）",
+  pointer.length > 0 && pointer.length * 2 < groupsText.length,
+  `指引 ${pointer.length} 字符 vs 词表正文 ${groupsText.length} 字符（指引只有词表的 ${round(
+    (pointer.length / groupsText.length) * 100,
   )}%）`,
+);
+check(
+  "指引锚点「【情绪（新词表）】」在每轮提示词里**只出现一次**（不重复堆）",
+  manualText.split("【情绪（新词表）】").length - 1 === 1,
+);
+const pointerGroupHits = groups.filter((g) => pointer.includes(g.title)).map((g) => g.id);
+check(
+  "指引里**没有 13 组的批量清单**（组名一条都不在，连词表正文的头也没跟着进来）",
+  pointerGroupHits.length === 0 && !pointer.includes("【情绪词表"),
+  `命中组名 ${pointerGroupHits.join(",") || "无"}`,
 );
 
 /* ═══════════════════ ③ 动作 schema：字段 + 分组 + 工具名 ═══════════════════ */
@@ -203,7 +227,7 @@ check(
   "只有 primaryEmotion 是必填（其余都能省 —— 每轮只报精简版才可能）",
   (reportDef?.fields ?? []).filter((f) => f.required).map((f) => f.name).join(",") === "primaryEmotion",
 );
-check("分组是「自我」（跟 state.report 同一组，进按需注册那套）", reportDef?.group === "自我", reportDef?.group);
+check("分组是「自我」（跟 emotion.lexicon 同一组，进按需注册那套）", reportDef?.group === "自我", reportDef?.group);
 check(
   "工具名合法且能回填（emotion_report / emotion_lexicon）",
   schema.actionToolName("emotion.report") === "emotion_report" &&
@@ -215,8 +239,9 @@ check(
     schema.ACTION_GROUP_OF["emotion.lexicon"] === "自我",
 );
 check(
-  "权限落在 state_report（L0 静默，不新开一项、不重新问用户）",
-  META_SRC.includes('"emotion.report": "state_report"') && META_SRC.includes('"emotion.lexicon": "state_report"'),
+  "不挂权限了（2026-10 删掉「情绪权限」那一项：`emotion.report` 常驻、写本机，无权限 = 闸门直接执行）",
+  !/"emotion\.report"\s*:\s*"state_report"/.test(META_SRC) &&
+    !/"emotion\.lexicon"\s*:\s*"state_report"/.test(META_SRC),
 );
 
 /* 按需注册：真的跑一遍 `selectActionKinds()`，看它会不会被带上 */
@@ -253,10 +278,45 @@ check(
   selectedOther.kinds.includes("media.play") && selectedOther.kinds.length < allKinds.length / 2,
   `带上 ${selectedOther.kinds.length}/${allKinds.length} 个`,
 );
+/**
+ * 常驻集合：**从源码现读**，不写死数量 —— 2026-10 感知那三件
+ * （`sense.time` / `sense.device` / `sense.place`）也进了常驻，`=== 4` 就成了过时数字。
+ * 这里要验的只有两条语义：**emotion.report 必须常驻**（用户点名的）、
+ * **旧的 state.report 必须不在**；另外盯一句"常驻只能是少数"（不许拿常驻废掉按需注册）。
+ */
+const TOOL_SELECT_SRC = read("./src/lib/tool-select.ts");
+const alwaysFromSrc = (() => {
+  const stripped = TOOL_SELECT_SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  const m = stripped.match(/export const ALWAYS_KINDS\s*=\s*\[([\s\S]*?)\]\s*as const/);
+  return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : null;
+})();
+const alwaysLive = [...toolSelect.ALWAYS_KINDS];
 check(
-  "tool-select.ts 的常驻集合 = 5 个，且包含 emotion.report（用户点名的常驻）",
-  toolSelect.ALWAYS_KINDS.length === 5 && toolSelect.ALWAYS_KINDS.includes("emotion.report"),
-  toolSelect.ALWAYS_KINDS.join(","),
+  "常驻集合能从源码读出来（`tool-select.ts` 里有 `ALWAYS_KINDS` 那个数组）",
+  Array.isArray(alwaysFromSrc) && alwaysFromSrc.length > 0,
+  alwaysFromSrc ? alwaysFromSrc.join(",") : "没解析到",
+);
+check(
+  "常驻里**必须有 emotion.report**（用户点名：「常驻吧，我不能一直提醒他记情绪」）",
+  alwaysLive.includes("emotion.report"),
+  alwaysLive.join(","),
+);
+check(
+  "常驻里**不许有旧的 state.report**（那条通道整条退场了：源码和运行期两份都不许有）",
+  !alwaysLive.includes("state.report") && !(alwaysFromSrc ?? []).includes("state.report"),
+  alwaysLive.join(","),
+);
+check(
+  "常驻里没有重复也没拼错（每一条都是真动作），而且运行期那份跟源码一致",
+  new Set(alwaysLive).size === alwaysLive.length &&
+    alwaysLive.every((k) => allKinds.includes(k)) &&
+    JSON.stringify(alwaysLive) === JSON.stringify(alwaysFromSrc),
+  `常驻 ${alwaysLive.length} 个 / 全部动作 ${allKinds.length} 个`,
+);
+check(
+  "常驻只是**少数**（没拿常驻把按需注册废掉）",
+  alwaysLive.length < allKinds.length / 2,
+  `${alwaysLive.length} < ${allKinds.length}/2`,
 );
 
 /* ═════════════ ④⑤ 真校验：词表外无效 + 字数截断（跑真函数） ═════════════ */
@@ -478,10 +538,62 @@ check(
     HOST_SHELL_SRC.includes("<EmotionApp realScenes={realScenes} />"),
 );
 check(
-  "旧的东西一个没删：11 维 dims（state-dims.ts）与旧花瓣动作 state.report 都还在",
-  read("./src/lib/state-dims.ts").includes("DIMS") &&
-    schema.ACTION_SCHEMA.some((a) => a.kind === "state.report") &&
-    ACTIONS_SRC.includes('case "state.report"'),
+  "旧的 11 维那一套**整条退场**：state-dims.ts 没了、state.report 动作与 case 都没了",
+  !existsSync("./src/lib/state-dims.ts") &&
+    !schema.ACTION_SCHEMA.some((a) => a.kind === "state.report") &&
+    !ACTIONS_SRC.includes('case "state.report"'),
+  `state-dims.ts 存在=${existsSync("./src/lib/state-dims.ts")} · schema 里还有=${
+    schema.ACTION_SCHEMA.some((a) => a.kind === "state.report")
+  } · actions.ts 里还有=${ACTIONS_SRC.includes('case "state.report"')}`,
+);
+check(
+  "情绪**只剩一条上报通道**：emotion.report 在、state.report 不在（口径统一到新词表）",
+  schema.ACTION_SCHEMA.some((a) => a.kind === "emotion.report") &&
+    !schema.ACTION_SCHEMA.some((a) => a.kind === "state.report"),
+);
+/**
+ * 旧的 11 维词汇**作为词表**彻底没了 —— 这条必须**按上下文判**，不能拿 11 个词
+ * 全文搜：新词表里本来就有「心动 / 好奇 / 想念」这些字样（想念在 F 组里以「思念」形态
+ * 出现，心动 / 好奇是实词），全文搜会误伤。所以按"旧词表的结构性痕迹"判：
+ *   · `DIM_IDS` / `DIM_LABELS` / `LEGACY_ALIASES` 这三个只属于旧词表的导出；
+ *   · 数据层的 `stateSamples` 字段（旧词表的落库处）；
+ *   · 旧词表独有的那 4 个花瓣词（分享欲 / 情愫 / 反思 / 占有）在**源码**里一个都不该有
+ *     （这 4 个新词表 217 词里确实没有，另 7 个跟新词表重合，不能当判据）。
+ */
+const RETIRED_ONLY_TERMS = ["分享欲", "情愫", "反思", "占有"];
+const srcFiles = [
+  "./src/lib/actions.ts",
+  "./src/lib/action-meta.ts",
+  "./src/lib/store.ts",
+  "./src/lib/types.ts",
+  "./src/lib/tool-select.ts",
+  "./src/lib/manual.ts",
+  "./src/lib/prompt.ts",
+  "./src/lib/awareness.ts",
+  "./src/components/me-sections.tsx",
+  "./src/components/play/diary-view.tsx",
+  "./src/components/play/space-view.tsx",
+];
+const legacyHits = [];
+for (const rel of srcFiles) {
+  const src = read(rel);
+  /**
+   * ⚠️ 只看**结构性痕迹**（`stateSamples:` 字段声明 / `s.stateSamples` 读写），
+   * 不看行文：这一轮刻意在几个文件里留了"旧的 stateSamples 已删除"的注释，
+   * 那是说明，不是残留。
+   */
+  for (const marker of ["DIM_IDS", "DIM_LABELS", "LEGACY_ALIASES", "stateSamples:", ".stateSamples"]) {
+    if (src.includes(marker)) legacyHits.push(`${rel}:${marker}`);
+  }
+  for (const term of RETIRED_ONLY_TERMS) {
+    // 只在**被引号包起来**时算（说明是词表条目，不是普通行文里的"反思一下"）
+    if (new RegExp(`["'\\\`]${term}["'\\\`]`).test(src)) legacyHits.push(`${rel}:"${term}"`);
+  }
+}
+check(
+  "旧的 11 维词表在源码里零残留（DIM_IDS/DIM_LABELS/LEGACY_ALIASES/stateSamples + 独有花瓣词）",
+  legacyHits.length === 0,
+  legacyHits.join("、") || "零命中",
 );
 check(
   "插件的画布/动效/配色文件没被这一轮碰过（只有数据层与文案）",

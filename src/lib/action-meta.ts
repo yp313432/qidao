@@ -1,8 +1,14 @@
 import type { AppAction, PermissionId } from "@/lib/types";
-import { DIMS } from "@/lib/state-dims";
+import { moodDisplay } from "@/lib/emotion-lexicon";
 
-/** 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。 */
-export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
+/**
+ * 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。
+ *
+ * ⚠️ 是 **Partial**：**没有映射的动作 = 不需要授权，闸门直接放行**
+ * （现在只有 `emotion.report` / `emotion.lexicon` 这两个 —— 见下面那一段注释）。
+ * 加新动作时忘了在这里挂权限 = 它变成"免确认直接执行"，所以宁可在这里写清楚。
+ */
+export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>> = {
   navigate: "navigate",
   "media.play": "media",
   "media.pause": "media",
@@ -11,7 +17,17 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "media.volume": "media_volume",
   "media.seek": "media_seek",
   "media.playTrack": "media_search",
-  "media.playEmbed": "media_play",
+  /**
+   * ⚠️ 挂**现役的 `media`**（跟 `media.play` 同一道闸）。
+   *
+   * 2026-10 修：这里原来写的是 `media_play` —— 那是**幽灵权限**（`permissions.ts`
+   * 里根本没有这个 id，历史上叫 `media`）。后果有两个，都是用户能感觉到的：
+   *   · 闸门读不到这一项 → 永远按 `ask` 走，用户点过「以后都允许」也不生效；
+   *   · `buildContext()` 里"已授权"那份清单按 ACTION_PERMISSION 反查，
+   *     于是 AI **永远不知道**自己已经被允许播外链。
+   * 不新增权限 id、也不改名（改 id 等于作废用户已经点过的那些授权）。
+   */
+  "media.playEmbed": "media",
   "appearance.theme": "appearance",
   "appearance.font": "appearance",
   "appearance.textColor": "appearance",
@@ -28,15 +44,17 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "learn.addCard": "learn_card",
   "reminder.add": "reminder",
   "cron.add": "scheduled_job",
-  "state.report": "state_report",
   /**
-   * 上报情绪 / 取词表都落在「给自己记一笔状态」这项权限上（L0 静默、无副作用）。
+   * ——— 情绪这两个动作**不挂权限**（2026-10 用户要求删掉"情绪权限"那一项）———
    *
-   * 为什么不新开一项权限：这是**同一件事**（他给自己记一笔），用户已有的授权
-   * 就该覆盖它 —— 新开一项等于偷偷把它变成"要重新点同意"，那是坑他。
+   * 为什么可以直接删：`emotion.report` 已经**常驻**（`tool-select.ts` 的常驻集合）、
+   * 11 维花瓣与 `state.report` 早已退场，`emotion.lexicon` 只是"取一份词表看看" ——
+   * 两者都是 L0 静默、无副作用（写本机的情绪记录），给他看的那道闸没有意义。
+   *
+   * ⚠️ 删掉的是权限**这一项**，不是动作。这两个 kind 在这里没有映射 = **无权限直接执行**
+   * （`action-gate.tsx`：没有权限的动作不弹卡片、直接放行）—— 所以情绪上报不会被卡住。
+   * ⚠️ 别再给它们新开一项权限：那等于把"他给自己记一笔"重新变成"要用户再点一次同意"。
    */
-  "emotion.report": "state_report",
-  "emotion.lexicon": "state_report",
   "memory.add": "memory",
   "persona.set": "persona",
   "play.gobang": "gobang_play",
@@ -75,15 +93,36 @@ export const ACTION_PERMISSION: Record<AppAction["kind"], PermissionId> = {
   "tool.call": "mcp_tools",
   // 调自己配的 HTTP 工具：落在「调用 HTTP 工具」那项上（另一项权限，可以分别放行）
   "http.call": "http_tools",
+  /**
+   * ——— 搜网页 / 读网页正文（2026-10 新增）———
+   *
+   * 两个动作挂**同一项** `web_search`（L2，默认每次问一下）。
+   * 为什么不给 `web.fetch` 单开一项：它们是一件事的两半（先搜到、再读进去），
+   * 用户点两次同意换不来任何额外保护 —— 真要说风险，两者的风险是同一档
+   * （都是"往外发一个请求、拿回公开网页"）。
+   */
+  "web.search": "web_search",
+  "web.fetch": "web_search",
+  /**
+   * ——— 主动感知（"他自己调一下，看一眼现在的状态"）———
+   *
+   * 口径（跟别的动作一致）：**能让他知道什么**落在 sense 组那几项上。
+   *   · 时间 / 电量 / 网络 → `read_device`（L0，默认放行 —— 那就是"看一眼"）
+   *   · 在哪 / 外面天气   → `see_location`（L2，跟"此刻的情况"里那份定位同一道闸，
+   *     所以他要看位置时会弹一次确认卡片；用户点「以后都允许」之后就畅通了）
+   *   · 屏幕亮没亮        → `read_screen`（L0；网页版拿不到，装了 App 才有）
+   *   · 最近的通知        → `read_notifications`（L2 + 系统「通知使用权」）
+   *   · 前台是哪个 App    → `read_usage`（L2 + 系统「使用情况访问」）
+   */
+  "sense.time": "read_device",
+  "sense.device": "read_device",
+  "sense.place": "see_location",
+  "sense.screen": "read_screen",
+  "sense.notifications": "read_notifications",
+  "sense.foreground": "read_usage",
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
-
-/**
- * 心情 id → 中文名。**从词表派生**（`lib/state-dims.ts` 的 DIMS）——
- * 以前这里手写了一份 6 个词的清单，跟花瓣对不上，改词表时必然漏掉一处。
- */
-const MOOD_CN: Record<string, string> = Object.fromEntries(DIMS.map((d) => [d.id, d.label]));
 
 /** 把一个动作翻译成给人看的一句话（审批弹窗 / 日志都用它）。 */
 export function actionTitle(action: AppAction): string {
@@ -141,19 +180,6 @@ export function actionTitle(action: AppAction): string {
       return `设一个提醒：${action.text.slice(0, 16)}${action.time ? `（${action.time}）` : ""}`;
     case "cron.add":
       return `设一个定时任务：${action.prompt.slice(0, 14)}${action.time ? `（每天 ${action.time}）` : ""}`;
-    case "state.report": {
-      /*
-        状态现在是**稀疏维度**（只报此刻明显的那几个），所以这里把报出来的列一下。
-        老数据只有 energy/missing/curious 三个顶层字段 → dims 为空，就只写心情。
-      */
-      const dims = action.dims ?? {};
-      const parts = Object.entries(dims)
-        .slice(0, 3)
-        .map(([k, v]) => `${k} ${Math.round(Number(v) * 100)}%`);
-      return `记下自己的状态：${MOOD_CN[action.mood] ?? action.mood}${
-        parts.length ? `（${parts.join("、")}）` : ""
-      }`;
-    }
     case "emotion.report": {
       // 词表外的词在 actions.ts 会被退回 —— 这里只负责把那笔写成人话
       const secondary = (action.secondaryEmotions ?? []).slice(0, 2);
@@ -200,7 +226,8 @@ export function actionTitle(action: AppAction): string {
     case "settings.setUpstream":
       return "修改上游地址 / API Key";
     case "moment.post":
-      return `发一条动态：${action.text.slice(0, 18)}`;
+      // 心情取新词表的中文名（`emotion-lexicon` 一处定义），别在这儿再抄一份
+      return `发一条动态（${moodDisplay(action.mood).label}）：${action.text.slice(0, 18)}`;
     case "letter.write":
       return `写一封信：${action.title.slice(0, 18)}`;
     case "date.add":
@@ -237,5 +264,23 @@ export function actionTitle(action: AppAction): string {
       return `调用你配的 HTTP 工具「${action.tool}」${
         action.args && Object.keys(action.args).length ? `（带参数：${Object.keys(action.args).join("、")}）` : ""
       }`;
+    // 联网：审批卡片/日志里一眼看得出他"去外面干了什么"
+    case "web.search":
+      return `去网上搜「${action.query.slice(0, 20)}」`;
+    case "web.fetch":
+      return `读一个网页：${action.url.slice(0, 60)}`;
+    // 主动感知：标题写成人话（审批卡片/日志里一眼看得出他"看了一眼什么"）
+    case "sense.time":
+      return "看一眼现在的时间";
+    case "sense.device":
+      return "看一眼电量与网络";
+    case "sense.place":
+      return "看一眼位置与天气";
+    case "sense.notifications":
+      return "看一眼最近的通知";
+    case "sense.foreground":
+      return "看一眼前台在用什么 App";
+    case "sense.screen":
+      return "看一眼屏幕状态";
   }
 }

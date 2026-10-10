@@ -1,6 +1,14 @@
 import { resolveAiName } from "@/lib/branding";
+import { isNativeApp } from "@/lib/platform";
 import { useApp } from "@/lib/store";
-import { WAKE_KEYS, clearWakeConfig, pushWakeConfig, readWakeConfig } from "@/lib/wake-bridge";
+import { waitHydrated } from "@/lib/store-ready";
+import {
+  WAKE_KEYS,
+  clearWakeConfig,
+  clearWakePending,
+  pushWakeConfig,
+  readWakeConfig,
+} from "@/lib/wake-bridge";
 import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
 
 /**
@@ -173,6 +181,215 @@ export async function readWakeLog(limit = 6): Promise<string[] | null> {
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, limit);
+}
+
+/**
+ * **把后台那句"他自己说的"落进会话** —— 用户真机上缺的就是这一步。
+ *
+ * 原来的样子（用户原话）：
+ *   "那个定时唤醒成功了。我能收到弹窗通知，但是那个通知**不在上下文里**……
+ *    这样如果我想回他那句消息的话，进对话里的 AI 是不知道这回事的。"
+ *
+ * 为什么原来接不上：后台那段 JS（`public/runners/wake.js`）跑在 webview **外面**，
+ * 它只能弹通知 + 往抽屉里写日志（还被截成 40 字）；而**会话存在 IndexedDB 里，只有 webview 会写**。
+ * 现在后台在"他说了"那一刻把**完整那句话**写进抽屉（`markPending`），
+ * 前台一到前台/被点通知就读出来、**走既有的"他主动说一条"那条路**（`beginScheduledReply`）
+ * 落进当前会话，然后把交接键置空。
+ *
+ * ⚠️ **不另造一套消息写入**：用 `beginScheduledReply()` + `finalizeAssistant()`，
+ *    跟 `task-daemon.tsx` 里定时任务说的是同一条路径（时间、`scheduled` 标记、气泡样式都一致）。
+ * ⚠️ 网页版没有抽屉 → **什么都不做、也不报错**（`readWakeConfig` 返回 null）。
+ */
+export type WakeFlushResult = {
+  /** 这一趟本身没出错（**不代表**一定有话要落） */
+  ok: boolean;
+  /** 真的落进会话了一条 */
+  landed: boolean;
+  /** 这条之前已经落过了（防重复挡下的） */
+  already?: boolean;
+  conversationId?: string;
+  messageId?: string;
+  /** 落进去的那句话 */
+  text?: string;
+  /** 他说话的时间（本地时间字符串，来自 `wake_pending_at`） */
+  at?: string;
+  /** 出问题时的原因（落库失败 / 抽屉没清干净） */
+  message?: string;
+};
+
+/** 同一条在这一趟会话里只落一次 —— 见下面两道防线 */
+let landedKey = "";
+/** 正在落的那一趟（三个时机可能同时打过来，不能让同一句话插两遍） */
+let flushing: Promise<WakeFlushResult> | null = null;
+
+export function flushPendingWake(): Promise<WakeFlushResult> {
+  if (!isNativeApp()) {
+    return Promise.resolve({ ok: true, landed: false, message: "网页版没有抽屉 —— 跳过" });
+  }
+  if (flushing) return flushing;
+  flushing = doFlushPendingWake().finally(() => {
+    flushing = null;
+  });
+  return flushing;
+}
+
+async function doFlushPendingWake(): Promise<WakeFlushResult> {
+  try {
+    const cfg = await readWakeConfig();
+    /** null = 这台上根本没有抽屉（网页版），或者抽屉读不出来 —— 静默跳过 */
+    if (!cfg) return { ok: true, landed: false, message: "这台上没有抽屉" };
+
+    /**
+     * ⚠️ 只读 `wake_pending_text`；**绝不回写 key**（抽屉插件把 `cfg_api_key` 打码成
+     * 「已设置」，拿回来往别处写会把真 key 抹掉 —— `pingWake` 上面记着这个坑）。
+     */
+    const text = String(cfg[WAKE_KEYS.pendingText] ?? "").trim();
+    if (!text) return { ok: true, landed: false };
+
+    const stamp = String(cfg[WAKE_KEYS.pendingAt] ?? "").trim();
+    const atMs = Number(String(cfg[WAKE_KEYS.pendingAtMs] ?? "").trim()) || 0;
+    const key = `${atMs}|${text}`;
+
+    /**
+     * 防线 ②：同一条（同一时刻 + 同一句）只落一次。
+     *
+     * 两道都留着，管的是两件不同的事：
+     *   · `landedKey`（内存）—— 三个时机（打开 / 回前台 / 点通知）**同时**打过来的竞态
+     *   · `wake_pending_consumed_key`（抽屉）—— **跨一次重启/重载**也认得出
+     *     "就是刚才那条"（内存那份会没，这条不会）
+     */
+    const consumedKey = String(cfg[WAKE_KEYS.pendingConsumedKey] ?? "").trim();
+    if (key === landedKey || (consumedKey && key === consumedKey)) {
+      await clearWakePending(stamp, key);
+      return { ok: true, landed: false, already: true, message: "这条已经落过了，不重复插" };
+    }
+
+    /**
+     * ⚠️ 必须等 store 从 IndexedDB 恢复完再写 —— 否则先写进内存、随后被恢复出来的旧快照
+     * 整个覆盖，表现就是"通知点了、话却没进会话"（`store-ready.ts` 记着同一个坑）。
+     *
+     * ⚠️ `waitHydrated()` 有 4 秒兜底（它不能永远等着）—— 所以**恢复没完成就必须不写**：
+     * 写进一个马上要被覆盖的 store，不但这条消息会没，抽屉里的交接键还会被清掉，
+     * **那句话就永远丢了**。宁可这一趟不落，留给下一次时机（回前台 / 点通知 / 下次打开）。
+     */
+    await waitHydrated();
+    if (!useApp.getState().hydrated) {
+      return {
+        ok: false,
+        landed: false,
+        message: "会话还在从本地恢复（这次没等完）—— 这句话先留在抽屉里，等下一次时机再落",
+      };
+    }
+
+    /** **走既有的那条路**：跟他"主动说一条"完全一样（`scheduled` 标记也一并带上） */
+    const started = useApp.getState().beginScheduledReply(text);
+    /** 会话还没准备好（理论上不会）：**交接键留着**，下一次进前台再试 —— 不丢他这句话 */
+    if (!started) return { ok: false, landed: false, message: "会话还没准备好，这句话先留在抽屉里" };
+    useApp.getState().finalizeAssistant(started.conversationId, started.messageId, {
+      content: text,
+      thinking: "",
+      thinkingDurationMs: 0,
+      /**
+       * 来源标记：这条路是**主动唤醒**（后台那段 JS 醒来找他），
+       * 跟 `task-daemon.tsx` 的定时任务共用 `scheduled`，但界面上要分开说 ——
+       * 带 `origin:"wake"` 才显示「他主动说的」（见 `chat-view.tsx`）。
+       */
+      origin: "wake",
+      /** 时间用**他说话的那一刻**，不是"我收下它的那一刻"（不然时间对不上） */
+      createdAt: atMs > 0 ? atMs : Date.now(),
+    });
+    landedKey = key;
+
+    /**
+     * 防线 ①（最主要的一道）：**落完立刻把交接键置空**。
+     * 置空之后，下一次 flush 读到的就是空串 → 自然不会再插一遍。
+     */
+    const cleared = await clearWakePending(stamp, key);
+    return {
+      ok: true,
+      landed: true,
+      conversationId: started.conversationId,
+      messageId: started.messageId,
+      text,
+      at: stamp,
+      message: cleared ? "" : "话已经落进会话了，但抽屉里的交接键没清干净（下次可能重复）",
+    };
+  } catch (err) {
+    /** 落库失败**不能吞**：交接键留着，下一次进前台再试一遍 */
+    return { ok: false, landed: false, message: `落进会话时出错：${(err as Error).message}` };
+  }
+}
+
+/**
+ * 「他说了一句」那条通知的身份标记（跟 `public/runners/wake.js` 的 `WAKE_NOTIFY_ACTION` 对齐）。
+ * 点通知时原生把它传回来，前台据此知道"该跳到那条消息"。
+ */
+export const WAKE_NOTIFY_ACTION = "qidao-wake-said";
+
+/**
+ * 点通知时原生传回来的东西。
+ *
+ * `source` 是**谁弹的那条通知**（两个原生通道分开），用来决定"要不要跳页"：
+ *   · `"wake"`  —— 后台那段 JS 弹的（"他说了一句"就在这里）→ 落库 **+ 跳到那条**
+ *   · `"local"` —— App 自己弹的（闹钟 / 定时任务）→ **只落库，不跳页**
+ *     （用户点的是"该吃药了"，不该被甩到对话里去）
+ */
+export type WakeNotificationTap = {
+  source: "wake" | "local";
+  actionTypeId?: string;
+  notificationId?: number;
+};
+
+/**
+ * **接"通知被点了"那一下**（③ 点通知直达那条）。
+ *
+ * 两条路都接上，各管各的（都不是猜的，是读插件源码读出来的）：
+ *
+ *  ① `CapacitorBackgroundRunner` → `backgroundRunnerNotificationReceived`
+ *     —— **就是后台那段 JS 弹的通知**（`wake.js` 里那个 `notify()`）。安卓侧插件在
+ *     `handleOnNewIntent()` 里认 `.NOTIFICATION_CLICKED` 这个 intent，把 App 拉到前台，
+ *     再 `notifyListeners(..., true)`（**保留着**，所以 JS 注册得晚一点也收得到）。
+ *     ⚠️ 那个 intent 要能落到 `MainActivity`，靠 `AndroidManifest.xml` 里那条
+ *     `.NOTIFICATION_CLICKED` 的 intent-filter（没有它，点通知根本进不来）。
+ *  ② `LocalNotifications` → `localNotificationActionPerformed`
+ *     —— App 自己弹的那些（闹钟 / 定时任务）被点时也顺手落一下，**只落库、不跳页**。
+ *
+ * 网页版没有这些事件 → 返回一个空的"取消订阅"函数，**什么都不做、也不报错**。
+ */
+export function watchWakeNotificationTap(cb: (tap: WakeNotificationTap) => void): () => void {
+  const disposers: (() => void)[] = [];
+  if (!isNativeApp()) return () => undefined;
+
+  void (async () => {
+    try {
+      const mod = await import("@capacitor/background-runner");
+      const handle = await mod.BackgroundRunner.addListener(
+        "backgroundRunnerNotificationReceived",
+        (e: { actionTypeId?: string; notificationId?: number } | undefined) =>
+          cb({ source: "wake", actionTypeId: e?.actionTypeId, notificationId: e?.notificationId }),
+      );
+      disposers.push(() => void handle.remove());
+    } catch {
+      /* 这个包还没带上那个插件（或者事件名变了）→ 静默：还有"回到前台就落"那条路兜着 */
+    }
+  })();
+
+  void (async () => {
+    try {
+      const mod = await import("@capacitor/local-notifications");
+      const handle = await mod.LocalNotifications.addListener("localNotificationActionPerformed", () =>
+        cb({ source: "local" }),
+      );
+      disposers.push(() => void handle.remove());
+    } catch {
+      /* 同上 */
+    }
+  })();
+
+  return () => {
+    for (const dispose of disposers) dispose();
+    disposers.length = 0;
+  };
 }
 
 /** 把上下文 POST 给 Worker（备路；失败只留一句话，不抛） */async function postToWorker(url: string, payload: unknown): Promise<string> {

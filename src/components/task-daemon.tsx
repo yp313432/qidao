@@ -148,6 +148,8 @@ export function TaskDaemon() {
         content: content || "（他自己开了口，但没说出什么）",
         thinking,
         thinkingDurationMs: 0,
+        /** 来源标记：这条是**定时任务**（跟主动唤醒共用一个 `scheduled`，界面靠它区分） */
+        origin: "cron",
       });
       if (due.notify) {
         void localNotify(aiName, (content || "他主动说了句话").slice(0, 60));

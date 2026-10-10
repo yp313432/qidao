@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 验收脚本：P3 **按需注册**的召回对账 —— 拿 38 条"用户会这么说"的句子，
  * 逐条问一句：`selectActionKinds()` 到底有没有**漏发动作**？
  *
@@ -13,16 +13,16 @@
  *      肉眼核一遍"它凭什么听懂这句"。⚠️ "没报错" ≠ "召回对"：全发安全网会遮住
  *      关键词的盲区（全发的样本必然不漏），所以对账表额外标出「若无全发会漏哪些」，
  *      并把"真按关键词筛的样本"与"靠全发兜的样本"分开数 —— 这才是规则真实覆盖度。
- *   B. 常驻四个（`state.report`/`navigate`/`memory.add`/`ui.highlight`）在**每一条**
+ *   B. 常驻七个（`navigate`/`memory.add`/`ui.highlight`/`emotion.report` + 主动感知便宜的三个
  *      样本（含反例、含安全网样本）里都必须出现。
  *   C. 不误伤：`NO_SIDE_EFFECT_CASES` 的 `mustKeep` 必须都在。
  *   D. 安全网：没有任何关键词的话（"嗯嗯"/"好的谢谢"/"在吗"/"？？"…）必须走**全发**
- *      （`enabled !== false` 时 = 61 个一个不少）。
- *   E. 省得动：≥80% 的召回样本发出 < 61 个，整体平均 ≤ 61 × `MAX_TOOLS_RATIO`。
+ *      （`enabled !== false` 时 = 70 个一个不少）。
+ *   E. 省得动：≥80% 的召回样本发出 < 70 个，整体平均 ≤ 70 × `MAX_TOOLS_RATIO`。
  *   F. 纯函数：同一输入连算两次逐字相同；顺序稳定（跟 `ALL_KINDS` 一致，不靠 `Set`
  *      的遍历顺序）、无重复、无外来 kind。
  *   G. 权限：`allowed` 返回 false 的动作**绝不出现**，常驻那四个也一样（拒绝过就别发）。
- *   H. （附赠）兜底规则文本 + 那份"全部动作名"清单真的覆盖 61 个 ——
+ *   H. （附赠）兜底规则文本 + 那份"全部动作名"清单真的覆盖 70 个 ——
  *      "筛掉的动作 ≠ 不存在"的唯一凭据。
  *
  * ── 怎么做到"真的"（以及为什么规则会边验边改）──────────────────
@@ -35,7 +35,7 @@
  *     此时读源码剥掉 `as const` 经 data: URL 导入兜住，并在 0.11 把这件事钉成 FAIL
  *     报给 Lead（语料不是我的写范围）；
  *   · `src/lib/action-schema.ts` 带 `@/lib/types` 别名 import，纯 node 解析不了 ——
- *     所以 61 个 kind→组 的**抄件在脚本内**，但**不是靠信任**：【0】拿 `action-schema.ts`
+ *     所以 70 个 kind→组 的**抄件在脚本内**，但**不是靠信任**：【0】拿 `action-schema.ts`
  *     的**源码文本**正则抽出来，跟抄件逐项对账（kind 顺序 + 分组都要一致）；
  *   · "这句话凭什么命中这组"用规则自己导出的 `explainSelection()`（真口），拿不到才退回
  *     "从源码抽关键词表"的镜像；两者的**命中结果逐条比对**（0.13）保证诊断不是自说自话；
@@ -59,7 +59,7 @@ const { selectActionKinds, ALL_GROUPS, ALWAYS_KINDS, FALLBACK_RULE, renderToolNa
   toolSelect;
 const explainSelection = toolSelect.explainSelection;
 
-/* ─────────────────────── 动作清单：61 个 kind → 组（抄件） ─────────────────────── */
+/* ─────────────────────── 动作清单：70 个 kind → 组（抄件） ─────────────────────── */
 
 /**
  * `src/lib/action-schema.ts` 的 `ACTION_SCHEMA`，**顺序与它完全一致**。
@@ -96,7 +96,6 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["learn.addCard", "学习"],
   ["reminder.add", "提醒"],
   ["cron.add", "提醒"],
-  ["state.report", "自我"],
   ["emotion.report", "自我"],
   ["emotion.lexicon", "自我"],
   ["memory.add", "记忆"],
@@ -134,16 +133,37 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["letter.remove", "记录"],
   ["tool.call", "工具"],
   ["http.call", "工具"],
+  /**
+   * 2026-10 新增的**联网**两个（`web.search` / `web.fetch`）——
+   * 手机版第一次真的有"搜网页 / 读正文"（走 Capacitor 自带的原生 HTTP，绕开跨域）。
+   * ⚠️ 顺序必须跟 `action-schema.ts` 的声明顺序一致（【0】会逐项对账）。
+   */
+  ["web.search", "工具"],
+  ["web.fetch", "工具"],
+  /**
+   * 2026-10 新增的「主动感知」六个（零参数，调用即"看一眼现在的状态"）——
+   * 用户原话："我给开他那么多权限，其实是希望他**主动的去用**"。
+   * ⚠️ 顺序必须跟 `action-schema.ts` 的声明顺序一致（【0】会逐项对账）。
+   */
+  ["sense.time", "感知"],
+  ["sense.device", "感知"],
+  ["sense.place", "感知"],
+  ["sense.notifications", "感知"],
+  ["sense.foreground", "感知"],
+  ["sense.screen", "感知"],
 ];
 
 const ALL_KINDS = ACTION_SCHEMA_KIND_GROUP.map((pair) => pair[0]);
 const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
 /**
  * 全发的基线数量（断言里到处用到，别写成字面量）。
- * 61（P0）→ **63**：加了「情绪词表」那两个动作（`emotion.report` / `emotion.lexicon`）。
+ * 61（P0）→ 63（加「情绪词表」那两个动作）→ 62（2026-10 旧的 `state.report`／
+ * 11 维花瓣整条退场）→ 68（再加「主动感知」六个 `sense.*`：让 AI **主动**
+ * 看一眼现在的状态，而不是每轮被系统塞一段）→ **70**（2026-10 再加**联网**两个
+ * `web.search` / `web.fetch`：手机版第一次能搜网页、能读网页正文）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 63;
+const EXPECTED_TOTAL = 70;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -394,7 +414,7 @@ async function main() {
   );
   check(
     `tool-select.ts 导出 ALL_GROUPS（${ALL_GROUPS?.length} 组）与 ALWAYS_KINDS（${ALWAYS_KINDS?.length} 个）`,
-    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 11 && ALWAYS_KINDS.length === 5,
+    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 12 && ALWAYS_KINDS.length === 7,
     j([ALL_GROUPS?.length, ALWAYS_KINDS?.length]),
   );
   const firstImport = (TOOL_SELECT_SRC.match(/^\s*import\s.*$/m) ?? [""])[0].trim();
@@ -496,7 +516,7 @@ async function main() {
     `不一致：${j(simMismatch.map((s) => s.text))}`,
   );
   check(
-    `0.11 源码关键词表 11 组全抽到（每组 ≥ 2 个词）`,
+    `0.11 源码关键词表 12 组全抽到（每组 ≥ 2 个词）`,
     ALL_GROUPS.every((g) => (KEYWORDS[g] ?? []).length >= 2),
     j(ALL_GROUPS.filter((g) => (KEYWORDS[g] ?? []).length < 2)),
   );
@@ -583,10 +603,10 @@ async function main() {
     } 条）、走全发安全网的 ${allSentRows.length} 条；其中「若无全发就会漏动作」的有 ${netDependent} 条 —— 这 ${netDependent} 条是关键词表的真实盲区`,
   );
 
-  /* ═════════ B. 常驻四个：每条样本都要有 ═════════ */
+  /* ═════════ B. 常驻七个：每条样本都要有 ═════════ */
 
   console.log(
-    `\n【B】常驻四个 —— ${SAMPLE_BATTERY.length} 条样本（含反例 / 安全网 / 空串）里都必须出现`,
+    `\n【B】常驻七个 —— ${SAMPLE_BATTERY.length} 条样本（含反例 / 安全网 / 空串）里都必须出现`,
   );
   const bMissing = [];
   for (const s of SAMPLE_BATTERY) {
@@ -600,7 +620,7 @@ async function main() {
     if (miss.length > 0) bMissing.push(`${s.text} → 丢 ${miss.join(",")}`);
   }
   check(
-    `B1 全部 ${SAMPLE_BATTERY.length} 条样本里常驻四个一个不少（反例也不能丢）`,
+    `B1 全部 ${SAMPLE_BATTERY.length} 条样本里常驻七个一个不少（反例也不能丢）`,
     bMissing.length === 0,
     bMissing.slice(0, 3).join(" ｜ "),
   );
@@ -610,7 +630,7 @@ async function main() {
     return ALWAYS_ON.some((k) => !r.kinds.includes(k));
   });
   check(
-    `B2 在真筛过的 ${filteredSamples.length} 条样本里也都有常驻四个（不是靠"61 个全发"凑数）`,
+    `B2 在真筛过的 ${filteredSamples.length} 条样本里也都有常驻那四个（不是靠"${TOTAL} 个全发"凑数）`,
     filteredSamples.length > 0 && filteredMissing.length === 0,
     j(filteredMissing.map((s) => s.text)),
   );
@@ -690,7 +710,7 @@ async function main() {
 
   /* ═════════ E. 省得动 ═════════ */
 
-  console.log("\n【E】省得动 —— 至少 80% 的召回样本要真被筛，整体平均 ≤ 61 × MAX_TOOLS_RATIO");
+  console.log("\n【E】省得动 —— 至少 80% 的召回样本要真被筛，整体平均 ≤ 62 × MAX_TOOLS_RATIO");
   const counts = RECALL_CASES.map((c) => select(c.text, c.recent).kinds.length);
   const belowTotal = counts.filter((n) => n < TOTAL);
   const ratio = belowTotal.length / counts.length;
@@ -812,7 +832,7 @@ async function main() {
   const denyAlways = (k) => !ALWAYS_KINDS.includes(k);
   const g1 = select("嗯嗯", undefined, denyAlways);
   check(
-    `G1 拒绝常驻四个 → 一个都不出现，剩下 ${TOTAL - ALWAYS_KINDS.length} 个照发`,
+    `G1 拒绝常驻七个 → 一个都不出现，剩下 ${TOTAL - ALWAYS_KINDS.length} 个照发`,
     !ALWAYS_KINDS.some((k) => g1.kinds.includes(k)) &&
       g1.kinds.length === TOTAL - ALWAYS_KINDS.length &&
       g1.dropped === ALWAYS_KINDS.length,
@@ -874,7 +894,7 @@ async function main() {
   );
   note(
     "H-观察 名字清单体积",
-    `${nameList.length} 字符（61 个全量定义 ≈ 4007 token，名字清单便宜一个量级）`,
+    `${nameList.length} 字符（${TOTAL} 个全量定义 ≈ 4000 token，名字清单便宜一个量级）`,
   );
 
   /* ═════════ 收尾 ═════════ */

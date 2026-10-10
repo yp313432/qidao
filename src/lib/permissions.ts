@@ -69,6 +69,22 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "read_learn", title: "学习进度", hint: "看过哪些词、看了多少次", risk: "L0", status: "ready", group: "sense" },
   { id: "read_device", title: "设备与环境", hint: "时区、语言、屏幕、在线状态", risk: "L0", status: "ready", group: "sense" },
   { id: "read_settings", title: "当前设置", hint: "主题、模型、字体等", risk: "L0", status: "ready", group: "sense" },
+  /**
+   * ——— 主动感知那三个"要系统权限"的（2026-10）———
+   *
+   * 用户要的是"他**主动**去看一眼状态"，不是每轮塞一段。这三项就是那三个动作的下限：
+   *   · 屏幕状态   —— 一般不需要系统权限（安卓的 PowerManager / KeyguardManager）；
+   *     网页版没有，所以标 `system`
+   *   · 读系统通知 —— 要用户在系统设置里开「通知使用权」（特殊应用权限，不在普通弹窗里）
+   *   · 看你在用哪个 App —— 要「使用情况访问」（同样是特殊权限）
+   *
+   * 为什么标 L2（要问一次）而不是 L0：读别人的消息、看你在用什么，都是**敏感**的
+   * 只读数据（跟 `see_location` 一个口径）。他调的时候会弹一次卡片，
+   * 用户点「以后都允许」之后就一路畅通 —— 那也正是"我给你开了权限，你主动用"的姿势。
+   */
+  { id: "read_screen", title: "屏幕状态", hint: "屏幕亮不亮、锁没锁（装了 App 才有）", risk: "L0", status: "system", group: "sense" },
+  { id: "read_notifications", title: "读系统通知", hint: "最近几条通知是谁发的（要系统「通知使用权」）", risk: "L2", status: "system", group: "sense" },
+  { id: "read_usage", title: "看你在用哪个 App", hint: "当前前台是哪个应用（要系统「使用情况访问」）", risk: "L2", status: "system", group: "sense" },
 
   // ---------------- 界面与外观（L1） ----------------
   { id: "navigate", title: "切换页面", hint: "它可以带你跳到某个页面", risk: "L1", status: "ready", group: "ui" },
@@ -77,7 +93,17 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "open_panel", title: "打开弹窗 / 面板", hint: "帮你打开歌词面板、对话列表", risk: "L1", status: "ready", group: "ui" },
   { id: "scroll_to", title: "滚动定位", hint: "滚到某条消息、某段歌词", risk: "L1", status: "ready", group: "ui" },
   { id: "switch_model", title: "切模型与回复风格", hint: "改他自己的行为方式", risk: "L1", status: "ready", group: "ui" },
-  { id: "state_report", title: "给自己记一笔状态", hint: "每轮回复时顺手记下心情/精力/想念（只存本机，用来画波浪线）", risk: "L0", status: "ready", group: "ui" },
+  /**
+   * ⚠️ 2026-10：这里原来有一条 `state_report`（「给自己记一笔状态」）。
+   *
+   * 为什么整条删掉（用户原话："ai 权限页那个情绪删了吧，如果适配都做好的话"）：
+   *   · 它服务的旧动作 `state.report`（11 维花瓣）已经退场；
+   *   · 剩下的 `emotion.report` 已经**常驻**、`emotion.lexicon` 只是取一份词表 ——
+   *     两个都是 L0 静默、写在本机，用户在这儿点"允许"没有任何意义，
+   *     反而让人以为"不点就不上报情绪"。
+   * 现在这两个动作**不挂权限、直接执行**（见 `action-meta.ts` 与 `action-gate.tsx`）。
+   * ⚠️ 别再把它加回来 —— 加回来就等于给他记一笔情绪这件事重新上一道闸。
+   */
   /**
    * 定位属于**感知**（他"看得到"），不是"动手"，所以放 sense 组。
    * 用户问："定位权限是不是也没列出来" —— 对，之前确实不在列表里：
@@ -128,7 +154,12 @@ export const PERMISSIONS: PermissionDef[] = [
   // ---------------- 外部工具 ----------------
   { id: "http_tools", title: "调用 HTTP 工具", hint: "你自己配的那些接口", risk: "L2", status: "partial", group: "tools" },
   { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配的 MCP 服务器（HTTP 地址）", risk: "L2", status: "partial", group: "tools" },
-  { id: "web_search", title: "网页搜索 / 抓取", hint: "去外面查资料", risk: "L2", status: "todo", group: "tools" },
+  /**
+   * ⚠️ 2026-10：`todo` → `ready`。手机上真的能用了 —— `web.search` / `web.fetch`
+   * 走 Capacitor 自带的**原生 HTTP**（绕开 WebView 跨域），所以这条不再是"占位"。
+   * 两个联网动作**共用这一项**（理由写在 `action-meta.ts`）。
+   */
+  { id: "web_search", title: "网页搜索 / 抓取", hint: "去外面查资料、读某个网页的正文", risk: "L2", status: "ready", group: "tools" },
   { id: "own_api", title: "调用你自己的 API / 代理", hint: "你的自建服务", risk: "L2", status: "todo", group: "tools" },
   { id: "scheduled_job", title: "定时任务", hint: "让他按时自己开口（App 活着时真的会说；关着靠通知兜底）", risk: "L2", status: "partial", group: "tools" },
 

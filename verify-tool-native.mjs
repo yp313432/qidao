@@ -11,11 +11,11 @@
  * 过动作闸门真执行 → 结果以 `role:"tool"` **回灌** → 自动再发一轮让它接着说。
  *
  * 所以这个脚本要端到端证明 **六件事**（少一件都不能算接上了）：
- *   ① 请求里**真的带上了 61 个内部动作的 tools**（不是只有提示词里那段文字）
+ *   ① 请求里**真的带上了 70 个内部动作里该发的那些 tools**（不是只有提示词里那段文字）
  *   ② 流式下**分片**的 `tool_calls` 被拼成了完整调用（不是只读第一个 chunk）
  *   ③ 动作**真被执行**了（数据/页面真的变了 —— 这里验"真的切了页面"）
  *   ④ 结果**真的回灌**进下一轮请求（`role:"tool"` + 对得上的 `tool_call_id`）
- *   ⑤ 走的 tools 时**提示词自动变薄**（不再列 61 个动作的散文清单）
+ *   ⑤ 走的 tools 时**提示词自动变薄**（不再列 70 个动作的散文清单）
  *   ⑥ 上游**不认 tools** 时**自动降级**回文本协议，而且提示词**自动补回**那份清单
  *
  * ── 怎么做到"真的端到端" ────────────────────────────────────────
@@ -355,7 +355,7 @@ log.rounds.length = 0;
 await seedApp({
   mode: "native",
   // 导航 + 记待办都放行（不然闸门卡片要人点，脚本里没人点）
-  permissions: { navigate: "allow", todo_add: "allow", state_report: "allow" },
+  permissions: { navigate: "allow", todo_add: "allow", state_report: "allow", emotion_report: "allow" },
 });
 const sawReply = await say("带我去玩乐页", "已经到玩乐页了");
 check("① 模型第二轮的话出现在界面上（说明它读到了工具结果）", sawReply);
@@ -367,7 +367,7 @@ for (let i = 0; i < 80 && log.rounds.length < 2; i += 1) await page.waitForTimeo
 const round1 = log.rounds[0] ?? {};
 const r1body = round1.body ?? {};
 check(
-  "② 第一轮请求真的带了 tools（61 个内部动作）",
+  "② 第一轮请求真的带了 tools（内部动作，70 个里的绝大部分）",
   Array.isArray(r1body.tools) && r1body.tools.length >= 60,
   `tools=${Array.isArray(r1body.tools) ? r1body.tools.length : "没有"}`,
 );
@@ -495,6 +495,7 @@ const allowAll = {
   navigate: "allow",
   todo_add: "allow",
   state_report: "allow",
+  emotion_report: "allow",
   diary: "allow",
   media_search: "allow",
   media: "allow",
@@ -517,9 +518,11 @@ check(
   `diary_add=${a.sent.includes("diary_add")} media_playTrack=${a.sent.includes("media_playTrack")}`,
 );
 check(
-  "㉔ 常驻的四个一个都不少（那朵花的数据源、导航、记忆、高亮）",
-  ["state_report", "navigate", "memory_add", "ui_highlight"].every((n) => a.sent.includes(n)),
-  a.sent.filter((n) => ["state_report", "navigate", "memory_add", "ui_highlight"].includes(n)).join(","),
+  "㉔ 常驻的四个一个都不少（情绪上报、导航、记忆、高亮）",
+  ["emotion_report", "navigate", "memory_add", "ui_highlight"].every((n) => a.sent.includes(n)),
+  a.sent
+    .filter((n) => ["emotion_report", "navigate", "memory_add", "ui_highlight"].includes(n))
+    .join(","),
 );
 check(
   "㉕ 不相干的组被砍掉了（这次没提学习/玩乐/数据）",
@@ -578,7 +581,7 @@ console.log("\n【四】上游不认 tools → 自动降级回文本协议");
 log.rounds.length = 0;
 await seedApp({
   mode: "notools",
-  permissions: { navigate: "allow", todo_add: "allow", state_report: "allow" },
+  permissions: { navigate: "allow", todo_add: "allow", state_report: "allow", emotion_report: "allow" },
 });
 const sawLegacy = await say("帮我记个待办", "用老办法给你记一条");
 check("⑫ 降级之后模型的话照常显示（对话没被这次报错打断）", sawLegacy);

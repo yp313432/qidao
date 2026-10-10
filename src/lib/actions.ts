@@ -8,8 +8,9 @@ import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
+import { runSenseAction } from "@/lib/sense";
 import { speakTextAsync } from "@/lib/tts";
-import { normalizeDimKey } from "@/lib/state-dims";
+import { runWebAction } from "@/lib/web-actions";
 import type { AppAction, FeatureId, McpOAuth, Memory, Settings } from "@/lib/types";
 
 /**
@@ -359,51 +360,6 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `记进待办了：${text.slice(0, 18)}`;
     }
 
-    case "state.report": {
-      // 静默执行（权限是 L0）：这是他给自己记的一笔，没有任何副作用
-      const clamp = (v: unknown) => {
-        const n = typeof v === "number" ? v : Number(v);
-        return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
-      };
-      /*
-        mood 跟花瓣**共用同一张词表**（MoodId = DimId，见 lib/state-dims.ts），
-        所以这里不再自己维护一份白名单（以前那份少了 "spark"，
-        于是他永远报不出"心动"，一报就被兜成"平静"；两处写死的清单必然走散）。
-
-        中文词或英文 id 都认（`normalizeDimKey` 里还有旧词的别名表）；
-        真认不出来就兜到"想念" —— 不能留空，否则界面上那一格是白的。
-      */
-      const mood = normalizeDimKey(str((action as { mood?: unknown }).mood)) ?? "missing";
-
-      /**
-       * 维度：**中文词或英文 id 都认**（提示词里让他报的是中文词），
-       * 认不出来的就丢掉 —— 不能写进档案，否则花会长出一瓣没有名字的东西。
-       */
-      const dims: Record<string, number> = {};
-      const raw = (action as { dims?: Record<string, unknown> }).dims;
-      if (raw && typeof raw === "object") {
-        for (const [k, v] of Object.entries(raw)) {
-          const id = normalizeDimKey(k);
-          if (id) dims[id] = clamp(v);
-        }
-      }
-      // 老的三个顶层字段（旧提示词/旧模型只会给它们）
-      for (const k of ["energy", "missing", "curious"] as const) {
-        const v = (action as Record<string, unknown>)[k];
-        if (v !== undefined && dims[k] === undefined) dims[k] = clamp(v);
-      }
-
-      useApp.getState().addStateSample({
-        mood,
-        energy: dims.energy ?? 0,
-        missing: dims.missing ?? 0,
-        curious: dims.curious ?? 0,
-        dims,
-        note: str((action as { note?: unknown }).note).trim().slice(0, 60) || undefined,
-      });
-      return "记下了此刻的状态";
-    }
-
     /* ---------------- 情绪（新词表 · 13 组 / 约 217 词） ----------------
      * 用户："做好适配，不然 AI 不知道怎么用新的情绪词。"
      *
@@ -412,6 +368,9 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
      *   · **词表外的词一律无效**：主情绪不在表里 → 整笔退回，不入库（宁可让他重报）；
      *   · quote ≤ 40 字 / summary ≤ 20 字 / 依据 ≤ 2 条 → 超了**在那一层截断**；
      *   · 词表本身不在这里，也不在每轮提示词里 —— `emotion.lexicon` 现取。
+     *
+     * ⚠️ 2026-10：这是**唯一**的情绪上报通道。旧的 `state.report`（那朵花的 11 个维度）
+     * 已整条删掉 —— 用户原话："就是那 11 个就不用了。"
      */
     case "emotion.report": {
       const result = buildEmotionReport({
@@ -672,6 +631,46 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
 
     case "ambience.play":
       return toggleAmbience(action.index ?? 0);
+
+    /* ---------------- 联网：搜网页 / 读正文（2026-10 新增） ----------------
+     * 手机里没有服务端，所以这条能力第一次真的落到**端上**：
+     * 走 Capacitor 自带的 `CapacitorHttp`（原生发请求，绕开 WebView 跨域），
+     * 抽正文跟服务端 `/api/read` 共用同一份 `htmlToText`。
+     *
+     * ⚠️ 这两个 case **必须**显式读 `action.query` / `action.url`：
+     * `verify-action-registry.mjs` 会拿"代码真正读到的字段"跟 schema 对账
+     * （逻辑全在 `lib/web-actions.ts`，字段读法留在这里）。
+     */
+    case "web.search":
+      return await runWebAction({ kind: "web.search", query: action.query });
+    case "web.fetch":
+      return await runWebAction({ kind: "web.fetch", url: action.url });
+
+    /* ---------------- 主动感知：他自己"看一眼现在的状态" ----------------
+     * 用户的原话："他现在只能感知，没有办法接到回执……所有的都是被动接收的，
+     * 而不是主动去用这些权限。" / "主动的感知就是知道目前的一个状态。"
+     *
+     * 这三件事**都不是**"每轮塞一段情况"（那一段在 prompt.ts 的 perceptionBlock，
+     * 别动）：是他自己调一个动作去问一眼，结果当回执回到他眼前。
+     * 判定与措辞在 `lib/sense-core.ts`（纯函数、验收脚本直接测它），
+     * 读法（原生插件 / navigator / 定位那套）在 `lib/sense.ts`。
+     *
+     * ⚠️ 这六个 case **不许读 `action.*`**：它们零参数，而
+     * `verify-action-registry.mjs` 会拿"代码真正读到的字段"跟 schema 对账，
+     * 读一个没声明的字段就直接 FAIL。
+     */
+    case "sense.time":
+      return await runSenseAction("sense.time");
+    case "sense.device":
+      return await runSenseAction("sense.device");
+    case "sense.place":
+      return await runSenseAction("sense.place");
+    case "sense.notifications":
+      return await runSenseAction("sense.notifications");
+    case "sense.foreground":
+      return await runSenseAction("sense.foreground");
+    case "sense.screen":
+      return await runSenseAction("sense.screen");
 
     case "media.import": {
       const url = action.url.trim();

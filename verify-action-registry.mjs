@@ -7,7 +7,7 @@
  *
  *   1. `types.ts` 里 `AppAction` 的 kind 集合
  *      = `action-meta.ts` 里 `Record<AppAction["kind"], PermissionId>` 的键集合
- *      = 63 个（三边集合相等，不等就列出差异）
+ *      = 70 个（三边集合相等，不等就列出差异）
  *   2. `ACTION_SCHEMA` 的 kind 集合跟上面完全一致（一个不多一个不少）
  *   3. 每个 kind：`ACTION_SCHEMA` 声明的字段必须**覆盖** `actions.ts` 里那个 case
  *      实际读到的字段（少一个就 FAIL）；多了也列出来（不算致命）
@@ -28,11 +28,29 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
 /**
  * 期望的 kind 总数。
  *
- * 61（P0 那次）→ **63**：2026-10 加「情绪词表」那两个动作
- * （`emotion.report` 上报一笔情绪 / `emotion.lexicon` 按需取词表，见 `lib/action-schema.ts`）。
- * 加动作就往这里 +1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
+ * 61（P0 那次）→ 63（2026-10 加「情绪词表」那两个动作）→ 62：
+ * 旧的 `state.report`（那朵花的 11 维花瓣）整条退场 ——
+ * 用户原话："原来的那个情绪一项……就是那 11 个就不用了。"
+ * → 68（2026-10 加「主动感知」那六个：`sense.time` / `sense.device` / `sense.place`
+ * / `sense.notifications` / `sense.foreground` / `sense.screen`）——
+ * 用户原话："我给开他那么多权限，其实是希望他**主动的去用**" / "主动的感知就是知道目前的一个状态。"
+ * → **70**（2026-10 加**联网**两个：`web.search` / `web.fetch`）——
+ * 手机版第一次能搜网页、能读网页正文（`CapacitorHttp` 原生发请求，绕开 WebView 跨域）。
+ * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 63;
+const EXPECTED_KIND_COUNT = 70;
+
+/**
+ * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。
+ *
+ * 2026-10：用户要求删掉 AI 权限页那一项「情绪权限」（`state_report`）——
+ * `emotion.report` 已经常驻、11 维花瓣早退场，`emotion.lexicon` 只是取一份词表，
+ * 两个都是 L0 静默写本机的东西，给他看的那道闸没有意义。
+ * ⚠️ 没有权限 = **闸门直接执行、不弹卡片**（见 `action-gate.tsx`）。
+ * 所以这份名单是**白名单**：多一个少一个都必须在这里明说，不许悄悄变成"免确认直接执行"。
+ */
+const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon"];
+const EXPECTED_PERMISSION_BOUND_COUNT = EXPECTED_KIND_COUNT - NO_PERMISSION_KINDS.length;
 
 const fails = [];
 const warns = [];
@@ -381,7 +399,7 @@ const tools = runtime
 const uniq = (arr) => [...new Set(arr)];
 const dups = (arr) => arr.filter((k, i) => arr.indexOf(k) !== i);
 
-console.log("=== 1) 三边 kind 集合（types.ts / action-meta.ts / 63）===");
+console.log("=== 1) 三边 kind 集合（types.ts / action-meta.ts / 70）===");
 const dupTypes = uniq(dups(typeKinds));
 const dupMeta = uniq(dups(metaKinds));
 if (dupTypes.length) fail(`types.ts 里 kind 有重复: ${dupTypes.join(", ")}`);
@@ -389,15 +407,25 @@ if (dupMeta.length) fail(`action-meta.ts 里键有重复: ${dupMeta.join(", ")}`
 if (typeKinds.length !== EXPECTED_KIND_COUNT) {
   fail(`types.ts 的 AppAction kind 是 ${typeKinds.length} 个，期望 ${EXPECTED_KIND_COUNT} 个`);
 }
-if (metaKinds.length !== EXPECTED_KIND_COUNT) {
-  fail(`action-meta.ts 的 ACTION_PERMISSION 是 ${metaKinds.length} 个键，期望 ${EXPECTED_KIND_COUNT} 个`);
+if (metaKinds.length !== EXPECTED_PERMISSION_BOUND_COUNT) {
+  fail(
+    `action-meta.ts 的 ACTION_PERMISSION 是 ${metaKinds.length} 个键，期望 ${EXPECTED_PERMISSION_BOUND_COUNT} 个` +
+      `（= ${EXPECTED_KIND_COUNT} 个 kind 减去不挂权限的 ${NO_PERMISSION_KINDS.join("、")}）`,
+  );
 }
 const typesOnly = typeKinds.filter((k) => !metaKinds.includes(k));
 const metaOnly = metaKinds.filter((k) => !typeKinds.includes(k));
-if (typesOnly.length) fail(`只有 types.ts 有、action-meta.ts 没有: ${typesOnly.join(", ")}`);
+/** 没挂权限的必须**只在白名单里**：否则就是"忘了挂权限 → 变成免确认直接执行" */
+const unboundNotWhitelisted = typesOnly.filter((k) => !NO_PERMISSION_KINDS.includes(k));
+if (unboundNotWhitelisted.length) {
+  fail(`这些 kind 没有挂权限、也不在"不需要授权"白名单里: ${unboundNotWhitelisted.join(", ")}`);
+}
 if (metaOnly.length) fail(`只有 action-meta.ts 有、types.ts 没有: ${metaOnly.join(", ")}`);
 if (!fails.length) {
-  console.log(`✅ types.ts = action-meta.ts，两边都是 ${typeKinds.length} 个 kind`);
+  console.log(
+    `✅ types.ts = action-meta.ts + ${NO_PERMISSION_KINDS.length} 个不挂权限的动作，` +
+      `两边都是 ${typeKinds.length} 个 kind（挂权限 ${metaKinds.length} 个）`,
+  );
 }
 
 // ------------------------------------------------------ 断言 2：schema 集合
@@ -611,7 +639,7 @@ console.log("");
 console.log("=== 5) 提示词原文覆盖（只是交接信息，**不是本步门禁**）===");
 console.log(
   `prompt.ts 提到 ${promptKinds.length}/${typeKinds.length} 个 kind，` +
-    `没提到 ${promptMissing.length} 个（P4 切到 renderActionCatalog() 后应为 63）：`,
+    `没提到 ${promptMissing.length} 个（P4 切到 renderActionCatalog() 后应为 62）：`,
 );
 console.log(`  ${promptMissing.join(" ")}`);
 

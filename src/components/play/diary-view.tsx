@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { useApp } from "@/lib/store";
-import { DIMS, moodDisplay } from "@/lib/state-dims";
+import { MOOD_TERMS, moodDisplay } from "@/lib/emotion-lexicon";
 import type { DiaryEntry } from "@/lib/types";
 import { cn, formatClock, formatDay } from "@/lib/utils";
 
-/** 日记的心情也**跟花瓣共用同一张 11 个词的词表**（`lib/state-dims.ts`） */
-const MOODS: { id: DiaryEntry["mood"]; label: string }[] = DIMS.map((d) => ({
-  id: d.id,
-  label: d.label,
+/**
+ * 日记的心情也**跟星屿共用同一张新词表**（`lib/emotion-lexicon.ts`）。
+ *
+ * 旧的 11 维花瓣词表退休后（用户："就是那 11 个就不用了"），这里取的是新词表
+ * **每组一个代表词**（13 个）—— 217 个词铺成按钮不是"换词表"，是重做界面，
+ * 而用户明说不要新做界面。AI 上报侧不受影响（那是完整的 13 组 / 217 词）。
+ */
+const MOODS: { id: DiaryEntry["mood"]; label: string }[] = MOOD_TERMS.map((term) => ({
+  id: term,
+  label: term,
 }));
 
 /**
@@ -38,7 +44,8 @@ export function DiaryWall() {
   const diary = useApp((s) => s.diary);
   const streak = useApp((s) => s.diaryStreak());
   const today = useApp((s) => s.todayDiary());
-  const [mood, setMood] = useState<DiaryEntry["mood"]>("reflect");
+  // 默认心情取新词表里的「平静」（B 组的代表词）—— 不再是旧 id "reflect"
+  const [mood, setMood] = useState<DiaryEntry["mood"]>(MOOD_TERMS[1] ?? "平静");
   const [body, setBody] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);

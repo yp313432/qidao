@@ -15,10 +15,24 @@
  *     label: 这条在验什么 }
  */
 
-/** 常驻的五个（不靠关键词，任何一轮都该有）—— 单独一条样本守住
+/** 常驻的七个（不靠关键词，任何一轮都该有）—— 单独一条样本守住
     ⚠️ 顺序必须跟 `src/lib/tool-select.ts` 的 `ALWAYS_KINDS` 完全一致（有断言盯着）
-    · `emotion.report` 是用户要求常驻的："常驻吧，我不能一直提醒他记情绪" */
-export const ALWAYS_ON = ["state.report", "navigate", "memory.add", "ui.highlight", "emotion.report"];
+    · `emotion.report` 是用户要求常驻的："常驻吧，我不能一直提醒他记情绪"
+    · `sense.time` / `sense.device` / `sense.place`（2026-10）：主动感知里**便宜那三个**，
+      零权限、一次调用就一句话 —— 用户要的正是"他主动去看一眼现在的状态"，
+      而"看一眼"多半匹配不到关键词（"你那边下雨了吗"），漏一轮他就会说"我看不到"。
+      （另外三个 `sense.notifications` / `sense.foreground` / `sense.screen` 要系统权限，
+        **按需注册**，不在这里。）
+    · 旧的 `state.report`（11 维花瓣）2026-10 已整条退场，不在这里了 */
+export const ALWAYS_ON = [
+  "navigate",
+  "memory.add",
+  "ui.highlight",
+  "emotion.report",
+  "sense.time",
+  "sense.device",
+  "sense.place",
+];
 
 /** 用户还可能这样问 —— 一个字都不提"工具"，但必须给到对应动作 */
 export const RECALL_CASES = [
@@ -70,13 +84,30 @@ export const RECALL_CASES = [
   { text: "抽个真心话", mustInclude: ["play.truth"], label: "真心话" },
   { text: "刚才那局我赢了，记一笔", mustInclude: ["play.recordResult"], label: "记战绩" },
 
-  // ── 自我（那朵花）─────────────────────────────────────
-  { text: "你现在心情怎么样", mustInclude: ["state.report"], label: "问心情（常驻，但这句要命）" },
-  { text: "今天好累啊", mustInclude: ["state.report", "diary.add"], label: "倾诉（要能记状态）" },
+  // ── 自我（情绪）───────────────────────────────────────
+  { text: "你现在心情怎么样", mustInclude: ["emotion.report"], label: "问心情（常驻，但这句要命）" },
+  { text: "今天好累啊", mustInclude: ["emotion.report", "diary.add"], label: "倾诉（要能记情绪）" },
 
   // ── 外部工具 ─────────────────────────────────────────
   { text: "帮我查一下杭州天气", mustInclude: ["http.call"], label: "调 HTTP 工具" },
   { text: "用 mcp 那个工具记一下", mustInclude: ["tool.call"], label: "调 MCP 工具" },
+  /*
+    联网那两个（2026-10 新增）—— **必须真的给到 `web.search` / `web.fetch`**：
+    用户要联网时的原话是"帮我搜一下…"，他一辈子不会说"网页搜索"这个词。
+    漏了这一组的代价还是那句"我做不到"（而手机版现在明明能做）。
+  */
+  { text: "帮我搜一下下周末的天气", mustInclude: ["web.search"], label: "联网：搜（口语'搜一下'）" },
+  { text: "网上查查最近有什么新手机", mustInclude: ["web.search"], label: "联网：搜（'网上查查'）" },
+  {
+    text: "读一下这个网页 https://example.com/a",
+    mustInclude: ["web.fetch"],
+    label: "联网：读正文（他直接给了网址）",
+  },
+
+  // ── 主动感知（那三个要系统权限的，靠关键词按需发）────────
+  { text: "我刚收到什么通知吗", mustInclude: ["sense.notifications"], label: "感知：看最近的通知" },
+  { text: "我现在前台开着哪个应用", mustInclude: ["sense.foreground"], label: "感知：看前台 App" },
+  { text: "屏幕还亮着吗", mustInclude: ["sense.screen"], label: "感知：看屏幕状态" },
 
   // ── 跨轮上下文：这一句单独看没有任何关键词 ──────────────
   {
@@ -98,13 +129,13 @@ export const RECALL_CASES = [
  * （防的是"规则写得太贪心 → 每轮都命中一堆组 → 等于没省"）
  */
 export const NO_SIDE_EFFECT_CASES = [
-  { text: "今天天气真好", mustKeep: ["state.report"], label: "纯闲聊" },
-  { text: "谢谢你", mustKeep: ["state.report"], label: "道谢" },
-  { text: "嗯嗯", mustKeep: ["state.report"], label: "敷衍一句" },
+  { text: "今天天气真好", mustKeep: ["emotion.report"], label: "纯闲聊" },
+  { text: "谢谢你", mustKeep: ["emotion.report"], label: "道谢" },
+  { text: "嗯嗯", mustKeep: ["emotion.report"], label: "敷衍一句" },
 ] as const;
 
 /**
- * 省 token 的**下限要求**：常见对话至少要把 61 个砍到多少以下。
+ * 省 token 的**下限要求**：常见对话至少要把 70 个砍到多少以下。
  * 60% 是个保守值（实测常见句子落到 20~35 个动作）；砍不动就说明规则没生效。
  */
 export const MAX_TOOLS_RATIO = 0.6;

@@ -42,7 +42,33 @@ export const WAKE_KEYS = {
    */
   promptNormal: "cfg_prompt_normal",
   promptForce: "cfg_prompt_force",
+  /**
+   * **后台交给前台的"他说了一句"**（键名跟 `public/runners/wake.js` 的 `markPending` 一字不差）。
+   *
+   * 为什么要有它们：通知和会话原来是**两套存储** —— 后台只会弹通知、把话截成 40 字写进
+   * `wake_log`，而会话在 IndexedDB 里、只有 webview 能写。于是用户真机上看到的正是
+   * "我能收到弹窗通知，但是那个通知不在上下文里"。这四个键就是那条缺的通道。
+   */
+  pendingText: "wake_pending_text",
+  /** 他说话的时间（本地时间字符串，给人看） */
+  pendingAt: "wake_pending_at",
+  /** 同一个时间的机器可读版本（排序 / 判重用） */
+  pendingAtMs: "wake_pending_at_ms",
+  /** 程度（可选小标记） */
+  pendingUrge: "wake_pending_urge",
+  /** 前台把这句话收进会话之后写的"已收下"标记（本地时间）—— 给人看的书签 */
+  pendingConsumedAt: "wake_pending_consumed_at",
+  /** 同上，但机器可读：`<时间戳>|<正文>`，用来**逐字判重**（跨重启也认得） */
+  pendingConsumedKey: "wake_pending_consumed_key",
 } as const;
+
+/** 后台交给前台的那几个键（置空时要一起置空） */
+export const WAKE_PENDING_KEYS = [
+  WAKE_KEYS.pendingText,
+  WAKE_KEYS.pendingAt,
+  WAKE_KEYS.pendingAtMs,
+  WAKE_KEYS.pendingUrge,
+] as const;
 
 /** 把配置写进抽屉（只在真机上有用；网页版静默跳过） */
 export async function pushWakeConfig(data: Record<string, string>): Promise<boolean> {
@@ -64,6 +90,25 @@ export async function readWakeConfig(): Promise<Record<string, string> | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * **把"他说了一句"的交接键置空**（前台落进会话之后立刻调）。
+ *
+ * ⚠️ 为什么不用 `clear()`：那会把**整个抽屉**清掉 —— 上游配置、两段指令、`wake_log`
+ *    一起没，后台下次醒来就瞎了（那是 `resetWake`/"清空重来"该干的事，不是这里）。
+ * ⚠️ 为什么不给原生插件加一个"按 key 删"的方法：那要**重新打一次 APK**才生效；
+ *    而 `put` 本来就在，**置空（`""`）跟删掉在后台那边完全等价** ——
+ *    后台读抽屉用的是 `cfg()`（`CapacitorKV.get(k).value || ""`），空串照样是假值。
+ *    所以这里选**置空**：一台已经装着老包的手机，只要界面更新了就生效，不用等重打包。
+ */
+export async function clearWakePending(consumedAt?: string, consumedKey?: string): Promise<boolean> {
+  const data: Record<string, string> = {};
+  for (const key of WAKE_PENDING_KEYS) data[key] = "";
+  /** 顺手留两个书签：人看的本地时间 + 机器判重用的身份串 */
+  if (consumedAt) data[WAKE_KEYS.pendingConsumedAt] = consumedAt;
+  if (consumedKey) data[WAKE_KEYS.pendingConsumedKey] = consumedKey;
+  return pushWakeConfig(data);
 }
 
 /** 「清空重来」的结果 —— 成功/失败都要有话说（**不吞错误**） */

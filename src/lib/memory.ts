@@ -13,7 +13,13 @@
  * 这样才好测，也能放进 Web Worker 里跑（界面不会卡）。
  */
 
-import { expandWithSynonyms, isKnownWord } from "@/lib/synonyms";
+/**
+ * ⚠️ 这里用**相对路径 + 显式 `.ts`**（而不是 `@/lib/synonyms`），是为了让这个文件
+ * 能被纯 node 的验收脚本**直接 import**（`node --experimental-strip-types`，
+ * 仓库 `verify-*.mjs` 的惯例）：`@/` 那个别名只有 Vite / tsc 认，node 不认。
+ * `lib/manual.ts`（`./platform.ts`）已经是这个写法。语义完全不变。
+ */
+import { expandWithSynonyms, isKnownWord } from "./synonyms.ts";
 import type { Memory, MemoryKind, MoodId } from "@/lib/types";
 
 /**

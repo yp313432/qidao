@@ -1,3 +1,4 @@
+import { recallMemories } from "../../../../lib/recall.ts";
 import type { MemoryKind } from "@/lib/types";
 import type { MemoryAdapter, MemoryQuery, MemoryRecord, MemorySearchResult } from "./adapter";
 
@@ -5,6 +6,21 @@ import type { MemoryAdapter, MemoryQuery, MemoryRecord, MemorySearchResult } fro
  * **栖岛真记忆 → 「星屿」的记忆检索**。
  *
  * 用户原话（这轮的做法）："记忆检索接上栖岛真记忆"（原来是 `MockMemoryAdapter`）。
+ *
+ * ── ⭐ 2026-11 升级：从"标签对不上就想不起来" → "意思像也能想起来"
+ *
+ * 用户原话："记忆升级的话，加一个那个语义检索功能就可以了，我觉得。"
+ * 现在是**两段式召回**（实现全在 `src/lib/recall.ts`，这个文件只管口径和映射）：
+ *
+ *   ① **粗筛（本地、免费）**：本文件用下面那套标签口径算出"真命中"，
+ *      再让 `recall.ts` 把"最近 + 强度"的补足到 ~20 条候选。
+ *      ⚠️ 关键改动：以前"标签不命中就返回空"，第二段拿到空候选就无从下手 ——
+ *      现在**命中不了也给候选**。
+ *   ② **精排（现有对话模型）**：把候选的 `id + 一小段内容` 发给模型，
+ *      它挑出最相关的 ≤5 条 + 每条一句"为什么相关"（这就是界面上**同一行**那行说明）。
+ *   ③ **混合排序**：**标签真命中永远置顶**，语义相关的排在后面。
+ *   ④ **诚实**：语义那一步失败 / 超时 / 这台设备没有上游 → **退回粗筛的结果**
+ *      并如实说"语义那一步没成"；真的都无关 → 仍然是「暂无可关联的历史记忆。」
  *
  * ── 匹配口径：跟**记忆宇宙**插件同一套（`plugins/memory-universe/adapter/qidao-memory.ts`）
  *
@@ -16,9 +32,13 @@ import type { MemoryAdapter, MemoryQuery, MemoryRecord, MemorySearchResult } fro
  *     但查询词至少 2 个字 —— 免得一个字连出一堆假线
  *   · **正文里恰好出现这几个字不算命中** —— 那是"看起来像"，不是关系。
  *     宁可真返回空、诚实说「暂无可关联的历史记忆。」
+ *   · ⭐ **这条红线现在依然成立**：`recallNeedles` 那种"正文里对上 1 个字"
+ *     在 `recall.ts` 里只算**候选排序的加分**，绝不算真命中；
+ *     而这个文件把 `localHits` 显式交给召回层，所以**真命中的判定口径一个字没变**。
  *
  * ── 三条红线（接口作者定的，见 `./adapter.ts` 的注释）
- *   ① 只返回**真命中**的条目（上面那套口径算出来的）；
+ *   ① 只返回**真命中**的条目（上面那套口径算出来的）+ **语义检索挑出来的**那几条
+ *      （后者会明说"语义相关：…"，不含糊）；
  *   ② `links.kind` 只有 `"retrieved_for_query"`，`explanation` 必须说清**为什么连上**
  *      （例："标签命中「心动」"）—— 不编永久图边；
  *   ③ **绝不写回**：只读 memory 数组，一个 store 写方法都不调，
@@ -30,7 +50,12 @@ import type { MemoryAdapter, MemoryQuery, MemoryRecord, MemorySearchResult } fro
  *   这个文件保持"不认识宿主"的纯映射，好离线断言）。
  *   注册不上或还没有记忆时 `hasRealMemories()` 是 false，绑定层回落 mock ——
  *   **不白屏、不报错**。
+ *
+ * ── ⚠️ 为什么 import 是相对路径 + 显式 `.ts`
+ *   本文件要能被**纯 node 的验收脚本**直接 import（`verify-emotion-memory.mjs`、
+ *   `verify-recall.mjs`），而 `@/` 别名只有 Vite / tsc 认。`lib/manual.ts` 已经是这个写法。
  */
+
 
 /** 类别 → 中文名（记忆没有标题时用它当标题）。照 `@/lib/memory.ts` 的 `KIND_LABEL` */
 const KIND_LABEL: Record<MemoryKind, string> = {
@@ -59,6 +84,33 @@ export type MatchableMemory = {
 };
 
 export const EMPTY_RELATION_NOTE = "暂无可关联的历史记忆。";
+
+/** 精排看多少条候选（用户定的硬上限：20） */
+const RECALL_CANDIDATES = 20;
+/** 本地真命中最多拿几条进"真命中"那一档（界面一次只显示 3~5 条，再多也用不上） */
+const LOCAL_HIT_LIMIT = 8;
+/** 这个面板默认显示几条（沿用升级前的默认值，界面节奏不变） */
+const PLUGIN_DEFAULT_RESULTS = 3;
+/** 上限：面板再要也不给超过这个数（免得一屏全是记忆引用） */
+const PLUGIN_MAX_RESULTS = 8;
+
+/**
+ * 插件的查询（情绪 + 话题）拼成**一句人话** —— 给"意思像"那一段用。
+ *
+ * 为什么要拼：粗筛要的是"针"（拆开比对标签），而模型要的是**一句话的语境**。
+ * "心动 咖啡" 这种拼法模型能读懂；两个字段分开发反而容易让它只盯一个。
+ */
+function queryTextOf(query: MemoryQuery): string {
+  const parts = [query.emotion, query.topic]
+    .map((v) => (v ?? "").trim())
+    .filter(Boolean);
+  return [...new Set(parts)].join(" ");
+}
+
+/** 空结果（文案就是那条不能改的） */
+function emptyResult(): MemorySearchResult {
+  return { memories: [], links: [], relationNote: EMPTY_RELATION_NOTE, isDemoData: false };
+}
 
 const norm = (value: string | undefined | null) => (value ?? "").trim().toLowerCase();
 
@@ -307,7 +359,8 @@ export function hasRealMemories(): boolean {
 /**
  * **栖岛记忆适配器** —— 实现插件的 `MemoryAdapter`。
  *
- * 只返回真命中的条目；没命中就空数组 + 「暂无可关联的历史记忆。」；
+ * 两段式召回（见文件头）：本地口径算真命中 → `recall.ts` 补候选 + 调模型精排 + 混排。
+ * 语义那一步失败时**退回粗筛结果并如实说明**；真的都无关 → 空数组 + 「暂无可关联的历史记忆。」；
  * 不回写、不编永久图边（见文件头那三条红线）。
  */
 export const qidaoMemoryAdapter: MemoryAdapter & { hasRealMemories: () => boolean } = {
@@ -315,6 +368,47 @@ export const qidaoMemoryAdapter: MemoryAdapter & { hasRealMemories: () => boolea
   hasRealMemories,
   async search(query: MemoryQuery): Promise<MemorySearchResult> {
     const list = snapshotMemories() ?? [];
-    return searchQidaoMemories(list, query).result;
+    const q = queryTextOf(query);
+    // 没接上记忆库 / 查询是空的 → 诚实返回空（别去白跑一趟模型）
+    if (list.length === 0 || !q) return emptyResult();
+
+    const limit = Number.isFinite(query.limit) && (query.limit as number) > 0
+      ? Math.min(Math.floor(query.limit as number), PLUGIN_MAX_RESULTS)
+      : PLUGIN_DEFAULT_RESULTS;
+
+    /**
+     * ① 本地真命中 —— **口径完全沿用 `searchQidaoMemories`**
+     * （只有标签真命中 / 栖岛自己的连线；"正文里恰好出现那几个字"不算）。
+     * 把它算好的 `why` 交给召回层，那边就只负责补候选、精排、混合排序、兜底 ——
+     * 这样"真命中"的判定口径**一处都没重写**。
+     */
+    const local = searchQidaoMemories(list, { ...query, limit: LOCAL_HIT_LIMIT });
+    const localHits = local.matchedIds.map((id) => ({
+      id,
+      why: local.result.links.find((l) => l.memoryId === id)?.explanation ?? "本地命中",
+    }));
+
+    /**
+     * ②③④ 交给 `recall.ts`：补候选（命中不了也给候选）→ 现有对话模型精排 →
+     * 标签真命中置顶 → 失败就退回粗筛并如实说。
+     * 它**永远 resolve**，所以这里不需要 try/catch 兜底。
+     */
+    const recalled = await recallMemories(q, {
+      list,
+      localHits,
+      limit,
+      candidateLimit: RECALL_CANDIDATES,
+    });
+
+    return {
+      memories: recalled.items.map((i) => toMemoryRecord(i.memory)),
+      links: recalled.items.map((i) => ({
+        memoryId: i.memory.id,
+        kind: "retrieved_for_query" as const,
+        explanation: i.why,
+      })),
+      relationNote: recalled.note,
+      isDemoData: false,
+    };
   },
 };

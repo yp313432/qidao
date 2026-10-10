@@ -1,5 +1,4 @@
 import type { ModelId } from "./models";
-import type { DimId } from "./state-dims";
 
 export type ChatRole = "user" | "assistant";
 
@@ -21,17 +20,17 @@ export type Attachment = {
 };
 
 /**
- * 心情。日记、动态、信、状态采样都用这一套。
+ * 心情。日记、动态、信都用这一套。
  *
- * **跟花瓣共用同一张 11 个词的词表**（`lib/state-dims.ts` 的 `DimId`）——
- * 用户原话："ai 的心情描述还是那六个吗，太少了，而且不好分类，
- * 直接改成图上的这十一个吧。"
- * 所以这里不再单独列词，而是 `DimId` 的别名：**改词表只改一处**。
+ * 2026-10：旧的 11 维词表（`lib/state-dims.ts` 的 `DimId`）**连同 `state.report`
+ * 一起退场**（用户原话："就是那 11 个就不用了"）—— 现在心情只有一份词表：
+ * `lib/emotion-lexicon.ts` 的 13 组 / 约 217 词（星屿插件那一份）。
  *
- * ⚠️ 老存档里存的是旧 id（"calm" / "joy" …）：类型上不保证，
- *    显示时走 `state-dims.ts` 的 `moodDisplay()` 兜底（不会空白）。
+ * 这里刻意**不收窄成字面量联合**：那 217 个词由插件持有，收窄等于在这里抄第二份
+ * （正是这次要除掉的东西）。显示走 `emotion-lexicon.ts` 的 `moodDisplay()`，
+ * 表外的旧值原样显示、不留空白。
  */
-export type MoodId = DimId;
+export type MoodId = string;
 
 /** 一条「动态」：即时的心情。by 表示是他发的还是我自己发的。 */
 export type Moment = {
@@ -150,6 +149,14 @@ export type ChatMessage = {
   /** 这条是**定时任务**让他主动说的，不是用户问的（聊天里会带一个小标记） */
   scheduled?: boolean;
   /**
+   * 这条"他自己说的"是**哪条路**来的 —— 定时任务和主动唤醒共用 `scheduled` 这个标记，
+   * 界面上要分开说（用户要求：主动唤醒显示「他主动说的」，定时任务才显示「定时 · 他自己说的」）。
+   *   · `"wake"` —— 后台那段 JS（`public/runners/wake.js`）主动醒来找他，落库见 `wake-sync.ts`
+   *   · `"cron"` —— App 里的定时任务（`task-daemon.tsx`）
+   * ⚠️ 老消息没有这个字段：`scheduled` 仍然按"定时 · 他自己说的"显示（向后兼容，不重写历史）。
+   */
+  origin?: "wake" | "cron";
+  /**
    * 这一轮他"真的动过手"的记录（原生 tools 循环里每一轮调了什么、成没成）。
    *
    * 为什么要存进消息里：**动作闸门那张卡片是瞬时的**（点完就没了），
@@ -180,36 +187,6 @@ export type WorldEntry = {
   position: "system" | "tail";
   enabled: boolean;
   createdAt: number;
-};
-
-/**
- * 他的"内在状态"采样。
- *
- * 用户选择的做法（方案 A）：**让他每轮回复时自己报一次** ——
- * 所以「内在」页那条波浪线是他真实的起伏，不是我拿数据拼出来的假曲线。
- * 只存本机。
- */
-export type StateSample = {
-  id: string;
-  at: number;
-  /** 此刻的心情 */
-  mood: MoodId;
-  /** 精力 0~1（**老字段**：新数据也会写它，好让旧版本仍能读） */
-  energy: number;
-  /** 想念（有多想跟你说话）0~1（老字段，同上） */
-  missing: number;
-  /** 好奇 0~1（老字段，同上） */
-  curious: number;
-  /**
-   * 此刻**明显的那些**情绪维度（稀疏：只写他报出来的，0~1）。
-   *
-   * 词表见 `lib/state-dims.ts`（想念/心动/牵挂/分享欲/好奇/情愫/反思/无聊/难过/生气/占有）。
-   * 为什么稀疏：每轮报满十来个数字要白花 token，而且"十来个都是 0.3"本来就不像真的 ——
-   * 真实的某一刻，通常只有一两样很突出。
-   */
-  dims?: Partial<Record<string, number>>;
-  /** 为什么是这个状态（他写的一句话，可选） */
-  note?: string;
 };
 
 /* ------------------------- 情绪事件（新词表） ------------------------- */
@@ -250,8 +227,8 @@ export type EmotionSceneCategory = "base" | "intimacy" | "tension" | "cognition"
  * 给谁看：「星屿」插件 —— `src/plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`
  * 把它映射成插件要的 `EmotionEvent`（0~1 → 0~100 之类的换算也在那一层）。
  *
- * ⚠️ 跟旧的 `StateSample`（那朵花的 11 个维度）**是两套**，各存各的：
- *    用户拍板"旧的先别拆"，所以这里不碰 `stateSamples`。
+ * ⚠️ 2026-10：这是**唯一**一份情绪档案了 —— 旧的 `StateSample`（那朵花的 11 个维度）
+ *    跟着 `state.report` 一起删掉，不再"两套各存各的"。
  */
 export type EmotionEventRecord = {
   id: string;
@@ -846,26 +823,12 @@ export type FeatureId =
   | { kind: "reminder.add"; text: string; time?: string; ring?: boolean; date?: string }
   /** 定时任务：到点让他自己开口（App 活着时真的会说话；关掉时靠通知兜底） */
   | { kind: "cron.add"; prompt: string; time?: string; at?: string; notify?: boolean }
-  /** 他自己报一笔状态（L0，静默执行；「内在」那朵花就是它长出来的） */
-  | {
-      kind: "state.report";
-      mood: MoodId;
-      /**
-       * 此刻**明显的那些**维度：`{"心动":0.08,"想念":0.4}` —— **稀疏**，
-       * 没报的当 0。词表见 `lib/state-dims.ts`（键就是中文词本身）。
-       */
-      dims?: Record<string, number>;
-      /** 老的三个顶层字段（可选，兼容旧提示词/旧模型） */
-      energy?: number;
-      missing?: number;
-      curious?: number;
-      note?: string;
-    }
   /**
    * **上报一笔情绪**（新词表）。
    *
-   * 跟 `state.report` 的分工：那个是那朵花的 11 个维度，这个是「星屿」
-   * 插件的 13 组新词表 —— 用户说"旧的先别拆"，所以两个动作并存，各存各的。
+   * 2026-10 起这是**唯一**的情绪上报通道：旧的 `state.report`（那朵花的 11 个维度）
+   * 已经整条退场（用户："就是那 11 个就不用了"），它的数据源 `lib/state-dims.ts`
+   * 与 store 里的 `stateSamples` 一并删掉。
    * 词表不在这里（也不在每轮提示词里）：用 `emotion.lexicon` 现取一份。
    */
   | {
@@ -949,7 +912,53 @@ export type FeatureId =
    *
    * `args` 可以整个不传 = 「按他配好的原样发一次」，跟手动点「调用」等价。
    */
-  | { kind: "http.call"; tool: string; args?: Record<string, unknown> };
+  | { kind: "http.call"; tool: string; args?: Record<string, unknown> }
+  /**
+   * ——— **搜网页 / 读网页正文**（2026-10 新增，手机版第一次真的有这条能力）———
+   *
+   * 为什么这两个是**动作**而不是"再配一条 HTTP 工具"：手机上原来根本没有这条路
+   * （服务端路由在 APK 里不存在），让他自己去「工具 → HTTP」配一条指向
+   * `/api/search` 的接口，在一个**没有服务端**的 App 里是说不通的。
+   *
+   * 实现：走 Capacitor 自带的 `CapacitorHttp`（原生 OkHttp，**绕开 WebView 的跨域**），
+   * 抽正文跟服务端 `/api/read` 用**同一份** `htmlToText`。
+   * 读法在 `lib/web-http.ts`，执行器在 `lib/web-actions.ts`。
+   *
+   * `web.search`：`query` 是搜索词 → 返回 ≤8 条（标题/链接/摘要）。
+   * `web.fetch` ：`url` 是要读的网页 → 返回正文文本（截断到 6000 字并说明）。
+   *
+   * 权限：两个都落在 `web_search`（L2，默认要用户点一下确认）——
+   * 它们本质上是**同一件事的两半**（先搜到、再读进去），
+   * 分成两项权限只会让用户多点一次而没有任何额外保护。
+   */
+  | { kind: "web.search"; query: string }
+  | { kind: "web.fetch"; url: string }
+  /**
+   * ——— 主动感知（他自己调一下就能看一眼现在的状态）———
+   *
+   * 用户的原话：
+   *   "他现在只能感知，没有办法接到回执……所有的都是被动接收的，而不是主动去用这些权限。"
+   *   "我给开他那么多权限，其实是希望他**主动的去用**。"
+   *   "主动的感知就是知道目前的一个状态。"
+   *
+   * 所以这六个动作跟「此刻的情况」是**两回事**：那一段是每轮被系统塞进上下文的
+   * （被动接收，别动它）；这六个是**他主动开口问一句**，结果跟别的动作一样
+   * 当轮当成工具回执给他（见 `lib/tool-loop.ts`）。
+   *
+   * 全部**零参数** —— "看一眼"本来就没什么可传的。
+   * 结果统一是**一行 JSON**（结构化字段 + `summary` 一句话），
+   * 判定与措辞在 `lib/sense-core.ts`，读法在 `lib/sense.ts`。
+   *
+   * 权限（见 `action-meta.ts`）：前三个落在只读的「设备与环境」/「知道你在哪」，
+   * 后三个落在系统级那两项（通知使用权 / 使用情况访问），
+   * 拿不到就**如实失败并说清去哪个设置页开**，绝不静默。
+   */
+  | { kind: "sense.time" }
+  | { kind: "sense.device" }
+  | { kind: "sense.place" }
+  | { kind: "sense.notifications" }
+  | { kind: "sense.foreground" }
+  | { kind: "sense.screen" };
 
 /** 一条「用户在干什么」的记录。 */
 export type ActivityEntry = {
@@ -965,7 +974,12 @@ export type PendingAction = {
   id: string;
   action: AppAction;
   title: string;
-  permission: PermissionId;
+  /**
+   * 落在哪项权限上。
+   * ⚠️ **可以是 undefined** —— 那就是"这个动作不需要授权"（如 `emotion.report`），
+   * 闸门会直接执行、不弹卡片（见 `action-gate.tsx`）。
+   */
+  permission?: PermissionId;
   from: string;
   at: number;
 };
@@ -974,7 +988,8 @@ export type PendingAction = {
 export type ActionLogEntry = {
   id: string;
   title: string;
-  permission: PermissionId;
+  /** 同上：无权限的动作这里是 undefined */
+  permission?: PermissionId;
   result: "allowed" | "denied" | "auto";
   message: string;
   at: number;
