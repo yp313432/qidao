@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useApp } from "@/lib/store";
+import { syncBarIcons } from "@/lib/shell";
 
 /**
  * 全屏背景层：默认渲染主题对应的「光斑渐变」作为液态玻璃的折射底，
@@ -9,6 +11,23 @@ import { useApp } from "@/lib/store";
 export function BackgroundLayer() {
   const background = useApp((s) => s.settings.background);
   const image = background.image;
+
+  /**
+   * 背景变了 → 重新决定**状态栏图标用浅色还是深色**（2026-11）。
+   *
+   * 用户原话："万一我换一个浅色背景图呢，那深色不就暴露了吗？"
+   * —— 系统栏透明之后，图标颜色必须跟着背景明暗走：浅背景用深图标，
+   * 否则那排时间/电量直接看不见。这里把当前背景告诉 `lib/shell`（它去算亮度）。
+   */
+  useEffect(() => {
+    const w = window as unknown as {
+      __qidaoBg?: string;
+      __qidaoBgState?: { dim: number; opacity: number };
+    };
+    w.__qidaoBg = image || "";
+    w.__qidaoBgState = { dim: background.dim, opacity: background.opacity };
+    void syncBarIcons();
+  }, [image, background.dim, background.opacity]);
 
   return (
     <div className="background-canvas pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">

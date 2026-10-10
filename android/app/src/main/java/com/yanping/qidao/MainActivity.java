@@ -15,6 +15,10 @@ public class MainActivity extends BridgeActivity {
     // 注册自定义插件：**主动感知的原生入口**（见 SenseBridgePlugin）
     // 电量/网络/屏幕/最近通知/前台 App —— AI 调 sense.* 时是它去读一次
     registerPlugin(SenseBridgePlugin.class);
+    // 注册自定义插件：**系统栏那一层**（见 ShellBridgePlugin）
+    // 背景铺到状态栏/导航栏下面 + 把安全区高度交给网页 + 图标颜色跟着背景明暗走。
+    // ⚠️ 必须跟插件里的 edgeToEdge() 一起用：只开窗口、不交安全区，顶栏会被状态栏压住
+    registerPlugin(ShellBridgePlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

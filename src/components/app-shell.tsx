@@ -1,4 +1,5 @@
-﻿import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
@@ -14,6 +15,7 @@ import { UiEffects } from "@/components/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
+import { initShell } from "@/lib/shell";
 
 const TABS = MAIN_TABS;
 
@@ -50,11 +52,21 @@ export function AppShell() {
    */
   const hideNav = hidesNav(pathname);
 
+  /**
+   * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。
+   * ⚠️ 这一步**不能省** —— 系统栏透明之后，网页得知道"上面被占了多少"，
+   * 否则顶栏会被状态栏压住（第一次就是这个坑）。
+   */
+  useEffect(() => {
+    void initShell();
+  }, []);
+
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，
     // 于是整个「窗口」在滚 —— 页面里那些 overflow-y-auto 全是摆设，
     // 长对话打开时停在最旧的一条，输入框在几千像素以外。
-    <div className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg">
+    // `app-inset-top`：给状态栏让出安全区（背景照样铺上去，见 styles.css）
+    <div className="app-inset-top relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg">
       <GlassHighlight />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
       <UiEffects />
