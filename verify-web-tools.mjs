@@ -400,8 +400,29 @@ head("5c) 两个动作的注册（三边 + 权限 + 计数字面量）");
   ok(/action\.query/.test(actions) && /action\.url/.test(actions), "actions.ts 那两行没显式读 action.query / action.url");
   ok(/id: "web_search"[^}]*status: "ready"/.test(perms), "permissions.ts 里 web_search 还不是 ready");
   ok(!/web_search"[^}]*status: "todo"/.test(perms), "permissions.ts 里 web_search 还挂着 todo");
-  ok(/const EXPECTED_KIND_COUNT = 70;/.test(registry), "verify-action-registry.mjs 的计数没同步到 70");
-  ok(/const EXPECTED_TOTAL = 70;/.test(recall), "verify-tool-recall.mjs 的计数没同步到 70");
+  /**
+   * ⚠️ 这里原来把动作数写死成 70，于是**每加一个动作都要来改一次**（已经改过好几轮）。
+   * 现在改成**从 `action-schema.ts` 数出来** —— 那才是唯一的真值；
+   * 两份清单（registry / recall）里的声明必须等于它。
+   */
+  const schemaSrc = readFileSync(new URL("./src/lib/action-schema.ts", import.meta.url), "utf8");
+  const kindCount = (schemaSrc.match(/^\s*kind:\s*"/gm) ?? []).length;
+  const declaredRegistry = Number((registry.match(/const EXPECTED_KIND_COUNT = (\d+);/) ?? [])[1]);
+  const declaredRecall = Number((recall.match(/const EXPECTED_TOTAL = (\d+);/) ?? [])[1]);
+  ok(
+    declaredRegistry === kindCount,
+    `verify-action-registry.mjs 的计数是 ${declaredRegistry}，动作真值是 ${kindCount}`,
+  );
+  ok(
+    declaredRecall === kindCount,
+    `verify-tool-recall.mjs 的计数是 ${declaredRecall}，动作真值是 ${kindCount}`,
+  );
+  /*
+    ⚠️ 断言只盯**那一行声明**（上面已经解析出来了），不用数字扫全文 ——
+    那两份脚本的注释里留着动作数量的演进史（61 → 63 → 62 → 68 → 70 → 71 → 72），
+    扫全文必然误报。
+  */
+  ok(kindCount > 60, `动作表数出来了（${kindCount} 个）`);
   /*
     ⚠️ 这份抄件的写法是两元素数组 `["web.search", "工具"]`（**不是对象**）——
     第一版断言写成了对象字面量，于是"文件明明是对的、断言却是红的"。
@@ -411,12 +432,7 @@ head("5c) 两个动作的注册（三边 + 权限 + 计数字面量）");
     "verify-tool-recall.mjs 的抄件缺那两个 kind（或写法跟断言不一致）",
   );
   ok(/web\.search/.test(corpus), "召回语料里没有一句'我要联网'的话");
-  /*
-    ⚠️ 这里**只能盯那一行声明**，不能用 `/68/` 扫全文 —— 那份脚本的注释里
-    留着动作数量的演进史（61 → 63 → 62 → 68 → 70），扫全文必然误报。
-  */
-  ok(!/EXPECTED_KIND_COUNT = 68/.test(registry) && !/EXPECTED_TOTAL = 68/.test(recall), "还有写死的 68 没同步");
-  console.log("  ✅ 三边 + 执行分支 + 权限 + 计数（70）都在");
+  console.log(`  ✅ 三边 + 执行分支 + 权限 + 计数（${kindCount}，从动作表数出来的）都在`);
 }
 
 /* ── §6 可选冒烟：真打一次 Bing RSS（跑不通不算失败）────────── */

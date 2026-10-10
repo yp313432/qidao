@@ -33,6 +33,7 @@ import {
 } from "@/lib/memory";
 import { autoTag } from "@/lib/synonyms";
 import { worldPresets } from "@/lib/world-presets";
+import { DEFAULT_STICKER_GROUP, type Sticker } from "@/lib/stickers";
 import type { WordCard } from "./learn-data";
 import { thinkingToPrune } from "./tokens";
 import type {
@@ -379,9 +380,26 @@ export type AppState = {
   /** 长期记忆（只存本机）—— 结构见 lib/types.ts 的 Memory，引擎见 lib/memory.ts */
   memories: Memory[];
   /** 用户自己传的表情图（dataURL） */
-  stickers: string[];
-  addSticker: (dataUrl: string) => void;
-  removeSticker: (dataUrl: string) => void;
+  /**
+   * ── **表情库**（2026-11：用户要"传到库里、我自己分组、他按分组挑"）──
+   *
+   * `stickerLib` 是图本身（带分组），`stickerGroups` 是**空分组**也记得住的那份名单
+   * （他刚建好一个组、还没传图时，界面上得看得见它）。
+   * 老版本存的是 `stickers: string[]`（没有分组）——在 `merge` 里平滑迁到"未分组"，
+   * **一张都不丢**。
+   */
+  stickerLib: Sticker[];
+  stickerGroups: string[];
+  /** 往库里加一张（不传分组就进「未分组」） */
+  addSticker: (dataUrl: string, group?: string) => void;
+  /** 按 **id** 删（图本身可能是重复的，按 url 删会连坐） */
+  removeSticker: (id: string) => void;
+  /** 把一张挪到别的分组 */
+  moveSticker: (id: string, group: string) => void;
+  /** 新建空分组 / 改名 / 删（删组时组里的图挪回「未分组」，**不删图**） */
+  addStickerGroup: (name: string) => void;
+  renameStickerGroup: (from: string, to: string) => void;
+  removeStickerGroup: (name: string) => void;
   /**
    * **他这一轮挑好的表情**（`sticker.send` 写、`use-chat` 收尾时读走并挂到回复上）。
    * 只是本轮的中转：**不持久化**（不在导出的字段表里），也不会留在消息里 ——
@@ -545,7 +563,8 @@ export const useApp = create<AppState>()(
       keyboardUp: false,
       chatDrafts: {},
       memories: [],
-      stickers: [],
+      stickerLib: [],
+  stickerGroups: [],
       requestLog: [],
       musicEmbeds: [],
       dates: [],
@@ -982,8 +1001,56 @@ export const useApp = create<AppState>()(
         set((s) => ({ memories: s.memories.map((m) => (m.id === id ? confirmMem(m) : m)) })),
       reinforceMemory: (ids) => set((s) => ({ memories: reinforce(s.memories, ids) })),
       removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
-      addSticker: (dataUrl) => set((s) => ({ stickers: [dataUrl, ...s.stickers].slice(0, 60) })),
-      removeSticker: (dataUrl) => set((s) => ({ stickers: s.stickers.filter((x) => x !== dataUrl) })),
+      /**
+       * 表情库：加/删/挪/分组。
+       *   · 上限 200 张（每张是 dataURL，几十 KB 到几百 KB —— 不能无限涨）
+       *   · 删分组**不删图**（把组里的图挪回「未分组」）—— 用户删的可能是"这个分类不要了"
+       */
+      addSticker: (dataUrl, group) =>
+        set((s) => {
+          const g = (group ?? "").trim() || DEFAULT_STICKER_GROUP;
+          const entry = { id: uid("stk"), url: dataUrl, group: g };
+          return {
+            stickerLib: [entry, ...s.stickerLib].slice(0, 200),
+            stickerGroups: s.stickerGroups.includes(g) ? s.stickerGroups : [...s.stickerGroups, g],
+          };
+        }),
+      removeSticker: (id) => set((s) => ({ stickerLib: s.stickerLib.filter((x) => x.id !== id) })),
+      moveSticker: (id, group) =>
+        set((s) => {
+          const g = (group ?? "").trim() || DEFAULT_STICKER_GROUP;
+          return {
+            stickerLib: s.stickerLib.map((x) => (x.id === id ? { ...x, group: g } : x)),
+            stickerGroups: s.stickerGroups.includes(g) ? s.stickerGroups : [...s.stickerGroups, g],
+          };
+        }),
+      addStickerGroup: (name) =>
+        set((s) => {
+          const g = (name ?? "").trim();
+          if (!g || s.stickerGroups.includes(g)) return {};
+          return { stickerGroups: [...s.stickerGroups, g] };
+        }),
+      renameStickerGroup: (from, to) =>
+        set((s) => {
+          const f = (from ?? "").trim();
+          const t = (to ?? "").trim();
+          if (!f || !t || f === t) return {};
+          return {
+            stickerLib: s.stickerLib.map((x) => (x.group === f ? { ...x, group: t } : x)),
+            stickerGroups: s.stickerGroups.map((g) => (g === f ? t : g)),
+          };
+        }),
+      removeStickerGroup: (name) =>
+        set((s) => {
+          const g = (name ?? "").trim();
+          if (!g) return {};
+          return {
+            stickerLib: s.stickerLib.map((x) =>
+              x.group === g ? { ...x, group: DEFAULT_STICKER_GROUP } : x,
+            ),
+            stickerGroups: s.stickerGroups.filter((x) => x !== g),
+          };
+        }),
       setReplySticker: (dataUrl) => set({ replyStickerUrl: dataUrl, lastStickerUrl: dataUrl }),
       takeReplySticker: () => {
         const url = get().replyStickerUrl;
@@ -1374,6 +1441,20 @@ export const useApp = create<AppState>()(
           memories,
           worldBook,
           mcp,
+          /**
+           * **表情库**：老版本存的是 `stickers: string[]`（那时候还没有分组）。
+           * 这里平滑迁到 `{id,url,group}` —— 全部进「未分组」，**一张都不丢**。
+           * 新格式已经在用就不动它（用户自己分好的组不能被覆盖）。
+           */
+          stickerLib: (() => {
+            const lib = Array.isArray(saved.stickerLib) ? (saved.stickerLib as Sticker[]) : [];
+            if (lib.length > 0) return lib;
+            const legacy = (saved as { stickers?: unknown }).stickers;
+            return (Array.isArray(legacy) ? legacy : [])
+              .filter((u): u is string => typeof u === "string" && u.length > 0)
+              .map((url) => ({ id: uid("stk"), url, group: DEFAULT_STICKER_GROUP }));
+          })(),
+          stickerGroups: Array.isArray(saved.stickerGroups) ? (saved.stickerGroups as string[]) : [],
           // 思考链已经不再归档了（存了也只看得到一次，纯占地方）——
           // 每次加载都清空，把老版本存下的那 18.8KB 腾出来。
           thinkingArchive: [],
@@ -1412,7 +1493,8 @@ export const useApp = create<AppState>()(
         worldBook: s.worldBook,
         chatDrafts: s.chatDrafts,
         memories: s.memories,
-        stickers: s.stickers,
+        stickerLib: s.stickerLib,
+        stickerGroups: s.stickerGroups,
         requestLog: s.requestLog,
         musicEmbeds: s.musicEmbeds,
         dates: s.dates,

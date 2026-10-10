@@ -928,7 +928,12 @@ export type FeatureId =
    * 表情库在手机本地，**不把目录塞进提示词**（那是几百上千 token）。
    * 「按情绪挑」要等"给表情打标签"那一步（下一步）。
    */
-  | { kind: "sticker.send" }
+  | { kind: "sticker.send"; feel?: string }
+  /**
+   * **看一眼表情库有哪些分组**（零参数，只读）。
+   * 跟 `emotion.lexicon` 同一个套路：分组清单不常驻提示词，要挑得准时现取一次。
+   */
+  | { kind: "sticker.groups" }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
   | { kind: "play.gobang" }

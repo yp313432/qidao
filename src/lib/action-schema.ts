@@ -302,7 +302,20 @@ export const ACTION_SCHEMA = [
   {
     kind: "sticker.send",
     group: "自我",
-    summary: "发一张表情包（你决定发哪张由客户端挑）",
+    summary: "发一张表情包",
+    fields: [
+      {
+        name: "feel",
+        type: "string",
+        required: false,
+        note: "{feel?: 想表达的分组名（用户在「工具 → 表情」里自己分好的，例如「无语」「抱抱」）。不填或对不上就全库随机；用 sticker.groups 可以现问一份分组清单}",
+      },
+    ],
+  },
+  {
+    kind: "sticker.groups",
+    group: "自我",
+    summary: "看一眼表情库里有哪些分组（只读）",
     fields: [],
   },
   {

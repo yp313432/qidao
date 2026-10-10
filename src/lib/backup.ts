@@ -48,7 +48,10 @@ export type Counts = {
   memories: number;
   musicEmbeds: number;
   reminders: number;
-  stickers: number;
+  /** 表情库（带分组那版）的张数 */
+  stickerLib: number;
+  /** 表情分组数 */
+  stickerGroups: number;
 };
 
 /** 递归清掉密钥字段，顺便数一下清了几处。 */
@@ -84,7 +87,8 @@ export function countData(app: Record<string, unknown>): Counts {
     memories: arr("memories"),
     musicEmbeds: arr("musicEmbeds"),
     reminders: arr("reminders"),
-    stickers: arr("stickers"),
+    stickerLib: arr("stickerLib"),
+    stickerGroups: arr("stickerGroups"),
   };
 }
 

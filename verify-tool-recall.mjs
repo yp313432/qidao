@@ -99,6 +99,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["emotion.report", "自我"],
   ["emotion.lexicon", "自我"],
   ["sticker.send", "自我"],
+  ["sticker.groups", "自我"],
   ["memory.add", "记忆"],
   ["persona.set", "自我"],
   ["play.gobang", "玩"],
@@ -166,7 +167,7 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * 字面上匹配不到"表情"两个字）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 71;
+const EXPECTED_TOTAL = 72;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */

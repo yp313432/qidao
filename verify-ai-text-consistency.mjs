@@ -582,7 +582,7 @@ const AP = metaMod.ACTION_PERMISSION;
  * ⚠️ 没有权限 = 闸门**直接执行、不弹卡片**，所以这份名单必须短且明确：
  * 多出任何一个都意味着"某个动作悄悄变成了免确认直接执行"。
  */
-const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon", "sticker.send"];
+const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon", "sticker.send", "sticker.groups"];
 const boundCount = Object.keys(AP).length;
 const expectedBound = KINDS.length - NO_PERMISSION_KINDS.length;
 check(

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FileText, Plus, Puzzle, Trash2, Zap } from "lucide-react";
+import { FileText, Plus, Puzzle, Smile, Trash2, Zap } from "lucide-react";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
+import { StickerLibrary } from "@/components/tools/sticker-library";
 import { useApp } from "@/lib/store";
 import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
 import { cn, formatDay } from "@/lib/utils";
@@ -12,6 +13,12 @@ const TABS = [
   { id: "http", label: "HTTP", icon: Zap },
   { id: "mcp", label: "MCP", icon: Puzzle },
   { id: "docs", label: "文档", icon: FileText },
+  /**
+   * **表情库**（2026-11 用户要的）："表情包能不能做成一个库，我传到库里，
+   * 他从我传的库里挑，并且库里带分组，我自己分，然后他就可以用了。"
+   * 放在工具区、跟 HTTP / MCP / 文档 并排（用户原话："把库放文档那里吧"）。
+   */
+  { id: "stickers", label: "表情", icon: Smile },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -54,10 +61,8 @@ export function ToolsView() {
         <h1 className="mt-1 font-serif text-2xl font-medium">工具</h1>
       </header>
       <div className="px-4">
-        {/* 注意：这里是 3 个标签，必须 grid-cols-3。
-            原来写的是 grid-cols-4 —— 于是 3 个标签只占 3/4 宽，
-            右边空出一格，看起来"左边小、右边大"，三个也没法居中。 */}
-        <div className="grid grid-cols-3 gap-1 rounded-full bg-chip p-1">
+        {/* 注意：这里是 4 个标签，必须是 grid-cols-4（加了「表情」之后从 3 变 4）。*/}
+        <div className="grid grid-cols-4 gap-1 rounded-full bg-chip p-1">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -78,6 +83,8 @@ export function ToolsView() {
         {tab === "http" && <HttpTools />}
 
         {tab === "mcp" && <McpServers />}
+
+        {tab === "stickers" && <StickerLibrary />}
 
         {tab === "docs" && (
           <div className="space-y-2">

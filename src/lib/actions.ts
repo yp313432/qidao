@@ -4,7 +4,7 @@ import { buildHttpRequest } from "@/lib/http-tools";
 import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
-import { pickSticker } from "@/lib/stickers";
+import { pickStickerByGroup, stickerGroupList } from "@/lib/stickers";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
@@ -403,21 +403,40 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     /**
      * **发一张表情包**（用户 2026-11："他们自己就可以调用表情包"）。
      *
-     * 挑哪张由**客户端**决定：表情库在手机本地（用户的图），
-     * 而目录塞进提示词是几百上千 token —— 所以只给他这个动作，图由我们挑。
-     *
-     * ⚠️ 这里**不直接写一条新消息**，而是把图挂到"这一轮即将发出的回复"上
-     * （`setReplySticker`，收尾时 `use-chat` 读走）—— 好处是它跟这句正文
-     * 是**同一轮**的，不会变成两条彼此不搭的消息。
+     * **按分组挑**（用户要的库那件事）：他说 `feel`（例如"无语"），
+     * 客户端去**那个分组**里随机挑一张；对不上分组就全库随机，
+     * 并把**现有分组**回给他 —— 他才知道下次该怎么点名（跟 sticker-mcp
+     * "认不出就把目录还给它"一个思路，又不用把图库塞进提示词）。
      */
     case "sticker.send": {
       const store = useApp.getState();
-      const chosen = pickSticker(store.stickers, store.lastStickerUrl);
-      if (!chosen) {
-        return "你的表情库里还是空的 —— 让用户在输入框的「＋ → 表情包」里加几张，你才发得出来。";
+      const feel = str((action as { feel?: unknown }).feel).trim();
+      const picked = pickStickerByGroup(store.stickerLib, feel, store.lastStickerUrl);
+      if (!picked) {
+        return "你的表情库里还是空的 —— 让用户在「工具 → 表情」里传几张（还能分组），你才发得出来。";
       }
-      store.setReplySticker(chosen);
-      return "好，挑了一张表情，会跟这句话一起发出去。";
+      store.setReplySticker(picked.url);
+      const groups = stickerGroupList(store.stickerLib, store.stickerGroups);
+      if (feel && !picked.matched) {
+        return `没有叫「${feel}」的分组，我随便挑了一张（${picked.group}）。现有分组：${groups.join("、")}。`;
+      }
+      return picked.matched
+        ? `好，从「${picked.group}」那组挑了一张，会跟这句话一起发出去。`
+        : "好，挑了一张表情，会跟这句话一起发出去。";
+    }
+
+    /**
+     * **取一份表情分组清单**（只读）—— 他想"挑得准"时现问一次。
+     * 跟 `emotion.lexicon` 同一个套路：清单不常驻提示词（省 token），要用才取。
+     */
+    case "sticker.groups": {
+      const store = useApp.getState();
+      const groups = stickerGroupList(store.stickerLib, store.stickerGroups);
+      if (groups.length === 0) return "表情库还是空的（用户在「工具 → 表情」里传图并分组之后才有）。";
+      const lines = groups.map(
+        (g) => `· ${g}（${store.stickerLib.filter((s) => (s.group || "未分组") === g).length} 张）`,
+      );
+      return `表情分组（发的时候把分组名写进 feel）：\n${lines.join("\n")}`;
     }
 
     case "cron.add": {

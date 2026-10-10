@@ -124,7 +124,7 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
-  const customStickers = useApp((s) => s.stickers);
+  const customStickers = useApp((s) => s.stickerLib);
   /*
     「今天 N 次 · 输入/输出 · 缓存命中率」那条**已删除**（用户要求：
     "到时候直接上设置里看，这地方就不留了"）。
@@ -176,6 +176,7 @@ export function Composer({ onSend, disabled, streaming }: Props) {
         const transparent = await stripWhiteBackground(url);
         if (transparent) url = transparent;
       }
+      // 从聊天框加的表情一律进「未分组」；要分类就去「工具 → 表情」那个库页面分
       useApp.getState().addSticker(url);
     }
   }
@@ -446,19 +447,19 @@ export function Composer({ onSend, disabled, streaming }: Props) {
                 </button>
               ))}
               {customStickers.map((s) => (
-                <span key={s} className="relative">
+                <span key={s.id} className="relative">
                   <button
                     type="button"
                     aria-label="发送表情"
-                    onClick={() => sendSticker(s)}
+                    onClick={() => sendSticker(s.url)}
                     className="block"
                   >
-                    <img src={s} alt="自定义表情" className="size-8 rounded-lg object-cover" />
+                    <img src={s.url} alt="自定义表情" className="size-8 rounded-lg object-cover" />
                   </button>
                   <button
                     type="button"
                     aria-label="删除这个表情"
-                    onClick={() => useApp.getState().removeSticker(s)}
+                    onClick={() => useApp.getState().removeSticker(s.id)}
                     className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-ink text-[9px] text-ink-fg"
                   >
                     ×
