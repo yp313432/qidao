@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { permissionDef } from "@/lib/permissions";
 import type { PermissionMode } from "@/lib/types";
 import { runAction } from "@/lib/actions";
+import { runGuarded } from "@/lib/gate-run";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -41,22 +42,41 @@ export function ActionGate() {
 
   const go = (p: string) => void navigate({ to: p as unknown as "/" });
 
-  // 已授权允许 / 拒绝的，不打扰用户。但 L3 必须每次都问。
+  /**
+   * 「自动执行（不弹卡片）这条路要慢到值得说一声」才显示提示条。
+   *
+   * 为什么需要它：这条路人眼原本什么都看不到 —— 真机踩过"发出去的动作全挂着、
+   * 连卡片都没有"。快了（几百毫秒内）就别闪一下，免得每次导航都冒个条。
+   */
+  const [slowRun, setSlowRun] = useState(false);
+  useEffect(() => {
+    setSlowRun(false);
+    if (!current || critical || mode === "ask") return;
+    const t = setTimeout(() => setSlowRun(true), 400);
+    return () => clearTimeout(t);
+  }, [current, critical, mode]);
+
+  /**
+   * ⚠️ **必须走 `runGuarded`**（见 `lib/gate-run.ts` 的文件头）：
+   * 原来这里是裸的 `await runAction(...)`，一旦它抛错或卡住，`resolveAction` 就
+   * 永远不会被调用 → 这笔动作一直占着队头 → **后面所有动作既没有卡片也不动**。
+   * 用户真机原话："明明我已经允许的权限他也卡住了，发出去的动作全挂着。"
+   */
   useEffect(() => {
     if (!current || critical || mode === "ask") return;
     const action = current.action;
     const id = current.id;
+    const permission = current.permission;
     if (mode === "allow") {
       void (async () => {
-        const msg = await runAction(action, { navigate: go });
-        useApp
-          .getState()
-          .resolveAction(
-            id,
-            true,
-            false,
-            current.permission ? `按你的授权直接执行：${msg}` : `这个动作不用授权，直接执行：${msg}`,
-          );
+        const r = await runGuarded(() => runAction(action, { navigate: go }));
+        /** 失败/超时那两句自己就是完整的人话，**不加**"按你的授权直接执行"这个前缀（会自相矛盾） */
+        const msg = r.ok
+          ? permission
+            ? `按你的授权直接执行：${r.message}`
+            : `这个动作不用授权，直接执行：${r.message}`
+          : r.message;
+        useApp.getState().resolveAction(id, true, false, msg);
       })();
     } else {
       useApp.getState().resolveAction(id, false, false, "你之前把这项设为「拒绝」");
@@ -65,13 +85,23 @@ export function ActionGate() {
   }, [current, critical, mode]);
 
   if (!current) return null;
-  if (!critical && mode !== "ask") return null;
+  if (!critical && mode !== "ask") {
+    /** 自动执行中：不挡操作，只让用户知道"正在跑哪一个"（见上面 slowRun 的说明） */
+    if (!slowRun) return null;
+    return (
+      <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-6">
+        <div className="glass-menu pointer-events-auto rounded-full px-3.5 py-1.5 text-[11px] text-muted shadow-lg">
+          ⏳ 正在执行：{current.title}
+        </div>
+      </div>
+    );
+  }
 
   async function approve(remember: boolean) {
     if (!current) return;
     const id = current.id;
-    const msg = await runAction(current.action, { navigate: go });
-    useApp.getState().resolveAction(id, true, remember, msg);
+    const r = await runGuarded(() => runAction(current.action, { navigate: go }));
+    useApp.getState().resolveAction(id, true, remember, r.message);
   }
 
   function deny(remember: boolean) {

@@ -19,7 +19,6 @@ const PAGES = [
   { path: "/system", name: "p-system", title: "系统", tab: "我的" },
   { path: "/permissions", name: "p-permissions", title: "AI 权限", tab: "我的" },
   { path: "/worldbook", name: "p-worldbook", title: "世界书", tab: "我的" },
-  { path: "/inner", name: "p-inner", title: "内在", tab: "我的" },
   { path: "/memories", name: "p-memories", title: "记忆库", tab: "我的" },
   { path: "/memory", name: "p-memory", title: "上下文与内存", tab: "我的" },
   { path: "/alarms", name: "p-alarms", title: "闹钟", tab: "我的" },

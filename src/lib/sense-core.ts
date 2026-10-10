@@ -298,7 +298,18 @@ export function senseNotifications(r: Reading<NotificationFacts>): SenseOutcome 
   }
   const items = r.value.items.slice(0, 5);
   if (items.length === 0) {
-    return { ok: true, count: 0, items: [], summary: "最近没有新通知" };
+    /**
+     * ⚠️ 「授权是好的、只是没收到通知」和「没授权」**必须分得开**。
+     * 用户 2026-11 实测：他明明把权限打开了，AI 还一直说"权限没通"，
+     * 他就又去开一遍 —— 开到最后自己都忘了这个开关是干嘛的。
+     * 所以这里把"授权是好的"明说出来。
+     */
+    return {
+      ok: true,
+      count: 0,
+      items: [],
+      summary: "最近没有新通知（「通知使用权」是开着的，只是这阵子还没新的）",
+    };
   }
   const head = items
     .slice(0, 3)
@@ -312,9 +323,44 @@ export function senseNotifications(r: Reading<NotificationFacts>): SenseOutcome 
   };
 }
 
+/**
+ * **原生回执 → `Reading`**（纯函数，验收脚本直接测它）。
+ *
+ * 只有 `granted === false` 才算"权限没给"；**授权是好的、只是最近没收到通知**
+ * 走 `ok:true + 空列表`（上面那句会把"授权是好的"一起说出来）。
+ */
+export function notificationsReading(r: {
+  granted?: boolean;
+  reason?: string;
+  items?: { app?: string; title?: string; text?: string; minutesAgo?: number }[];
+}): Reading<NotificationFacts> {
+  if (r.granted === false) {
+    return {
+      ok: false,
+      gap: "permission",
+      detail: (r.reason ?? "").trim() || "还没打开「通知使用权」",
+      fix: SENSE_SETTINGS_FIX.notifications,
+    };
+  }
+  const items = (r.items ?? [])
+    .map((i) => ({
+      app: String(i.app ?? "某个应用"),
+      title: String(i.title ?? ""),
+      text: String(i.text ?? ""),
+      minutesAgo: Number.isFinite(i.minutesAgo) ? Number(i.minutesAgo) : 0,
+    }))
+    .filter((i) => i.title || i.text);
+  return { ok: true, value: { items } };
+}
+
 /* ───────────────────────── 5. 前台是哪个 App ───────────────────────── */
 
-export type ForegroundFacts = { app: string; package: string };
+export type ForegroundFacts = {
+  app: string;
+  package: string;
+  /** 前台就是栖岛自己（他正在跟我说话）—— 这时说"你在用栖岛"等于没说 */
+  self?: boolean;
+};
 
 export function senseForeground(r: Reading<ForegroundFacts>): SenseOutcome {
   if (!r.ok) return gapOutcome(r.gap, r.detail, r.fix ?? SENSE_SETTINGS_FIX.foreground);
@@ -323,7 +369,48 @@ export function senseForeground(r: Reading<ForegroundFacts>): SenseOutcome {
     ok: true,
     app: v.app,
     package: v.package,
-    summary: `你现在在用「${v.app}」`,
+    ...(v.self ? { self: true } : {}),
+    summary: v.self ? "你现在就在栖岛里（也就是说，你正对着我说话）" : `你现在在用「${v.app}」`,
+  };
+}
+
+/**
+ * **原生回执 → `Reading`**（纯函数，`verify-sense.mjs` 直接测它）。
+ *
+ * ⚠️ 这里修的是一个**真 bug**（用户 2026-11 在真机上撞到）：
+ * 原来接线层写的是 `if (r.granted === false || !r.app)` → 一律当成"权限没给"，
+ * 于是**只要系统这一次没给出答案（`!r.app`），就会告诉他"还没打开使用情况访问"** ——
+ * 他权限明明开着，去设置里翻半天翻不到问题，只能怀疑自己没开对。
+ * 两件事必须分开说：
+ *   · `granted:false` → 真没授权 → 给设置页路径（gap `permission`）
+ *   · `granted:true` 但没答案 → **不是权限问题** → gap `error`，且**不带 fix**
+ *     （带了他就会去开一个已经开着的开关）
+ */
+export function foregroundReading(r: {
+  granted?: boolean;
+  app?: string;
+  package?: string;
+  self?: boolean;
+  reason?: string;
+}): Reading<ForegroundFacts> {
+  if (r.granted === false) {
+    return {
+      ok: false,
+      gap: "permission",
+      detail: (r.reason ?? "").trim() || "还没打开「使用情况访问」",
+      fix: SENSE_SETTINGS_FIX.foreground,
+    };
+  }
+  if (!r.app) {
+    return {
+      ok: false,
+      gap: "error",
+      detail: (r.reason ?? "").trim() || "系统这次没给出当前应用",
+    };
+  }
+  return {
+    ok: true,
+    value: { app: String(r.app), package: String(r.package ?? ""), ...(r.self ? { self: true } : {}) },
   };
 }
 

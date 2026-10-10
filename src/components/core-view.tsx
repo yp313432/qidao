@@ -67,7 +67,6 @@ export function CoreView() {
             {[
               { to: "/permissions", label: "感知权限", hint: `${PERMISSIONS.length} 项能力，按 ${GROUPS.length} 组收着` },
               { to: "/worldbook", label: "怎么和你相处", hint: "给他的规矩 · 说话风格 · 思考引导" },
-              { to: "/inner", label: "他的状态", hint: "他最近的状态样本（数据还在，只是这张图不用了）" },
               { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图" },
             ].map((it) => (
               <Link
@@ -86,7 +85,7 @@ export function CoreView() {
         </section>
 
         <p className="mt-6 px-1 text-[11px] leading-5 text-subtle">
-          这一页只是"看一眼他现在什么样"。要调什么，点上面那四项进去改 ✅
+          这一页只是"看一眼他现在什么样"。要调什么，点上面那三项进去改 ✅
         </p>
       </div>
     </div>

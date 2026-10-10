@@ -682,6 +682,27 @@ html[data-drawer-open] .glass-nav-bar {
   animation: view-enter 0.28s ease;
 }
 
+/*
+  页面根容器：**横向不许拖、不许回弹**（2026-11 补，用户的抱怨）：
+    "为什么感知权限这个三级页面点进去居然还是网页的呀？他不应该改成 APP 那种界面吗？
+     为啥我还能左右滑动呀。"
+  根因：页面根只写了 `overflow-y-auto`，按 CSS 的规矩**另一轴会算成 auto**，
+  于是内容一旦比屏幕宽（安卓 WebView 把**系统字号**放大时最容易触发），
+  整页就能被手指横拖 —— 看起来就是"网页"。
+
+  ⚠️ 用**后代**选择器而不是 `.view-enter > *`：这个 App 里两种页面根都有 ——
+  有的自己就是滚动容器（权限页那种 `overflow-y-auto pb-above-nav`），
+  有的是 `h-full` + **里面**一个滚动列（AI 概览那种）。只匹配直接子元素会漏掉后一种
+  （第一版就是这么漏的，靠 `probe-width` 量出来 `rootOverflowX: visible` 才发现）。
+  用 `:not` 把"自己声明过 overflow-x-*"的排除掉，所以：
+    · 不是滚动容器的元素不受影响（不会被硬变成滚动容器）
+    · 内层自己做横滑的（星屿那排词条 `overflow-x-auto`）照旧能滑
+*/
+.view-enter [class*="overflow-y-auto"]:not([class*="overflow-x-"]) {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 .thinking-shimmer {
   background: linear-gradient(
     90deg,

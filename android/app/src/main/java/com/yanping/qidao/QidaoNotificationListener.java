@@ -43,8 +43,23 @@ public class QidaoNotificationListener extends NotificationListenerService {
 
   private static final Object LOCK = new Object();
 
+  /**
+   * 系统**一共回调过我们几次** + 最后一次是什么时候。
+   *
+   * 为什么单独记这个：用户 2026-11 真机实测"权限开了却还说没开"。
+   * 「名单里有我们」和「服务真被绑定了」是**两件事** ——
+   * 只记下攒下来的条目分不清它们（没收到通知也可能是这阵子真没通知），
+   * 而**回调次数**能：一次都没回调过 = 服务压根没被绑上，那是另一种问题。
+   */
+  private static int CALLBACKS = 0;
+  private static long LAST_CALLBACK_AT = 0L;
+
   @Override
   public void onNotificationPosted(StatusBarNotification sbn) {
+    synchronized (LOCK) {
+      CALLBACKS += 1;
+      LAST_CALLBACK_AT = System.currentTimeMillis();
+    }
     if (sbn == null || sbn.getNotification() == null) return;
     // 自己的通知不记（不然"最近通知"里全是我们自己的提醒和定时任务）
     if (getPackageName().equals(sbn.getPackageName())) return;
@@ -87,6 +102,20 @@ public class QidaoNotificationListener extends NotificationListenerService {
   static void clear() {
     synchronized (LOCK) {
       RECENT.clear();
+    }
+  }
+
+  /** 系统回调过几次（0 = 服务没被绑定，跟"这阵子没通知"是两件事）—— 自检用 */
+  static int callbackCount() {
+    synchronized (LOCK) {
+      return CALLBACKS;
+    }
+  }
+
+  /** 最后一次回调的时刻（0 = 从来没有）—— 自检用 */
+  static long lastCallbackAt() {
+    synchronized (LOCK) {
+      return LAST_CALLBACK_AT;
     }
   }
 

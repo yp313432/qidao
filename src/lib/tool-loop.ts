@@ -347,7 +347,16 @@ export function looksRefused(message: string): boolean {
   if (!text) return false;
   /** ① 结构化：结果自己是 `ok:false`（感知那类 JSON 回执）—— 跟长度无关 */
   if (saysFailed(text)) return true;
-  /** ② 原来那条：只在**短句**上按措辞判（长报告里出现"没"字很正常，别误伤） */
+  /**
+   * ② **闸门自己报的失败/超时**（`lib/gate-run.ts` 那两句）—— 也跟长度无关。
+   *
+   * 为什么单列这一条：那两句可能**长于 48 字**（里面接着原生报错原文），
+   * 只靠下面"短句才查措辞"那条会漏判 —— 漏了界面上就是
+   * `✅ 执行时报错了（这次失败）：…`（图标和内容自相矛盾）。
+   * 真机踩过"动作全挂着"之后补的（见 `verify-gate-stuck.mjs`）。
+   */
+  if (/(执行时报错了|秒没有结果，这次没执行完)/.test(text)) return true;
+  /** ③ 原来那条：只在**短句**上按措辞判（长报告里出现"没"字很正常，别误伤） */
   if (text.length > 48) return false;
   return REFUSED_HINT.test(text);
 }

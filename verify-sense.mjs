@@ -42,6 +42,8 @@ const {
   senseForeground,
   senseScreen,
   renderSense,
+  notificationsReading,
+  foregroundReading,
 } = core;
 
 let passed = 0;
@@ -220,9 +222,25 @@ check(
   "sense-bridge.ts 有网页版护栏（先 isNativeApp，网页版不许去调原生）",
   BRIDGE_SRC.includes("isNativeApp") && BRIDGE_SRC.includes("return null"),
 );
+/*
+  ⚠️ 原来这条是查 `WIRING_SRC.includes('gap: "permission"')` —— 同上，文本断言。
+  改测行为：没授权时 gap 必须是 permission 且开口就是"没有这个系统权限"；
+  而"授权是好的、系统没给答案"必须是 error（两者分得开才是这条断言真正要保的东西）。
+*/
 check(
-  "接线层把 web / permission 两种 gap 分开写（网页版不许被说成权限没给）",
-  WIRING_SRC.includes('gap: "web"') && WIRING_SRC.includes('gap: "permission"'),
+  "没授权 = permission、没答案 = error（两者不串味，用户不会去开一个已经开着的开关）",
+  (() => {
+    const perm = notificationsReading({ granted: false });
+    const noAnswer = foregroundReading({ granted: true });
+    const permOut = senseNotifications(perm);
+    return (
+      perm.gap === "permission" &&
+      noAnswer.gap === "error" &&
+      permOut.reason === "permission" &&
+      String(permOut.summary).includes("没有这个系统权限") &&
+      senseForeground(noAnswer).reason === "error"
+    );
+  })(),
 );
 
 /* ═══════════════ 【B】每个动作都有 summary（成功/失败都要） ═══════════════ */
@@ -431,10 +449,20 @@ for (const [label, outcome, needle] of [
     j(outcome.fix),
   );
 }
+/*
+  ⚠️ 这两条原来是**查源码文本**（`WIRING_SRC.includes('gap: "permission"')`、
+  `WIRING_SRC.includes("SENSE_SETTINGS_FIX.notifications")`）—— 判定一挪进 sense-core，
+  它们就误报了（明明行为没变）。文本断言还会在重构时给假红、在真出问题时给假绿，
+  所以改成**测行为**：同一个 `SENSE_SETTINGS_FIX` 常量、两条路都指得到。
+*/
 check(
-  "接线层（原生那一侧）报「权限没给」时也带上了同一个 fix（两处口径不打架）",
-  WIRING_SRC.includes("SENSE_SETTINGS_FIX.notifications") &&
-    WIRING_SRC.includes("SENSE_SETTINGS_FIX.foreground"),
+  "「权限没给」两条路都带上同一个 fix，而且跟 sense-core 那份文案一字不差（两处口径不打架）",
+  notificationsReading({ granted: false }).fix === SENSE_SETTINGS_FIX.notifications &&
+    foregroundReading({ granted: false }).fix === SENSE_SETTINGS_FIX.foreground,
+);
+check(
+  "接线层没有自己另写一套判定（真的用了 sense-core 那两个纯函数）",
+  WIRING_SRC.includes("notificationsReading(") && WIRING_SRC.includes("foregroundReading("),
 );
 check(
   "「设置」那条文案只有一处定义（sense-core 的 SENSE_SETTINGS_FIX）",
@@ -602,6 +630,81 @@ check(
   "sense.foreground：应用名进 summary，包名留在字段里",
   fg.app === "微信" && fg.package === "com.tencent.mm" && fg.summary.includes("微信"),
   j(fg),
+);
+
+/* ═════════ 真机撞到过的那个 bug：没答案 ≠ 没权限（2026-11 用户实测） ═════════
+ * 用户原话："我权限都打开了，这个通知和前台app还是不行" ——
+ * 根因是接线层把 `granted:true 但系统没给答案` 也当成了"权限没给"，
+ * 于是他去设置里翻一个已经开着的开关。这三种回执必须走三条路，谁都不许串。 */
+check(
+  "foregroundReading：真没授权 → permission + 明确给设置页路径",
+  (() => {
+    const r = foregroundReading({ granted: false, reason: "还没打开「使用情况访问」" });
+    return r.ok === false && r.gap === "permission" && r.fix === SENSE_SETTINGS_FIX.foreground;
+  })(),
+);
+check(
+  "foregroundReading：**授权是好的、系统这次没给答案 → error，且不许带设置页路径**",
+  (() => {
+    const r = foregroundReading({ granted: true, reason: "系统这次没给出当前应用" });
+    return (
+      r.ok === false &&
+      r.gap === "error" &&
+      r.fix === undefined &&
+      !senseForeground(r).summary.includes("使用情况访问")
+    );
+  })(),
+);
+check(
+  "foregroundReading：拿到了（含「你在栖岛里」这一种）→ ok，字段照实",
+  (() => {
+    const other = foregroundReading({ granted: true, app: "微信", package: "com.tencent.mm" });
+    const self = foregroundReading({
+      granted: true,
+      app: "栖岛",
+      package: "com.yanping.qidao",
+      self: true,
+    });
+    return (
+      other.ok === true &&
+      other.value.app === "微信" &&
+      self.ok === true &&
+      self.value.self === true &&
+      senseForeground(self).summary.includes("就在栖岛里")
+    );
+  })(),
+);
+check(
+  "notificationsReading：没授权 → permission；授权好但没通知 → **ok:true**（不许说成权限问题）",
+  (() => {
+    const denied = notificationsReading({ granted: false });
+    const empty = notificationsReading({ granted: true, items: [] });
+    const deniedOut = senseNotifications(denied);
+    const emptyOut = senseNotifications(empty);
+    return (
+      denied.ok === false &&
+      denied.gap === "permission" &&
+      denied.fix === SENSE_SETTINGS_FIX.notifications &&
+      empty.ok === true &&
+      emptyOut.ok === true &&
+      emptyOut.summary.includes("通知使用权") &&
+      deniedOut.reason === "permission" &&
+      emptyOut.reason !== "permission"
+    );
+  })(),
+);
+check(
+  "notificationsReading：空标题空正文的条目被丢掉（别拿空壳凑数）",
+  (() => {
+    const r = notificationsReading({
+      granted: true,
+      items: [
+        { app: "微信", title: "在吗" },
+        { app: "某应用", title: "", text: "" },
+      ],
+    });
+    return r.ok === true && r.value.items.length === 1 && r.value.items[0].app === "微信";
+  })(),
 );
 
 const sc = [

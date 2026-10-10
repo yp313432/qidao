@@ -10,6 +10,7 @@
  * 误报成"这个外壳不支持"，用户看到只会以为功能没做。
  */
 import { IS_APP } from "@/lib/platform";
+import { senseDiag } from "@/lib/sense-bridge";
 
 export type EnvStatus = "ok" | "warn" | "no";
 
@@ -20,10 +21,19 @@ export type EnvItem = {
   detail: string;
   /** 用不了的话，怎么才能用 */
   fix?: string;
+  /** 能一键跳的话跳哪儿（特殊权限那两级菜单各家 ROM 不一样，给按钮最省事） */
+  action?: { label: string; kind: "notifications" | "foreground" };
 };
 
 const HTTPS_HINT =
   "需要安全地址：https 或 localhost。局域网明文 http（像 http://192.168.x.x:8080）浏览器一定会拦。";
+
+/** 长字符串截断（自检页要把系统那份名单的原文摆出来，但不能铺满整屏） */
+const clipText = (s: string | undefined, n = 110) => {
+  const t = (s ?? "").trim();
+  if (!t) return "（读不到）";
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+};
 
 export async function collectEnv(): Promise<EnvItem[]> {
   const items: EnvItem[] = [];
@@ -203,6 +213,63 @@ export async function collectEnv(): Promise<EnvItem[]> {
       : "网页版只能在页面活着时响，关掉页面就没了 —— 装成 App 才有系统级定时",
     fix: IS_APP ? undefined : "想要「关着也响」，装 Android 版。",
   });
+
+  /* ---------- 7.6 感知要的两项特殊权限（只有 App 里才有） ---------- */
+
+  /*
+    加这一节的直接原因（用户 2026-11 真机实测的原话）：
+      "我权限都打开了，这个通知和前台app还是不行"
+    这两项都是**特殊权限**（普通权限弹窗里根本没有它们），所以"明明开了却说没开"
+    的时候，靠猜永远猜不出来。这里把**原始事实**摆出来，一眼分得清是哪一种：
+      · 不在名单里            → 真没开（或开错了地方）
+      · 在名单里、回调 0 次   → 开了但服务没被绑定（那是另一个问题）
+      · AppOps 回 3 但读得到  → ROM 口径不一样（那就不能再说"没授权"）
+  */
+  if (IS_APP) {
+    const diag = await senseDiag();
+    if (!diag) {
+      items.push({
+        id: "sense-perms",
+        label: "感知的特殊权限（通知使用权 / 使用情况访问）",
+        status: "warn",
+        detail: "这个版本的 App 里还没带上自检口子 —— 装最新版才看得到这两项的原始状态。",
+      });
+    } else {
+      const callbacks = Number(diag.notifCallbacks ?? 0);
+      const lastAt = Number(diag.notifLastCallbackAt ?? 0);
+      const lastAgo = lastAt ? Math.max(0, Math.round((Date.now() - lastAt) / 60_000)) : 0;
+      items.push({
+        id: "sense-notifications",
+        label: "通知使用权",
+        status: diag.notifGranted ? "ok" : "no",
+        detail: diag.notifGranted
+          ? `系统名单里有栖岛（${clipText(String(diag.listenerItem ?? ""), 60)}）；系统一共回调过我们 ${callbacks} 次${
+              callbacks === 0
+                ? "（0 次 = 勾在那儿、但服务没被绑定 —— 这跟「这阵子没通知」是两件事，把这条告诉我）"
+                : `，最后一次是 ${lastAgo <= 0 ? "刚刚" : `${lastAgo} 分钟前`}`
+            }`
+          : `**不在**系统那份名单里。名单原文：${clipText(diag.listenersRaw)}`,
+        fix: diag.notifGranted
+          ? undefined
+          : "它管的是「他看一眼我最近收到了什么通知」。自己走：设置 → 应用 → 特殊应用权限 → 通知使用权 → 栖岛；找不到就点下面的按钮。",
+        action: diag.notifGranted
+          ? undefined
+          : { label: "去开「通知使用权」", kind: "notifications" as const },
+      });
+      items.push({
+        id: "sense-foreground",
+        label: "使用情况访问（看你在用哪个 App）",
+        status: diag.usageGranted ? (diag.usageReadable ? "ok" : "warn") : "no",
+        detail: `AppOps 原始值 ${String(diag.usageOpMode ?? "?")}（0=已允许、3=默认）；实际读得到数据：${
+          diag.usageReadable ? "能" : "不能"
+        }；前台这次给出：${clipText(String(diag.foregroundPkg ?? ""), 40)}`,
+        fix: diag.usageGranted
+          ? undefined
+          : "自己走：设置 → 应用 → 特殊应用权限 → 使用情况访问 → 栖岛；找不到就点下面的按钮。",
+        action: diag.usageGranted ? undefined : { label: "去开「使用情况访问」", kind: "foreground" as const },
+      });
+    }
+  }
 
   /* ---------- 8. Service Worker / 离线 / 推送 ---------- */
   const hasSW = hasWindow && "serviceWorker" in navigator;

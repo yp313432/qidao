@@ -171,10 +171,22 @@ function kvSet(key, value) {
  * ⚠️ 标题和正文都过 `maskSecrets`：文件顶上那条纪律是"**任何写出去的日志/通知**
  * 都先过一遍"（上游偶尔会把 key 回显进正文），而这里原来漏了这一步 ——
  * 顺手补上，正好也让"通知上那句"跟"交给会话那句"逐字一致。
+ *
+ * ⚠️ `smallIcon` 是**资源名**（`res/drawable` 里的文件名，不带扩展名），
+ * 由 `scripts/make-notification-icon.py` 生成。不传的后果是系统那个 ⓘ 图标；
+ * 传一个不存在的名字**也一样**（插件的 `Notifications.kt` 解析不到就退回默认），
+ * 所以这个名字改不得、也别删。
+ * 这条路**只有小图标**：`Notifications.kt` 里压根没有大图标（没有 setLargeIcon），
+ * 想给后台这条通知加头像/大图是做不到的 —— 别在这上面浪费时间。
  */
 function notify(id, title, body, actionTypeId) {
   try {
-    var n = { id: id, title: maskSecrets(title), body: maskSecrets(body) };
+    var n = {
+      id: id,
+      title: maskSecrets(title),
+      body: maskSecrets(body),
+      smallIcon: "ic_stat_qidao",
+    };
     if (actionTypeId) n.actionTypeId = actionTypeId;
     CapacitorNotifications.schedule([n]);
   } catch (e) {

@@ -1,6 +1,8 @@
 import { nativeSense } from "@/lib/sense-bridge";
 import {
+  foregroundReading,
   gapOutcome,
+  notificationsReading,
   renderSense,
   senseDevice,
   senseForeground,
@@ -9,7 +11,6 @@ import {
   senseScreen,
   senseTime,
   SENSE_PLACE_SWITCH_FIX,
-  SENSE_SETTINGS_FIX,
   type DeviceFacts,
   type ForegroundFacts,
   type NotificationFacts,
@@ -167,24 +168,8 @@ async function readNotifications(): Promise<Reading<NotificationFacts>> {
     return { ok: false, gap: "web", detail: "读最近的通知要装成 App（网页版拿不到系统通知）" };
   }
   try {
-    const r = await n.api.notifications();
-    if (r.granted === false) {
-      return {
-        ok: false,
-        gap: "permission",
-        detail: (r.reason ?? "").trim() || "还没打开「通知使用权」",
-        fix: SENSE_SETTINGS_FIX.notifications,
-      };
-    }
-    const items = (r.items ?? [])
-      .map((i) => ({
-        app: String(i.app ?? "某个应用"),
-        title: String(i.title ?? ""),
-        text: String(i.text ?? ""),
-        minutesAgo: Number.isFinite(i.minutesAgo) ? Number(i.minutesAgo) : 0,
-      }))
-      .filter((i) => i.title || i.text);
-    return { ok: true, value: { items } };
+    // 判定交给 sense-core 的纯函数（三种情况分得开：没授权 / 授权好但没通知 / 读失败）
+    return notificationsReading(await n.api.notifications());
   } catch (e) {
     return { ok: false, gap: "error", detail: errText(e) };
   }
@@ -196,16 +181,14 @@ async function readForeground(): Promise<Reading<ForegroundFacts>> {
     return { ok: false, gap: "web", detail: "看当前前台是哪个 App 要装成 App（网页版看不到）" };
   }
   try {
-    const r = await n.api.foreground();
-    if (r.granted === false || !r.app) {
-      return {
-        ok: false,
-        gap: "permission",
-        detail: (r.reason ?? "").trim() || "还没打开「使用情况访问」",
-        fix: SENSE_SETTINGS_FIX.foreground,
-      };
-    }
-    return { ok: true, value: { app: String(r.app), package: String(r.package ?? "") } };
+    /*
+      ⚠️ 这里原来把两件事当成一件：`granted === false || !r.app` → 一律"权限没给"。
+      结果就是用户**权限明明开着**、只是系统这一次没给出答案，
+      却被告诉"还没打开使用情况访问"——他只能一遍遍去设置里翻（用户实测原话：
+      "我权限都打开了，这个通知和前台app还是不行"）。判定已挪到 sense-core，
+      两者分开：没授权给设置页路径；没答案就说没答案、**不给路径**。
+    */
+    return foregroundReading(await n.api.foreground());
   } catch (e) {
     return { ok: false, gap: "error", detail: errText(e) };
   }

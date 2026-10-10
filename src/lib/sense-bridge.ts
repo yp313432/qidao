@@ -46,8 +46,44 @@ export type SenseBridgeApi = {
     granted?: boolean;
     app?: string;
     package?: string;
+    /** 前台就是栖岛自己（正在跟用户说话） */
+    self?: boolean;
     reason?: string;
   }>;
+  /**
+   * 自检：那两项**特殊权限**的原始事实（老包没这个方法 → 调用会 reject，被下面兜住）。
+   * 加它的原因：用户 2026-11 真机实测"权限都打开了还是不行" —— 靠猜没用，要原始数据。
+   */
+  diag: () => Promise<SenseDiag>;
+  /** 一键跳到那个特殊权限的设置页（各家 ROM 的菜单层级不一样，给按钮最省事） */
+  openSettings: (o: { which: "notifications" | "foreground" }) => Promise<{
+    ok?: boolean;
+    fallback?: boolean;
+    reason?: string;
+  }>;
+};
+
+/** `diag()` 回来的原始事实（字段都是"不翻译"的原值，翻译交给界面） */
+export type SenseDiag = {
+  package?: string;
+  uid?: number;
+  sdk?: number;
+  device?: string;
+  /** 系统那份名单的原文（`enabled_notification_listeners`） */
+  listenersRaw?: string;
+  /** 名单里属于我们的那一项（原样）；"（名单里没有我们）" 表示真的没开 */
+  listenerItem?: string;
+  notifGranted?: boolean;
+  /** 系统一共回调过我们几次（0 = 服务没被绑定，跟"这阵子没通知"是两件事） */
+  notifCallbacks?: number;
+  notifLastCallbackAt?: number;
+  /** 组件启用状态（-1 问不到，0 默认，1 启用，2 禁用） */
+  listenerEnabled?: number;
+  /** AppOps 原始模式：0=ALLOWED、3=DEFAULT、-1=问不到 */
+  usageOpMode?: number;
+  usageReadable?: boolean;
+  usageGranted?: boolean;
+  foregroundPkg?: string;
 };
 
 const SenseBridge = registerPlugin<SenseBridgeApi>("SenseBridge");
@@ -60,5 +96,35 @@ export async function nativeSense(): Promise<{ api: SenseBridgeApi } | null> {
     return { api: SenseBridge };
   } catch {
     return null;
+  }
+}
+
+/**
+ * 自检：拿那两项特殊权限的**原始事实**。
+ *
+ * 网页版没有原生插件、老包没有 `diag()` → 一律返回 `null`（**绝不抛**：
+ * 环境自检页是给用户看的，它自己崩了就什么也查不了）。
+ */
+export async function senseDiag(): Promise<SenseDiag | null> {
+  const n = await nativeSense();
+  if (!n) return null;
+  try {
+    return await n.api.diag();
+  } catch {
+    return null;
+  }
+}
+
+/** 一键跳到那个特殊权限的设置页；网页版/老包返回 false（界面据此不显示按钮） */
+export async function openSenseSettings(
+  which: "notifications" | "foreground",
+): Promise<boolean> {
+  const n = await nativeSense();
+  if (!n) return false;
+  try {
+    const r = await n.api.openSettings({ which });
+    return r?.ok === true;
+  } catch {
+    return false;
   }
 }

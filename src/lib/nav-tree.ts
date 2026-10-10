@@ -28,7 +28,7 @@
  *     └ /system   → 系统
  *
  *   三级页（挂在某个二级下面）
- *     /core    ├ /permissions /worldbook /inner /memories
+ *     /core    ├ /permissions /worldbook /memories
  *     /usage   ├ /memory
  *     /system  ├ /alarms /tasks /env
  *     /play/tools ├ /play/gobang /play/days /play/todo
@@ -46,10 +46,12 @@ export const ME_SECTIONS = ["/core", "/space", "/usage", "/data", "/system"] as 
  * 它们的上一级是根（/me 或 /play），由 `parentOf` 兜底推出来。
  */
 export const TERTIARY_PARENT: Record<string, string> = {
-  // 「AI 概览」下面四项
+  // 「AI 概览」下面三项
+  //（2026-11 删掉了 /inner「他的状态」那一页：情绪早搬去「星屿」了，
+  //  留着就是个空壳入口 —— 用户："直接把他的状态这一项直接给删掉就行了，
+  //  然后那个三级页面也不用留了"）
   "/permissions": "/core",
   "/worldbook": "/core",
-  "/inner": "/core",
   "/memories": "/core",
 
   // 「模型与用量」下面一项

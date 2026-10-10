@@ -251,7 +251,7 @@ const RETIRED = [
     mode: "plain",
     scopes: ["manual", "prompt", "promptLegacy", "schema", "ui"],
     negatable: false,
-    why: "旧花瓣图组件名，已删除（见 inner-view.tsx 顶部注释）。AI 文案里不该出现组件名。",
+    why: "旧花瓣图组件名，组件本身早就删了（2026-11 连 `/inner` 那一页也一起删了，见 nav-tree.ts 的注释）。AI 文案里不该出现组件名。",
   },
   {
     id: "那朵花（旧花瓣图的口语叫法）",

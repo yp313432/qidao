@@ -12,6 +12,30 @@
 
 import { IS_APP } from "@/lib/platform";
 
+/**
+ * 通知用的两个图标 —— **名字就是 `res/drawable` 里的文件名（不带扩展名）**。
+ *
+ * ⚠️ 三个坑（都读过插件源码，不是猜的）：
+ *   1. 名字写错**不报错**，插件解析不到就退回 `android.R.drawable.ic_dialog_info`
+ *      （系统自带那个 ⓘ）—— 表现是"通知上还是原来那个图标"，查半天查不出来。
+ *      原来这里写的是 `ic_stat_icon_config_sample`（插件 README 的示例名），
+ *      **仓库里根本没有这个资源**，所以一直显示的是系统图标。
+ *   2. `largeIcon` **只认资源名，不认文件路径**：插件里是
+ *      `AssetUtil.getResourceID(名字, "drawable")` → `decodeResource`，
+ *      给 `/data/…/avatar.png` 会被取 basename 后查不到 → 大图标空着。
+ *      所以大图标只能用**打进包里的图**，跟着头像变那条路在插件层走不通。
+ *   3. 别想着在 `capacitor.config.ts` 的 `plugins.LocalNotifications` 里配默认值 ——
+ *      这一版插件的 `getDefaultSmallIcon()` 读的是 `bridge.config.getString("smallIcon")`，
+ *      也就是**根级**配置，`plugins.` 那一层它不读（配了也不会生效，纯静默无效）。
+ *      所以每一处 `schedule()` 都必须显式带上。
+ *
+ * 图片由 `scripts/make-notification-icon.py` 生成（小图标是重画的单色剪影：
+ * 安卓只留 alpha 再染色，彩色进去会变白块；且实际只显示 24dp，细节全丢）。
+ * 改图标 = 改那个脚本再跑一遍，别手改 PNG。
+ */
+const SMALL_ICON = "ic_stat_qidao";
+const LARGE_ICON = "ic_notif_large";
+
 /** App 里临时拿到的原生通知模块（只在需要时动态加载，网页版不受影响）。 */
 type NativeNotify = {
   checkPermissions: () => Promise<{ display: string }>;
@@ -31,6 +55,8 @@ type NativeNotify = {
         on?: { hour?: number; minute?: number };
       };
       smallIcon?: string;
+      /** ⚠️ 资源名（`res/drawable` 里的文件名），**不是文件路径** —— 见文件头第 2 条 */
+      largeIcon?: string;
       sound?: string;
     }[];
   }) => Promise<unknown>;
@@ -202,7 +228,8 @@ export async function scheduleNative(o: {
           title: o.title,
           body: o.body,
           sound: o.sound === false ? undefined : "default",
-          smallIcon: "ic_stat_icon_config_sample",
+          smallIcon: SMALL_ICON,
+          largeIcon: LARGE_ICON,
           schedule: o.daily
             ? {
                 on: { hour: o.daily.hour, minute: o.daily.minute },
@@ -280,7 +307,8 @@ export async function localNotify(title: string, body: string): Promise<boolean>
             id: Math.floor(Date.now() % 2147483647),
             title,
             body,
-            smallIcon: "ic_stat_icon_config_sample",
+            smallIcon: SMALL_ICON,
+            largeIcon: LARGE_ICON,
           },
         ],
       });

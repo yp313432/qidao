@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { collectEnv, summarize, type EnvItem } from "@/lib/env-check";
+import { openSenseSettings } from "@/lib/sense-bridge";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,15 @@ export function EnvView() {
                     <p className="mt-1.5 rounded-xl bg-fg/8 px-2.5 py-1.5 text-[11px] leading-4 text-fg">
                       怎么办：{it.fix}
                     </p>
+                  )}
+                  {it.action && (
+                    <button
+                      type="button"
+                      onClick={() => void openSenseSettings(it.action!.kind)}
+                      className="mt-1.5 rounded-full bg-chip px-3 py-1.5 text-[11px] font-medium text-fg"
+                    >
+                      {it.action.label}
+                    </button>
                   )}
                 </div>
               </div>

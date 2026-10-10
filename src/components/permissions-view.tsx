@@ -98,31 +98,38 @@ export function PermissionsView() {
         </div>
       </div>
 
-      {/* 感知：他实际能看到什么 */}
+      {/*
+        感知：他实际能看到什么 —— **默认收起**。
+        用户（2026-11）："同界面上面那个他现在知道的这个板块也改成可折叠的那种，
+        不然一条条列着太多了，太占页面了"。
+        折叠用原生 `<details>`：跟下面"按组收着的权限"一个写法，不引状态、不占内存。
+      */}
       <section className="mt-4 px-4">
-        <h2 className="mb-2 flex items-center justify-between px-1 text-[12px] tracking-wide text-muted">
-          <span>他现在知道的</span>
-          <span className="text-subtle">{aware.length} 项</span>
-        </h2>
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
-          <p className="text-[11px] leading-4 text-subtle">
-            这就是随每条消息发出去的内容。把下面任意一项设成「直接拒绝」，这里对应的一行
-            <span className="font-medium text-fg">立刻消失</span>。
-          </p>
-          {!mounted ? (
-            <p className="mt-2.5 text-[12px] text-subtle">读取中…</p>
-          ) : aware.length === 0 ? (
-            <p className="mt-2.5 text-[12px] text-warn">感知权限全关着 —— 他对你一无所知。</p>
-          ) : (
-            <ul className="mt-2.5 space-y-1.5">
-              {aware.map((a) => (
-                <li key={a.id} className="text-[11px] leading-4">
-                  <span className="text-muted">{a.title}：</span>
-                  <span>{a.text}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <details>
+          <summary className="mb-2 flex cursor-pointer list-none items-center px-1 text-[12px] tracking-wide text-muted">
+            <span>他现在知道的</span>
+            <span className="ml-2 text-subtle">{aware.length} 项</span>
+            <span className="ml-auto text-[11px] text-subtle">点开 ▾</span>
+          </summary>
+          <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+            <p className="text-[11px] leading-4 text-subtle">
+              这就是随每条消息发出去的内容。把下面任意一项设成「直接拒绝」，这里对应的一行
+              <span className="font-medium text-fg">立刻消失</span>。
+            </p>
+            {!mounted ? (
+              <p className="mt-2.5 text-[12px] text-subtle">读取中…</p>
+            ) : aware.length === 0 ? (
+              <p className="mt-2.5 text-[12px] text-warn">感知权限全关着 —— 他对你一无所知。</p>
+            ) : (
+              <ul className="mt-2.5 space-y-1.5">
+                {aware.map((a) => (
+                  <li key={a.id} className="text-[11px] leading-4 break-words">
+                    <span className="text-muted">{a.title}：</span>
+                    <span>{a.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           {/*
             自检按钮 —— **默认折叠**。
             用户："那排试一试也没必要，我对着权限列表也能让他一个一个测"。
@@ -465,6 +472,7 @@ export function PermissionsView() {
           </div>
           </details>
         </div>
+        </details>
       </section>
 
       {/* 他记住的事 —— **已隐藏**：它和「记忆库」是同一份数据（就是长期记忆的最近几条），
@@ -576,41 +584,56 @@ export function PermissionsView() {
         );
       })}
 
-      {/* 动作记录 */}
+      {/*
+        动作记录 —— **默认收起**（用户 2026-11："动作记录这个改成可折叠的吧，
+        然后点击展开，不然太多了"）。
+        ⚠️ 「清空」是 summary 里的按钮：必须 preventDefault + stopPropagation，
+        否则点它会**顺带把折叠展开/收起**（原生 <details> 的默认行为）。
+      */}
       <section className="mt-5 px-4">
-        <h2 className="mb-2 flex items-center justify-between px-1 text-[12px] tracking-wide text-muted">
-          <span>动作记录</span>
-          {actionLog.length > 0 && (
-            <button
-              type="button"
-              onClick={() => useApp.getState().clearActionLog()}
-              className="text-[11px] text-subtle"
-            >
-              清空
-            </button>
-          )}
-        </h2>
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3">
-          {actionLog.length === 0 ? (
-            <p className="text-[12px] text-subtle">还没有记录。他每次请求都会留在这里。</p>
-          ) : (
-            <ul className="space-y-2">
-              {actionLog.slice(0, 12).map((l) => (
-                <li key={l.id} className="text-[11px] leading-4">
-                  <span
-                    className={cn("font-medium", l.result === "denied" ? "text-warn" : "text-ok")}
-                  >
-                    {l.result === "denied" ? "已拒绝" : l.result === "auto" ? "已记住" : "已允许"}
-                  </span>
-                  <span className="text-muted">
-                    {" "}
-                    {l.title} · {l.message} · {formatClock(l.at)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <details>
+          <summary className="mb-2 flex cursor-pointer list-none items-center px-1 text-[12px] tracking-wide text-muted">
+            <span>动作记录</span>
+            <span className="ml-2 text-subtle">{actionLog.length} 条</span>
+            <span className="ml-auto flex items-center gap-3">
+              {actionLog.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    useApp.getState().clearActionLog();
+                  }}
+                  className="text-[11px] text-subtle"
+                >
+                  清空
+                </button>
+              )}
+              <span className="text-[11px] text-subtle">点开 ▾</span>
+            </span>
+          </summary>
+          <div className="rounded-3xl border border-line bg-surface px-4 py-3">
+            {actionLog.length === 0 ? (
+              <p className="text-[12px] text-subtle">还没有记录。他每次请求都会留在这里。</p>
+            ) : (
+              <ul className="space-y-2">
+                {actionLog.slice(0, 12).map((l) => (
+                  <li key={l.id} className="text-[11px] leading-4 break-words">
+                    <span
+                      className={cn("font-medium", l.result === "denied" ? "text-warn" : "text-ok")}
+                    >
+                      {l.result === "denied" ? "已拒绝" : l.result === "auto" ? "已记住" : "已允许"}
+                    </span>
+                    <span className="text-muted">
+                      {" "}
+                      {l.title} · {l.message} · {formatClock(l.at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
       </section>
     </div>
   );

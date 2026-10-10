@@ -30,7 +30,6 @@ export const TAB_OWNED_PATHS: Record<string, string[]> = {
     "/system",
     "/permissions",
     "/worldbook",
-    "/inner",
     "/memories",
     "/memory",
     "/env",

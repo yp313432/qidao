@@ -29,7 +29,6 @@ P("\n=== ⑤ 三级页的返回目标 ===");
 const backChecks = [
   ["/permissions", "/core"],
   ["/worldbook", "/core"],
-  ["/inner", "/core"],
   ["/memories", "/core"],
   ["/play/gobang", "/play/tools"],
   ["/play/days", "/play/tools"],

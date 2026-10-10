@@ -22,7 +22,6 @@ const BASE = "http://127.0.0.1:8080";
 const TERTIARY_PARENT = {
   "/permissions": "/core",
   "/worldbook": "/core",
-  "/inner": "/core",
   "/memories": "/core",
   "/memory": "/usage",
   "/env": "/system",
@@ -67,7 +66,6 @@ const PAGES = [
   "/system",
   "/permissions",
   "/worldbook",
-  "/inner",
   "/memories",
   "/memory",
   "/env",

@@ -92,7 +92,6 @@ const logic = await page.evaluate(async () => {
   const { systemBackTarget, parentOf, ROOT_PATHS } = await import("/src/lib/nav-tree.ts");
   const cases = [
     "/voice",
-    "/inner",
     "/data",
     "/system",
     "/core",
@@ -126,11 +125,9 @@ check(
   JSON.stringify(logic.out),
 );
 check(
-  "① 三级页回它真正的上一级（层级比想象细：内在/世界书在「AI 概览」下，记忆在「用量」下）",
-  logic.out["/inner"] === "/core" &&
-    logic.out["/worldbook"] === "/core" &&
-    logic.out["/memory"] === "/usage",
-  `inner→${logic.out["/inner"]} worldbook→${logic.out["/worldbook"]} memory→${logic.out["/memory"]}`,
+  "① 三级页回它真正的上一级（层级比想象细：世界书在「AI 概览」下，记忆在「用量」下）",
+  logic.out["/worldbook"] === "/core" && logic.out["/memory"] === "/usage",
+  `worldbook→${logic.out["/worldbook"]} memory→${logic.out["/memory"]}`,
 );
 check("① 工具编辑器 → 回 /tools", logic.out["/tools/mcp"] === "/tools" && logic.out["/tools/http"] === "/tools");
 check(
