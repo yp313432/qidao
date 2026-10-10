@@ -25,8 +25,49 @@ export type LocateProbe = { steps: ProbeStep[]; verdict: string };
 
 type Coords = { lat: number; lon: number; accuracy: number | null; why?: string };
 
+/**
+ * 自检这一步的**总时限**。
+ *
+ * ⚠️ 为什么在 `timeout` 之外还要钉一道（2026-11 真机）：给原生的 `timeout` 是 12 秒，
+ * 但实测那一次**等了 345271ms（5 分 45 秒）** 才回 —— 原生那侧在真机上并不理会
+ * 我们给的时限。用户点一下自检就得干等五分钟，界面看起来就像卡死了。
+ * 所以外面这道是"不管里面怎样，到点就给结论"。
+ */
+const PROBE_SYSTEM_TOTAL_MS = 15_000;
+
 /** 单独跑一次系统定位（不读缓存、不写设置） */
 async function probeSystem(timeoutMs = 12_000): Promise<Coords> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const total = new Promise<Coords>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          lat: 0,
+          lon: 0,
+          accuracy: null,
+          why: `自检的总时限 ${PROBE_SYSTEM_TOTAL_MS / 1000} 秒到了 —— 原生定位没在这次返回（那就是"这台机器上拿不到"）`,
+        }),
+      PROBE_SYSTEM_TOTAL_MS,
+    );
+  });
+  try {
+    /**
+     * ⚠️ 里面那半必须自己挂 `catch`：超时之后它才 reject 的话，
+     * 不挂就变成"未处理的拒绝"（在 WebView 里只会安静地烂掉）。
+     */
+    const inner = probeSystemInner(timeoutMs).catch((e: unknown) => ({
+      lat: 0,
+      lon: 0,
+      accuracy: null,
+      why: e instanceof Error ? e.message : String(e ?? "失败"),
+    }));
+    return await Promise.race([inner, total]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function probeSystemInner(timeoutMs: number): Promise<Coords> {
   if (!IS_APP) {
     // 网页版也能测：走浏览器的 geolocation
     if (typeof navigator === "undefined" || !navigator.geolocation) {

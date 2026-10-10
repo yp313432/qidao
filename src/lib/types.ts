@@ -121,7 +121,7 @@ export type ToolCallRecord = {
    */
   notice?: string;
   /** 结局分类（没匹配上 / 参数错 / 被拒绝 / 其实没做成 …），界面上用来上色 */
-  category?: "ok" | "denied" | "unknown" | "badargs" | "refused" | "pending";
+  category?: "ok" | "denied" | "unknown" | "badargs" | "refused" | "pending" | "skipped";
   /** 有没有真的执行成功（被拒绝、参数坏、认不出工具名都是 false） */
   ok: boolean;
 };

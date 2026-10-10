@@ -125,11 +125,41 @@ async function nativeHttp(): Promise<{
 /* ────────────────────────── 取网页（带护栏） ────────────────────────── */
 
 /**
+ * 给一个 promise 套**总时限**：不管里面卡在哪一步，到点一定有回音。
+ *
+ * ⚠️ 两个细节都是踩过的：
+ *   · 里面那个 promise 的结果用 `.then(ok, err)` 收掉 —— 超时之后它再 reject 也
+ *     不会变成"未处理的拒绝"（那种东西在 WebView 里只会安静地烂掉）
+ *   · 超时时**清掉定时器**，不然它白挂着（验收脚本里会因此白等）
+ */
+type Settled<T> = { kind: "value"; value: T } | { kind: "error"; error: unknown } | { kind: "timeout" };
+
+async function withDeadline<T>(p: Promise<T>, ms: number, fallback: () => T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled: Promise<Settled<T>> = p.then(
+    (value) => ({ kind: "value" as const, value }),
+    (error: unknown) => ({ kind: "error" as const, error }),
+  );
+  const timedOut = new Promise<Settled<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ kind: "timeout" as const }), ms);
+  });
+  try {
+    const r = await Promise.race([settled, timedOut]);
+    if (r.kind === "value") return r.value;
+    if (r.kind === "error") throw r.error;
+    return fallback();
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/**
  * 取一段文本（网页 HTML / RSS 都是它）。
  *
  * 三条护栏都要有，缺一条就会变成"手机被一个坏网页拖死"：
  *   1. **URL 先过 SSRF 检查**（服务端同一份判定）；
  *   2. **超时**：原生那侧用 `connectTimeout` / `readTimeout`，网页版用 `AbortController`；
+ *      **外加一层"整个函数的总时限"**（见下面 —— 2026-11 真机就是缺了这一层）
  *   3. **大小上限**：超过就截断，并在返回值里把 `truncated` 置起来 —— 不许静默。
  *
  * 非 2xx **不算函数失败**：照样把状态码和正文还给调用方（由它决定怎么措辞），
@@ -140,6 +170,26 @@ export async function fetchWebText(
   opts: { timeoutMs?: number; maxBytes?: number; headers?: Record<string, string> } = {},
 ): Promise<WebFetchResult> {
   const timeoutMs = opts.timeoutMs ?? WEB_FETCH_DEFAULTS.timeoutMs;
+  /**
+   * ⚠️ **总时限**（2026-11 真机踩到，这是"搜索总是超时"的真凶）：
+   * 原来那道硬超时只装在"原生请求"那一步上，而它**前面**还有一步
+   * `await nativeHttp()`（动态 import + 环境探测）—— 那一步**没有任何时限**。
+   * 真机上就卡在那儿：搜索自己的 14 秒预算、11 秒硬超时**一个都没轮上**，
+   * 最后是闸门那把 45 秒保险丝兜的（用户看到的就是「等了 45 秒没有结果」）。
+   * 现在把**整个函数**套一层，里面哪一步卡住都有回音。
+   */
+  const budget = timeoutMs + NATIVE_HTTP_HARD_MS + 2000;
+  return await withDeadline(fetchWebTextInner(rawUrl, timeoutMs, opts), budget, () => ({
+    ok: false,
+    why: `取不到：总时限 ${Math.round(budget / 1000)} 秒到了（连"把请求发出去"这一步都没走完）`,
+  }));
+}
+
+async function fetchWebTextInner(
+  rawUrl: string,
+  timeoutMs: number,
+  opts: { maxBytes?: number; headers?: Record<string, string> },
+): Promise<WebFetchResult> {
   const maxBytes = opts.maxBytes ?? WEB_FETCH_DEFAULTS.maxBytes;
 
   const checked = isPublicHttpUrl(rawUrl.trim());
@@ -307,8 +357,8 @@ export function parseBingRss(xml: string, limit = 8): WebHit[] {
 /**
  * **搜网页**（端上）。
  *
- * 现在只有一条路：免 key 的 Bing RSS。两个域名都试一次 —— 实测 `cn.bing.com`
- * 在国内通，`www.bing.com` 是服务端那条老路用的，留着当备用。
+ * 现在只有一条路：免 key 的 Bing RSS，两个域名**并发**各试一次
+ * （实测 `cn.bing.com` 在国内通，`www.bing.com` 是服务端那条老路用的，留着当备用）。
  *
  * TODO（博查 BochaAI）：博查是这一层唯一"实测允许跨域（`ACAO: *`）"的正规搜索 API，
  * 效果比抓 RSS 稳。但现在**设置里没有存这个 key 的位置**（服务端那条读的是
@@ -329,32 +379,32 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
     `https://www.bing.com/search?q=${encodeURIComponent(q)}&format=rss`,
   ];
   const tried: string[] = [];
-  for (const endpoint of endpoints) {
-    /*
-      ⚠️ 单个地址只能花「总预算剩下的时间」，且不超过单地址上限（8 秒）。
-      2026-11 真机教训：原来是「每地址 12 秒、总共最坏 24 秒」，
-      比闸门那把保险丝（当时 20 秒）还长 → 用户看到的一律是"超时"。
-    */
-    const left = deadline - Date.now();
-    if (left < 1_500) {
-      tried.push("总时间用完了，没轮到它");
-      break;
-    }
-    const got = await fetchWebText(endpoint, {
-      timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, left),
-      maxBytes: 600_000,
-    });
-    if (!got.ok) {
-      tried.push(got.why);
-      continue;
-    }
-    if (got.status !== 200) {
-      tried.push(`HTTP ${got.status}`);
-      continue;
-    }
-    const results = parseBingRss(got.text, limit);
-    if (results.length) return { ok: true, engine: "bing-rss", query: q, results };
-    tried.push("返回里没有结果条目");
+  /**
+   * ⚠️ **两个地址并发问，谁先成功用谁**（2026-11 改）。
+   *
+   * 原来是"排队试"：先 cn.bing.com（最多 8 秒），不行再 www.bing.com
+   * —— 而后者在国内基本不通，等于**白吃掉整个预算**，最坏要 14 秒才告诉用户"搜不到"。
+   * 并发之后最坏 ~8 秒，而且两个都通时命中率更高。
+   */
+  const attempts = await Promise.all(
+    endpoints.map(async (endpoint, index) => {
+      const left = deadline - Date.now();
+      const got = await fetchWebText(endpoint, {
+        timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, Math.max(1_500, left)),
+        maxBytes: 600_000,
+      });
+      if (!got.ok) return { ok: false as const, index, why: got.why };
+      if (got.status !== 200) return { ok: false as const, index, why: `HTTP ${got.status}` };
+      const results = parseBingRss(got.text, limit);
+      if (!results.length) return { ok: false as const, index, why: "返回里没有结果条目" };
+      return { ok: true as const, index, results };
+    }),
+  );
+
+  const hit = attempts.find((a) => a.ok);
+  if (hit && hit.ok) return { ok: true, engine: "bing-rss", query: q, results: hit.results };
+  for (const a of attempts) {
+    if (!a.ok) tried.push(`${a.index === 0 ? "cn.bing.com" : "www.bing.com"}：${a.why}`);
   }
   return {
     ok: false,

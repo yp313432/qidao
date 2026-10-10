@@ -602,9 +602,21 @@ check(
   place.place === "海南省三沙市" &&
     place.weather === "多云 30°C" &&
     place.source === "ip" &&
-    place.sourceLabel === "按 IP 认的城市" &&
-    place.summary.includes("按 IP 认的城市"),
+    place.sourceLabel.length > 0 &&
+    place.summary.includes(place.sourceLabel),
   j(place),
+);
+/**
+ * ⚠️ 2026-11 新规矩：**IP 那条来源必须自带"不可靠"**。
+ *
+ * 起因（真机自检）：三家 IP 库分别把他认成 海南儋州 / 河北石家庄 / 河南郑州 —— 没有一家可信。
+ * 所以这里**不钉死文案**（那种断言会因为改一个字就红，还会掩盖真正的问题），
+ * 只钉"必须提到是猜的/不可靠"这件事本身。
+ */
+check(
+  "sense.place：IP 来源必须标明**不可靠**（不许把猜的城市当事实讲）",
+  /不可靠|猜/.test(place.sourceLabel) && /不可靠|猜/.test(place.summary),
+  j({ sourceLabel: place.sourceLabel }),
 );
 check(
   "sense.place：来源翻译成人话（手填 / 系统定位 / 缓存）",

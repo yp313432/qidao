@@ -1,5 +1,5 @@
 import { ACTION_SCHEMA, kindOfToolName, type ActionTool } from "@/lib/action-schema";
-import { actionTitle } from "@/lib/action-meta";
+import { ACTION_PERMISSION, actionTitle } from "@/lib/action-meta";
 import type { ApiMessage, ChatDelta } from "@/lib/chat-client";
 import { parseToolArgs } from "@/lib/tool-wire";
 import type { AssembledToolCall } from "@/lib/tool-calls";
@@ -66,7 +66,13 @@ export type ToolOutcomeCategory =
   /** 执行器自己回了一句"没做成"（比如"待办得有内容"） */
   | "refused"
   /** 还在等用户点确认，或者等到超时（如实说：没执行） */
-  | "pending";
+  | "pending"
+  /**
+   * 这一轮的时间用完了，**没轮到它跑**（跟 `pending` 是两件不同的事：
+   * pending = 卡片真的在等他点；skipped = 权限是"允许"、没有卡片，只是没时间了）。
+   * 2026-11 加：原来这两种共用 `pending`，用户照着"等你点确认"去找卡片，找不到。
+   */
+  | "skipped";
 
 /** 一次工具调用的执行结果（要回灌给模型、也要显示给用户的那句话） */
 export type ToolCallOutcome = {
@@ -175,11 +181,18 @@ export async function runActions(
   return out;
 }
 
-/** 闸门那一侧给我们的最小接口（真实现是 store，验收脚本给假的 —— 所以这里只认这两个口） */
+/** 闸门那一侧给我们的最小接口（真实现是 store，验收脚本给假的 —— 所以这里只认这几个口） */
 export type ActionQueue = {
   getState: () => {
     actionLog: { title: string; result: string; message: string; at: number }[];
     requestAction: (a: AppAction, from?: string) => void;
+    /**
+     * ⚠️ 下面两个是**可选**的：真 store 会给（用来分辨"卡片在等你点"还是"权限是允许、
+     * 闸门在后台跑"），验收脚本的假闸门可以不给 —— 不给时按"在等你点确认"处理。
+     * 加它们的原因见 `runOneAction` 末尾那段注释（用户被那句错话带沟里了）。
+     */
+    pendingActions?: { action: AppAction }[];
+    settings?: { permissions?: Record<string, string> };
   };
 };
 
@@ -256,6 +269,31 @@ export async function runOneAction(
 
   const resolved = await waitForResolution(app, logBefore, signal, deadline, kind);
   if (!resolved) {
+    /**
+     * ⚠️ 这里有两种**完全不同**的情况，2026-11 之前用同一句话说，把用户带沟里了：
+     *   · 卡片真的在等他点 → 「还在等你点确认」（他去看屏幕能找到那张卡）
+     *   · 权限是"允许"、闸门在后台跑，只是这一轮的时间用完了 → **根本没有卡片**，
+     *     说"等你点确认"会让他去找一张不存在的卡（用户原话："为啥等我点确认呀？
+     *     也没有弹出让我点确认的消息呀"）
+     *
+     * 怎么分：看那个动作挂的权限档位（`ask` = 有卡片；`allow` = 自动跑没有卡片）。
+     * 拿不到设置（验收脚本的假闸门）时**按"等你点确认"处理** —— 宁可按常见情况说，
+     * 也不要把话说成"它还在跑"。
+     */
+    const st = app.getState();
+    const permId = ACTION_PERMISSION[kind as AppAction["kind"]];
+    const mode = permId ? (st.settings?.permissions?.[permId] ?? "ask") : "allow";
+    if (mode !== "ask") {
+      return {
+        ok: false,
+        category: "skipped",
+        title: actionTitle(action),
+        notice: `⌛ ${kind} · 这一轮时间用完了，没等到它的结果`,
+        result:
+          `「${actionTitle(action)}」这一轮没拿到结果：这一轮的时间上限到了，它还没跑完。` +
+          `别当成已经做了；需要的话让用户再说一声。`,
+      };
+    }
     return {
       ok: false,
       category: "pending",
@@ -355,7 +393,7 @@ export function looksRefused(message: string): boolean {
    * `✅ 执行时报错了（这次失败）：…`（图标和内容自相矛盾）。
    * 真机踩过"动作全挂着"之后补的（见 `verify-gate-stuck.mjs`）。
    */
-  if (/(执行时报错了|秒没有结果，这次没执行完)/.test(text)) return true;
+  if (/(执行时报错了|秒没有结果)/.test(text)) return true;
   /** ③ 原来那条：只在**短句**上按措辞判（长报告里出现"没"字很正常，别误伤） */
   if (text.length > 48) return false;
   return REFUSED_HINT.test(text);

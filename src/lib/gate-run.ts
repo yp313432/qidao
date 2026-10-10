@@ -59,6 +59,8 @@ export async function runGuarded(
   );
 
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** 记开始时刻：超时要报**真实等了多久**，不能只报"上限是多少"（见下面那条注释） */
+  const t0 = Date.now();
   const timeoutPromise = new Promise<{ kind: "timeout" }>((resolve) => {
     timer = setTimeout(() => resolve({ kind: "timeout" as const }), timeoutMs);
   });
@@ -67,14 +69,20 @@ export async function runGuarded(
     const r = await Promise.race([settled, timeoutPromise]);
     if (r.kind === "done") return { ok: true, message: r.message };
     if (r.kind === "timeout") {
+      /**
+       * 措辞里带"没有结果"是**故意的**：`tool-loop.ts` 的 `looksRefused()` 靠它
+       * 认出"这笔记的是没做成"，界面上才不会出现 `✅ 等了 45 秒没有结果`这种自相矛盾。
+       *
+       * ⚠️ 2026-11 改：**报真实耗时，不报配置值**。原来这里写的是
+       * `Math.round(timeoutMs / 1000)` —— 也就是"上限是多少就报多少"。
+       * 结果真机上一次其实卡了好几分钟（WebView 被冻结 / 某一步没有时限），
+       * 界面上却写着"等了 45 秒"，**把排查方向直接带偏了**。
+       */
+      const waited = Math.max(1, Math.round((Date.now() - t0) / 1000));
       return {
         ok: false,
         kind: "timeout",
-        /**
-         * 措辞里带"没有结果"是**故意的**：`tool-loop.ts` 的 `looksRefused()` 靠它
-         * 认出"这笔记的是没做成"，界面上才不会出现 `✅ 等了 45 秒没有结果`这种自相矛盾。
-         */
-        message: `等了 ${Math.round(timeoutMs / 1000)} 秒没有结果，这次没执行完 —— 别当成已经做了。`,
+        message: `等了 ${waited} 秒没有结果（上限 ${Math.round(timeoutMs / 1000)} 秒），这次没执行完 —— 别当成已经做了。`,
       };
     }
     /** 措辞里带"失败"同理（`looksRefused` 认它） */

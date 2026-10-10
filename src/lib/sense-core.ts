@@ -238,7 +238,12 @@ export type PlaceSource = "manual" | "system" | "ip" | "cache" | "unknown";
 const SOURCE_LABEL: Record<PlaceSource, string> = {
   manual: "你手填的地方",
   system: "系统定位",
-  ip: "按 IP 认的城市",
+  /**
+   * ⚠️ 2026-11 真机：这台机器上三家 IP 库分别把他认成
+   * 海南儋州 / 河北石家庄 / 河南郑州 —— **没有一家可信**。
+   * 所以这条来源必须带着"不可靠"一起说，不然他会把猜的城市当事实讲给用户。
+   */
+  ip: "按 IP 猜的城市（不可靠，可能差几个省）",
   cache: "上次定位的缓存",
   unknown: "来源不明",
 };

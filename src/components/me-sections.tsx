@@ -1538,6 +1538,16 @@ function MeSections({ tab }: { tab: MeTab }) {
                   ) : settings.geoLabel ? (
                     <>
                       现在在<span className="text-fg">{settings.geoLabel}</span>
+                      {/*
+                        ⚠️ **来源必须写在脸上**（2026-11 用户原话："点刷新还是刷到了海南"）。
+                        IP 猜的城市在国内移动网络下可能差几个省，不标明就会让人以为"定位坏了"，
+                        而实际上"IP 猜的"和"系统定的"是两回事 —— 前者本来就不该当事实用。
+                      */}
+                      {settings.geoSource === "ip" ? (
+                        <span className="text-warn">（按 IP 猜的，不可靠）</span>
+                      ) : settings.geoSource === "system" ? (
+                        <span className="text-subtle">（系统定的）</span>
+                      ) : null}
                       {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
                     </>
                   ) : (
