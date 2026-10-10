@@ -151,7 +151,14 @@ export function ChatView() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-1 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+      {/*
+        ⚠️ 顶部内边距**故意很小**（2026-11 用户装机后："是我圈起来的那块导航栏给往上稍微
+        挪一点点吧，因为空的太大了"）。
+        背景铺满系统栏之后，安全区高度已经由**外壳**（`.app-inset-top`）让出来了，
+        这里只要再留一点点呼吸感 —— 原来是 0.75rem(12px)，加上状态栏那 30~44px 就显得空。
+        ⚠️ 网页版没有外壳 inset，env() 也是 0，所以这里仍留 0.25rem 兜底，别把它删成 0。
+      */}
+      <header className="flex items-center gap-1 px-4 pt-[max(0.25rem,env(safe-area-inset-top))] pb-2">
         <button
           type="button"
           aria-label="对话列表"
