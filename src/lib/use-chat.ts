@@ -240,6 +240,14 @@ export function useChatStream(opts: UseChatOpts = {}) {
   const aiName = resolveAiName(settings.aiName);
   const [busy, setBusy] = useState(false);
   const [liveId, setLiveId] = useState<string | null>(null);
+  /**
+   * ⭐ 他现在走到哪一步了（"第 N 步 · 正在执行 X"）。
+   *
+   * 为什么要提到这一层：用户原话"这一轮我发出动作，成没成，要等下一轮结果回来才知道；
+   * 这一轮里我完全看不见"。agent loop 把"发动作 → 执行 → 回灌 → 再发"压进了同一轮，
+   * 界面上就必须看得见它在第几步 —— 否则只是把"等下一轮"换成了"盯着一句'正在写回复…'"。
+   */
+  const [step, setStep] = useState<{ round: number; label: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   /** opts 每个渲染都是新对象，用 ref 兜住，免得把 runStream 的依赖表搞脏 */
   const fillerRef = useRef(opts.onFiller);
@@ -450,6 +458,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         usedNative: boolean;
         reqError?: string;
         stalled: boolean;
+        /** 撞上步数/时间上限时那句**如实说明**（由 tool-loop 算好，这里只负责拼进正文） */
+        limitNote?: string;
       };
 
       /** 原生 tools 那条路：拼好 messages + 循环。同步抛错（真的异常）由外层接住转成重试。 */
@@ -506,8 +516,26 @@ export function useChatStream(opts: UseChatOpts = {}) {
           tools: actionToolsFor(kindsSent),
           signal: ac.signal,
           onDelta,
+          /**
+           * 每一步**执行之前**先让界面知道（"第 N 步 · 正在执行 X"）——
+           * 不然用户看到的还是"正在写回复…"，跟以前一样什么都看不见。
+           */
+          onStep: ({ round, calls }) => {
+            setStep({
+              round,
+              label: `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
+            });
+          },
           onRound: (r) => {
             state.rounds.push(r);
+            /**
+             * ⭐ 每一步的结果**当场**写进这条消息（不等整轮结束）。
+             * 这正是用户点名的那句："执行结果那一栏永远有回话"——
+             * 成、没成、没匹配上，流式期间就已经挂在他眼皮底下了。
+             */
+            useApp.getState().patchMessage(conversationId, messageId, {
+              rounds: state.rounds.map((x) => ({ round: x.round, calls: [...x.calls] })),
+            });
             const before = roundTextStart.at;
             const roundHasText = content.slice(before).trim().length > 0;
             roundTextStart.at = content.length;
@@ -516,6 +544,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         });
         state.pendingCalls = result.pendingCalls;
         state.usedNative = result.usedNative;
+        state.limitNote = result.limitNote;
         if (result.toolsRejected) {
           // 上游明确不要 tools → 交给外层按文本协议再来一遍
           throw new NativeRejected();
@@ -535,7 +564,13 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * ⚠️ P2 起判定标准变了：**"只有工具调用、没有正文"不算空**——
        * 按老规矩（必须有正文）判断的话，工具轮会被无限重发（这正是坑 #36）。
        */
-      const state: AttemptState = { pendingCalls: [], rounds: [], usedNative: false, stalled: false };
+      const state: AttemptState = {
+        pendingCalls: [],
+        rounds: [],
+        usedNative: false,
+        stalled: false,
+        limitNote: undefined,
+      };
       let lastErr: unknown = null;
       let rejectedToText = false;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -545,6 +580,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         state.usedNative = false;
         state.reqError = undefined;
         state.stalled = false;
+        state.limitNote = undefined;
         try {
           if (native && !rejectedToText) {
             await runNative(state);
@@ -561,6 +597,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
             hadContent = false;
             dirty = true;
             flush();
+            // 刚才那几轮原生的动作记录也不能留在界面上（这一轮改走文本协议了）
+            useApp.getState().patchMessage(conversationId, messageId, { rounds: undefined });
             continue;
           }
           lastErr = err;
@@ -618,10 +656,26 @@ export function useChatStream(opts: UseChatOpts = {}) {
       /**
        * 走**文本协议**时才有"正文里的动作块"要解析（原生那条路已经在循环里执行完了）。
        * 权限、确认弹窗、动作记录都由 store 那一侧负责（没授权的会被拦下来问用户）。
+       *
+       * ⚠️ P6 起这里多了一道**对名字**：模型把工具名（`todo_add`）当成动作块写进正文时，
+       * 以前会带着 `kind: "todo_add"` 直接进闸门 —— 权限表里没有这个名字，卡片上写着
+       * "undefined"，用户看到的是"他好像做了点什么，但什么都没发生"。现在认不出的名字
+       * **不入队**，只如实回一句 ⚠️（名字写错了），留在正文里让模型自己改。
        */
+      const knownKinds = new Set<string>(ACTION_SCHEMA.map((a) => a.kind));
       const actions = state.usedNative ? [] : takeActions(content);
+      const unknownNames: string[] = [];
       for (const action of actions) {
+        if (!knownKinds.has(action.kind)) {
+          unknownNames.push(String(action.kind));
+          continue;
+        }
         useApp.getState().requestAction(action, "AI");
+      }
+      if (unknownNames.length > 0) {
+        content += `\n\n${unknownNames
+          .map((n) => `⚠️ 没有叫「${n}」的动作（是不是名字写错了？什么都没执行）`)
+          .join("\n")}`;
       }
       /**
        * 他说要动手、却一个动作都没解析出来 —— **如实告诉他**。
@@ -633,13 +687,18 @@ export function useChatStream(opts: UseChatOpts = {}) {
           "\n\n（他写了个动作，但格式我没看懂，所以没执行 —— 可以点「重新生成」，或者直接跟我说要做什么。）";
       }
       /**
-       * 撞上轮数上限：还有动作没执行完。**必须说清**（P5 那条"失败要可见"的规矩），
+       * 撞上上限（步数 / 时间 / 用户点了停止）：最后那一步的结果**没能回给他**。
+       * **必须如实说"到上限了"**（P5 那条"失败要可见"的规矩 + 用户这次的原话），
        * 不然模型会在正文里说"我都做好了"，而实际上后面几步根本没跑。
+       * 文案由 `tool-loop` 的 `limitNote` 统一给（口径只此一处，别在这儿另写一份）。
        */
-      if (state.pendingCalls.length > 0) {
+      if (state.limitNote) {
+        content += state.limitNote;
+      } else if (state.pendingCalls.length > 0) {
+        // 兜底：万一 limitNote 没跟上来，也绝不让"还有几步的结果没回给他"这件事消失
         content +=
-          `\n\n（他已经连着动手了 ${state.rounds.length} 轮，我先停下让你看看 —— ` +
-          "还有更进一步的，直接跟他说一声就行。）";
+          "\n\n（他到上限了：这一步的结果还没能回给他，我先停下让你看看 —— " +
+          "要继续跟他说一声就行。）";
       }
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
@@ -675,6 +734,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       if (settings.voiceReplies && content) {
         speak(content, { lang: resolveVoiceLang(settings.voiceLang) });
       }
+      setStep(null);
       setBusy(false);
       setLiveId(null);
     },
@@ -758,5 +818,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { busy, liveId, send, regenerate, stop, aiName };
+  /** `step` 给界面显示"第 N 步 · 正在执行 X"（agent loop 的进度，见 runToolLoop 的 onStep） */
+  return { busy, liveId, step, send, regenerate, stop, aiName };
 }

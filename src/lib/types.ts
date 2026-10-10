@@ -113,6 +113,16 @@ export type ToolCallRecord = {
   args: string;
   /** 回灌给模型的那句人话结果 */
   result: string;
+  /**
+   * ⭐ 界面上那一行"永远有回话"的结论：`✅ 动作名 · 结果` / `❌ …` / `⚠️ 没有叫 … 的动作`。
+   *
+   * 跟 `result` 分开的原因：`result` 是给**模型**看的（可以说长、说细），
+   * 这一行是给**用户**看的（一眼看完成没成）。两边说的是同一个事实。
+   * 老存档里没有这一格（那时只有 result），界面上会退回按 `result` 渲染。
+   */
+  notice?: string;
+  /** 结局分类（没匹配上 / 参数错 / 被拒绝 / 其实没做成 …），界面上用来上色 */
+  category?: "ok" | "denied" | "unknown" | "badargs" | "refused" | "pending";
   /** 有没有真的执行成功（被拒绝、参数坏、认不出工具名都是 false） */
   ok: boolean;
 };

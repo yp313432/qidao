@@ -54,7 +54,7 @@ export function ChatView() {
   const aiName = resolveAiName(settings.aiName);
   const hydrated = useApp((s) => s.hydrated);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
-  const { busy, liveId, send, regenerate } = useChatStream();
+  const { busy, liveId, step, send, regenerate } = useChatStream();
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
   useActivity("在和你聊天", conv?.title ?? "新对话");
 
@@ -398,6 +398,18 @@ export function ChatView() {
                       </div>
                     ) : (
                       <div className="min-w-0">
+                        {/*
+                          ⭐ agent loop 的进度：他现在走到第几步、正在执行哪个动作。
+                          用户原话："这一轮我发出动作，成没成，要等下一轮结果回来才知道；
+                          这一轮里我完全看不见。" —— 这一行 + 下面的「动手 N 次」明细
+                          就是让他**在同一轮里**看得见。
+                        */}
+                        {streaming && step && (
+                          <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted">
+                            <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+                            {step.label}
+                          </p>
+                        )}
                         {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
                         {(streaming || (settings.showThinking && m.thinking)) && (
@@ -433,10 +445,13 @@ export function ChatView() {
                         ) : streaming ? (
                           <p className="thinking-shimmer text-sm">正在写回复…</p>
                         ) : null}
-                        {/* 他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化 */}
-                        {m.rounds && m.rounds.length > 0 && !streaming && (
-                          <ToolProcess rounds={m.rounds} />
-                        )}
+                        {/*
+                          他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化。
+                          ⚠️ 不再要求 `!streaming`：每一步的结果**当场**就写进消息了
+                          （见 use-chat 的 onRound），流式期间当然也要看得见 ——
+                          这正是"执行结果那一栏永远有回话"。
+                        */}
+                        {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
                         {m.content && !streaming && (
                           <MessageActions
                             content={m.content}
