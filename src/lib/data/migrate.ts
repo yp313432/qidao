@@ -13,6 +13,7 @@
  *    （"迁移守恒"，见设计文档 §2 验收第 1 条）
  */
 import {
+  canonical,
   checksum,
   newId,
   type ConversationRecord,
@@ -501,8 +502,74 @@ export function buildReport(old: LegacyState, plan: MigrationPlan): MigrationRep
 
   const anyMismatch =
     Object.values(counts).some((c) => !c.ok) || Object.values(checksums).some((c) => !c.ok);
-  if (anyMismatch) notes.push("有类别对不上 —— 按规矩**不许切换**（见 §12.0 铁律 3）");
+  if (anyMismatch) {
+    const badCounts = Object.entries(counts)
+      .filter(([, v]) => !v.ok)
+      .map(([k, v]) => `${k}(${v.before}→${v.after})`);
+    /**
+     * ⚠️ 光说"校验和不对"**没法修** —— 2026-10 真机连着两轮都栽在这句笼统的报错上。
+     * 所以这里把**对不上的字段名**列出来：下一张截图就能直接定位，不用再猜。
+     */
+    const badSums = Object.entries(checksums)
+      .filter(([, v]) => !v.ok)
+      .map(([k]) => `${k} → ${firstDiff(groupsFor(k, old, back))}`);
+    notes.push(
+      `对不上的是：${[...badCounts, ...badSums].join("；")}（按规矩**不许切换**，见 §12.0 铁律 3）`,
+    );
+  }
   return { from: `legacy/${checksum(old).slice(0, 8)}`, counts, checksums, anyMismatch, notes };
+}
+
+/** 每类校验和对应的"原始数组 / 往返数组" */
+function groupsFor(
+  label: string,
+  old: LegacyState,
+  back: LegacyState,
+): { before: unknown[]; after: unknown[] } {
+  const nonIncognito = (old.conversations ?? []).filter((c) => c.incognito !== true);
+  switch (label) {
+    case "对话内容":
+      return { before: nonIncognito, after: back.conversations ?? [] };
+    case "消息内容":
+      return {
+        before: nonIncognito.flatMap((c) => (c.messages as unknown[]) ?? []),
+        after: (back.conversations ?? []).flatMap((c) => (c.messages as unknown[]) ?? []),
+      };
+    case "记忆内容":
+      return { before: old.memories ?? [], after: back.memories ?? [] };
+    case "日记内容":
+      return { before: old.diary ?? [], after: back.diary ?? [] };
+    case "情绪内容":
+      return { before: old.emotionEvents ?? [], after: back.emotionEvents ?? [] };
+    default:
+      return { before: [], after: [] };
+  }
+}
+
+/**
+ * 找出**第一处不同**并说清"差在哪个字段"。
+ *
+ * 这就是这次真机上唯一能自救的东西：报错直接写出
+ * `消息内容 → 第 4 条：原始有 at、往返没有` 这种话，而不是只给一个校验和。
+ */
+function firstDiff({ before, after }: { before: unknown[]; after: unknown[] }): string {
+  const n = Math.max(before.length, after.length);
+  for (let i = 0; i < n; i += 1) {
+    if (canonical(before[i]) === canonical(after[i])) continue;
+    const a = (before[i] ?? {}) as Record<string, unknown>;
+    const b = (after[i] ?? {}) as Record<string, unknown>;
+    const onlyA = Object.keys(a).filter((k) => !(k in b));
+    const onlyB = Object.keys(b).filter((k) => !(k in a));
+    const changed = Object.keys(a).filter((k) => k in b && canonical(a[k]) !== canonical(b[k]));
+    const id = (a.id ?? b.id ?? `第 ${i + 1} 条`) as string;
+    const bits = [
+      onlyA.length ? `原始多了 ${onlyA.join("/")}` : "",
+      onlyB.length ? `往返多了 ${onlyB.join("/")}` : "",
+      changed.length ? `值不同 ${changed.join("/")}` : "",
+    ].filter(Boolean);
+    return `${id}：${bits.join("，") || "（内容不同但字段一致）"}`;
+  }
+  return "（顺序不同）";
 }
 
 /**

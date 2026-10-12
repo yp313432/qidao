@@ -280,7 +280,10 @@ export async function migrateOldArchiveToNewStore(): Promise<{
   const plan = parseToPlan(raw);
   if (!plan) return { ok: false, why: "老档不是合法 JSON（已保留原文件，没动它）" };
   if (plan.report.anyMismatch) {
-    return { ok: false, why: `守恒校验没过（${JSON.stringify(plan.report.counts)}）—— 已停止，老档没动` };
+    return {
+      ok: false,
+      why: `守恒校验没过：${plan.report.notes.join("；") || JSON.stringify(plan.report.counts)} —— 已停止，老档没动`,
+    };
   }
   /** 搬家本身就是"先读老档再写新库"，属于合法路径 → 先放开闸门 */
   hydrated = true;
