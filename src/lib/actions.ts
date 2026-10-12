@@ -318,15 +318,18 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     }
     case "data.reset": {
       if (typeof window === "undefined") return "只能在浏览器里做";
-      // 只清栖岛自己的东西，不动别的站点数据
-      for (const k of Object.keys(localStorage)) {
-        if (k.startsWith("qidao:")) localStorage.removeItem(k);
-      }
-      localStorage.removeItem("aster-app");
+      /**
+       * ⚠️ 这个动作以前**清不干净**（D7，2026-10 用户拍板要修）：
+       * 它只删了 localStorage 那份小存档，IndexedDB 里真正的大档没动 →
+       * 用户点了"清空"，重启之后数据又回来了。
+       * 现在两套存储一起清（老档 + 新库 + 本地小键），并**逐项报告清了什么**。
+       */
+      const { wipeAll, describeWipe } = await import("@/lib/data/wipe");
+      const report = await wipeAll();
       const p = usePlayer.getState();
       for (const t of [...p.tracks]) await p.remove(t.id);
-      window.setTimeout(() => window.location.reload(), 900);
-      return "数据已清空，马上重载";
+      window.setTimeout(() => window.location.reload(), 1200);
+      return `数据已清空（${describeWipe(report)}），马上重载`;
     }
     case "settings.setUpstream":
       // L4 在入队前就被拦掉了，正常永远走不到这里
