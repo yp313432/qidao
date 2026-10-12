@@ -1,4 +1,6 @@
 import type { StateStorage } from "zustand/middleware";
+import { looksLikeSnapshot, pickSnapshot, type SnapshotSource } from "@/lib/data/snapshot";
+import { storageMode } from "@/lib/data/switch";
 
 /**
  * 把 zustand 的持久化从 localStorage 换到 **IndexedDB**。
@@ -72,54 +74,19 @@ function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBReque
 }
 
 /**
- * 这段文本**像不像一份能用的存档**。
- *
- * zustand 持久化写出来的是 `{"state":{…},"version":n}` —— 所以判据是：
- * 能 JSON.parse、是个对象、而且里面有 `state` 对象。
- * （空字符串 / 半截 JSON / `null` 都判为坏。）
+ * 判"像不像一份能用的存档" + "该用哪一份" —— 本体搬到了 `lib/data/snapshot.ts`
+ * （纯函数、零依赖，好单独验收）；这里**再导出**，别的文件照旧从这儿拿。
  */
-export function looksLikeSnapshot(text: string | null | undefined): boolean {
-  if (typeof text !== "string" || text.trim().length === 0) return false;
-  try {
-    const parsed = JSON.parse(text) as { state?: unknown };
-    /** ⚠️ `typeof null === "object"` —— 所以必须单独排掉 null，否则 `{"state":null}` 会被当成好档 */
-    return Boolean(parsed) && typeof parsed === "object" && typeof parsed.state === "object" && parsed.state !== null;
-  } catch {
-    return false;
-  }
-}
+export { looksLikeSnapshot, pickSnapshot } from "@/lib/data/snapshot";
+export type { SnapshotSource } from "@/lib/data/snapshot";
 
-export type SnapshotSource = "main" | "backup" | "legacy" | "none";
-
-/**
- * **该用哪一份存档**（纯函数，验收直接跑它）。
- *
- * 顺序：主存档 → 备份 → localStorage 老数据 → 没有。
- * 主存档"存在但读不出来"时**绝不当成"没有"** —— 那正是数据被空档覆盖的入口。
- */
-export function pickSnapshot(input: {
-  main?: string | null;
-  backup?: string | null;
-  legacy?: string | null;
-}): { text: string | null; source: SnapshotSource } {
-  if (looksLikeSnapshot(input.main)) return { text: input.main ?? null, source: "main" };
-  if (looksLikeSnapshot(input.backup)) return { text: input.backup ?? null, source: "backup" };
-  if (looksLikeSnapshot(input.legacy)) return { text: input.legacy ?? null, source: "legacy" };
-  return { text: null, source: "none" };
-}
-
-/** 上一次读档是从哪儿来的（给「开发与纠错/环境自检」显示用） */
+/** 上一次读档是从哪儿来的（给自检页显示用） */
 export let lastSnapshotSource: SnapshotSource = "none";
 /** 主存档坏掉、靠备份救回来的次数（>0 就值得告诉用户） */
 export let recoveredFromBackup = false;
 /**
- * **这次启动没能读到主存档**（IndexedDB 打不开/事务失败）—— 见下面 `setItem` 的保护。
- *
- * 为什么单独一个标记：2026-11 真机上"数据全没了"，用户并没有卸载、也没清数据，
- * 而音乐和别的小键都还在 —— 也就是说**主存档那一条**没读出来。这种时候最危险的动作是
- * "拿一份默认状态把它盖掉"（那就真没了）。所以：
- *   读失败 → 这次会话**暂停自动保存** → 老记录原样留着，重启 App 再试。
- * 代价：这次会话里新产生的消息不会存（只活在内存里），但**老数据保住了**。
+ * **这次启动没能读到主存档** —— 见 `setItem` 里的保护：读失败就**暂停自动保存**，
+ * 免得拿一份（可能空的）状态把老记录盖掉。（2026-11 真机"数据全没了"那件事的根治。）
  */
 export let readFailedThisSession = false;
 /** 因为上面那条保护而跳过写入的次数（界面可以如实告诉用户） */
@@ -130,6 +97,27 @@ let lastBackupAt = 0;
 
 export const idbStorage: StateStorage = {
   getItem: async (name) => {
+    /**
+     * **PH3：开关打开时走新存储**（一个库多张表、单条写）。
+     * 默认是关的 —— 没打开时下面那条老路一字未改。
+     * 读失败**先记 `readFailedThisSession` 再返回 null**，于是 `setItem` 会拒绝写入
+     * （"读不到就别写"，见 §12.4）。
+     */
+    if (name === MAIN_KEY && storageMode() === "v2") {
+      try {
+        const { loadLegacyShaped } = await import("@/lib/data/adapter");
+        const r = await loadLegacyShaped();
+        if (!r.ok) {
+          readFailedThisSession = true;
+          return null;
+        }
+        lastSnapshotSource = "main";
+        return r.value ?? null;
+      } catch {
+        readFailedThisSession = true;
+        return null;
+      }
+    }
     try {
       const main = await tx<string | undefined>("readonly", (s) => s.get(name) as IDBRequest<string | undefined>);
       const backup =
@@ -185,6 +173,20 @@ export const idbStorage: StateStorage = {
   },
 
   setItem: async (name, value) => {
+    /**
+     * **PH3：开关打开时写新存储**（只写变了的行 —— 改一条消息只写一条）。
+     * ⚠️ 写在"读失败保护"**之前**：那条保护是针对老路径的覆盖风险；
+     * 新存储自己有一套（`guardWrite`）。
+     */
+    if (name === MAIN_KEY && storageMode() === "v2") {
+      try {
+        const { saveLegacyShaped } = await import("@/lib/data/adapter");
+        await saveLegacyShaped(value);
+      } catch {
+        /* 新存储写失败：不悄悄落到 localStorage（那会跟新库分叉） */
+      }
+      return;
+    }
     /**
      * 这次启动没读到存档 → **绝不写入**。
      * 宁可让这次会话的新消息只留在内存里，也不能拿一份（可能空的）状态把老记录盖掉。

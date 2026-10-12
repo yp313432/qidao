@@ -199,8 +199,29 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
           ...(typeof a.text === "string" ? { text: a.text } : {}),
           ...(a.truncated === true ? { truncated: true } : {}),
           ...(typeof a.durationMs === "number" ? { durationMs: a.durationMs } : {}),
+          ...(() => {
+            /** 附件上没建模的字段也原样带走（同 extra 的道理） */
+            const x = rest(a, ["id", "kind", "name", "mime", "size", "dataUrl", "text", "truncated", "durationMs"]);
+            return x ? { extra: x } : {};
+          })(),
         });
       }
+      /** 消息上没建模的字段原样带走 */
+      const msgExtra = rest(m, [
+        "id",
+        "role",
+        "content",
+        "thinking",
+        "thinkingDurationMs",
+        "createdAt",
+        "at",
+        "time",
+        "ts",
+        "date",
+        "attachments",
+        "parts",
+        "origin",
+      ]);
       convMsgs.push({
         id: mid,
         convId: id,
@@ -212,10 +233,26 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
         ...(atts.length > 0 ? { attachments: atts } : {}),
         ...(Array.isArray(m.parts) ? { parts: m.parts as string[] } : {}),
         ...(typeof m.origin === "string" ? { origin: m.origin } : {}),
+        ...(msgExtra ? { extra: msgExtra } : {}),
       });
     }
     messages.push(...convMsgs);
     const times = convMsgs.map((m) => m.at).filter((t) => t > 0);
+    /** 对话上没建模的字段原样带走（`incognito` 等也在里面 —— 它不该被"顺手丢掉"） */
+    const convExtra = rest(c, [
+      "id",
+      "title",
+      "name",
+      "label",
+      "createdAt",
+      "updatedAt",
+      "at",
+      "time",
+      "ts",
+      "date",
+      "summary",
+      "messages",
+    ]);
     conversations.push({
       id,
       title: typeof c.title === "string" ? c.title : "新对话",
@@ -265,6 +302,17 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
     const arr = Array.isArray(old[key]) ? (old[key] as Loose[]) : [];
     for (const it of arr) {
       const used = ["id", "title", "name", "label", "text", "content", "body", "note", "summary", "at", "createdAt", "updatedAt", "time", "ts", "date"];
+      /**
+       * **记住原来的字段名**：App 里日记正文叫 `body`、文档叫 `content`、时间叫 `createdAt`。
+       * 搬家时统一成 `text`/`at`（为了"同一张表"），但**原名要留着** ——
+       * 否则往返拼不回原样，切回老存储时日记/文档就读不出来了。
+       * （2026-10 真跑切换时，守恒断言当场抓到这一点。）
+       */
+      const textKey = ["text", "content", "body", "note", "summary"].find((k) => typeof it[k] === "string");
+      const timeKey = ["at", "createdAt", "updatedAt", "time", "ts", "date"].find(
+        (k) => typeof it[k] === "number" || typeof it[k] === "string",
+      );
+      const titleKey = ["title", "name", "label"].find((k) => typeof it[k] === "string");
       writings.push({
         id: typeof it.id === "string" ? it.id : newId(kind),
         kind,
@@ -272,6 +320,11 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
         text: pickText(it),
         ...(rest(it, used) ? { extra: rest(it, used) } : {}),
         at: pickTime(it, now),
+        keys: {
+          ...(textKey ? { text: textKey } : {}),
+          ...(timeKey ? { time: timeKey } : {}),
+          ...(titleKey && pickTitle(it) ? { title: titleKey } : {}),
+        },
       });
     }
   }
@@ -490,13 +543,18 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
   const toLegacy = (kind: WritingRecord["kind"]) =>
     plan.writings
       .filter((w) => w.kind === kind)
-      .map((w) => ({
-        id: w.id,
-        ...(w.title ? { title: w.title } : {}),
-        text: w.text,
-        ...(w.extra ?? {}),
-        at: w.at,
-      }));
+      .map((w) => {
+        /**
+         * ⚠️ 按**原字段名**还原：App 里日记正文叫 `body`、文档叫 `content`、时间叫 `createdAt`。
+         * 搬家时统一成 `text`/`at` 是为了"同一张表"，但拼回旧形状必须用原名 ——
+         * 否则切回老存储时 App 读不到日记/文档的正文（2026-10 守恒断言抓到的）。
+         */
+        const o: Record<string, unknown> = { id: w.id };
+        if (w.title) o[w.keys?.title ?? "title"] = w.title;
+        o[w.keys?.text ?? "text"] = w.text;
+        o[w.keys?.time ?? "at"] = w.at;
+        return { ...o, ...(w.extra ?? {}) };
+      });
   const emotions = plan.emotions.map((e) => ({
     id: e.id,
     kind: e.kind,

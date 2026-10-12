@@ -91,6 +91,12 @@ export type ConversationRecord = {
   msgCount?: number;
   /** 最后一条消息的时间（列表排序用） */
   lastAt?: number;
+  /**
+   * **没建模的字段原样带着**（宁可多带，不可丢 —— 见 §12 设计文档"迁移守恒"）。
+   * ⚠️ 2026-10 真跑切换时被守恒断言抓到：真实存档里的字段比这里建模的多，
+   * 不给 extra 就会在往返时丢掉 → 校验和对不上。
+   */
+  extra?: Record<string, unknown>;
 };
 
 /**
@@ -129,6 +135,8 @@ export type MessageRecord = {
   parts?: string[];
   /** 这条消息是谁来的："user" / "wake"（他主动说的）/ "action"（工具动作落地） */
   origin?: string;
+  /** 没建模的字段原样带着（同 ConversationRecord.extra 的理由） */
+  extra?: Record<string, unknown>;
 };
 
 /** 二进制资产：图片 / 表情 / 音频 / 照片（**存 Blob，不存 base64**） */
@@ -161,6 +169,14 @@ export type WritingRecord = {
   /** 额外字段（心情、角色、是否完成…）——刻意不做成列，避免为每个功能改表 */
   extra?: Record<string, unknown>;
   at: number;
+  /**
+   * **原字段名**（`body` / `content` / `createdAt` …）。
+   *
+   * ⚠️ 2026-10 真跑切换时守恒断言抓到：App 里日记的正文叫 `body`、文档叫 `content`、
+   * 时间叫 `createdAt`，搬过来统一成 `text`/`at` 之后**往返拼不回原名字** → 切回去日记/文档会读不出来。
+   * 所以把原名记下来，`roundTrip()` 按原名还原（不复制一份正文，只记名字）。
+   */
+  keys?: { text?: string; time?: string; title?: string };
 };
 
 /** 情绪事件 */

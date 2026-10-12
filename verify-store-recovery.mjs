@@ -18,7 +18,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { looksLikeSnapshot, pickSnapshot } from "./src/lib/idb-storage.ts";
+import { looksLikeSnapshot, pickSnapshot } from "./src/lib/data/snapshot.ts";
 
 const REVERSE = process.env.QIDAO_MUTATE_REVERSE === "1";
 

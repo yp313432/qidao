@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
+import { StorageModeCard } from "@/components/storage-mode-card";
 import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -370,6 +371,9 @@ export function MemoryView() {
 
       {/* 思考链归档已经删掉（回复时当场就能看到，再存一份纯占地方）。
           老数据在加载时已经清空，这里不再有这一块。 */}
+
+      {/* 存储方式（实验开关，PH3） */}
+      <StorageModeCard />
 
       {/* 本地存储 */}
       <section className="mt-5 px-4">

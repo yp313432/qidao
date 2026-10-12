@@ -36,6 +36,7 @@ register(
 
 const { SCHEMA_VERSION, TABLES, checksum, newId } = await import("./src/lib/data/schema.ts");
 const { planMigration, roundTrip } = await import("./src/lib/data/migrate.ts");
+const { changedRows } = await import("./src/lib/data/adapter.ts");
 const {
   ACTION_LOG_MAX,
   ACTION_LOG_MAX_AGE_MS,
@@ -227,6 +228,69 @@ check(
       .filter((n) => !["db.ts"].includes(n))
       .sort();
     return newLayer.length === 1 && newLayer[0].path.replace(/\\/g, "/").endsWith("lib/data/db.ts") && legacy.includes("idb-storage.ts");
+  })(),
+);
+
+/* ═══════════════ ⑥ PH3：切换的硬保护（真跑时被咬过的地方） ═══════════════ */
+const adapter = src("src/lib/data/adapter.ts");
+const dbSrc = src("src/lib/data/db.ts");
+check(
+  "⑥ **没读过就不许写**（守护进程在 hydration 之前写了一次，曾把搬过去的行全删了）",
+  adapter.includes("if (!hydrated)") && adapter.includes("refusedBeforeHydration"),
+);
+check("⑥ 只有读成功后才放开写入闸门", /hydrated = true;/.test(adapter) && adapter.indexOf("hydrated = true") < adapter.indexOf("if (!hydrated)"));
+check(
+  "⑥ 增量写：只写变了的行（同一份内容再写一次 = 0 条）",
+  (() => {
+    const digest = new Map();
+    const rows = [{ id: "c1", title: "T" }, { id: "m1", content: "hi" }];
+    const first = changedRows(TABLES.conversations, rows, digest);
+    const second = changedRows(TABLES.conversations, rows, digest);
+    return first.put.length === 2 && second.put.length === 0 && second.unchanged === 2;
+  })(),
+);
+check(
+  "⑥ 增量写：改一条只写一条",
+  (() => {
+    const digest = new Map();
+    changedRows(TABLES.messages, [{ id: "m1", content: "a" }, { id: "m2", content: "b" }], digest);
+    const r = changedRows(TABLES.messages, [{ id: "m1", content: "a" }, { id: "m2", content: "b2" }], digest);
+    return r.put.length === 1 && r.put[0].id === "m2";
+  })(),
+);
+check(
+  "⑥ 增量写：内存里没有的行会被删（所以「没读过」必须先拦住）",
+  (() => {
+    const digest = new Map();
+    changedRows(TABLES.messages, [{ id: "m1" }, { id: "m2" }], digest);
+    const r = changedRows(TABLES.messages, [{ id: "m1" }], digest);
+    return r.del.length === 1 && r.del[0] === "m2";
+  })(),
+);
+check(
+  "⑥ 建库**不许**传 `{keyPath: undefined}`（会被当成非法参数 → 升级事务中止 → 库被丢掉）",
+  (() => {
+    /** 只看代码不看注释（注释里正解释这个坑） */
+    const code = dbSrc.split("\n").filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join("\n");
+    return !code.includes("keyPath: table ===") && !/keyPath:\s*undefined/.test(code) && code.includes("isKeyless(table)");
+  })(),
+);
+check("⑥ 空坏库自愈（版本对但一张表都没有 → 删掉重建）", dbSrc.includes("db.objectStoreNames.length === 0") && dbSrc.includes("deleteDatabase"));
+check("⑥ 少的表不会静默忽略（记下来，靠 schema 版本 +1 补）", dbSrc.includes("库里少了这几张表"));
+check(
+  "⑥ 原字段名要留着（日记 body / 文档 content / createdAt）—— 否则切回去读不出来",
+  src("src/lib/data/migrate.ts").includes("keys: {") && src("src/lib/data/schema.ts").includes("keys?: { text?: string; time?: string; title?: string }"),
+);
+check(
+  "⑥ 开关默认关（没显式打开就走老路）",
+  src("src/lib/data/switch.ts").includes('=== "1" ? "v2" : "legacy"'),
+);
+check(
+  "⑥ 切回老存储**不删任何东西**",
+  (() => {
+    const s = src("src/lib/data/switch.ts");
+    const fn = s.slice(s.indexOf("export function disableV2"));
+    return fn.slice(0, 400).includes("removeItem") && !fn.slice(0, 400).includes("deleteDatabase");
   })(),
 );
 
