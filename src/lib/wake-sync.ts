@@ -1,4 +1,5 @@
 import { resolveAiName } from "@/lib/branding";
+import { wakeConfigPayload } from "@/lib/data/wake-config";
 import { isNativeApp } from "@/lib/platform";
 import { useApp } from "@/lib/store";
 import { waitHydrated } from "@/lib/store-ready";
@@ -87,41 +88,59 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
   const model = (s.upstreamModel ?? "").trim();
   const notes: string[] = [];
 
-  /* ── ① 抽屉（甲，主路）：后台醒来直接问你的 AI —— 不用梯、不用域名、不用 Worker ── */
-  if (!baseUrl || !apiKey) {
-    notes.push("还没配自定义上游（地址 + 密钥）—— 他没法问 AI");
-  } else if (!model) {
-    notes.push("还没填模型名（「我的 → 自定义上游」）");
-  } else {
+  /* ── ① 抽屉（甲，主路）：后台醒来直接问你的 AI —— 不用梯、不用域名、不用 Worker ──
+   *
+   * ⚠️ 2026-10 修（用户提出，见 `qidao-docs/数据架构-①设计.md` D8）：
+   *   原来这里是 `if (!baseUrl || !apiKey) { 只记一句提示 }` —— **不推**。
+   *   后果：用户把上游清空之后，抽屉里那份**旧配置永远留着**，
+   *   后台每天醒来还用旧那家发消息（用户："我都没接 api 了，他怎么还在发？"）。
+   *
+   *   现在：**永远推一份完整载荷**（没配上游就是"空值 + 关掉唤醒 + 空指纹"），
+   *   并且带上指纹/同步时间/"怎么问这家上游"。组载荷的逻辑在
+   *   `lib/data/wake-config.ts`（纯函数，`verify-data-layer.mjs` 盯着）。
+   */
+  {
     const input = wakePromptInput();
     const prompts = buildAllWakePrompts(input);
-    const data: Record<string, string> = {
-      [WAKE_KEYS.baseUrl]: baseUrl,
-      [WAKE_KEYS.apiKey]: apiKey,
-      [WAKE_KEYS.model]: model,
-      [WAKE_KEYS.aiName]: input.aiName,
-      [WAKE_KEYS.enabled]: (s.wakeEnabled ?? true) ? "1" : "0",
-      [WAKE_KEYS.quietStart]: String(s.wakeQuietStart ?? 1),
-      [WAKE_KEYS.quietEnd]: String(s.wakeQuietEnd ?? 8),
-      [WAKE_KEYS.promptNormal]: prompts.normal,
-      [WAKE_KEYS.promptForce]: prompts.force,
-      /**
-       * 主动说话的三道闸门 + 心情快照（2026-11）。
-       * ⚠️ 这几个键**每次推配置都要一起推**：后台那段 JS 是按"抽屉里有没有"来读的，
-       * 漏掉一个就会退回默认（那还好），但 `busyUntil` 漏掉会变成"他明明在忙还在说"。
-       */
-      [WAKE_KEYS.busyUntil]: String(s.busyUntil ?? 0),
-      [WAKE_KEYS.minGapMin]: String(s.wakeMinGapMin ?? 40),
-      [WAKE_KEYS.dailyMax]: String(s.wakeDailyMax ?? 8),
-      [WAKE_KEYS.mood]: input.mood ?? "",
-    };
+    const data = wakeConfigPayload({
+      baseUrl,
+      apiKey,
+      model,
+      rest: {
+        [WAKE_KEYS.aiName]: input.aiName,
+        [WAKE_KEYS.enabled]: (s.wakeEnabled ?? true) ? "1" : "0",
+        [WAKE_KEYS.quietStart]: String(s.wakeQuietStart ?? 1),
+        [WAKE_KEYS.quietEnd]: String(s.wakeQuietEnd ?? 8),
+        [WAKE_KEYS.promptNormal]: prompts.normal,
+        [WAKE_KEYS.promptForce]: prompts.force,
+        /**
+         * 主动说话的三道闸门 + 心情快照（2026-11）。
+         * ⚠️ 这几个键**每次推配置都要一起推**：后台那段 JS 是按"抽屉里有没有"来读的，
+         * 漏掉一个就会退回默认（那还好），但 `busyUntil` 漏掉会变成"他明明在忙还在说"。
+         */
+        [WAKE_KEYS.busyUntil]: String(s.busyUntil ?? 0),
+        [WAKE_KEYS.minGapMin]: String(s.wakeMinGapMin ?? 40),
+        [WAKE_KEYS.dailyMax]: String(s.wakeDailyMax ?? 8),
+        [WAKE_KEYS.mood]: input.mood ?? "",
+      },
+    });
 
     const pushed = await pushWakeConfig(data);
-    notes.push(
-      pushed
-        ? `已交给他（两段指令 + 最近 ${input.recent.length} 条对话）`
-        : "这台上交不进去（网页版没有后台；或者这个包还没带上那个抽屉插件）",
-    );
+    if (!baseUrl || !apiKey) {
+      notes.push(
+        pushed
+          ? "还没配自定义上游 —— 已把抽屉里的旧配置**清掉**（他暂时不会主动说话）"
+          : "还没配自定义上游（地址 + 密钥）—— 他没法问 AI",
+      );
+    } else if (!model) {
+      notes.push(pushed ? "还没填模型名 —— 已把抽屉里的上游清掉" : "还没填模型名（「我的 → 自定义上游」）");
+    } else {
+      notes.push(
+        pushed
+          ? `已交给他（两段指令 + 最近 ${input.recent.length} 条对话 + 配置指纹）`
+          : "这台上交不进去（网页版没有后台；或者这个包还没带上那个抽屉插件）",
+      );
+    }
   }
 
   /* ── ② Worker（乙，备路）：只有配了地址才推（域名被污染时需要梯，所以现在默认不用）── */

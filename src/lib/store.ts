@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { pushActionLog, pushRequestLog } from "@/lib/data/retention";
 import { idbStorage } from "@/lib/idb-storage";
 
 /**
@@ -685,7 +686,7 @@ export const useApp = create<AppState>()(
               : {};
           return {
             pendingActions: s.pendingActions.filter((p) => p.id !== id),
-            actionLog: [entry, ...s.actionLog.filter((e) => Date.now() - e.at < 7 * 864e5)].slice(0, 30),
+            actionLog: pushActionLog(s.actionLog, entry),
             settings: remember ? { ...s.settings, ...remembered } : s.settings,
           };
         }),
@@ -736,7 +737,7 @@ export const useApp = create<AppState>()(
         })),
       logRequest: (e) =>
         set((s) => ({
-          requestLog: [{ ...e, at: e.at ?? Date.now() }, ...s.requestLog].slice(0, 40),
+          requestLog: pushRequestLog(s.requestLog, { ...e, at: e.at ?? Date.now() }),
         })),
       clearRequestLog: () => set({ requestLog: [] }),
       addMusicEmbed: (url) => {

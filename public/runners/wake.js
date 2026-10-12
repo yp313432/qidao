@@ -517,8 +517,29 @@ addEventListener("qidaoWake", function (resolve, reject) {
     var apiKey = cfg("cfg_api_key");
     var model = cfg("cfg_model");
     var aiName = cfg("cfg_ai_name") || "栖岛";
+    /**
+     * **配置指纹自检**（2026-10 加，用户提出的"唤醒还开着用旧那家 API"那件事）。
+     *
+     * 规则跟 `src/lib/data/wake-config.ts` 的 `checkWakeDrawer()` **必须一致**
+     * （runner 是独立 JS，不能 import TS；`verify-data-layer.mjs` 会盯这两边）。
+     *
+     * 为什么必须有：以前"设置里没上游"时前台**跳过推送**，抽屉里那份旧配置就一直留着，
+     * 后台每天还用**旧那家**发消息（用户已经停用/换家了他也不知道）。
+     * 现在：没有指纹（= 旧版写的，无法确认跟 App 设置一致）→ **不发**，改为提示用户开一次 App。
+     */
+    var fp = cfg("cfg_fingerprint");
+    var configFresh = fp !== "" && /^[0-9a-f]{8}$/.test(fp);
     /** 抽屉里有配置 → **甲**（直接问你的 AI） */
     var direct = /^https?:\/\//.test(baseUrl) && apiKey !== "" && model !== "";
+
+    if (direct && !configFresh) {
+      /* 配置来路不明（没有指纹）→ 宁可不说，也不能拿旧配置乱发 */
+      kvSet("muted_at", now);
+      logLine("#" + count + " " + stamp + " 抽屉里的配置没有指纹（旧版写的）→ 这次不发，等 App 同步");
+      errorNotify(count, stamp, "唤醒配置需要刷新：打开一次栖岛，让它把当前的上游同步过来", "stale-config");
+      resolve();
+      return;
+    }
 
     if (direct) {
       /* ① 总开关：App 里关掉就完全安静（连请求都不发） */
@@ -623,12 +644,28 @@ addEventListener("qidaoWake", function (resolve, reject) {
         .replace(/\{\{TIME\}\}/g, stamp)
         .replace(/\{\{ELAPSED\}\}/g, elapsedText(elapsed));
 
-      /** ⑤ 直接问你的上游（失败会自己诊断"为什么找不到上游"） */
-      var askUrl = baseUrl.replace(/\/+$/, "") + "/chat/completions";
+      /**
+       * ⑤ 直接问你的上游（失败会自己诊断"为什么找不到上游"）
+       *
+       * ⚠️ 2026-10 改（用户提的"换家 API 唤醒就白做了"）：
+       *   以前这里**写死** `+ "/chat/completions"` + `Bearer` —— 是跟前台**两套写法**。
+       *   现在路径/鉴权都由**前台**推过来（`cfg_chat_path` / `cfg_auth_style`），
+       *   后台只"照单发"：换任何一家上游，前台知道怎么发，后台就跟着怎么发。
+       */
+      var chatPath = cfg("cfg_chat_path") || "/chat/completions";
+      var authStyle = cfg("cfg_auth_style") || "bearer";
+      var askUrl = baseUrl.replace(/\/+$/, "") + chatPath;
+      var askHeaders = function () {
+        var h = { "content-type": "application/json" };
+        if (authStyle === "bearer") h.authorization = "Bearer " + apiKey;
+        else if (authStyle === "x-api-key") h["x-api-key"] = apiKey;
+        /* authStyle === "none" → 不带鉴权头（本地/自建代理那种） */
+        return h;
+      };
       var askInit = function (sys, userLine) {
         return {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: "Bearer " + apiKey },
+          headers: askHeaders(),
           body: JSON.stringify({
             model: model,
             messages: [
