@@ -20,6 +20,7 @@ import {
   type LogRecord,
   type MemoryRecord,
   type MessageRecord,
+  type RecordKeys,
   type ScheduleRecord,
   type StatRecord,
   type WritingRecord,
@@ -222,18 +223,35 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
         "parts",
         "origin",
       ]);
+      /**
+       * ⚠️ 一律按「**原本有没有这个键**」搬，不按「值真不真」。
+       *
+       * 真机切换时守恒校验没过，原因就是这个：真实数据里 `thinking: ""`、
+       * `attachments: []`、`parts: []` 到处都是，只认真值会把这些键丢掉 →
+       * 拼回来时就少了几个键（条数全对、内容校验和对不上）。
+       */
+      const hasKey = (k: string) => Object.prototype.hasOwnProperty.call(m, k);
+      const timeKey = ["at", "createdAt", "updatedAt", "time", "ts", "date"].find((k) => hasKey(k));
+      const present: string[] = [];
+      if (hasKey("thinking")) present.push("thinking");
+      if (hasKey("thinkingDurationMs")) present.push("thinkingDurationMs");
+      if (hasKey("attachments")) present.push("attachments");
+      if (hasKey("parts")) present.push("parts");
+      if (hasKey("origin")) present.push("origin");
       convMsgs.push({
         id: mid,
         convId: id,
         role: (m.role as MessageRecord["role"]) ?? "user",
         content: typeof m.content === "string" ? m.content : "",
-        ...(typeof m.thinking === "string" && m.thinking ? { thinking: m.thinking } : {}),
-        ...(typeof m.thinkingDurationMs === "number" ? { thinkingMs: m.thinkingDurationMs } : {}),
+        ...(hasKey("thinking") ? { thinking: typeof m.thinking === "string" ? m.thinking : "" } : {}),
+        ...(hasKey("thinkingDurationMs") ? { thinkingMs: Number(m.thinkingDurationMs) || 0 } : {}),
         at: pickTime(m, now),
-        ...(atts.length > 0 ? { attachments: atts } : {}),
-        ...(Array.isArray(m.parts) ? { parts: m.parts as string[] } : {}),
-        ...(typeof m.origin === "string" ? { origin: m.origin } : {}),
+        ...(hasKey("attachments") ? { attachments: atts } : {}),
+        ...(hasKey("parts") ? { parts: (m.parts as string[]) ?? [] } : {}),
+        ...(hasKey("origin") ? { origin: String(m.origin ?? "") } : {}),
         ...(msgExtra ? { extra: msgExtra } : {}),
+        keys: { ...(timeKey ? { time: timeKey } : {}) },
+        present,
       });
     }
     messages.push(...convMsgs);
@@ -257,7 +275,12 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
       id,
       title: typeof c.title === "string" ? c.title : "新对话",
       createdAt: pickTime(c, times[0] ?? now),
-      updatedAt: Math.max(pickUpdatedAt(c, 0), ...times, 0),
+      /**
+       * ⚠️ **原件有 updatedAt 就原样保留**（不许用"消息最大时间"覆盖它）——
+       * 真机守恒校验抓到的：覆盖之后往返值变了（条数对、内容对不上）。
+       * 没有才用消息最大时间兜底。
+       */
+      updatedAt: pickUpdatedAt(c, Math.max(0, ...times)),
       ...(typeof c.summary === "string" ? { summary: c.summary } : {}),
       msgCount: convMsgs.length,
       ...(times.length > 0 ? { lastAt: Math.max(...times) } : {}),
@@ -266,18 +289,27 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
 
   /* ── 记忆 + 世界书（同一张表，用 kind 分）── */
   const memories: MemoryRecord[] = [];
-  for (const m of old.memories ?? [])
+  for (const m of old.memories ?? []) {
+    /** ⚠️ 记住原字段名（有的记忆用 `at`、有的用 `createdAt`；正文有的叫 `content`）—— 往返守恒要拼回原名 */
+    const usedKeys = ["id", "text", "content", "body", "note", "summary", "tags", "createdAt", "updatedAt", "at", "time", "ts", "date"];
+    const memTextKey = ["text", "content", "body", "note", "summary"].find((k) => typeof m[k] === "string");
+    const memCreatedKey = ["createdAt", "at", "time", "ts", "date"].find((k) => m[k] !== undefined);
+    const memUpdatedKey = m.updatedAt !== undefined ? "updatedAt" : undefined;
     memories.push({
       id: typeof m.id === "string" ? m.id : newId("mem"),
       kind: "memory",
       text: pickText(m),
-      ...(Array.isArray(m.tags) ? { tags: m.tags as string[] } : {}),
+      ...(Object.prototype.hasOwnProperty.call(m, "tags") ? { tags: (m.tags as string[]) ?? [] } : {}),
       createdAt: pickTime(m, now),
       updatedAt: pickUpdatedAt(m, pickTime(m, now)),
-      ...(rest(m, ["id", "text", "content", "body", "note", "summary", "tags", "createdAt", "updatedAt", "at", "time", "ts", "date"])
-        ? { extra: rest(m, ["id", "text", "content", "body", "note", "summary", "tags", "createdAt", "updatedAt", "at", "time", "ts", "date"]) }
-        : {}),
+      ...(rest(m, usedKeys) ? { extra: rest(m, usedKeys) } : {}),
+      keys: {
+        ...(memTextKey ? { text: memTextKey } : {}),
+        ...(memCreatedKey ? { createdAt: memCreatedKey } : {}),
+        ...(memUpdatedKey ? { updatedAt: memUpdatedKey } : {}),
+      },
     } as MemoryRecord);
+  }
   for (const w of old.worldBook ?? [])
     memories.push({
       id: typeof w.id === "string" ? w.id : newId("wb"),
@@ -496,43 +528,57 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
     messages: (byConv.get(c.id) ?? [])
       .slice()
       .sort((a, b) => a.at - b.at)
-      .map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        ...(m.thinking !== undefined ? { thinking: m.thinking } : {}),
-        ...(m.thinkingMs !== undefined ? { thinkingDurationMs: m.thinkingMs } : {}),
-        createdAt: m.at,
-        ...(m.attachments
-          ? {
-              attachments: m.attachments.map((a) => {
-                const blob = a.blobId ? blobById.get(a.blobId) : undefined;
-                return {
-                  id: a.id,
-                  kind: a.kind,
-                  name: a.name,
-                  mime: a.mime,
-                  size: a.size,
-                  ...(blob ? { dataUrl: blob.dataUrl } : {}),
-                  ...(a.text !== undefined ? { text: a.text } : {}),
-                  ...(a.truncated ? { truncated: true } : {}),
-                  ...(a.durationMs !== undefined ? { durationMs: a.durationMs } : {}),
-                };
-              }),
-            }
-          : {}),
-        ...(m.parts ? { parts: m.parts } : {}),
-        ...(m.origin !== undefined ? { origin: m.origin } : {}),
-      })),
+      .map((m) => {
+        /**
+         * ⚠️ 按"**原本有没有这个键**"（`present`）+ 原时间字段名（`keys.time`）还原。
+         * 真机切换时守恒校验没过就是因为这里：`thinking: ""` / `attachments: []` / `parts: []`
+         * 这类"键在值是空"的字段被丢，以及有的消息时间叫 `at`、有的叫 `createdAt`。
+         */
+        const present = new Set((m as MessageRecord & { present?: string[] }).present ?? []);
+        const timeKeyName = (m as MessageRecord & { keys?: RecordKeys }).keys?.time ?? "createdAt";
+        return {
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          ...(present.has("thinking") ? { thinking: m.thinking ?? "" } : {}),
+          ...(present.has("thinkingDurationMs") ? { thinkingDurationMs: m.thinkingMs ?? 0 } : {}),
+          [timeKeyName]: m.at,
+          ...(present.has("attachments") && m.attachments
+            ? {
+                attachments: m.attachments.map((a) => {
+                  const blob = a.blobId ? blobById.get(a.blobId) : undefined;
+                  return {
+                    id: a.id,
+                    kind: a.kind,
+                    name: a.name,
+                    mime: a.mime,
+                    size: a.size,
+                    ...(blob ? { dataUrl: blob.dataUrl } : {}),
+                    ...(a.text !== undefined ? { text: a.text } : {}),
+                    ...(a.truncated !== undefined ? { truncated: a.truncated } : {}),
+                    ...(a.durationMs !== undefined ? { durationMs: a.durationMs } : {}),
+                  };
+                }),
+              }
+            : {}),
+          ...(present.has("parts") ? { parts: m.parts ?? [] } : {}),
+          ...(present.has("origin") ? { origin: m.origin ?? "" } : {}),
+          ...((m as MessageRecord & { extra?: Loose }).extra ?? {}),
+        };
+      }),
   }));
 
   const out: LegacyState = { conversations };
   const memories = plan.memories.filter((m) => m.kind === "memory").map((m) => ({
     id: m.id,
-    text: m.text,
+    [(m as MemoryRecord & { keys?: RecordKeys }).keys?.text ?? "text"]: m.text,
+    ...((m as MemoryRecord & { keys?: RecordKeys }).keys?.title ? { [(m as MemoryRecord & { keys?: RecordKeys }).keys!.title as string]: (m as MemoryRecord & { title?: string }).title } : {}),
     ...(m.tags ? { tags: m.tags } : {}),
-    createdAt: m.createdAt,
-    updatedAt: m.updatedAt,
+    [(m as MemoryRecord & { keys?: RecordKeys }).keys?.createdAt ?? "createdAt"]: m.createdAt,
+    /** ⚠️ 原件没有 `updatedAt` 就**不许凭空补**（真机守恒校验抓到的：凭空补也算"变了"） */
+    ...((m as MemoryRecord & { keys?: RecordKeys }).keys?.updatedAt
+      ? { [(m as MemoryRecord & { keys?: RecordKeys }).keys!.updatedAt as string]: m.updatedAt }
+      : {}),
     ...((m as MemoryRecord & { extra?: Loose }).extra ?? {}),
   }));
   const worldBook = plan.memories.filter((m) => m.kind === "worldbook").map((m) => ({

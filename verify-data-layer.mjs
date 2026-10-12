@@ -114,11 +114,22 @@ const LEGACY = {
           ],
         },
         { id: "m3", role: "user", content: "看看背景", createdAt: 3000 },
+        /**
+         * ⚠️ 这一条就是**真机上让守恒校验没过的那种数据**（2026-10 用户截图）：
+         *   · `thinking: ""` / `attachments: []` / `parts: []` —— **键在、值是空**
+         *   · 时间字段叫 `at` 而不是 `createdAt`
+         * 只按"值真不真"搬会把这几个键丢掉；条数仍然对得上，所以**光看条数发现不了**。
+         */
+        { id: "m4", role: "assistant", content: "空值也要原样带", at: 3100, thinking: "", attachments: [], parts: [], origin: "wake" },
       ],
     },
     { id: "c2", title: "偷偷聊", incognito: true, messages: [{ id: "x1", role: "user", content: "别记", createdAt: 1 }] },
   ],
-  memories: [{ id: "me1", text: "他喜欢花", tags: ["喜好"], createdAt: 500, updatedAt: 600, pinned: true }],
+  memories: [
+    { id: "me1", text: "他喜欢花", tags: ["喜好"], createdAt: 500, updatedAt: 600, pinned: true },
+    /** 另一种真实形状：正文叫 `content`、时间叫 `at` */
+    { id: "me2", content: "另一条记忆", at: 520, tags: [] },
+  ],
   worldBook: [{ id: "wb1", text: "栖岛设定", tags: ["设定"] }],
   diary: [{ id: "d1", text: "今天累", mood: "tired", at: 700 }],
   moments: [{ id: "mo1", text: "发个动态", at: 710 }],
@@ -136,12 +147,13 @@ const LEGACY = {
 
 const plan = planMigration(LEGACY, 1000);
 check("② 对话搬过来了（隐藏对话不算）", plan.conversations.length === 1, String(plan.conversations.length));
-check("② 消息按条拆开了（3 条）", plan.messages.length === 3, String(plan.messages.length));
+check("② 消息按条拆开了（4 条，含「键在值是空」那条）", plan.messages.length === 4, String(plan.messages.length));
 check("② 图片附件进了二进制表（1 条 dataUrl）", plan.blobs.length === 1, String(plan.blobs.length));
 check("② 文本附件留在消息里（不重复建二进制）", plan.messages.find((m) => m.id === "m2").attachments.length === 2);
 check("② 附件正文不在消息里（只有引用 blobId）", !JSON.stringify(plan.messages).includes("data:image"));
 check("② 消息带上对话 id（能按对话查）", plan.messages.every((m) => m.convId === "c1"));
 check("② 记忆 + 世界书进了同一张表，用 kind 分", plan.memories.filter((m) => m.kind === "worldbook").length === 1);
+check("② 记忆 2 条（含「content/at」那种形状）", plan.memories.filter((m) => m.kind === "memory").length === 2, String(plan.memories.filter((m) => m.kind === "memory").length));
 check("② 日记/动态/信/文档/待办/日子合并成一张表（6 条）", plan.writings.length === 6, String(plan.writings.length));
 check("② 认不出的字段没丢（pinned 进了 extra）", JSON.stringify(plan.memories.find((m) => m.id === "me1")).includes("pinned"));
 check("② 守恒报告：条数全对", Object.values(plan.report.counts).every((c) => c.ok), JSON.stringify(Object.entries(plan.report.counts).filter(([, c]) => !c.ok)));

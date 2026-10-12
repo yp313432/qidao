@@ -137,6 +137,18 @@ export type MessageRecord = {
   origin?: string;
   /** 没建模的字段原样带着（同 ConversationRecord.extra 的理由） */
   extra?: Record<string, unknown>;
+  /**
+   * **原字段名**：有的消息时间叫 `at`、有的叫 `createdAt`。
+   * 搬家时统一成 `at`，拼回旧形状要按原名还原（真机切换时守恒断言抓到过）。
+   */
+  keys?: RecordKeys;
+  /**
+   * 这条消息**原本带了哪些键**（`thinking` / `attachments` / `parts` / `origin` …）。
+   *
+   * ⚠️ 真机切换抓到：真实数据里 `thinking: ""`、`attachments: []`、`parts: []` 到处都有，
+   * 只按"值非空"判断就会**把这些键丢掉** → 往返守恒对不上。所以要把"键在不在"记下来。
+   */
+  present?: string[];
 };
 
 /** 二进制资产：图片 / 表情 / 音频 / 照片（**存 Blob，不存 base64**） */
@@ -217,6 +229,22 @@ export type LogRecord = {
   kind: "action" | "request";
   at: number;
   payload: Record<string, unknown>;
+};
+
+/**
+ * **原字段名**：搬家时会把字段统一成 `text`/`at`/`createdAt`，
+ * 但拼回旧形状必须用**原来的名字**（日记是 `body`、文档是 `content`、消息时间有的是 `at`…），
+ * 否则切回老存储时 App 读不出来。
+ *
+ * ⚠️ 2026-10 真机切换时守恒断言抓到两次：先是只给 writings 记了名字，
+ * 后来发现记忆/消息/情绪的"键在值为空"字段也照样丢。
+ */
+export type RecordKeys = {
+  text?: string;
+  time?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  title?: string;
 };
 
 /* ────────────────────────── 纯工具 ────────────────────────── */
