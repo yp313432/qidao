@@ -1,4 +1,5 @@
 import { isNativeApp } from "./platform";
+import { kvGet, kvRemove, kvSetJSON } from "@/lib/data/local-kv";
 import type { McpOAuth, McpServer } from "./types";
 
 /**
@@ -327,7 +328,7 @@ export async function planAuthorize(
     resource: d.resource,
     startedAt: Date.now(),
   };
-  localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+  kvSetJSON(PENDING_KEY, pending);
 
   const u = new URL(d.as.authorization_endpoint);
   u.searchParams.set("response_type", "code");
@@ -353,7 +354,7 @@ export async function planAuthorize(
 /** 清掉未完成的授权会话（重试 / 用户主动放弃时用） */
 export function clearPending(): void {
   try {
-    localStorage.removeItem(PENDING_KEY);
+    kvRemove(PENDING_KEY);
   } catch {
     /* 隐私模式下 localStorage 可能不可写，忽略 */
   }
@@ -391,7 +392,7 @@ export async function completeAuthorize(params: {
 
   let pending: Pending | null = null;
   try {
-    const raw = localStorage.getItem(PENDING_KEY);
+    const raw = kvGet(PENDING_KEY);
     pending = raw ? (JSON.parse(raw) as Pending) : null;
   } catch {
     pending = null;

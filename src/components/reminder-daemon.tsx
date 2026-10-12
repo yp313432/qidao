@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { resolveAiName } from "@/lib/branding";
 import { cancelNative, localNotify, registerServiceWorker, scheduleNative } from "@/lib/notify";
 import { IS_APP } from "@/lib/platform";
+import { kvGet, kvGetJSON, kvSet, kvSetJSON } from "@/lib/data/local-kv";
 import { useApp } from "@/lib/store";
 
 const LAST_KEY = "qidao:last-diary-reminder";
@@ -58,7 +59,7 @@ export function ReminderDaemon() {
       }
       let prev: number[] = [];
       try {
-        prev = JSON.parse(localStorage.getItem(SCHEDULED_KEY) ?? "[]") as number[];
+        prev = kvGetJSON<number[]>(SCHEDULED_KEY, []);
       } catch {
         prev = [];
       }
@@ -72,7 +73,7 @@ export function ReminderDaemon() {
           daily: { hour: v.hour, minute: v.minute },
         });
       }
-      localStorage.setItem(SCHEDULED_KEY, JSON.stringify([...want.keys()]));
+      kvSetJSON(SCHEDULED_KEY, [...want.keys()]);
     })();
     return () => {
       cancelled = true;
@@ -88,8 +89,8 @@ export function ReminderDaemon() {
       const dueAt = (Number.isFinite(h) ? h : 21) * 60 + (Number.isFinite(m) ? m : 0);
       if (now.getHours() * 60 + now.getMinutes() < dueAt) return;
       const today = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-      if (localStorage.getItem(LAST_KEY) === today) return;
-      localStorage.setItem(LAST_KEY, today);
+      if (kvGet(LAST_KEY) === today) return;
+      kvSet(LAST_KEY, today);
       void localNotify("栖岛", `${name} 提醒你：今天还没写日记。`);
     };
 
@@ -138,8 +139,8 @@ export function ReminderDaemon() {
         const dueAt = (Number.isFinite(h) ? h : 21) * 60 + (Number.isFinite(m) ? m : 0);
         if (minutes < dueAt) continue;
         const key = `qidao:rem:${r.id}`;
-        if (localStorage.getItem(key) === today) continue;
-        localStorage.setItem(key, today);
+        if (kvGet(key) === today) continue;
+        kvSet(key, today);
         st.fireReminder(r.id);
         // 一次性闹钟响过就标完成，免得明天又来一次
         if (r.date) st.patchReminder(r.id, { done: true });

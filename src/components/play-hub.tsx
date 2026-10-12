@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { countdown, sortDates } from "@/lib/days";
-import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/play-photos-db";
+import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/data/media";
 import { ButterflyWings, ClipStamp } from "@/components/play/note-decor";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -154,7 +154,7 @@ function TogetherCard() {
   const days = daysSince(settings.togetherSince);
 
   return (
-    <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-5 py-6">
+    <section className="aster-card relative overflow-hidden rounded-3xl border border-line px-5 py-6">
       {/* 用户："头像那个组件不加任何装饰了" —— 所以这里一个装饰都不挂 */}
 
       <div className="relative flex items-center justify-between gap-3">
@@ -267,7 +267,7 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
 
 function ShowcaseGrid() {
   return (
-    <section className="aster-card relative overflow-hidden rounded-[1.75rem] border border-line px-3 py-4">
+    <section className="aster-card relative overflow-hidden rounded-3xl border border-line px-3 py-4">
       {/*
         左上角**只留翅膀**的蝴蝶。
         用户："把他的身子，也就是那三条线给去了，飘带也去了，就留翅膀"。
@@ -346,7 +346,7 @@ function PhotoNote() {
     // 回形针要"真卡在角上"，就必须有一半**伸到卡片外面**（出画），
     // overflow-hidden 会把它裁掉，看着又变成一个躺在卡里的图标。
     // 用户原话："回形针要真卡在组件角上，后面还有个正方形色块"。
-    <section className="aster-card relative rounded-[1.5rem] border border-line p-3">
+    <section className="aster-card relative rounded-2xl border border-line p-3">
       {/* 回形针 + 它压着的那张方纸：一起骑在卡片右上角上。角度/大小按用户圈的椭圆。 */}
       <ClipStamp className="-top-3 -right-4 h-[5.25rem] w-[4.75rem] opacity-80" />
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">our photos</p>
@@ -366,7 +366,7 @@ function PhotoNote() {
               在界面里看着像没对齐的 bug。
             */}
             <span className="block -rotate-[2.5deg] rounded-xl bg-elevated p-1.5 shadow-sm transition-transform duration-300 hover:rotate-0">
-              <img src={title} alt="" className="aspect-square w-full rounded-lg object-cover" />
+              <img src={title} alt="" className="aspect-square w-full rounded-2xl object-cover" />
             </span>
           </FileButton>
           <button
@@ -443,7 +443,7 @@ function NowNote() {
   const day = now ? `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}` : "";
 
   return (
-    <section className="aster-card relative overflow-hidden rounded-[1.5rem] border border-line p-3">
+    <section className="aster-card relative overflow-hidden rounded-2xl border border-line p-3">
       <p className="relative mb-2 text-[10px] tracking-[0.22em] text-subtle uppercase">right now</p>
       <p
         className="relative font-serif text-[2.1rem] leading-none font-medium tabular-nums"

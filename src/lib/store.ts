@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { kvSetRaw } from "@/lib/data/local-kv";
 import { pushActionLog, pushRequestLog } from "@/lib/data/retention";
 import { idbStorage } from "@/lib/idb-storage";
 
@@ -1518,7 +1519,8 @@ export function applyTheme(theme: ThemeId) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", color);
   try {
-    localStorage.setItem("aster-theme", theme);
+    /** 主题属于"首屏就要用"的小键：`__root` 里那段同步脚本直接读 `aster-theme`（不能改键名） */
+    kvSetRaw("aster-theme", theme);
   } catch {
     /* ignore */
   }

@@ -657,7 +657,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => useApp.getState().setTheme(t.id)}
               className={cn(
                 "rounded-2xl border px-3 py-3 text-left",
-                settings.theme === t.id ? "border-fg" : "border-line",
+                settings.theme === t.id ? "choice-card-on" : "choice-card-off",
               )}
             >
               <span className="block text-sm font-medium">{t.label}</span>
@@ -676,7 +676,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               style={{ fontFamily: f.stack }}
               className={cn(
                 "rounded-2xl border px-3 py-2.5 text-left",
-                settings.font === f.id ? "border-fg" : "border-line",
+                settings.font === f.id ? "choice-card-on" : "choice-card-off",
               )}
             >
               <span className="block text-[13px] font-medium">{f.label}</span>
@@ -697,7 +697,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ chatFontSize: s.id })}
               className={cn(
                 "flex-1 rounded-2xl border px-2 py-2.5 text-center",
-                settings.chatFontSize === s.id ? "border-fg" : "border-line",
+                settings.chatFontSize === s.id ? "choice-card-on" : "choice-card-off",
               )}
             >
               <span className="block text-[13px] font-medium">{s.label}</span>
@@ -1147,7 +1147,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ maxTokens: o.v })}
               className={cn(
                 "rounded-2xl border px-3 py-2 text-[12px]",
-                settings.maxTokens === o.v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                settings.maxTokens === o.v ? "choice-on" : "choice-off",
               )}
             >
               {o.label}
@@ -1209,7 +1209,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentMaxParts: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxParts ?? 3) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                    (settings.segmentMaxParts ?? 3) === v ? "choice-on" : "choice-off",
                   )}
                 >
                   {v} 条
@@ -1226,7 +1226,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentMaxSentences: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxSentences ?? 2) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                    (settings.segmentMaxSentences ?? 2) === v ? "choice-on" : "choice-off",
                   )}
                 >
                   {v} 句
@@ -1243,7 +1243,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   onClick={() => patch({ segmentDelayMs: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentDelayMs ?? 1200) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                    (settings.segmentDelayMs ?? 1200) === v ? "choice-on" : "choice-off",
                   )}
                 >
                   {(v / 1000).toFixed(1)} 秒
@@ -1504,7 +1504,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeMinGapMin: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeMinGapMin ?? 40) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                  (settings.wakeMinGapMin ?? 40) === v ? "choice-on" : "choice-off",
                 )}
               >
                 {v} 分钟
@@ -1521,7 +1521,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeDailyMax: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeDailyMax ?? 8) === v ? "border-ink bg-ink text-ink-fg" : "border-line",
+                  (settings.wakeDailyMax ?? 8) === v ? "choice-on" : "choice-off",
                 )}
               >
                 {v} 条
@@ -1905,7 +1905,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   type="button"
                   onClick={() => patch({ voiceURI: v.voiceURI })}
                   className={cn(
-                    "block w-full truncate rounded-lg px-2 py-1.5 text-left text-[12px]",
+                    "block w-full truncate rounded-2xl px-2 py-1.5 text-left text-[12px]",
                     settings.voiceURI === v.voiceURI ? "bg-elevated text-fg" : "text-muted",
                   )}
                 >

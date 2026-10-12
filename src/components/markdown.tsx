@@ -18,7 +18,7 @@ function inline(text: string, key: string) {
       );
     } else {
       parts.push(
-        <code key={`${key}-c${i}`} className="rounded-sm bg-chip px-1 py-0.5 font-mono text-[0.85em]">
+        <code key={`${key}-c${i}`} className="rounded-xl bg-chip px-1 py-0.5 font-mono text-[0.85em]">
           {token.slice(1, -1)}
         </code>,
       );
@@ -43,7 +43,7 @@ export function Markdown({ text, className }: { text: string; className?: string
           return (
             <pre
               key={i}
-              className="overflow-x-auto rounded-lg bg-chip px-3 py-2.5 font-mono text-[13px] leading-5 text-fg"
+              className="overflow-x-auto rounded-2xl bg-chip px-3 py-2.5 font-mono text-[13px] leading-5 text-fg"
             >
               <code>{code.replace(/\n$/, "")}</code>
             </pre>

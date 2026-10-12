@@ -312,6 +312,48 @@ check(
   })(),
 );
 
+/* ═══════════════ ⑦ PH4：本地小键也只有一个门 ═══════════════ */
+check(
+  "⑦ 守护进程不再直接摸 localStorage（改走 lib/data/local-kv）",
+  !src("src/components/reminder-daemon.tsx").includes("localStorage") && src("src/lib/data/local-kv.ts").includes("qidao:"),
+);
+check(
+  "⑦ 除了两类**记名的例外**，全项目不再有人直连 localStorage",
+  (() => {
+    const offenders = walk("src")
+      .filter(({ text }) => /localStorage\.(getItem|setItem|removeItem)/.test(text))
+      .map(({ path }) => path.replace(/\\/g, "/"))
+      /**
+       * 两类例外（都写进了 §12 的说明）：
+       *   · `routes/__root.tsx`：首屏主题脚本，在 React 之前跑，走不了模块
+       *   · `src/plugins/**`：**冻结的插件目录**（`verify-plugin-untouched.mjs` 盯着，不许改）
+       */
+      .filter((p) => !p.endsWith("src/routes/__root.tsx") && !p.includes("/plugins/"));
+    return offenders.length === 0;
+  })(),
+);
+check(
+  "⑦ 小键读写都不抛（隐私模式/配额满也不崩界面）",
+  src("src/lib/data/local-kv.ts").includes("catch {") && src("src/lib/data/local-kv.ts").includes("return null;"),
+);
+check(
+  "⑦ 备份/恢复走真源 + 恢复前留证（不再是写进读不到的 localStorage 副本）",
+  src("src/lib/backup.ts").includes("readSnapshotForBackup") &&
+    src("src/lib/backup.ts").includes("writeSnapshotFromBackup") &&
+    src("src/lib/data/backup-io.ts").includes("pre-restore"),
+);
+
+/* ═══════════════ ⑧ PH4：媒体资产也收口到一处 ═══════════════ */
+check(
+  "⑧ 音乐/照片两个库只有 `lib/data/media.ts` 能引（D1：位置不搬、访问收口）",
+  (() => {
+    const importers = walk("src")
+      .filter(({ text }) => /from "@\/lib\/(music-db|play-photos-db)"/.test(text))
+      .map(({ path }) => path.replace(/\\/g, "/"));
+    return importers.length === 1 && importers[0].endsWith("src/lib/data/media.ts");
+  })(),
+);
+
 if (REVERSE) {
   passed = 0;
   failures = 0;

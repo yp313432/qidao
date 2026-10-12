@@ -32,7 +32,7 @@ export function AlarmOverlay() {
       <AlarmClock className="size-10 text-ink-fg/80" strokeWidth={1.5} />
       <div>
         <p className="font-serif text-4xl tracking-wide text-ink-fg">{ringing.time}</p>
-        <p className="mt-4 text-[17px] leading-7 text-ink-fg">{ringing.text}</p>
+        <p className="mt-4 text-[15px] leading-7 text-ink-fg">{ringing.text}</p>
         <p className="mt-2 text-[12px] text-ink-fg/55">{aiName} 给你设的闹钟</p>
       </div>
       <div className="flex w-full max-w-xs flex-col gap-2.5">

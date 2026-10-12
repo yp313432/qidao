@@ -1,4 +1,5 @@
-import { listTracks } from "@/lib/music-db";
+import { listTracks } from "@/lib/data/media";
+import { kvGet } from "@/lib/data/local-kv";
 import { useApp } from "@/lib/store";
 import { historyForApi } from "@/lib/chat-client";
 import { estimateTokens, prettyBytes } from "@/lib/tokens";
@@ -142,7 +143,7 @@ function bytesOfLocalStorage(): { total: number; breakdown: { key: string; bytes
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
     if (!key) continue;
-    const val = localStorage.getItem(key) ?? "";
+    const val = kvGet(key) ?? "";
     // UTF-16，按 2 字节/字符 粗算
     const bytes = (key.length + val.length) * 2;
     total += bytes;

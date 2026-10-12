@@ -114,7 +114,7 @@ export function ActionGate() {
       <div className="absolute inset-0 bg-fg/25" />
       <div
         className={cn(
-          "glass-menu relative z-10 w-full max-w-sm rounded-[2rem] px-5 py-5",
+          "glass-menu relative z-10 w-full max-w-sm rounded-3xl px-5 py-5",
           critical && "ring-2 ring-warn/50",
         )}
       >
@@ -128,7 +128,7 @@ export function ActionGate() {
           {critical ? `${current.from} 要做一件破坏性的事` : `${current.from} 想做一个操作`}
         </div>
 
-        <p className="mt-3 text-[17px] leading-7 font-medium">{current.title}</p>
+        <p className="mt-3 text-[15px] leading-7 font-medium">{current.title}</p>
 
         <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
           <p className="text-[12px] font-medium">{def?.title ?? current.permission ?? ""}</p>

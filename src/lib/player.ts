@@ -8,7 +8,7 @@ import {
   saveLyrics as dbSaveLyrics,
   type LyricsSource,
   type MusicTrack,
-} from "@/lib/music-db";
+} from "@/lib/data/media";
 import { uid } from "@/lib/utils";
 
 /**

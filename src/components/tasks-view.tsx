@@ -122,7 +122,7 @@ export function TasksView() {
                   strokeWidth={1.7}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] leading-6">{t.prompt}</p>
+                  <p className="text-[13px] leading-6">{t.prompt}</p>
                   <p className="mt-1 text-[11px] text-subtle">
                     {t.at
                       ? `一次性 · ${new Date(t.at).toLocaleString("zh-CN", { hour12: false })}`

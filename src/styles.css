@@ -1349,3 +1349,27 @@ html[data-drawer-open] .glass-nav-bar {
 .inset-back {
   top: max(0.75rem, var(--q-inset-top, env(safe-area-inset-top, 0px)));
 }
+/* ══════════════════════════════════════════════════════════════════
+   **选中态**（PH5 第二刀，2026-10）—— 一处定义、全局引用
+
+   实测：同一件事原来有 3 种写法（chips 用 `border-ink bg-ink text-ink-fg`、
+   主题/字体卡用 `border-fg`、开关用 `bg-accent`），散在 9 处。
+   现在收成两对（见 §13）：
+     · `.choice-on` / `.choice-off`        —— 文字选项（小圆角胶囊）
+     · `.choice-card-on` / `.choice-card-off` —— 带预览的卡片（只描边 + 主题色描边）
+   页面**不许**再自己拼选中样式。
+   ══════════════════════════════════════════════════════════════════ */
+.choice-on {
+  border-color: var(--aster-fg);
+  background: var(--aster-fg);
+  color: var(--aster-bg);
+}
+.choice-off {
+  border-color: var(--aster-line, rgba(127, 127, 127, 0.25));
+}
+.choice-card-on {
+  border-color: color-mix(in oklab, var(--aster-accent) 70%, transparent);
+}
+.choice-card-off {
+  border-color: var(--aster-line, rgba(127, 127, 127, 0.25));
+}

@@ -65,7 +65,10 @@ export const Route = createRootRoute({
         <HeadContent />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('aster-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+            // ⚠️ **允许的例外**（§12 的"唯一入口"）：这段在 React 之前的首屏脚本里跑，
+// 走不了模块（也没有别的办法），所以它直接读原始键 `aster-theme` ——
+// 对应的写入方在 store.ts（已经过 lib/data/local-kv 的 kvSetRaw）。
+          __html: `(function(){try{var t=localStorage.getItem('aster-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
           }}
         />
       </head>

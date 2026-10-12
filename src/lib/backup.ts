@@ -92,11 +92,19 @@ export function countData(app: Record<string, unknown>): Counts {
   };
 }
 
-/** 现在这份数据（不含密钥）。界面上显示"有多少东西"用它。 */
-export function currentData(): Record<string, unknown> {
-  if (typeof localStorage === "undefined") return {};
+/**
+ * 现在这份数据（不含密钥）。界面上显示"有多少东西"用它。
+ *
+ * ⚠️ **2026-10 修**：原来直接读 localStorage 那份副本 —— 从换 IndexedDB 那天起，
+ * 那份副本第一次写入后就被删了（平时是空的），所以这里显示的数字一直是错的。
+ * 现在按当前存储模式读**真源**（新库 → adapter；老存储 → idb-storage，它读的就是 IndexedDB）。
+ */
+export async function currentData(): Promise<Record<string, unknown>> {
+  const { readSnapshotForBackup } = await import("@/lib/data/backup-io");
+  const snap = await readSnapshotForBackup();
+  if (!snap.ok || !snap.json) return {};
   try {
-    const raw = JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}") as { state?: Record<string, unknown> };
+    const raw = JSON.parse(snap.json) as { state?: Record<string, unknown> };
     return raw.state ?? {};
   } catch {
     return {};
@@ -170,10 +178,21 @@ export function parseBackup(text: string): Parsed {
   return { ok: true, backup: b as Backup, counts: countData(b.app) };
 }
 
-/** 真写进去。写完要刷新页面，store 才会读到新数据。 */
-export function applyBackup(backup: Backup): void {
-  localStorage.setItem(STORE_KEY, JSON.stringify({ state: backup.app, version: 1 }));
-  window.location.reload();
+/**
+ * 真写进去（恢复）。写完刷新页面，store 才会读到新数据。
+ *
+ * ⚠️ **2026-10 修**：原来直接写 localStorage 副本 —— 而读的时候 IndexedDB 优先，
+ * 所以**写进去会被老那份盖掉 → 恢复等于没生效**（用户以为恢复了）。
+ * 现在走 `lib/data/backup-io`：按当前模式写真源，并且**先把现状留一份**
+ * （`aster-app::pre-restore-<时间>`，恢复错了还能翻回去）。
+ */
+export async function applyBackup(backup: Backup): Promise<{ ok: boolean; why?: string }> {
+  const { writeSnapshotFromBackup } = await import("@/lib/data/backup-io");
+  const json = JSON.stringify({ state: backup.app, version: 1 });
+  const r = await writeSnapshotFromBackup(json);
+  if (!r.ok) return { ok: false, why: r.why };
+  window.setTimeout(() => window.location.reload(), 600);
+  return { ok: true };
 }
 
 /** 把字节数说成人话。 */

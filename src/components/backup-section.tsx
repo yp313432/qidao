@@ -47,7 +47,18 @@ export function BackupSection({ bare = false }: { bare?: boolean } = {}) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (hydrated) setNow(countData(currentData()));
+    /**
+     * ⚠️ `currentData()` 现在是**异步**的（2026-10）：它要去读真源
+     * （新库 / 老 IndexedDB），不再读那份早就被删掉的 localStorage 副本。
+     */
+    if (!hydrated) return;
+    let alive = true;
+    void currentData().then((d) => {
+      if (alive) setNow(countData(d));
+    });
+    return () => {
+      alive = false;
+    };
   }, [hydrated]);
 
   function doExport() {
@@ -77,7 +88,7 @@ export function BackupSection({ bare = false }: { bare?: boolean } = {}) {
       {!bare && (
         <h2 className="px-1 pb-2 text-[13px] font-medium tracking-wide text-muted">数据</h2>
       )}
-      <div className="aster-card rounded-[1.6rem] border border-line px-4 py-4">
+      <div className="aster-card rounded-3xl border border-line px-4 py-4">
         <p className="text-[13px] font-medium">备份 / 恢复</p>
         <p className="mt-1 text-[12px] leading-5 text-muted">
           现在有：{now ? describe(now) : "读取中…"}
@@ -137,7 +148,19 @@ export function BackupSection({ bare = false }: { bare?: boolean } = {}) {
                 <div className="mt-2.5 flex gap-2">
                   <button
                     type="button"
-                    onClick={() => applyBackup(parsed.backup!)}
+                    onClick={() => {
+                    /**
+                     * ⚠️ 恢复现在是异步的（写真源 + 先留证）。**失败必须说出来** ——
+                     * 以前失败是静默的（写进一个读不到的地方，用户以为恢复了）。
+                     */
+                    setBusy(true);
+                    void applyBackup(parsed.backup!).then((r) => {
+                      if (!r.ok) {
+                        setFlash(`恢复失败：${r.why ?? "未知原因"}（你现在的数据没动）`);
+                        setBusy(false);
+                      }
+                    });
+                  }}
                     className="flex-1 rounded-xl bg-ink py-2.5 text-[12px] font-medium text-ink-fg"
                   >
                     确认覆盖，用这个备份
