@@ -97,6 +97,12 @@ const LEGACY = {
       title: "对齐检查",
       createdAt: 1000,
       updatedAt: 3000,
+      /**
+       * ⚠️ **真机第三次报错就是这两个**（`对话内容 → chat_xxx：原始多了 pinned/incognito`）：
+       * 对话上没建模的字段必须原样带走再原样还回去。
+       */
+      pinned: true,
+      incognito: false,
       messages: [
         { id: "m1", role: "user", content: "在吗", createdAt: 1000 },
         {

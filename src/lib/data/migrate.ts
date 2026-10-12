@@ -282,9 +282,15 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
        * 没有才用消息最大时间兜底。
        */
       updatedAt: pickUpdatedAt(c, Math.max(0, ...times)),
-      ...(typeof c.summary === "string" ? { summary: c.summary } : {}),
+      ...(Object.prototype.hasOwnProperty.call(c, "summary") ? { summary: String(c.summary ?? "") } : {}),
       msgCount: convMsgs.length,
       ...(times.length > 0 ? { lastAt: Math.max(...times) } : {}),
+      /**
+       * ⚠️ **必须带上**：对话上没建模的字段（真机上是 `pinned` / `incognito`）——
+       * 2026-10 真机第三次报错就是这句："对话内容 → chat_xxx：原始多了 pinned/incognito"。
+       * （上一轮我"恢复干净状态"时把这段一起回退了，所以它一直是缺的。）
+       */
+      ...(convExtra ? { extra: convExtra } : {}),
     });
   }
 
@@ -592,6 +598,8 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     ...(c.summary ? { summary: c.summary } : {}),
+    /** ⚠️ 对话上没建模的字段原样还回去（真机上是 pinned / incognito） */
+    ...((c as ConversationRecord & { extra?: Loose }).extra ?? {}),
     messages: (byConv.get(c.id) ?? [])
       .slice()
       .sort((a, b) => a.at - b.at)
