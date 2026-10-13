@@ -34,6 +34,9 @@ const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(mi
  *
  * 只在**句末标点**后面切（并把紧随的引号/括号带上），所以不会把一个句子拦腰截断。
  * 每 `max` 句合成一条 —— 不是"一句一条"，否则长回复会被拆成一堆碎片。
+ *
+ * ⚠️ **不切 `.`**（英文句点）：小数（1.5）、网址（a.com）、缩写（Mr.）都会被它误伤，
+ *    而中文回复里本来也用不上英文句点当断句。英文句末用 `!` `?` `…` 一样能断。
  */
 function splitSentences(text: string, max: number): string[] {
   const t = text.trim();
@@ -43,6 +46,54 @@ function splitSentences(text: string, max: number): string[] {
   if (clean.length <= max) return [t];
   const out: string[] = [];
   for (let i = 0; i < clean.length; i += max) out.push(clean.slice(i, i + max).join(""));
+  return out;
+}
+
+/**
+ * 把正文切成"**整块不许动**"和"可以再切"的两种块。
+ *
+ * 为什么必须分：代码块（``` 围起来的）和列表一旦被按标点切开，排版就散了 ——
+ *   用户要的是"像真人发消息"，不是把一段代码拆成三个气泡。
+ * 判据很土但可靠：**行首遇 ``` 进代码块，遇另一个 ``` 出来**；其余行按空行分段。
+ */
+function blocks(raw: string): { text: string; atomic: boolean }[] {
+  const lines = raw.split("\n");
+  const out: { text: string; atomic: boolean }[] = [];
+  let buf: string[] = [];
+  let inFence = false;
+  const flush = (atomic: boolean) => {
+    const t = buf.join("\n").trim();
+    if (t) out.push({ text: t, atomic });
+    buf = [];
+  };
+  for (const line of lines) {
+    const isFence = /^\s*```/.test(line);
+    if (isFence && !inFence) {
+      flush(false); // 前面那些普通文字先收掉
+      inFence = true;
+      buf.push(line);
+      continue;
+    }
+    if (isFence && inFence) {
+      buf.push(line);
+      inFence = false;
+      flush(true); // 整个代码块作为**一块**，一个字都不切
+      continue;
+    }
+    buf.push(line);
+  }
+  flush(inFence); // 没闭合的代码块也当一块（宁可不动，也别切坏）
+  return out;
+}
+
+/** 一个"可切"块 → 按段落 → 按标点，合成 1..n 条 */
+function splitTextBlock(text: string, maxSentences: number): string[] {
+  const paras = text
+    .split(/\n\s*\n/) // 空行分段（最常见的"他本来就分了段"）
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  for (const para of paras) out.push(...splitSentences(para, maxSentences));
   return out;
 }
 
@@ -62,22 +113,36 @@ export function splitSegments(
   /** 只留一条 = 等于没开分段，直接原样返回（避免无意义地动原文） */
   if (maxParts <= 1) return [text];
 
-  /** ① 先按分隔符切（整行 `|||` 和行内 `|||` 都算） */
-  let parts = text
-    .split(SEGMENT_SEP)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  /** ② 再按"每条最多几句"细切 */
-  const finer: string[] = [];
-  for (const p of parts) finer.push(...splitSentences(p, maxSentences));
-  parts = finer;
-
-  /** ③ 超过上限：多的并进最后一段（**丢字是最不能接受的失败**） */
-  if (parts.length > maxParts) {
-    return [...parts.slice(0, maxParts - 1), parts.slice(maxParts - 1).join("")];
+  /**
+   * **分段口径（2026-10 改，用户提的）**：
+   * 用户原话："要不改成一句话一行那种，你们 ai 应该会用标点吧，按标点分句。"
+   *
+   * 老办法只认"他打了 `|||`"→ 他不打就不分段 → **表现就是时好时坏**（用户报的 5 号）。
+   * 现在改成**三级**，越靠前越优先：
+   *   ① 他自己打的 `|||`（认，但不再依赖）
+   *   ② **段落**（空行）—— 他本来分了段就照段落来
+   *   ③ **标点分句**（`。！？!?…`）—— 每 `maxSentences` 句合成一条
+   * 且：**代码块整块不切**（切了排版就散）。
+   */
+  let parts: string[] = [];
+  if (text.includes(SEGMENT_SEP)) {
+    parts = text
+      .split(SEGMENT_SEP)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else {
+    for (const b of blocks(text)) {
+      if (b.atomic) parts.push(b.text);
+      else parts.push(...splitTextBlock(b.text, maxSentences));
+    }
   }
-  return parts.length ? parts : [text];
+  if (parts.length === 0) return [text];
+
+  /** 超过上限：多的并进最后一段（**丢字是最不能接受的失败**） */
+  if (parts.length > maxParts) {
+    return [...parts.slice(0, maxParts - 1), parts.slice(maxParts - 1).join("\n\n")];
+  }
+  return parts;
 }
 
 /** 这段正文里有没有分隔符（流式期间要用它判断"第一段写完了没"） */

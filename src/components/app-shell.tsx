@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
@@ -16,6 +16,7 @@ import { hidesNav } from "@/lib/nav-tree";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
+import { useApp } from "@/lib/store";
 
 const TABS = MAIN_TABS;
 
@@ -51,6 +52,9 @@ export function AppShell() {
    * 正确做法是根本不让它消失。
    */
   const hideNav = hidesNav(pathname);
+  /** 这次启动是不是靠"安全带镜子"把设置救回来的（是的话界面要如实说一句） */
+  const [restoredFromMirror, setRestoredFromMirror] = useState(false);
+  const hydrated = useApp((s) => s.hydrated);
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。
@@ -60,6 +64,35 @@ export function AppShell() {
   useEffect(() => {
     void initShell();
   }, []);
+
+  /**
+   * **启动自检恢复**（2026-10，起因见 `lib/data/safety.ts` 的事故复盘）。
+   *
+   * 如果这次读出来的设置"像被重置了"（没密钥、没地址、没模型、没背景、没自定义名字），
+   * 而安全带的镜子里有一份**有料**的 → 就用镜子那份把它补回来，并**如实告诉用户**
+   * （不静默：静默恢复会让人以为自己没丢过，反而更糟）。
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    (async () => {
+      try {
+        const [{ readSettingsMirror, mirrorIsBetter, pushSnapshot }, st] = await Promise.all([
+          import("@/lib/data/safety"),
+          import("@/lib/store"),
+        ]);
+        const cur = st.useApp.getState().settings as unknown as Record<string, unknown>;
+        const mirror = await readSettingsMirror();
+        if (mirrorIsBetter(mirror, cur)) {
+          st.useApp.setState({ settings: { ...(cur ?? {}), ...(mirror ?? {}) } } as never);
+          setRestoredFromMirror(true);
+        }
+        /** 每次启动压一份滚动快照（最近 3 份）——真出事了能往回翻 */
+        void pushSnapshot(JSON.stringify({ state: st.useApp.getState(), at: Date.now() }));
+      } catch {
+        /* 安全带失败不该影响启动 */
+      }
+    })();
+  }, [hydrated]);
 
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，

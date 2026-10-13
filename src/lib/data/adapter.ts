@@ -162,19 +162,36 @@ export async function loadLegacyShaped(): Promise<ReadResult<string>> {
     report: { from: "db", counts: {}, checksums: {}, anyMismatch: false, notes: [] },
   } as unknown as MigrationPlan;
   const legacy = roundTrip(fakePlan);
+  /**
+   * ⚠️ **每个集合都必须给出来（空就空数组）** —— 2026-10 真机红屏抓到的：
+   * `roundTrip` 对**空集合会省掉键**（`worldBook: []` → 键不存在），
+   * 而页面里有 `worldBook.length` 这种读法 → `Cannot read properties of undefined (reading 'length')`
+   * （用户截图：AI 概览 →「怎么和你相处」点进去直接是报错页）。
+   * 所以这里**显式把每个集合都兜成数组**，一个都不漏。
+   */
+  const arr = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+  const logs = out[TABLES.logs] as { kind?: string; payload?: unknown }[];
+  const settingsBag = (fakePlan.settings ?? {}) as Record<string, unknown>;
   const merged: LegacyState = {
     ...legacy,
-    ...(fakePlan.settings ?? {}),
-    conversations: legacy.conversations ?? state.conversations ?? [],
-    actionLog: (out[TABLES.logs] as { payload?: Record<string, unknown> }[])
-      .filter((l) => (l as { kind?: string }).kind === "action")
-      .map((l) => (l.payload ?? {}) as Record<string, unknown>),
-    requestLog: (out[TABLES.logs] as { payload?: Record<string, unknown> }[])
-      .filter((l) => (l as { kind?: string }).kind === "request")
-      .map((l) => (l.payload ?? {}) as Record<string, unknown>),
-    emotionEvents: legacy.emotionEvents ?? state.emotionEvents,
-    reminders: legacy.reminders ?? state.reminders,
-    tasks: legacy.tasks ?? state.tasks,
+    ...settingsBag,
+    conversations: arr(legacy.conversations),
+    memories: arr(legacy.memories),
+    worldBook: arr(legacy.worldBook),
+    diary: arr(legacy.diary),
+    moments: arr(legacy.moments),
+    letters: arr(legacy.letters),
+    docs: arr(legacy.docs),
+    todos: arr(legacy.todos),
+    dates: arr(legacy.dates),
+    emotionEvents: arr(legacy.emotionEvents),
+    reminders: arr(legacy.reminders),
+    tasks: arr(legacy.tasks),
+    customWords: arr(settingsBag.customWords),
+    stickerLib: arr(settingsBag.stickerLib),
+    stickerGroups: (Array.isArray(settingsBag.stickerGroups) ? (settingsBag.stickerGroups as string[]) : []) as string[],
+    requestLog: arr(logs.filter((l) => l.kind === "request").map((l) => l.payload ?? {})),
+    actionLog: arr(logs.filter((l) => l.kind === "action").map((l) => l.payload ?? {})),
   };
   hydrated = true;
   return { ok: true, value: JSON.stringify({ state: merged, version: 1 }) };

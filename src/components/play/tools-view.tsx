@@ -4,9 +4,7 @@ import {
   CalendarHeart,
   ChevronRight,
   ListChecks,
-  Timer,
-  Gamepad2,
-} from "lucide-react";
+  Timer } from "lucide-react";
 import { SceneBackdrop } from "@/components/background-layer";
 import { PlayHeader } from "@/components/play-header";
 import { countdown, sortDates } from "@/lib/days";
@@ -56,16 +54,12 @@ export function ToolsView() {
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          {/* 小游戏：整行入口（里面装着五子棋和真心话） */}
-          <ToolCard
-            to="/play/games"
-            title="小游戏"
-            desc="五子棋 · 真心话"
-            icon={<Gamepad2 className="size-5" strokeWidth={1.6} />}
-            tone="from-amber-200/50 via-transparent to-rose-200/25"
-            wide
-          />
-
+          {/*
+            ⚠️ 这里原来有一张「小游戏」卡（`to="/play/games"`）——**已经删掉**（2026-10）。
+            用户原话："小游戏跑到小日子里去了。"
+            真相：小游戏在**玩乐首页**有自己的分区（`/play/games`），不该在「小日子」里再列一次
+            —— 两个 hub 各列各的，才叫"一处归属"。
+          */}
           <ToolCard
             to="/play/days"
             title="重要日子"

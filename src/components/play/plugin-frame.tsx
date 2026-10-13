@@ -138,6 +138,46 @@ export function PluginFrame({
   const loadedRef = useRef(false);
 
   /**
+   * **让"内容比屏幕短"的插件别顶在上面**（2026-10 用户报的 3 号：
+   * "时感整体靠上，往下挪挪，上面铺满、下面空着一片"）。
+   *
+   * 实测（宿主探针读到的内部布局）：
+   *   `MAIN > SECTION > DIV.border-b(41px)` + `DIV.flex-1.overflow-y-auto(673px)`
+   *   —— 内容只有几张卡，全挤在 673px 的**顶部**，下面一大片空。
+   * 而它是**打包好的产物**（`public/shigan/assets/*.css` 哈希名），改它的源码不现实，
+   * 所以按用户选的路子 **1：宿主侧注入一小段 CSS**（同源才能注入，跨源绝对不碰）。
+   *
+   * ⚠️ **只对"本地副本 + 时感"生效**（`local && /shigan/`）：别的插件是 canvas 应用，
+   *    硬套"垂直居中"会把它们的画面挤歪。以后哪个插件也有这毛病，在这里加一行白名单。
+   * ⚠️ 用 `safe center`：内容**长**的时候不会把顶部的字裁掉（不安全居中才会）。
+   */
+  useEffect(() => {
+    if (!local || !/shigan/i.test(url)) return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      const el = document.getElementById("plugin-frame") as HTMLIFrameElement | null;
+      const doc = el?.contentDocument;
+      if (doc?.head && doc.body) {
+        if (!doc.getElementById("qidao-plugin-fit")) {
+          const style = doc.createElement("style");
+          style.id = "qidao-plugin-fit";
+          style.textContent = `
+            /* 宿主注入（时感）：内容比可视区短时垂直居中，别全顶在上面 */
+            main > section > div.overflow-y-auto { display: flex; flex-direction: column; justify-content: safe center; padding-block: 1.25rem; }
+            main > section > div.overflow-y-auto > * { flex: 0 0 auto; }
+          `;
+          doc.head.appendChild(style);
+        }
+        window.clearInterval(timer);
+        return;
+      }
+      if (tries > 24) window.clearInterval(timer); // 最多试 ~4 秒，之后不管了
+    }, 160);
+    return () => window.clearInterval(timer);
+  }, [local, url]);
+
+  /**
    * 判断"到底打开了没有"。
    *
    * 踩过四次，前三次的结论都是错的 —— 记下来，别再回头：

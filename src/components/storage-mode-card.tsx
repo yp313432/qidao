@@ -27,11 +27,14 @@ export function StorageModeCard() {
   const [preview, setPreview] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  /** 存储自检结果（两份各有多少东西）——见 lib/data/selfcheck.ts */
+  const [check, setCheck] = useState<Awaited<ReturnType<typeof import("@/lib/data/selfcheck").storageSelfCheck>> | null>(null);
 
   useEffect(() => {
     setMode(storageMode());
     setNote(readMigratedNote());
     void previewMigration().then(setPreview);
+    void import("@/lib/data/selfcheck").then((m) => m.storageSelfCheck()).then(setCheck);
   }, []);
 
   const total = preview ? Object.values(preview).reduce((n, v) => n + v, 0) : 0;
@@ -129,6 +132,36 @@ export function StorageModeCard() {
             </button>
           )}
         </div>
+
+        {/*
+          **存储自检**（2026-10）：把两套存储的真实状态摆出来。
+          起因：用户真机上"打开就变初始页"时，界面上看不出是哪一份空了/读失败了，
+          只能靠点一点试 —— 这张表让下一次一眼定位（也让我排障不用猜）。
+        */}
+        <details className="mt-3 rounded-2xl border border-line bg-chip/40 px-3 py-2">
+          <summary className="cursor-pointer text-[12px] text-muted">存储自检（两份各有多少东西）</summary>
+          {check ? (
+            <ul className="mt-2 space-y-1 text-[11px] leading-4 text-muted">
+              <li>
+                · {check.legacy.name}：<span className={check.legacy.empty ? "text-warn" : "text-fg"}>{check.legacy.detail}</span>
+              </li>
+              <li>
+                · {check.modern.name}：<span className={check.modern.empty ? "text-warn" : "text-fg"}>{check.modern.detail}</span>
+              </li>
+              <li>
+                · 上次写入：{check.lastWriteAt ? new Date(check.lastWriteAt).toLocaleString() : "（没记）"}
+              </li>
+              <li>
+                · 安全带：{check.mirror.has ? `有设置镜子（${check.mirror.bytes} 字节）` : "还没抄到"}
+                {check.snapshots.length > 0 ? ` · 快照 ${check.snapshots.length} 份` : ""}
+              </li>
+              {check.readFailed && <li className="text-warn">· 这次启动读过失败：{check.lastFailure || "（原因没记）"}</li>}
+              <li className="pt-0.5">{check.verdict}</li>
+            </ul>
+          ) : (
+            <p className="mt-2 text-[11px] text-subtle">体检中…</p>
+          )}
+        </details>
 
         {msg && <p className="mt-2.5 text-[11px] leading-4 text-muted">{msg}</p>}
         <p className="mt-2 text-[11px] leading-4 text-subtle">

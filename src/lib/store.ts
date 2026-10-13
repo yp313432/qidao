@@ -1615,3 +1615,30 @@ export function applyAppearance(settings: Settings) {
   // 文字被强制改色了，弹层底色也得跟着翻，否则白底白字
   root.style.setProperty("--aster-menu", menuFillFor(color));
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   **数据安全带**（2026-10）：设置一变就抄两份
+   （小份进 localStorage、整份进独立库 `qidao-safety` —— 见 `lib/data/safety.ts`）
+   起因：真机上"搬家后设的背景/模型/密钥"只存在新存储那一份，那份空了就全丢。
+   ⚠️ 节流 1.5 秒：设置页拖滑块时不要每秒写十几次。
+   ══════════════════════════════════════════════════════════════════ */
+if (typeof window !== "undefined") {
+  let lastMirror = 0;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  useApp.subscribe((s) => {
+    const now = Date.now();
+    const run = () => {
+      lastMirror = Date.now();
+      void import("@/lib/data/safety").then((m) => m.mirrorSettings(s.settings as unknown as Record<string, unknown>));
+    };
+    if (now - lastMirror > 1500) {
+      run();
+      return;
+    }
+    if (pending) return;
+    pending = setTimeout(() => {
+      pending = null;
+      run();
+    }, 1500);
+  });
+}

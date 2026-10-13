@@ -237,15 +237,19 @@ check("⑤ 坏档留证（不静默丢）", db.includes("preserveCorrupt") && db
 check("⑤ 单条写（改一条只写一条）", db.includes("export async function writeRecord") && db.includes("s.put(record, key"));
 check("⑤ 二进制用 Blob（不是 base64 常住）", db.includes("dataUrlToBlob") && db.includes("blobToDataUrl") && db.includes("new Blob("));
 check(
-  "⑤ 数据层内部只有一处开库（唯一的门）；旧的三处列在待搬清单里（PH4）",
+  "⑤ 数据层内部只有一处开**主**库（db.ts）；安全带那个库是**故意**独立的（不同库名才躲得过同一个故障）",
   (() => {
-    const openings = walk("src").filter(({ path, text }) => text.includes("indexedDB.open("));
-    const newLayer = openings.filter(({ path }) => path.replace(/\\/g, "/").includes("/lib/data/"));
-    const legacy = openings
+    const files = walk("src/lib/data")
+      .filter(({ text }) => text.includes("indexedDB.open("))
       .map(({ path }) => path.replace(/\\/g, "/").split("/").pop())
-      .filter((n) => !["db.ts"].includes(n))
       .sort();
-    return newLayer.length === 1 && newLayer[0].path.replace(/\\/g, "/").endsWith("lib/data/db.ts") && legacy.includes("idb-storage.ts");
+    return (
+      files.length === 2 &&
+      files[0] === "db.ts" &&
+      files[1] === "safety.ts" &&
+      src("src/lib/data/schema.ts").includes('DATA_DB = "qidao"') &&
+      src("src/lib/data/safety.ts").includes('SAFETY_DB = "qidao-safety"')
+    );
   })(),
 );
 

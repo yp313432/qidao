@@ -74,12 +74,19 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!--
+          ⚠️ `windowSoftInputMode="adjustResize"` **必须写**（2026-10 用户报的 bug：
+          "打字对话框不起来，看不见字"）——不写这一条，系统默认不缩 WebView，
+          键盘弹起时输入框就留在键盘后面。网页侧配套：viewport 加
+          `interactive-widget=resizes-content`（见 `src/routes/__root.tsx`）。
+        -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <intent-filter>
