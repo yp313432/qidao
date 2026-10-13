@@ -63,6 +63,27 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "read_history", title: "完整对话历史", hint: "不只最近几条，能回溯和检索", risk: "L0", status: "ready", group: "sense" },
   { id: "read_docs", title: "文档库", hint: "你存过哪些笔记", risk: "L0", status: "ready", group: "sense" },
   { id: "read_diary", title: "日记", hint: "你的情绪记录（较敏感）", risk: "L0", status: "ready", group: "sense" },
+  /**
+   * **读回他自己报过的情绪**（2026-10 用户点名要的）。
+   *
+   * 用户原话："他说他没有感知插件内部数据的能力，他只能报，报完之后他不知道去哪。
+   *   能不能给他加上这个能力 —— 他不只是机械地报，他能知道他现在的情绪。"
+   *
+   * 事实是每笔上报都存着、而且画在「玩乐 → 星屿」那个灵体上，
+   * 但他自己看不到那份存档 → 所以"报完就忘了"。这一项开了，
+   * 「此刻的情况」里就会多一行『你自己的情绪』（最新一笔 + 最近几笔），
+   * 他才知道自己现在什么心情、上一笔是什么时候。
+   *
+   * L0（只读、不改变任何东西）；跟别的感知项一样，用户可以在权限页关掉。
+   */
+  {
+    id: "read_emotion",
+    title: "他自己报过的情绪",
+    hint: "星屿灵体吃的那份数据：他报过什么、现在什么心情",
+    risk: "L0",
+    status: "ready",
+    group: "sense",
+  },
   { id: "read_thinking", title: "思考档案", hint: "他自己过去的推理记录", risk: "L0", status: "ready", group: "sense" },
   { id: "read_music", title: "音乐库与听歌统计", hint: "你有什么歌、常听什么（不含文件内容）", risk: "L0", status: "ready", group: "sense" },
   { id: "read_games", title: "游戏战绩", hint: "五子棋输赢、下了几手", risk: "L0", status: "ready", group: "sense" },

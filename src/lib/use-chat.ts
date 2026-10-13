@@ -25,6 +25,7 @@ import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
 import { partsFor } from "@/lib/segment";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
+import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { uid } from "@/lib/utils";
@@ -286,6 +287,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
       let content = "";
       /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
       let hadContent = false;
+      /** 面包屑用：思考/正文"刚开始"各记一次就够，别每帧都记 */
+      let hadThinking = false;
       let usage: ChatMessage["usage"];
       let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
 
@@ -451,10 +454,17 @@ export function useChatStream(opts: UseChatOpts = {}) {
         if (d.usage) usage = d.usage;
         if (d.thinking) {
           thinking += d.thinking;
+          if (!hadThinking) {
+            hadThinking = true;
+            crumb("chat", "思考开始到了");
+            setPhase("正在思考");
+          }
           schedule();
         }
         if (d.content) {
+          if (!hadContent) crumb("chat", "正文开始到了");
           hadContent = true;
+          setPhase("正在写回复");
           content += d.content;
           schedule();
         }
@@ -530,6 +540,16 @@ export function useChatStream(opts: UseChatOpts = {}) {
          * 放在 `onRound` 里而不是循环外，是因为**只有真的调了工具**才需要过渡。
          */
         const roundTextStart = { at: 0 };
+        /**
+         * **崩溃面包屑**：把"这一轮在干什么"记下来（见 `lib/breadcrumbs.ts`）。
+         * 用户报的"卡住然后闪退"在浏览器里复现不出来 —— 有了这几行，
+         * 真机崩了之后能在「我的 → 环境自检」里看到"崩在哪一步、当时上下文多大"。
+         */
+        crumb(
+          "chat",
+          `发起请求：上下文 ${JSON.stringify(withSummary).length} 字 · 历史 ${history.length} 条 · 工具 ${kindsSent.length} 个`,
+        );
+        setPhase("等模型回复");
         const result = await runToolLoop({
           send,
           baseMessages: withSummary,
@@ -546,6 +566,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
               round,
               label: `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
             });
+            /** 面包屑：动手那一步也要留痕（用户报"报情绪的时候卡退"就是这一类时刻） */
+            crumb("action", `第 ${round} 步：${calls.map((c) => c.name).join("、")}`);
+            setPhase(`执行动作（${calls.map((c) => c.name).join("、")}）`);
           },
           onRound: (r) => {
             state.rounds.push(r);

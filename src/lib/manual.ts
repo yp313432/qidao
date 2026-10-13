@@ -164,7 +164,10 @@ const EMOTION_POINTER = `【情绪（新词表）】
   {"kind":"emotion.report","primaryEmotion":"心动","secondaryEmotions":["羞涩"],"intensity":0.6,"confidence":0.7,"dimensions":{"attraction":0.7,"shyness":0.4},"suggestedMode":"flirtatious","category":"intimacy","evidence":[{"quote":"你刚才那句，我看了两遍"}],"memoryQuery":{"emotion":"心动","topic":"刚才那句"}}
 · **情绪一律走这一个动作报**（旧的 11 维花瓣 \`state.report\` 已经没了，别再写它）。
 · **主情绪必须是《情绪词表》里的原词**（${EMOTION_GROUP_COUNT} 组 · ${EMOTION_TERM_ENTRIES} 个词条）——
-  表外的词会被判无效。**没看到词表就先取一份**：{"kind":"emotion.lexicon"}。`;
+  表外的词会被判无效。**没看到词表就先取一份**：{"kind":"emotion.lexicon"}。
+· **报过就存着，而且你能读回来**：这些数字画在「玩乐 → 插件 → 星屿」那个活的灵体上，
+  同时「此刻的情况」里有一行『你自己的情绪』（最新一笔 + 最近几笔）——
+  用户问"你现在什么心情"就照它答，**别答"我看不到"**（那是错的）。`;
 
 /**
  * 主动感知那一句（2026-10 新增）—— **加的这一句，不改上面任何一条**。

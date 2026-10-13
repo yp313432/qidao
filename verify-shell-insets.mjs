@@ -161,7 +161,10 @@ check(
   "④ 网页那份兜底只写 `--q-ime-bottom-web`（不跟原生那个变量抢）",
   keyboardSrc.includes("--q-ime-bottom-web") && !keyboardSrc.includes("setProperty('--q-ime-bottom',"),
 );
-check("④ 外壳挂载时真的挂上了监听、卸载时拆掉", appShell.includes("return installKeyboardInset()"));
+check(
+  "④ 外壳挂载时真的挂上了监听、卸载时拆掉",
+  appShell.includes("installKeyboardInset()") && /stopKeyboard\(\)/.test(appShell),
+);
 check(
   "④ **对话框**自己让位（外壳下内边距 = max(原生, 网页)）",
   appShell.includes('paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))"'),
@@ -185,8 +188,8 @@ check(
   keyboardSrc.includes("root.dataset.keyboard") && keyboardSrc.includes("nativeIme"),
 );
 check(
-  "④ 对话框用**现成玻璃** `.glass-menu`（不自己造底色 —— 上一版浅底浅字看不见）",
-  composerSrc.includes('className="glass-menu') && !/className="[^"]*composer-panel/.test(composerSrc),
+  "④ 对话框用**现成玻璃**（`.glass-panel`：半透明 + 模糊，不自己造底色）",
+  composerSrc.includes('className="glass-panel') && !/className="[^"]*composer-panel/.test(composerSrc),
 );
 /**
  * ⚠️ **键盘高度必须原生读**（2026-10 第二次修）：

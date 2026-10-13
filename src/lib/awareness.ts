@@ -1,6 +1,6 @@
 import { ACTION_PERMISSION } from "@/lib/action-meta";
 import type { ChatContext } from "@/lib/chat-client";
-import { moodDisplay } from "@/lib/emotion-lexicon";
+import { emotionModeLabel, moodDisplay } from "@/lib/emotion-lexicon";
 import { READINGS } from "@/lib/learn-data";
 import { MODELS } from "@/lib/models";
 import { permissionDef } from "@/lib/permissions";
@@ -120,6 +120,60 @@ export function buildAwarenessItems(): AwarenessItem[] {
         ? recentMoments.join(" ／ ")
         : "（还没有动态 —— 用户可以自己发；你也可以用 moment.post 发一条）",
     });
+  }
+
+  /**
+   * **他自己的情绪**（2026-10 用户点名要的）。
+   *
+   * 用户原话："他说他没有感知插件内部数据的能力，他只能报，报完之后他不知道去哪。
+   *   能不能给他加上这个能力 —— 他不只是机械地报，他能知道他现在的情绪。"
+   *
+   * 每一笔 `emotion.report` 都存进 `emotionEvents`，并且画在
+   * 「玩乐 → 插件 → 星屿」那个活的灵体上（映射在
+   * `plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`）。
+   * 但**他自己一直看不到那份存档** → 报完就"忘了"，用户问他"你现在什么心情"
+   * 他只能答"我看不到"。这一行就是把存档**读回给他**：
+   *   · 最新一笔：主情绪（+ 次情绪）· 强度 · 置信度 · 档位 · 多久之前
+   *   · 最近几笔的轨迹（只有主情绪 + 相对时间，别把证据链塞进来）
+   * 口径跟 `wake-prompt.ts` 的心情快照**同源**（主情绪 + 强度），但这里更全一点，
+   * 因为这是"给他看的此刻状态"，那条是"后台开口前的一句话"。
+   *
+   * 闸门：`read_emotion`（L0，用户可在权限页关掉）。
+   */
+  if (canRead("read_emotion")) {
+    const list = st.emotionEvents ?? [];
+    const ago = (at: number) => {
+      const min = Math.max(0, Math.round((Date.now() - at) / 60_000));
+      if (min < 1) return "刚刚";
+      if (min < 60) return `${min} 分钟前`;
+      const h = Math.round(min / 60);
+      return h < 24 ? `${h} 小时前` : `${Math.round(h / 24)} 天前`;
+    };
+    const last = list[0];
+    if (last) {
+      const head =
+        `${last.primaryEmotion}${last.secondaryEmotions?.length ? `（还有 ${last.secondaryEmotions.join("、")}）` : ""}` +
+        ` · 强度 ${Math.round(Number(last.intensity ?? 0) * 100)}% · 置信度 ${Math.round(Number(last.confidence ?? 0) * 100)}%` +
+        ` · ${emotionModeLabel(last.suggestedMode)} · ${ago(last.at)}`;
+      const trail = list
+        .slice(1, 5)
+        .map((e) => `${e.primaryEmotion}（${ago(e.at)}）`)
+        .join(" → ");
+      out.push({
+        id: "read_emotion",
+        title: "你自己的情绪（你每轮报的那一笔，也画在星屿那个灵体上）",
+        text:
+          `最新：${head}。` +
+          (trail ? ` 之前的轨迹：${trail}。` : "") +
+          ` 共记了 ${list.length} 笔 —— 用户问"你现在什么心情"就照这里答，别说你看不到。`,
+      });
+    } else {
+      out.push({
+        id: "read_emotion",
+        title: "你自己的情绪（你每轮报的那一笔，也画在星屿那个灵体上）",
+        text: "（还没有上报过 —— 每轮回复的最后用 emotion.report 报一笔，就会出现在这里）",
+      });
+    }
   }
 
   if (canRead("read_thinking")) {

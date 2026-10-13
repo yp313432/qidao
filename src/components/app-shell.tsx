@@ -14,6 +14,7 @@ import { WakeDaemon } from "@/components/wake-daemon";
 import { UiEffects } from "@/components/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
+import { installBreadcrumbs } from "@/lib/breadcrumbs";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
@@ -71,7 +72,19 @@ export function AppShell() {
      * `adjustResize` 失效、可视视口也不变小，网页自己算不出来 —— 真机验证过）。
      * 这里这份是给浏览器 / iOS 用的，两边取 `max`，互不覆盖。
      */
-    return installKeyboardInset();
+    const stopKeyboard = installKeyboardInset();
+    /**
+     * **崩溃面包屑**（2026-10，见 `lib/breadcrumbs.ts`）。
+     *
+     * 用户报"卡住然后闪退"，而手机侧的崩在浏览器里复现不出来 ——
+     * 所以让它自己把"崩之前的最后一段时间"记在本地（心跳 / 长阻塞 / 报错 / 聊天节点），
+     * 重启后在「我的 → 环境自检」里能看到现场。写操作全包 try/catch，绝不影响主流程。
+     */
+    const stopCrumbs = installBreadcrumbs();
+    return () => {
+      stopKeyboard();
+      stopCrumbs();
+    };
   }, []);
 
   /**
