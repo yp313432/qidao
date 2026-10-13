@@ -38,9 +38,12 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * 手机版第一次能搜网页、能读网页正文（`CapacitorHttp` 原生发请求，绕开 WebView 跨域）。
  * → **71**（2026-11 加 `sticker.send`：他**自己发一张表情包**，用户原话
  * "他们自己就可以调用表情包，而且发的就是他的表情包格式"）。
+ * → **74**（2026-10 加**朋友圈互动**两个：`moment.comment` / `moment.like` ——
+ * 用户定的"动态空间改仿微信朋友圈：他能在我的动态下点赞、评论"；
+ * 同一个数也同步到了 `verify-tool-recall.mjs` 的 `EXPECTED_TOTAL` 与抄件）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 72;
+const EXPECTED_KIND_COUNT = 74;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。

@@ -53,7 +53,6 @@ import type {
   Todo,
   MusicEmbed,
   Moment,
-  MoodId,
   Letter,
   Memory,
   MemoryKind,
@@ -453,12 +452,24 @@ export type AppState = {
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
   clearDoneTodos: () => number;
-  /** 动态：即时心情（他或我发的） */
+  /** 动态（朋友圈）：他或我发的 */
   moments: Moment[];
   /** 他写的信 */
   letters: Letter[];
-  addMoment: (mood: MoodId, text: string, by: "ai" | "me") => void;
+  /**
+   * 发一条动态；返回 id。
+   *
+   * ⚠️ 2026-10：**不再收 mood**（心情标签退役，旧动态里那份仍在数据里、只是不显示）。
+   */
+  addMoment: (text: string, by: "ai" | "me") => string;
   deleteMoment: (id: string) => void;
+  /**
+   * 给某条动态点赞 / 取消赞（微信那颗心就是**开关**）；返回**变完之后**赞没赞。
+   * 找不到那条动态返回 false。
+   */
+  toggleMomentLike: (id: string, by: "ai" | "me") => boolean;
+  /** 在某条动态下面评论；返回新评论的 id（找不到动态返回 ""） */
+  addMomentComment: (id: string, by: "ai" | "me", text: string) => string;
   /** 他写一封新信；返回 id */
   writeLetter: (title: string, body: string) => string;
   markLetterSeen: (id: string) => void;
@@ -1308,12 +1319,60 @@ export const useApp = create<AppState>()(
         return n;
       },
 
-      addMoment: (mood, text, by) =>
+      addMoment: (text, by) => {
+        const t = text.trim();
+        if (!t) return "";
+        const id = uid("mo");
         set((s) => ({
           // 只留最近 60 条，免得本地存储被刷爆
-          moments: [{ id: uid("mo"), mood, text, at: Date.now(), by }, ...s.moments].slice(0, 60),
-        })),
+          moments: [{ id, text: t, at: Date.now(), by }, ...s.moments].slice(0, 60),
+        }));
+        return id;
+      },
       deleteMoment: (id) => set((s) => ({ moments: s.moments.filter((m) => m.id !== id) })),
+
+      /**
+       * 点赞 / 取消赞（微信那颗心是开关，所以这里做成 toggle）。
+       *
+       * ⚠️ 两种人都能用：我在界面上点、他走 `moment.like` 动作。
+       * 空集合一律**显式写成 `[]`**，不许"删掉这个键"——
+       * 页面对 `likes`/`comments` 到处 `.length`，缺键就是红屏（8 号 bug 的根因）。
+       */
+      toggleMomentLike: (id, by) => {
+        const hit = get().moments.find((m) => m.id === id);
+        if (!hit) return false;
+        const likes = hit.likes ?? [];
+        const liked = likes.some((l) => l.by === by);
+        set((s) => ({
+          moments: s.moments.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  likes: liked
+                    ? likes.filter((l) => l.by !== by)
+                    : [...likes, { by, at: Date.now() }],
+                }
+              : m,
+          ),
+        }));
+        return !liked;
+      },
+
+      /** 评论一条动态（多轮都落在这里）；返回新评论 id */
+      addMomentComment: (id, by, text) => {
+        const t = text.trim();
+        const hit = get().moments.find((m) => m.id === id);
+        if (!t || !hit) return "";
+        const cid = uid("mc");
+        set((s) => ({
+          moments: s.moments.map((m) =>
+            m.id === id
+              ? { ...m, comments: [...(m.comments ?? []), { id: cid, by, text: t, at: Date.now() }] }
+              : m,
+          ),
+        }));
+        return cid;
+      },
 
       writeLetter: (title, body) => {
         const id = uid("lt");

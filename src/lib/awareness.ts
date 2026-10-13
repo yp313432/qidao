@@ -91,6 +91,37 @@ export function buildAwarenessItems(): AwarenessItem[] {
     });
   }
 
+  /**
+   * 朋友圈（动态）—— 他必须**看得到**才谈得上评论、点赞、接着回。
+   *
+   * 用户定的两件事（"他评论/点赞要弹通知"、"评论支持多轮"）前提都在这：
+   * 每轮把**最近几条动态 + 每条的点赞/评论 + 哪条是谁发的**带上。
+   * ⚠️ "哪条是谁发的"不能省 —— 少了它他会给自己的动态点赞（用户点出过这笑话）。
+   * id 也带上：`moment.comment` / `moment.like` 靠它指定是哪一条。
+   *
+   * 闸门挂在「发布动态」那一项上（跟发/评/赞同一项，见 `action-meta.ts`）：
+   * 用户把这项设成「拒绝」→ 这里整条都不进请求（连看都不看）。
+   */
+  if (modeOf("moment_post") !== "deny") {
+    const recentMoments = st.moments.slice(0, 5).map((m) => {
+      const bits = [`${m.id}（${m.by === "me" ? "用户发的" : "你发的"}）「${excerpt(m.text, 24)}」`];
+      const likes = (m.likes ?? []).map((l) => (l.by === "me" ? "用户" : "你"));
+      if (likes.length) bits.push(`赞：${likes.join("、")}`);
+      const comments = (m.comments ?? []).map(
+        (c) => `${c.by === "me" ? "用户" : "你"}：${excerpt(c.text, 16)}`,
+      );
+      if (comments.length) bits.push(`评论：${comments.join("；")}`);
+      return bits.join(" · ");
+    });
+    out.push({
+      id: "read_moments",
+      title: "朋友圈（最近几条动态，新→旧）",
+      text: recentMoments.length
+        ? recentMoments.join(" ／ ")
+        : "（还没有动态 —— 用户可以自己发；你也可以用 moment.post 发一条）",
+    });
+  }
+
   if (canRead("read_thinking")) {
     out.push({
       id: "read_thinking",

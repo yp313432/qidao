@@ -39,7 +39,6 @@ import { Route as AppPlayLearnRouteImport } from './routes/_app/play.learn'
 import { Route as AppPlayListenRouteImport } from './routes/_app/play.listen'
 import { Route as AppPlayPlayerRouteImport } from './routes/_app/play.player'
 import { Route as AppPlayShiganRouteImport } from './routes/_app/play.shigan'
-import { Route as AppPlaySpaceRouteImport } from './routes/_app/play.space'
 import { Route as AppPlayTodoRouteImport } from './routes/_app/play.todo'
 import { Route as AppToolsIndexRouteImport } from './routes/_app/tools/index'
 import { Route as AppToolsDocsRouteImport } from './routes/_app/tools/docs'
@@ -56,6 +55,10 @@ import { Route as AppPlayPluginsEditRouteImport } from './routes/_app/play/plugi
 import { Route as AppPlayPluginsEmotionRouteImport } from './routes/_app/play/plugins/emotion'
 import { Route as AppPlayPluginsMemoryRouteImport } from './routes/_app/play/plugins/memory'
 import { Route as AppPlayPluginsShiganRouteImport } from './routes/_app/play/plugins/shigan'
+import { Route as AppPlaySpaceIndexRouteImport } from './routes/_app/play.space/index'
+import { Route as AppPlaySpaceDiaryRouteImport } from './routes/_app/play.space/diary'
+import { Route as AppPlaySpaceLettersRouteImport } from './routes/_app/play.space/letters'
+import { Route as AppPlaySpaceMomentsRouteImport } from './routes/_app/play.space/moments'
 import { Route as AppPlayToolsIndexRouteImport } from './routes/_app/play.tools/index'
 import { Route as AppPlayToolsAlarmsRouteImport } from './routes/_app/play.tools/alarms'
 import { Route as AppPlayToolsTasksRouteImport } from './routes/_app/play.tools/tasks'
@@ -209,11 +212,6 @@ const AppPlayShiganRoute = AppPlayShiganRouteImport.update({
   path: '/shigan',
   getParentRoute: () => AppPlayRoute,
 } as any)
-const AppPlaySpaceRoute = AppPlaySpaceRouteImport.update({
-  id: '/space',
-  path: '/space',
-  getParentRoute: () => AppPlayRoute,
-} as any)
 const AppPlayTodoRoute = AppPlayTodoRouteImport.update({
   id: '/todo',
   path: '/todo',
@@ -294,6 +292,26 @@ const AppPlayPluginsShiganRoute = AppPlayPluginsShiganRouteImport.update({
   path: '/plugins/shigan',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlaySpaceIndexRoute = AppPlaySpaceIndexRouteImport.update({
+  id: '/space/',
+  path: '/space/',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlaySpaceDiaryRoute = AppPlaySpaceDiaryRouteImport.update({
+  id: '/space/diary',
+  path: '/space/diary',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlaySpaceLettersRoute = AppPlaySpaceLettersRouteImport.update({
+  id: '/space/letters',
+  path: '/space/letters',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlaySpaceMomentsRoute = AppPlaySpaceMomentsRouteImport.update({
+  id: '/space/moments',
+  path: '/space/moments',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayToolsIndexRoute = AppPlayToolsIndexRouteImport.update({
   id: '/tools/',
   path: '/tools/',
@@ -339,7 +357,6 @@ export interface FileRoutesByFullPath {
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
   '/play/shigan': typeof AppPlayShiganRoute
-  '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
   '/tools/docs': typeof AppToolsDocsRoute
   '/tools/http': typeof AppToolsHttpRoute
@@ -355,10 +372,14 @@ export interface FileRoutesByFullPath {
   '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
+  '/play/space/diary': typeof AppPlaySpaceDiaryRoute
+  '/play/space/letters': typeof AppPlaySpaceLettersRoute
+  '/play/space/moments': typeof AppPlaySpaceMomentsRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games/': typeof AppPlayGamesIndexRoute
   '/play/plugins/': typeof AppPlayPluginsIndexRoute
+  '/play/space/': typeof AppPlaySpaceIndexRoute
   '/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -389,7 +410,6 @@ export interface FileRoutesByTo {
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
   '/play/shigan': typeof AppPlayShiganRoute
-  '/play/space': typeof AppPlaySpaceRoute
   '/play/todo': typeof AppPlayTodoRoute
   '/tools/docs': typeof AppToolsDocsRoute
   '/tools/http': typeof AppToolsHttpRoute
@@ -405,10 +425,14 @@ export interface FileRoutesByTo {
   '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
+  '/play/space/diary': typeof AppPlaySpaceDiaryRoute
+  '/play/space/letters': typeof AppPlaySpaceLettersRoute
+  '/play/space/moments': typeof AppPlaySpaceMomentsRoute
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games': typeof AppPlayGamesIndexRoute
   '/play/plugins': typeof AppPlayPluginsIndexRoute
+  '/play/space': typeof AppPlaySpaceIndexRoute
   '/play/tools': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesById {
@@ -442,7 +466,6 @@ export interface FileRoutesById {
   '/_app/play/listen': typeof AppPlayListenRoute
   '/_app/play/player': typeof AppPlayPlayerRoute
   '/_app/play/shigan': typeof AppPlayShiganRoute
-  '/_app/play/space': typeof AppPlaySpaceRoute
   '/_app/play/todo': typeof AppPlayTodoRoute
   '/_app/tools/docs': typeof AppToolsDocsRoute
   '/_app/tools/http': typeof AppToolsHttpRoute
@@ -458,10 +481,14 @@ export interface FileRoutesById {
   '/_app/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
   '/_app/play/plugins/memory': typeof AppPlayPluginsMemoryRoute
   '/_app/play/plugins/shigan': typeof AppPlayPluginsShiganRoute
+  '/_app/play/space/diary': typeof AppPlaySpaceDiaryRoute
+  '/_app/play/space/letters': typeof AppPlaySpaceLettersRoute
+  '/_app/play/space/moments': typeof AppPlaySpaceMomentsRoute
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/_app/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/_app/play/games/': typeof AppPlayGamesIndexRoute
   '/_app/play/plugins/': typeof AppPlayPluginsIndexRoute
+  '/_app/play/space/': typeof AppPlaySpaceIndexRoute
   '/_app/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRouteTypes {
@@ -495,7 +522,6 @@ export interface FileRouteTypes {
     | '/play/listen'
     | '/play/player'
     | '/play/shigan'
-    | '/play/space'
     | '/play/todo'
     | '/tools/docs'
     | '/tools/http'
@@ -511,10 +537,14 @@ export interface FileRouteTypes {
     | '/play/plugins/emotion'
     | '/play/plugins/memory'
     | '/play/plugins/shigan'
+    | '/play/space/diary'
+    | '/play/space/letters'
+    | '/play/space/moments'
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games/'
     | '/play/plugins/'
+    | '/play/space/'
     | '/play/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -545,7 +575,6 @@ export interface FileRouteTypes {
     | '/play/listen'
     | '/play/player'
     | '/play/shigan'
-    | '/play/space'
     | '/play/todo'
     | '/tools/docs'
     | '/tools/http'
@@ -561,10 +590,14 @@ export interface FileRouteTypes {
     | '/play/plugins/emotion'
     | '/play/plugins/memory'
     | '/play/plugins/shigan'
+    | '/play/space/diary'
+    | '/play/space/letters'
+    | '/play/space/moments'
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games'
     | '/play/plugins'
+    | '/play/space'
     | '/play/tools'
   id:
     | '__root__'
@@ -597,7 +630,6 @@ export interface FileRouteTypes {
     | '/_app/play/listen'
     | '/_app/play/player'
     | '/_app/play/shigan'
-    | '/_app/play/space'
     | '/_app/play/todo'
     | '/_app/tools/docs'
     | '/_app/tools/http'
@@ -613,10 +645,14 @@ export interface FileRouteTypes {
     | '/_app/play/plugins/emotion'
     | '/_app/play/plugins/memory'
     | '/_app/play/plugins/shigan'
+    | '/_app/play/space/diary'
+    | '/_app/play/space/letters'
+    | '/_app/play/space/moments'
     | '/_app/play/tools/alarms'
     | '/_app/play/tools/tasks'
     | '/_app/play/games/'
     | '/_app/play/plugins/'
+    | '/_app/play/space/'
     | '/_app/play/tools/'
   fileRoutesById: FileRoutesById
 }
@@ -846,13 +882,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayShiganRouteImport
       parentRoute: typeof AppPlayRoute
     }
-    '/_app/play/space': {
-      id: '/_app/play/space'
-      path: '/space'
-      fullPath: '/play/space'
-      preLoaderRoute: typeof AppPlaySpaceRouteImport
-      parentRoute: typeof AppPlayRoute
-    }
     '/_app/play/todo': {
       id: '/_app/play/todo'
       path: '/todo'
@@ -965,6 +994,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayPluginsShiganRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/space/': {
+      id: '/_app/play/space/'
+      path: '/space'
+      fullPath: '/play/space/'
+      preLoaderRoute: typeof AppPlaySpaceIndexRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/space/diary': {
+      id: '/_app/play/space/diary'
+      path: '/space/diary'
+      fullPath: '/play/space/diary'
+      preLoaderRoute: typeof AppPlaySpaceDiaryRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/space/letters': {
+      id: '/_app/play/space/letters'
+      path: '/space/letters'
+      fullPath: '/play/space/letters'
+      preLoaderRoute: typeof AppPlaySpaceLettersRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/space/moments': {
+      id: '/_app/play/space/moments'
+      path: '/space/moments'
+      fullPath: '/play/space/moments'
+      preLoaderRoute: typeof AppPlaySpaceMomentsRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/tools/': {
       id: '/_app/play/tools/'
       path: '/tools'
@@ -996,7 +1053,6 @@ interface AppPlayRouteChildren {
   AppPlayListenRoute: typeof AppPlayListenRoute
   AppPlayPlayerRoute: typeof AppPlayPlayerRoute
   AppPlayShiganRoute: typeof AppPlayShiganRoute
-  AppPlaySpaceRoute: typeof AppPlaySpaceRoute
   AppPlayTodoRoute: typeof AppPlayTodoRoute
   AppPlayIndexRoute: typeof AppPlayIndexRoute
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
@@ -1006,10 +1062,14 @@ interface AppPlayRouteChildren {
   AppPlayPluginsEmotionRoute: typeof AppPlayPluginsEmotionRoute
   AppPlayPluginsMemoryRoute: typeof AppPlayPluginsMemoryRoute
   AppPlayPluginsShiganRoute: typeof AppPlayPluginsShiganRoute
+  AppPlaySpaceDiaryRoute: typeof AppPlaySpaceDiaryRoute
+  AppPlaySpaceLettersRoute: typeof AppPlaySpaceLettersRoute
+  AppPlaySpaceMomentsRoute: typeof AppPlaySpaceMomentsRoute
   AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
   AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
   AppPlayGamesIndexRoute: typeof AppPlayGamesIndexRoute
   AppPlayPluginsIndexRoute: typeof AppPlayPluginsIndexRoute
+  AppPlaySpaceIndexRoute: typeof AppPlaySpaceIndexRoute
   AppPlayToolsIndexRoute: typeof AppPlayToolsIndexRoute
 }
 
@@ -1020,7 +1080,6 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayListenRoute: AppPlayListenRoute,
   AppPlayPlayerRoute: AppPlayPlayerRoute,
   AppPlayShiganRoute: AppPlayShiganRoute,
-  AppPlaySpaceRoute: AppPlaySpaceRoute,
   AppPlayTodoRoute: AppPlayTodoRoute,
   AppPlayIndexRoute: AppPlayIndexRoute,
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
@@ -1030,10 +1089,14 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayPluginsEmotionRoute: AppPlayPluginsEmotionRoute,
   AppPlayPluginsMemoryRoute: AppPlayPluginsMemoryRoute,
   AppPlayPluginsShiganRoute: AppPlayPluginsShiganRoute,
+  AppPlaySpaceDiaryRoute: AppPlaySpaceDiaryRoute,
+  AppPlaySpaceLettersRoute: AppPlaySpaceLettersRoute,
+  AppPlaySpaceMomentsRoute: AppPlaySpaceMomentsRoute,
   AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
   AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
   AppPlayGamesIndexRoute: AppPlayGamesIndexRoute,
   AppPlayPluginsIndexRoute: AppPlayPluginsIndexRoute,
+  AppPlaySpaceIndexRoute: AppPlaySpaceIndexRoute,
   AppPlayToolsIndexRoute: AppPlayToolsIndexRoute,
 }
 

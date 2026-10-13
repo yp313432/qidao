@@ -50,6 +50,13 @@ export const RECALL_CASES = [
   // ── 记录 / 日记 / 动态 / 信 ───────────────────────────
   { text: "帮我写今天的日记", mustInclude: ["diary.add"], label: "写日记" },
   { text: "我想发条动态，说今天很开心", mustInclude: ["moment.post"], label: "发动态" },
+  /*
+    朋友圈的互动两个（2026-10）—— 用户说"在他发的动态下面回复点赞"时的原话就是这样：
+    字面上不会出现"动作/工具"，所以**必须**靠关键词把那两个动作带上，
+    否则他会回一句"我做不到"（而那件事明明能做）。
+  */
+  { text: "在他那条动态下面评论一句", mustInclude: ["moment.comment"], label: "朋友圈：评论他的动态" },
+  { text: "给我那条动态点个赞", mustInclude: ["moment.like"], label: "朋友圈：给我的动态点赞" },
   { text: "给我写封信吧", mustInclude: ["letter.write"], label: "写信" },
   { text: "记一下我妈生日是 3 月 21", mustInclude: ["date.add"], label: "记日子" },
   { text: "帮我加个待办：买牛奶", mustInclude: ["todo.add"], label: "加待办" },

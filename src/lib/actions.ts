@@ -1,4 +1,5 @@
 import { toggleAmbience } from "@/lib/ambience";
+import { resolveAiName } from "@/lib/branding";
 import { buildEmotionReport } from "@/lib/emotion-lexicon";
 import { buildHttpRequest } from "@/lib/http-tools";
 import { emotionLexiconSection } from "@/lib/manual";
@@ -12,7 +13,7 @@ import { cancelNative } from "@/lib/notify";
 import { runSenseAction } from "@/lib/sense";
 import { speakTextAsync } from "@/lib/tts";
 import { runWebAction } from "@/lib/web-actions";
-import type { AppAction, FeatureId, McpOAuth, Memory, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, McpOAuth, Memory, Moment, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -20,6 +21,12 @@ import type { AppAction, FeatureId, McpOAuth, Memory, Settings } from "@/lib/typ
  * 也就是说：模型只能「提议」，真正动手的是这个文件，
  * 而它只在用户批准（或该项权限已设为「允许」）之后才会被调用。
  */
+
+/**
+ * 每条动态他最多评论几条 —— **用户定的上限**（仿微信朋友圈，别在我的动态下刷屏）。
+ * 超了就如实拒绝（`moment.comment` 那个 case 里），不静默丢掉。
+ */
+const MOMENT_AI_COMMENT_LIMIT = 3;
 
 export type ActionContext = { navigate: (path: string) => void };
 
@@ -63,6 +70,43 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) % 2147483000;
     return h || 1;
   };
+
+  /**
+   * 找一条动态（评论 / 点赞共用这**一处**定位逻辑）。
+   *
+   * 给了 momentId 就按 id 找；没给 = **最新一条**（多半是他刚发的那条）。
+   * ⚠️ 模型不知道 id，id 由「此刻的情况」里那份动态清单提供 ——
+   * 找不到时如实说清，别默默换个目标（那种"装作做到了"用户最烦）。
+   */
+  const findMoment = (id: string): { moment: Moment } | { error: string } => {
+    const list = useApp.getState().moments;
+    if (list.length === 0) return { error: "朋友圈里还没有动态" };
+    if (!id) return { moment: list[0]! };
+    const hit = list.find((m) => m.id === id);
+    if (!hit) {
+      return { error: `没找到 id 是「${id}」的动态 —— 用「此刻的情况」里那份动态清单上的 id。` };
+    }
+    return { moment: hit };
+  };
+
+  /**
+   * 他评论 / 点赞**我的**动态时弹一条系统通知（用户定的：不然我不知道他回了）。
+   *
+   * 只对"我发的"那条弹 —— 他自己动态下面自己玩，不值得打扰我。
+   * 通知这条链路**一律不许影响动作本身**：网页版没授权、App 里被拒，
+   * 都只是没弹出来，动态该落的库照落（所以 notifyMoment 自己吞掉所有异常）。
+   */
+  const notifyMoment = async (kind: "comment" | "like", text: string): Promise<void> => {
+    const aiName = resolveAiName(useApp.getState().settings.aiName);
+    const body = kind === "like" ? "给你的动态点了个赞" : `在你的动态下评论：${text.slice(0, 40)}`;
+    try {
+      const { localNotify } = await import("@/lib/notify");
+      await localNotify(aiName, body);
+    } catch {
+      /* 通知没弹出来不该影响这条动作 */
+    }
+  };
+
   const st = useApp.getState();
   switch (action.kind) {
     case "navigate":
@@ -338,8 +382,51 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     case "moment.post": {
       const text = str(action.text).trim();
       if (!text) return "动态得有内容";
-      useApp.getState().addMoment(action.mood, text, "ai");
+      // ⚠️ 2026-10：不再传 mood（心情标签退役）；新动态只留正文
+      useApp.getState().addMoment(text, "ai");
       return `已发一条动态（${text.slice(0, 16)}${text.length > 16 ? "…" : ""}）`;
+    }
+
+    /**
+     * ——— 仿微信朋友圈：他评论 / 点赞 ———
+     *
+     * 用户定的三件事都落在这两个 case 里：
+     *   · 支持多轮（我评他 → 他再回我），但**每条动态他最多 3 条评论**封顶；
+     *   · 他评论/点赞**我的**动态要**弹通知**（不然我不知道他回了）；
+     *   · 不带 id 就作用在**最新一条**上（多半是刚发的那条）。
+     */
+    case "moment.comment": {
+      const text = str(action.text).trim();
+      if (!text) return "评论得有内容";
+      const found = findMoment(str((action as { momentId?: unknown }).momentId).trim());
+      if ("error" in found) return found.error;
+      const { moment } = found;
+      const said = (moment.comments ?? []).filter((c) => c.by === "ai").length;
+      if (said >= MOMENT_AI_COMMENT_LIMIT) {
+        return `这条动态我已经评过 ${MOMENT_AI_COMMENT_LIMIT} 条了（用户定的上限，别再刷屏）—— 想说就等他先回一句。`;
+      }
+      useApp.getState().addMomentComment(moment.id, "ai", text);
+      if (moment.by === "me") void notifyMoment("comment", text);
+      return `已经在${moment.by === "me" ? "他" : "我"}那条动态下面评论：「${text.slice(0, 20)}」`;
+    }
+
+    case "moment.like": {
+      const found = findMoment(str((action as { momentId?: unknown }).momentId).trim());
+      if ("error" in found) return found.error;
+      const { moment } = found;
+      /**
+       * ⚠️ **只给用户发的动态点赞**（用户原话里的笑话："否则他会给自己点赞"）。
+       * 他自己那条上面点不出意义来 —— 所以直接说清，别默默点。
+       */
+      if (moment.by !== "me") return "那是我自己发的动态，点赞没有意义 —— 要不我评论一句？";
+      const liked = (moment.likes ?? []).some((l) => l.by === "ai");
+      if (liked) {
+        // 已经赞过就**原样保留**（不做"再点一次取消"），免得他隔一轮把赞撤了
+        return "这条动态我已经点过赞了（没重复点）。";
+      }
+      useApp.getState().toggleMomentLike(moment.id, "ai");
+      void notifyMoment("like", "");
+      return `给他那条动态点了赞：「${moment.text.slice(0, 18)}」`;
     }
 
     case "date.add": {

@@ -406,7 +406,6 @@ export function PermissionsView() {
                 useApp.getState().requestAction(
                   {
                     kind: "moment.post",
-                    mood: "share",
                     text: "试一试：他刚发了一条动态。",
                   },
                   "试一试",

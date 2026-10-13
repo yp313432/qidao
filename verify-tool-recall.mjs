@@ -118,6 +118,8 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["data.reset", "数据"],
   ["settings.setUpstream", "数据"],
   ["moment.post", "记录"],
+  ["moment.comment", "记录"],
+  ["moment.like", "记录"],
   ["letter.write", "记录"],
   ["date.add", "记录"],
   ["todo.add", "记录"],
@@ -165,9 +167,12 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * `web.search` / `web.fetch`：手机版第一次能搜网页、能读网页正文）→ **71**
  * （2026-11 加 `sticker.send`：他自己发一张表情包，且它**常驻** —— 表情是临场的，
  * 字面上匹配不到"表情"两个字）。
+ * → **74**（2026-10 加**朋友圈互动**两个：`moment.comment` / `moment.like` ——
+ * 用户定的"动态空间改仿微信朋友圈"；跟 `verify-action-registry.mjs` 的
+ * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 72;
+const EXPECTED_TOTAL = 74;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */

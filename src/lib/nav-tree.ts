@@ -32,6 +32,7 @@
  *     /usage   ├ /memory
  *     /system  ├ /alarms /tasks /env
  *     /play/tools ├ /play/gobang /play/days /play/todo
+ *     /play/space ├ /play/space/moments（朋友圈） /play/space/diary /play/space/letters
  *     /play/listen ├ /play/add
  *     /tools   ├ /tools/http /tools/mcp /tools/docs（三个编辑器页）
  */
@@ -76,6 +77,15 @@ export const TERTIARY_PARENT: Record<string, string> = {
 
   // 音乐列表下面一项
   "/play/add": "/play/listen",
+
+  /*
+    动态空间（2026-10 拆成"朋友圈 / 日记 / 信"三个二级页，用户定的
+    "动态/日记/信 做成插件二级页"）—— 三页的上一级都是**动态空间目录**。
+    新增一个子页只要在这里补一行，返回钮和 verify-hierarchy 就都跟着对了。
+  */
+  "/play/space/moments": "/play/space",
+  "/play/space/diary": "/play/space",
+  "/play/space/letters": "/play/space",
 
   /*
     插件区（2026-10 新增，用户要求的"一个插件类别"）：
@@ -228,6 +238,7 @@ export function backLabelOf(path: string): string {
     "/play/tools": "返回小日子",
     "/play/games": "返回小游戏",
     "/play/listen": "返回音乐",
+    "/play/space": "返回动态空间",
     "/play/plugins": "返回插件",
     "/tools": "返回工具",
   };

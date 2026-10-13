@@ -32,13 +32,34 @@ export type Attachment = {
  */
 export type MoodId = string;
 
-/** 一条「动态」：即时的心情。by 表示是他发的还是我自己发的。 */
+/** 谁给这条动态点了赞（同一个人只留一条） */
+export type MomentLike = { by: "ai" | "me"; at: number };
+
+/** 一条动态下面的评论（多轮：他评我、我评他都在这里，按时间正序） */
+export type MomentComment = { id: string; by: "ai" | "me"; text: string; at: number };
+
+/**
+ * 一条「动态」（朋友圈里那一条）。
+ *
+ * by 表示是他发的还是我自己发的。
+ *
+ * ── 2026-10 改成"仿微信朋友圈"的两处（见 `qidao-docs/4号方案-动态改朋友圈.md`）──
+ *   · **心情标签退役**：`mood` 变可选、**新动态不再写**、界面也不显示。
+ *     旧存档里那份心情**留在数据里不删**（切回老存储还要原样拼回去），只是不再出现。
+ *   · **新增点赞与评论**：`likes` / `comments` 缺省就是"没有"——
+ *     ⚠️ 旧动态没有这两个键，读的时候一律 `(m.likes ?? [])` 兜底（别直接 `.length`）。
+ */
 export type Moment = {
   id: string;
-  mood: MoodId;
+  /** ⚠️ 已退役的旧字段：只读旧数据、不再新增、不显示（理由见上） */
+  mood?: MoodId;
   text: string;
   at: number;
   by: "ai" | "me";
+  /** 点赞（谁点的、什么时候）。缺省 = 没人点过 */
+  likes?: MomentLike[];
+  /** 评论（多轮）。缺省 = 还没有评论 */
+  comments?: MomentComment[];
 };
 
 /** 一封他写给我的信。 */
@@ -951,7 +972,23 @@ export type FeatureId =
   | { kind: "media.clear" }
   | { kind: "data.reset" }
   | { kind: "settings.setUpstream"; baseUrl?: string; apiKey?: string }
-  | { kind: "moment.post"; mood: MoodId; text: string }
+  /**
+   * **发一条动态**（进朋友圈）。
+   *
+   * ⚠️ 2026-10：`mood` 这个字段**退役了** —— 用户定的"心情标签删掉"，
+   * 新动态不再带心情，界面也不再显示旧的那份（`emotion.report` 照旧管情绪）。
+   */
+  | { kind: "moment.post"; text: string }
+  /**
+   * **在他/我的某条动态下面评论**（仿微信朋友圈；不带 id = 最新一条）。
+   *
+   * 用户要的"他也可以看到回复"就靠这两个动作 + 上下文里那份动态清单：
+   * 他看得到最近几条动态、每条的点赞/评论、以及**哪条是用户发的**（别给自己点赞）。
+   * 每条动态他最多评论 3 条（用户定的上限，落在 `actions.ts` 里拒绝）。
+   */
+  | { kind: "moment.comment"; text: string; momentId?: string }
+  /** **给某条动态点赞**（不带 id = 最新一条；已经赞过就说一声、不会重复） */
+  | { kind: "moment.like"; momentId?: string }
   | { kind: "letter.write"; title: string; body: string }
   | { kind: "date.add"; title: string; at: string; yearly?: boolean; note?: string }
   | { kind: "todo.add"; text: string }

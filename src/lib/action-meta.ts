@@ -1,5 +1,4 @@
 import type { AppAction, PermissionId } from "@/lib/types";
-import { moodDisplay } from "@/lib/emotion-lexicon";
 
 /**
  * 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。
@@ -73,6 +72,15 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "data.reset": "reset_all",
   "settings.setUpstream": "edit_upstream",
   "moment.post": "moment_post",
+  /**
+   * 评论 / 点赞也落在「发布动态」这一项上（2026-10）。
+   *
+   * 为什么不单开两项：它们跟发动态是**同一个地方、同一档风险**（在他自己的
+   * 朋友圈里留一句话），用户在同一张卡片上点过「以后都允许」就该一起畅通 ——
+   * 拆成三项只会让他多点两次确认，换不来任何额外保护。
+   */
+  "moment.comment": "moment_post",
+  "moment.like": "moment_post",
   "letter.write": "letter_write",
   "date.add": "date_add",
   "todo.add": "todo_add",
@@ -230,8 +238,12 @@ export function actionTitle(action: AppAction): string {
     case "settings.setUpstream":
       return "修改上游地址 / API Key";
     case "moment.post":
-      // 心情取新词表的中文名（`emotion-lexicon` 一处定义），别在这儿再抄一份
-      return `发一条动态（${moodDisplay(action.mood).label}）：${action.text.slice(0, 18)}`;
+      // ⚠️ 2026-10：动态不再带心情（标签退役），标题里也就没有 moodDisplay 了
+      return `发一条动态：${action.text.slice(0, 18)}`;
+    case "moment.comment":
+      return `在一条动态下面评论：${action.text.slice(0, 16)}`;
+    case "moment.like":
+      return `给一条动态点了个赞`;
     case "letter.write":
       return `写一封信：${action.title.slice(0, 18)}`;
     case "date.add":

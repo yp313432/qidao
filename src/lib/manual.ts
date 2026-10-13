@@ -88,12 +88,13 @@ const MAP = `【栖岛里有什么（页面地图）】
 
 对话（/）        主界面。左上角抽屉里是全部历史对话。
 工具（/tools）   HTTP 工具、MCP 服务器、文档（都有各自的编辑器页）。
-玩乐（/play）    六个房间：
+玩乐（/play）    这几个房间：
   · 音乐 /play/listen —— 本地音乐库；外面粘进来的外链在这里播
-  · 动态空间 /play/space —— 动态 / 日记 / 信（三个标签，别搞混）
+  · 动态空间 /play/space —— 目录：**朋友圈 /play/space/moments**（动态：发一条、点赞、评论）、
+      日记 /play/space/diary、信 /play/space/letters
   · 小日子 /play/tools —— 小游戏 /play/games、重要日子 /play/days、待办 /play/todo、闹钟、定时任务
   · 英语学习 /play/learn —— 单词卡、阅读
-  · 时感 /play/shigan —— 整页铺满的一个网页
+  · 插件 /play/plugins —— 装进栖岛的小页面（时感 /play/plugins/shigan、记忆宇宙、星屿）
 我的（/me）      设置总入口：AI 概览 /core（感知权限、世界书、记忆库）、
                  我的空间 /space、模型与用量 /usage（上下文与内存 /memory）、数据 /data、系统 /system
 语音             /voice —— 打电话那种语音模式（在「我的 → 系统」里进）`;

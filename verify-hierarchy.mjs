@@ -33,6 +33,10 @@ const TERTIARY_PARENT = {
   "/play/games/gobang": "/play/games",
   "/play/games/truth": "/play/games",
   "/play/add": "/play/listen",
+  // 动态空间拆成三页（2026-10）：上一级都是动态空间目录
+  "/play/space/moments": "/play/space",
+  "/play/space/diary": "/play/space",
+  "/play/space/letters": "/play/space",
 };
 const ROOT_PATHS = ["/", "/tools", "/play", "/me"];
 
@@ -77,6 +81,10 @@ const PAGES = [
   "/play/listen",
   "/play/add",
   "/play/space",
+  // 动态空间目录下面那三页（朋友圈 / 日记 / 信）
+  "/play/space/moments",
+  "/play/space/diary",
+  "/play/space/letters",
   "/play/learn",
   "/play/shigan",
   "/play/tools",

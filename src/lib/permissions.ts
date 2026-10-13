@@ -123,7 +123,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "reminder", title: "创建提醒 / 闹钟", hint: "到点提醒或全屏响铃（可设一次或每天）", risk: "L2", status: "ready", group: "write" },
   { id: "memory", title: "长期记忆", hint: "记住你的偏好与项目上下文（只存本机）", risk: "L2", status: "ready", group: "write" },
   { id: "persona", title: "修改他自己的人设", hint: "改他自己的名字与自述", risk: "L2", status: "ready", group: "write" },
-  { id: "moment_post", title: "发布动态", hint: "在「动态空间」里发一条此刻的心情", risk: "L2", status: "ready", group: "write" },
+  { id: "moment_post", title: "发布动态", hint: "在朋友圈里发动态，也能给你点赞、评论", risk: "L2", status: "ready", group: "write" },
   { id: "letter_write", title: "写信给我", hint: "写一封新的信；我下次进前端时会跳出拆信动画", risk: "L2", status: "ready", group: "write" },
   { id: "date_add", title: "记住一个重要日子", hint: "生日、纪念日、约好的那天 —— 他记下来并帮你倒数", risk: "L2", status: "ready", group: "write" },
   { id: "todo_add", title: "帮我记一件待办", hint: "在「小日子 → 待办」里加一条", risk: "L2", status: "ready", group: "write" },

@@ -437,8 +437,39 @@ export const ACTION_SCHEMA = [
     group: "记录",
     summary: "发一条动态",
     fields: [
-      { name: "mood", type: "string", required: true, note: "《情绪词表》里的一个词" },
+      /**
+       * ⚠️ 2026-10：这里原来还有一个必填的 `mood`（取《情绪词表》里的一个词）。
+       * 用户定了"心情标签删掉"，新动态不再带心情 —— 所以字段一起撤了。
+       * （情绪照旧走 `emotion.report`，那条通道没动。）
+       */
+      { name: "text", type: "string", required: true, note: "一句短感受（进朋友圈）" },
+    ],
+  },
+  {
+    kind: "moment.comment",
+    group: "记录",
+    summary: "在一条动态下面评论",
+    fields: [
       { name: "text", type: "string", required: true },
+      {
+        name: "momentId",
+        type: "string",
+        required: false,
+        note: "不写 = 最新一条；要用「此刻的情况」里那份动态清单的 id",
+      },
+    ],
+  },
+  {
+    kind: "moment.like",
+    group: "记录",
+    summary: "给一条动态点赞",
+    fields: [
+      {
+        name: "momentId",
+        type: "string",
+        required: false,
+        note: "不写 = 最新一条；**只能给用户发的动态点赞**（自己的不用点）",
+      },
     ],
   },
   {

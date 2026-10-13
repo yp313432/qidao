@@ -138,7 +138,27 @@ const LEGACY = {
   ],
   worldBook: [{ id: "wb1", text: "栖岛设定", tags: ["设定"] }],
   diary: [{ id: "d1", text: "今天累", mood: "tired", at: 700 }],
-  moments: [{ id: "mo1", text: "发个动态", at: 710 }],
+  moments: [
+    { id: "mo1", text: "发个动态", at: 710 },
+    /**
+     * ⚠️ 2026-10 加的这一条：**朋友圈的两个新字段**（`likes` / `comments`）。
+     * 它们是**嵌套结构**，而搬家只认识 `id/text/at/...` 那几个键 ——
+     * 认不出的整块要落进 `extra` 再原样拼回来。不拿真形状钉住，
+     * "哪天真丢了"要靠真机才发现（推⑱那次就是这么抓到的）。
+     */
+    {
+      id: "mo2",
+      mood: "平静",
+      by: "me",
+      text: "新形状的动态",
+      at: 715,
+      likes: [{ by: "ai", at: 716 }],
+      comments: [
+        { id: "mc1", by: "ai", text: "看到了", at: 717 },
+        { id: "mc2", by: "me", text: "嗯", at: 718 },
+      ],
+    },
+  ],
   letters: [{ id: "l1", title: "给你", text: "见字如面", at: 720 }],
   docs: [{ id: "doc1", title: "使用备忘", text: "…", at: 730 }],
   todos: [{ id: "t1", text: "买菜", done: true, at: 740 }],
@@ -160,11 +180,17 @@ check("② 附件正文不在消息里（只有引用 blobId）", !JSON.stringif
 check("② 消息带上对话 id（能按对话查）", plan.messages.every((m) => m.convId === "c1"));
 check("② 记忆 + 世界书进了同一张表，用 kind 分", plan.memories.filter((m) => m.kind === "worldbook").length === 1);
 check("② 记忆 2 条（含「content/at」那种形状）", plan.memories.filter((m) => m.kind === "memory").length === 2, String(plan.memories.filter((m) => m.kind === "memory").length));
-check("② 日记/动态/信/文档/待办/日子合并成一张表（6 条）", plan.writings.length === 6, String(plan.writings.length));
+check("② 日记/动态/信/文档/待办/日子合并成一张表（7 条）", plan.writings.length === 7, String(plan.writings.length));
 check("② 认不出的字段没丢（pinned 进了 extra）", JSON.stringify(plan.memories.find((m) => m.id === "me1")).includes("pinned"));
 check("② 守恒报告：条数全对", Object.values(plan.report.counts).every((c) => c.ok), JSON.stringify(Object.entries(plan.report.counts).filter(([, c]) => !c.ok)));
 check("② 守恒报告：内容校验和全对", Object.values(plan.report.checksums).every((c) => c.ok), JSON.stringify(Object.entries(plan.report.checksums).filter(([, c]) => !c.ok)));
 check("② 守恒报告：没有对不上的（anyMismatch=false）", plan.report.anyMismatch === false);
+/** 朋友圈那两个新字段（likes / comments）走的是 extra 这条路 —— 这里钉住它没被搬丢 */
+check(
+  "② 动态的 likes/comments 在搬家路上没丢（落进了 extra）",
+  /"likes"/.test(JSON.stringify(plan.writings.find((w) => w.id === "mo2"))) &&
+    /"comments"/.test(JSON.stringify(plan.writings.find((w) => w.id === "mo2"))),
+);
 
 const back = roundTrip(plan);
 check("② 往返：消息内容一字不差", checksum(back.conversations) === checksum([LEGACY.conversations[0]]));
@@ -172,6 +198,14 @@ check("② 往返：附件正文能拼回 dataUrl", JSON.stringify(back.conversa
 check("② 往返：世界书能拼回去", JSON.stringify(back.worldBook) === JSON.stringify(LEGACY.worldBook));
 check("② 往返：提醒/任务能拼回去", back.reminders.length === 1 && back.tasks.length === 1);
 check("② 往返：字符串附件字段（truncated）没丢", JSON.stringify(back.conversations).includes("truncated"));
+/** 往返：新字段（点赞/评论）一字不差地拼回旧形状 —— 切回老存储也不会丢 */
+const mo2Back = (back.moments ?? []).find((m) => m.id === "mo2");
+check(
+  "② 往返：动态的点赞/评论（朋友圈新字段）一字不差",
+  JSON.stringify(mo2Back?.likes) === JSON.stringify(LEGACY.moments[1].likes) &&
+    JSON.stringify(mo2Back?.comments) === JSON.stringify(LEGACY.moments[1].comments),
+  JSON.stringify(mo2Back),
+);
 
 /* ═══════════════ ③ 保留上限（D5：用户口径） ═══════════════ */
 check("③ 动作记录上限 = 200（用户口径）", ACTION_LOG_MAX === 200);
