@@ -245,8 +245,34 @@ export async function primeDigests(): Promise<void> {
   }
 }
 
-/** 把整块状态存进新库（**只写变了的行**） */
+/**
+ * 把整块状态存进新库（**只写变了的行**）。
+ *
+ * ⚠️ 两种入口，**同一套写逻辑**：
+ *   · `saveLegacyShaped(json)` —— 手上是**字符串**时用（老路径 / 搬家 / 验收脚本）
+ *   · `saveLegacyShapedObject(value)` —— 手上已经是**对象**时用（zustand 直接给对象）
+ *
+ * 为什么要第二个入口（2026-10，真机"执行情绪动作卡死 6.8 秒"的修复）：
+ *   原来 zustand 那条路是 `createJSONStorage` → **先把整份状态序列化成字符串** →
+ *   我们这边 `JSON.parse` **再解析回来** → 才交给搬家函数。
+ *   数据一大（用户背景图/表情都是 base64，几 MB），这一来一回就是**两次全量搬运**，
+ *   手机上是秒级卡顿。现在 zustand 直接把对象交过来，**序列化和解析全省掉**。
+ */
 export async function saveLegacyShaped(json: string): Promise<WriteResult> {
+  const plan = parseToPlan(json);
+  if (!plan) return { ok: false, why: "状态不是合法 JSON" };
+  return writePlan(plan);
+}
+
+/** 手上已经是对象时走这条（避开"序列化 + 再解析"两次全量搬运） */
+export async function saveLegacyShapedObject(value: { state?: unknown; version?: number } | unknown): Promise<WriteResult> {
+  const state = (value as { state?: unknown })?.state ?? value;
+  if (!state || typeof state !== "object") return { ok: false, why: "状态不是对象" };
+  return writePlan(planMigration(state as LegacyState, Date.now(), { report: false }));
+}
+
+/** 真正写库那一段（两个入口共用，见上面的说明） */
+async function writePlan(plan: MigrationPlan): Promise<WriteResult> {
   /**
    * ⚠️ **没读过就不许写**（放在最前面）。
    * 2026-10 真跑切换抓到：App 的守护进程在 hydration 之前先写了一次，
@@ -256,8 +282,6 @@ export async function saveLegacyShaped(json: string): Promise<WriteResult> {
     writeStats.refusedBeforeHydration += 1;
     return { ok: false, why: "还没完成首次读取 —— 已拒绝写入，免得拿默认状态删掉真实数据" };
   }
-  const plan = parseToPlan(json);
-  if (!plan) return { ok: false, why: "状态不是合法 JSON" };
   if (dataFlags.readFailedThisSession) {
     return { ok: false, why: "这次启动没读到存档 —— 已暂停自动保存（见 §12.4）" };
   }

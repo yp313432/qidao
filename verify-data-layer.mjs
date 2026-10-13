@@ -330,6 +330,58 @@ const FULL_STATE = {
 
 const fullPlan = planMigration(FULL_STATE, 1000);
 const fullBack = roundTrip(fullPlan);
+
+/* ═══════════════ ⑩ 保存这条路不许再"整份来回搬"（真机卡死 6.8 秒的修复）═══════════════
+ *
+ * 真机现场（崩溃面包屑里记下来的）：
+ *   `long 主线程堵了 6788ms（当时：执行动作 emotion_report）`
+ *   `long 主线程堵了 809ms（当时：执行动作 emotion_lexicon）`
+ * 而**堆内存只有 10MB** —— 不是内存，是"每存一次档就把整份状态搬三遍"。
+ * 下面几条盯的就是"这条路以后不许再变重"。
+ */
+const planNoReport = planMigration(FULL_STATE, 1000, { report: false });
+check(
+  "⑩ 平时保存**不算守恒报告**（省掉一整遍全量遍历 + 全类内容校验和）",
+  Object.keys(fullPlan.report.counts).length > 0 &&
+    Object.keys(planNoReport.report.counts).length === 0 &&
+    planNoReport.report.anyMismatch === false,
+  `有报告 ${Object.keys(fullPlan.report.counts).length} 类 / 没报告 ${Object.keys(planNoReport.report.counts).length} 类`,
+);
+check(
+  "⑩ 不算报告**不影响数据**：两个 plan 的行一模一样",
+  checksum(fullPlan.conversations) === checksum(planNoReport.conversations) &&
+    checksum(fullPlan.messages) === checksum(planNoReport.messages) &&
+    checksum(fullPlan.settings) === checksum(planNoReport.settings) &&
+    checksum(fullPlan.emotions) === checksum(planNoReport.emotions),
+);
+check(
+  "⑩ 要自检/切换时**照样有报告**（默认不关：别的调用方不传参数）",
+  Object.keys(planMigration(FULL_STATE, 1000).report.checksums).length > 0,
+);
+const storeSrc10 = src("src/lib/store.ts");
+const idbSrc10 = src("src/lib/idb-storage.ts");
+const adapterSrc10 = src("src/lib/data/adapter.ts");
+check(
+  "⑩ zustand 那条路**不再序列化再解析**（对象进对象出）",
+  storeSrc10.includes("storage: createQidaoPersistStorage") &&
+    !/storage:\s*createJSONStorage/.test(storeSrc10) &&
+    adapterSrc10.includes("saveLegacyShapedObject") &&
+    adapterSrc10.includes("async function writePlan"),
+  "（注释里提 createJSONStorage 是说明为什么不用它，不算）",
+);
+check(
+  "⑩ 写入合并（1 秒一次）+ 退后台/卸载时立刻落盘",
+  idbSrc10.includes("PERSIST_COALESCE_MS") &&
+    idbSrc10.includes('addEventListener("visibilitychange"') &&
+    idbSrc10.includes('addEventListener("pagehide"'),
+);
+check(
+  "⑩ 两个入口共用同一套写逻辑（老路径/搬家那份字符串入口还在）",
+  adapterSrc10.includes("export async function saveLegacyShaped(json: string)") &&
+    adapterSrc10.includes("return writePlan(plan)") &&
+    adapterSrc10.includes("return writePlan(planMigration("),
+);
+
 const lostKeys = Object.keys(FULL_STATE).filter(
   (k) => checksum(FULL_STATE[k]) !== checksum(fullBack[k]),
 );

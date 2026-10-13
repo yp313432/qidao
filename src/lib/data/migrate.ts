@@ -207,7 +207,28 @@ export function splitSettingsBag(bag: Loose | undefined): { settings: Loose; top
   return { settings, top };
 }
 
-export function planMigration(old: LegacyState, now = 0): MigrationPlan {
+/**
+ * 把"整块状态"拆成各表的行。
+ *
+ * ⚠️ **`opts.report === false` 是给"平时保存"用的**（2026-10，真机卡死 6.8 秒的修复）。
+ *
+ * 起因（真机现场，`verify-breadcrumbs` 记下来的）：
+ *   用户报"报情绪就卡退"，痕迹里是
+ *     `long 主线程堵了 6788ms（当时：执行动作 emotion_report）`、`久 809ms（emotion_lexicon）`，
+ *     而堆内存只有 10MB —— 不是内存，是**主线程被占住**。
+ *   量下来：**每存一次档，整份状态要走三遍**（序列化 → 解析 → 搬家）**外加一遍守恒报告**
+ *   （`roundTrip` + 每个类别的内容校验和）**再加逐行校验和**。
+ *   数据小的时候是 15~35ms；用户那份（背景图 / 表情包都是 base64，几 MB）在手机上就是**秒级**。
+ *
+ * 守恒报告是给"**切换存储 / 自检**"用的（判"能不能安全切过去"），
+ * **平时的自动保存根本不需要它** —— 所以平时跳过，省掉一整遍全量遍历 + 全量校验和。
+ * 别的调用方（`parseToPlan`、搬家、自检）不传这个参数 → 照旧有报告。
+ */
+export function planMigration(
+  old: LegacyState,
+  now = 0,
+  opts: { report?: boolean } = {},
+): MigrationPlan {
   const notes: string[] = [];
   const settings: Loose = { ...(old.settings ?? {}) };
 
@@ -541,7 +562,8 @@ for (const k of SETTINGS_SMALL_KEYS) if (old[k] !== undefined) settings[k] = old
       notes,
     },
   };
-  plan.report = buildReport(old, plan);
+  /** 平时保存跳过守恒报告（见 `planMigration` 上面那段说明）；要报告就照旧算 */
+  if (opts.report !== false) plan.report = buildReport(old, plan);
   return plan;
 }
 

@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 import { kvSetRaw } from "@/lib/data/local-kv";
 import { pushActionLog, pushRequestLog } from "@/lib/data/retention";
-import { idbStorage } from "@/lib/idb-storage";
+import { createQidaoPersistStorage } from "@/lib/idb-storage";
 
 /**
  * 保存时给每个对话保留多少条消息的思考链（更老的思考会被丢掉）。
@@ -1508,7 +1508,19 @@ export const useApp = create<AppState>()(
        * 用户说"没啥要备份的，都是测试的记录"，所以老的 localStorage 那份
        * 在第一次写入成功后会被删掉（见 idb-storage.ts）—— 不用做数据迁移。
        */
-      storage: createJSONStorage(() => idbStorage),
+      /**
+       * ⚠️ 这里**不能用 `createJSONStorage`**（2026-10，真机"卡死闪退"的修复）。
+       *
+       * `createJSONStorage` 会先把整份状态**序列化**成字符串；而我们写新库那条路
+       * （`saveLegacyShaped`）拿到字符串后还要 `JSON.parse` **再解析回来** ——
+       * 数据一大（背景图/表情都是 base64，几 MB），这一来一回就是两次全量搬运，
+       * 手机上是秒级卡顿（真机痕迹：`主线程堵了 6788ms`，堆内存却只有 10MB）。
+       *
+       * 现在直接用 `PersistStorage`（对象进对象出）+ **写入合并 1 秒一次**：
+       * 序列化、解析都省了，写库次数也从"每次变化"降到"每秒最多一次"。
+       * 细节见 `idb-storage.ts` 的 `createQidaoPersistStorage`。
+       */
+      storage: createQidaoPersistStorage<Partial<AppState>>(),
       // 老快照可能缺 font / textTone / textColor / background 等新字段，
       // 用默认值补齐，避免升级后读到 undefined。
       merge: (persisted, current) => {

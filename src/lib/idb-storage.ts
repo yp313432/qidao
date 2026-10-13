@@ -1,4 +1,4 @@
-import type { StateStorage } from "zustand/middleware";
+import type { PersistStorage, StateStorage, StorageValue } from "zustand/middleware";
 import { looksLikeSnapshot, pickSnapshot, type SnapshotSource } from "@/lib/data/snapshot";
 import { storageMode } from "@/lib/data/switch";
 
@@ -237,9 +237,104 @@ export const idbStorage: StateStorage = {
   },
 };
 
+/**
+ * **给 zustand 用的存储层：对象进、对象出**（2026-10，真机"执行情绪动作卡死 6.8 秒"的修复）。
+ *
+ * ── 原来那条路为什么慢（真机痕迹为证）─────────────────────────────
+ * 用户报"报一下情绪就卡退"，面包屑里是
+ *   `long 主线程堵了 6788ms（当时：执行动作 emotion_report）`
+ *   `long 主线程堵了 809ms（当时：执行动作 emotion_lexicon）`
+ * 而**堆内存只有 10MB** —— 不是内存，是主线程被占住。
+ *
+ * 根因：**每一次状态变化**（流式吐字、动作结果、随便点一下）都要
+ *   ① `createJSONStorage` 把**整份状态序列化**成字符串
+ *   ② 我们这边 `JSON.parse` **再解析回来**
+ *   ③ 搬家（`planMigration` 走全量）+ 守恒报告（`roundTrip` + 每类校验和）
+ *   ④ 逐行算校验和决定写哪些行
+ * 数据小的时候 15~35ms；用户那份（背景图 / 表情包都是 base64，几 MB）在手机上就是**秒级**。
+ * ③ 里那遍守恒报告已经在 `planMigration` 里按需关掉了（平时保存不需要它）；
+ * 这里再省掉 ①②：**zustand 直接把对象交过来**（`PersistStorage` 本来就是对象接口）。
+ *
+ * ── 顺带：写入合并（1 秒一次）────────────────────────────────────
+ * 一次流式回复会触发几十次状态变化 —— 每次都真写库没必要。
+ * 现在合并成"1 秒一次 + 关键时机立刻落盘"（退到后台 / 页面卸载 / 手动 `commit`）。
+ * 代价就是**最多丢最后 1 秒的改动**，跟原来"崩了丢最后一条"同一量级；
+ * 换来的是手机上不再因为写库而卡死（这个代价用户已经付过三次了）。
+ */
+const PERSIST_COALESCE_MS = 1000;
+
+export function createQidaoPersistStorage<S = unknown>(): PersistStorage<S> {
+  let pending: { name: string; value: StorageValue<S> } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const writeNow = async (name: string, value: StorageValue<S>): Promise<void> => {
+    if (name === MAIN_KEY && storageMode() === "v2") {
+      try {
+        const { saveLegacyShapedObject } = await import("@/lib/data/adapter");
+        await saveLegacyShapedObject(value);
+      } catch {
+        /* 新存储写失败：不悄悄落到 localStorage（那会跟新库分叉） */
+      }
+      return;
+    }
+    /** 老路径（`aster-app` 一整块 JSON）还是要字符串 —— IDB 里那份本来就是 JSON 文本 */
+    try {
+      await idbStorage.setItem(name, JSON.stringify(value));
+    } catch {
+      /* 见上面：两边都写不进去就只能这样了 */
+    }
+  };
+
+  const flush = (): void => {
+    timer = null;
+    const p = pending;
+    pending = null;
+    if (p) void writeNow(p.name, p.value);
+  };
+
+  /** 立刻落盘（退到后台 / 页面卸载时调；别让最后 1 秒的改动丢了） */
+  const commit = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    flush();
+  };
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") commit();
+    });
+    window.addEventListener("pagehide", commit);
+  }
+
+  return {
+    getItem: async (name) => {
+      const raw = await idbStorage.getItem(name);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as StorageValue<S>;
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      pending = { name, value };
+      if (!timer) timer = setTimeout(flush, PERSIST_COALESCE_MS);
+    },
+    removeItem: async (name) => {
+      pending = null;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      await idbStorage.removeItem(name);
+    },
+  };
+}
+
 /** 备份是什么时候的（「我的 → 数据」上显示"上次自动备份：X 前"用） */
-export async function backupAt(): Promise<number> {
-  try {
+export async function backupAt(): Promise<number> {  try {
     const v = await tx<string | undefined>(
       "readonly",
       (s) => s.get(backupAtOf(MAIN_KEY)) as IDBRequest<string | undefined>,
