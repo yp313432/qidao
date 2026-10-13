@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 function inline(text: string, key: string) {
@@ -30,7 +30,17 @@ function inline(text: string, key: string) {
   return parts;
 }
 
-export function Markdown({ text, className }: { text: string; className?: string }) {
+/**
+ * ⚠️ **必须 memo**（2026-10，用户真机"卡死闪退"的第二号元凶）。
+ *
+ * 聊天页的消息列表是**整个列表一起重渲染**的，而流式回复时会不停刷新
+ * （改完节流后每秒 4 次）—— 列表里有几十条他的回复，每条都挂一个 `<Markdown>`。
+ * 不 memo 的话，**每刷新一次就把所有回复重新解析一遍**（正则 + 切块 + 建元素），
+ * 60 条消息 × 4 次/秒 = 每秒几百次解析 —— 主线程就是这么被占满的。
+ *
+ * `memo` 之后只有**内容真的变了的那一条**（正在流式输出的那条）才会重新解析。
+ */
+export const Markdown = memo(function Markdown({ text, className }: { text: string; className?: string }) {
   const blocks = text.split(/```/);
   return (
     // 用 1em / 相对行高，跟着聊天页的字号设置走 ——
@@ -77,4 +87,4 @@ export function Markdown({ text, className }: { text: string; className?: string
       })}
     </div>
   );
-}
+});

@@ -294,8 +294,16 @@ export function useChatStream(opts: UseChatOpts = {}) {
        *
        * 原来模型每吐一个字就 patchMessage 一次 —— 而这一页是整块毛玻璃，
        * 于是每吐一个字就把整页重绘一遍。手机上表现就是"卡死、像重启了一样"。
-       * 改成攒起来，最多每 100ms 写一次；结束时补最后一次。
+       *
+       * ⚠️ 2026-10 从 **100ms 放宽到 250ms**：用户真机报"全都卡住、然后闪退"，
+       * CPU Profile 抓下来主线程每次状态变化要堵 130~240ms —— 也就是说
+       * **100ms 的节流根本挡不住**（每次刷新要花 2 倍于间隔的时间）。
+       * 250ms 下"每秒重渲染整个消息列表"的次数从 10 次降到 4 次，
+       * 肉眼上流式文字仍然是一段一段冒出来（不会顿）。
+       * 同一批还把 `formatClock/formatDay` 的重复造 Intl 修了（那才是主犯）。
+       * 结束时照旧补最后一次（最后一段不会丢）。
        */
+      const FLUSH_MS = 250;
       let flushTimer = 0;
       let dirty = false;
       const flush = () => {
@@ -313,7 +321,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       };
       const schedule = () => {
         dirty = true;
-        if (!flushTimer) flushTimer = window.setTimeout(flush, 100);
+        if (!flushTimer) flushTimer = window.setTimeout(flush, FLUSH_MS);
       };
 
       // MCP 服务器 + 用户自己配的 HTTP 接口，一起交给提示词（一处实现见 promptToolsFor）
