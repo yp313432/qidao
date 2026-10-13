@@ -181,3 +181,46 @@ export async function safetyReport(): Promise<{
     snapshots: keys.slice(0, SNAPSHOT_KEEP),
   };
 }
+
+/* ────────────────────────── 恢复（用户点按钮才走这条路） ────────────────────────── */
+
+export type SnapshotInfo = { key: string; at: number; bytes: number };
+
+/** 列出滚动快照（新的在前，带时间和大小）——自检面板显示用 */
+export async function listSnapshots(): Promise<SnapshotInfo[]> {
+  const keys = (await safetyKeys()).filter((k) => k.startsWith("snap:")).sort().reverse();
+  const out: SnapshotInfo[] = [];
+  for (const k of keys.slice(0, SNAPSHOT_KEEP)) {
+    const v = await safetyGet(k);
+    if (v && v.length > 0) out.push({ key: k, at: Number(k.slice(5)) || 0, bytes: v.length });
+  }
+  return out;
+}
+
+/**
+ * **从某份快照恢复**（用户明确点的，不是自动）。
+ *
+ * 纪律（§12.0 铁律 3）：恢复**之前**会自动把"现状"再留一份（走 `backup-io` 的 `pre-restore`），
+ * 且要经过"像不像存档"的校验；失败**如实返回原因**，不静默。
+ */
+export async function restoreFromSnapshot(key: string): Promise<{ ok: boolean; why?: string }> {
+  const json = await safetyGet(key);
+  if (!json) return { ok: false, why: "这份快照读不出来（可能已经被清理）" };
+  const { writeSnapshotFromBackup } = await import("./backup-io");
+  const r = await writeSnapshotFromBackup(json);
+  return r.ok ? { ok: true } : { ok: false, why: r.why };
+}
+
+/** **只用镜子里的设置**恢复（对话等其它数据不动）——最保守的一种救法 */
+export async function restoreSettingsMirror(): Promise<{ ok: boolean; why?: string }> {
+  const mirror = await readSettingsMirror();
+  if (!mirror) return { ok: false, why: "安全带里还没有设置镜子" };
+  try {
+    const st = await import("@/lib/store");
+    const cur = st.useApp.getState().settings as unknown as Record<string, unknown>;
+    st.useApp.setState({ settings: { ...(cur ?? {}), ...mirror } } as never);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, why: String((e as Error)?.message ?? e) };
+  }
+}

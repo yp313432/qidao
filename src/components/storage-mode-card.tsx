@@ -29,16 +29,44 @@ export function StorageModeCard() {
   const [msg, setMsg] = useState("");
   /** 存储自检结果（两份各有多少东西）——见 lib/data/selfcheck.ts */
   const [check, setCheck] = useState<Awaited<ReturnType<typeof import("@/lib/data/selfcheck").storageSelfCheck>> | null>(null);
+  /** 滚动快照列表（可点"恢复这份"） */
+  const [snaps, setSnaps] = useState<{ key: string; at: number; bytes: number }[]>([]);
 
   useEffect(() => {
     setMode(storageMode());
     setNote(readMigratedNote());
     void previewMigration().then(setPreview);
     void import("@/lib/data/selfcheck").then((m) => m.storageSelfCheck()).then(setCheck);
+    void import("@/lib/data/safety").then((m) => m.listSnapshots()).then(setSnaps);
   }, []);
 
   const total = preview ? Object.values(preview).reduce((n, v) => n + v, 0) : 0;
 
+  /**
+   * **恢复**（用户点的，不自动）：
+   *   · `mirror` —— 只用安全带里的设置（对话等其它数据不动，最保守）
+   *   · `snapshot` —— 整份回到某个快照（恢复前会自动把现状再留一份）
+   */
+  async function restore(kind: "mirror" | "snapshot", key?: string) {
+    const label = kind === "mirror" ? "安全带里的设置" : "那份快照";
+    if (!window.confirm(`确定要用${label}恢复吗？（恢复前会自动把现在这份留一份）`)) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const m = await import("@/lib/data/safety");
+      const r = kind === "mirror" ? await m.restoreSettingsMirror() : await m.restoreFromSnapshot(key ?? "");
+      if (!r.ok) {
+        setMsg(`恢复失败：${r.why ?? "未知原因"}（你现在的数据没动）`);
+        setBusy(false);
+        return;
+      }
+      setMsg("恢复好了，正在重载…");
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (e) {
+      setMsg(`恢复出错：${String((e as Error)?.message ?? e)}`);
+      setBusy(false);
+    }
+  }
   async function switchTo(mode: "v2" | "legacy") {
     setBusy(true);
     setMsg("");
@@ -157,6 +185,28 @@ export function StorageModeCard() {
               </li>
               {check.readFailed && <li className="text-warn">· 这次启动读过失败：{check.lastFailure || "（原因没记）"}</li>}
               <li className="pt-0.5">{check.verdict}</li>
+              {/* 恢复入口：只用镜子救设置（最保守），或者整份回到某个快照 */}
+              <li className="pt-1.5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={busy || !check.mirror.has}
+                  onClick={() => void restore("mirror")}
+                  className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
+                >
+                  只用安全带里的设置恢复
+                </button>
+                {snaps.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void restore("snapshot", s.key)}
+                    className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
+                  >
+                    回到快照 {new Date(s.at).toLocaleString().slice(5, -3)}
+                  </button>
+                ))}
+              </li>
             </ul>
           ) : (
             <p className="mt-2 text-[11px] text-subtle">体检中…</p>
