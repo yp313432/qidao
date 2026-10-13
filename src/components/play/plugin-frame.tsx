@@ -187,13 +187,13 @@ export function PluginFrame({
   useEffect(() => {
     /**
      * ⚠️ 三条都得照顾到（探针实测过的坑）：
-     *   · 插件是**先渲染再套主题**的：第一次读到的是中间态（实测 11,11,12 → 最终 8,8,9），
+     *   · 插件是**先渲染再套主题**的：第一次读到的是中间态
+     *     （实测 11,11,12 → 后来变成 16,14,12），
      *     所以"读到第一个不透明色就收工"会留下一条**色差缝**；
-     *   · 所以：**每次读到变化都更新**，一直盯到"连续 2 秒没变"才收工；
-     *   · 最多盯 15 秒，之后不再打扰（插件自己后面再换色，那是它的事）。
+     *   · 所以：**每次读到变化都更新**（不提前收工），一直盯到最多 10 秒；
+     *   · 之后不再打扰（插件自己后面再换色，那是它的事 —— 那时也早看不清了）。
      */
     let tries = 0;
-    let stable = 0;
     let prev = "";
     const timer = window.setInterval(() => {
       tries += 1;
@@ -203,12 +203,9 @@ export function PluginFrame({
       const usable = bg && !/rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(bg);
       if (usable && bg !== prev) {
         prev = bg;
-        stable = 0;
         setFrameBg(bg);
-      } else {
-        stable += 1;
       }
-      if (stable >= 10 || tries > 75) window.clearInterval(timer);
+      if (tries > 50) window.clearInterval(timer);
     }, 200);
     return () => window.clearInterval(timer);
   }, [url]);

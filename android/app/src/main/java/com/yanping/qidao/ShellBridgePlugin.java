@@ -51,8 +51,13 @@ public class ShellBridgePlugin extends Plugin {
         try {
           Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
           pushInsets(bars.top, bars.bottom);
+          /**
+           * **键盘**（2026-10 新增，用户报的"打字时对话框被盖住、看不到打的字"）。
+           * 见下面 `pushImeInset` 的说明：edge-to-edge 之后这一步只能原生来做。
+           */
+          pushImeInset(insets);
         } catch (Throwable ignored) {
-          /* 推不过去最多是顶栏位置不完美，不该影响 App */
+          /* 推不过去最多是顶栏位置/键盘让位不完美，不该影响 App */
         }
         return insets; // 不消费 —— 交给系统默认处理
       });
@@ -117,37 +122,78 @@ public class ShellBridgePlugin extends Plugin {
     float density = 1f;
     int top = 0;
     int bottom = 0;
+    int ime = 0;
     try {
       density = getActivity().getResources().getDisplayMetrics().density;
       if (density <= 0) density = 1f;
       Insets bars = currentBars();
       top = bars.top;
       bottom = bars.bottom;
+      /** 键盘（可能此刻正开着 —— 比如用户在输入框里退回桌面又切回来） */
+      WindowInsetsCompat insets =
+          ViewCompat.getRootWindowInsets(getActivity().getWindow().getDecorView());
+      if (insets != null && insets.isVisible(WindowInsetsCompat.Type.ime())) {
+        ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+      }
     } catch (Throwable ignored) {
       /** 兜底：问系统要状态栏高度（顶栏位置能对就行，绝不能让 App 崩） */
       top = statusBarHeightFallbackPx();
       bottom = 0;
+      ime = 0;
     }
     out.put("top", Math.round(top / density));
     out.put("bottom", Math.round(bottom / density));
+    out.put("ime", Math.round(ime / density));
     call.resolve(out);
   }
 
   /**
-   * ② 安全区推给网页（写成 CSS 变量）。
+   * **② 安全区推给网页**（写成 CSS 变量）。
    * ⚠️ 用 dp（= WebView 的 CSS px）而不是物理像素。
    */
   private void pushInsets(int topPx, int bottomPx) {
+    evalCssVar("--q-inset-top", topPx);
+    evalCssVar("--q-inset-bottom", bottomPx);
+  }
+
+  /**
+   * **③ 键盘高度推给网页**（2026-10 新增）。
+   *
+   * 用户原话："键盘打字的时候，对话框依旧不弹出，被掩盖住，看不到打的字。"
+   *
+   * ── 为什么必须在原生做（网页自己算不出来）─────────────────────────
+   *   为了"背景铺到状态栏/导航栏"，这里开了 edge-to-edge
+   *   （`setDecorFitsSystemWindows(window, false)`）。安卓官方口径：
+   *   这个模式下**系统不再按键盘顶小窗口**（`windowSoftInputMode="adjustResize"` 失效），
+   *   键盘是**盖**上来的，IME 内衬（`Type.ime()`）要由 App 自己处理。
+   *   网页那边 `visualViewport` 在这种模式下**也不会跟着变小** → 算出来永远是 0。
+   *   （参考：Android 官方《Understand window insets in WebView》）
+   *
+   * 口径：`--q-ime-bottom-native` = 键盘高度（dp）；没弹就是 0。
+   * 网页自己那个兜底变量叫 `--q-ime-bottom-web`（给浏览器 / iOS 用），
+   * 消费点是 `max(两者)` —— 谁有值就用谁，两边不会互相盖。
+   */
+  private void pushImeInset(WindowInsetsCompat insets) {
+    try {
+      boolean shown = insets.isVisible(WindowInsetsCompat.Type.ime());
+      int px = shown ? insets.getInsets(WindowInsetsCompat.Type.ime()).bottom : 0;
+      evalCssVar("--q-ime-bottom-native", px);
+    } catch (Throwable ignored) {
+      /* 见类注释：这一层失败绝不能让 App 崩 */
+    }
+  }
+
+  /** 把一个物理像素值按 dp 换算后写成网页上的 CSS 变量 */
+  private void evalCssVar(String name, int px) {
     try {
       float density = getActivity().getResources().getDisplayMetrics().density;
       if (density <= 0) density = 1f;
-      int top = Math.round(topPx / density);
-      int bottom = Math.round(bottomPx / density);
+      int value = Math.max(0, Math.round(px / density));
       final String js =
-          "document.documentElement.style.setProperty('--q-inset-top','"
-              + top
-              + "px');document.documentElement.style.setProperty('--q-inset-bottom','"
-              + bottom
+          "document.documentElement.style.setProperty('"
+              + name
+              + "','"
+              + value
               + "px');";
       View web = getBridge().getWebView();
       if (web == null) return;
@@ -165,7 +211,7 @@ public class ShellBridgePlugin extends Plugin {
   }
 
   /**
-   * ③ 状态栏/导航栏图标颜色。
+   * ④ 状态栏/导航栏图标颜色。
    * `light = true` → **浅色图标**（配深色背景）；`false` → 深色图标（配浅色背景）。
    */
   @PluginMethod

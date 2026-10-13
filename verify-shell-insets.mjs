@@ -156,12 +156,34 @@ check(
     imeInsetOf({ innerHeight: Number.NaN, vvHeight: 100, vvTop: 0 }) === 0,
 );
 check("④ 小于门槛（80px）的抖动不算键盘（地址栏/手势条会抖几像素）", /IME_MIN_PX\s*=\s*80/.test(keyboardSrc));
-check("④ 网页真的在听可视视口，而不是只写在注释里", keyboardSrc.includes("visualViewport") && keyboardSrc.includes('addEventListener("resize"'));
+check(
+  "④ 网页那份兜底只写 `--q-ime-bottom-web`（不跟原生那个变量抢）",
+  keyboardSrc.includes("--q-ime-bottom-web") && !keyboardSrc.includes("setProperty('--q-ime-bottom',"),
+);
 check("④ 外壳挂载时真的挂上了监听、卸载时拆掉", appShell.includes("return installKeyboardInset()"));
-check("④ 外壳自己让位（下内边距 = 键盘高度）", appShell.includes('paddingBottom: "var(--q-ime-bottom, 0px)"'));
+check(
+  "④ 外壳自己让位（下内边距 = max(原生, 网页)）",
+  appShell.includes('paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))"'),
+);
 check(
   "④ 底部导航也跟着抬（打字时导航**不消失** —— 用户定的规矩）",
-  appShell.includes('bottom: "var(--q-ime-bottom, 0px)"'),
+  appShell.includes('bottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))"'),
+);
+/**
+ * ⚠️ **键盘高度必须原生读**（2026-10 第二次修）：
+ * 第一版用网页 `visualViewport` 自己算 —— 真机上没生效，因为 edge-to-edge 之后
+ * 可视视口根本不跟着变小（安卓官方口径：IME 内衬得 App 自己处理）。
+ * 这几条盯的就是"原生真的在读 IME 内衬，而且只写自己那个变量"。
+ */
+check(
+  "④ 原生读键盘内衬（WindowInsetsCompat.Type.ime + isVisible）",
+  plugin.includes("WindowInsetsCompat.Type.ime()") && plugin.includes("isVisible(WindowInsetsCompat.Type.ime())"),
+);
+check("④ 原生把键盘高度写成 `--q-ime-bottom-native`", plugin.includes("--q-ime-bottom-native"));
+check("④ 网页启动时问一次也带键盘（getInsets 里的 ime）", plugin.includes('out.put("ime"') && shell.includes("r?.ime"));
+check(
+  "④ 网页开局就把原生那个变量写上（含 0 —— 旧值不许留着）",
+  shell.includes("--q-ime-bottom-native"),
 );
 
 /* ── ⑤ 插件页顶部那条安全区缝（2026-10："时感那块直接顶到最上面了"）── */

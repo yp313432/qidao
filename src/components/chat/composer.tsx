@@ -324,7 +324,15 @@ export function Composer({ onSend, disabled, streaming }: Props) {
 
   return (
     <div className="px-4 pb-composer">
-      <div ref={cardRef} className="aster-card rounded-3xl border border-line p-2">
+      {/*
+        ⚠️ **实底 + 阴影**（2026-10 用户提的）："把那个对话框浮起来，做成一个单独的组件，
+        不跟底下的背景是融合的。"
+        原来这里是 `aster-card`（半透明玻璃）—— 在花背景图上，输入框卡片跟背景糊在一起，
+        键盘一弹更看不出边界。现在改成**主题底色实心**的悬浮面板（`.composer-panel`），
+        底边还有一层淡淡的投影，一眼能看出"这是一块独立的输入面板"。
+        （不是造新玻璃类：它就是实心面板，玻璃层级那三档没动。）
+      */}
+      <div ref={cardRef} className="composer-panel rounded-3xl border border-line p-2">
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。

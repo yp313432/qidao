@@ -65,12 +65,11 @@ export function AppShell() {
   useEffect(() => {
     void initShell();
     /**
-     * **键盘**：把"键盘占了多高"写成 `--q-ime-bottom`（见 `lib/keyboard.ts`）。
+     * **键盘**：网页这一份兜底（`--q-ime-bottom-web`）。
      *
-     * 用户真机报的（2026-10）："键盘打字的时候，对话框依旧不弹出，被掩盖住，
-     * 看不到打的字。" 原因是 edge-to-edge 之后 `adjustResize` 管不了键盘、
-     * 原生也只推了系统栏高度 —— 页面根本不知道键盘弹了。
-     * 这里挂一次监听，**消费只在下面两处**（外壳下内边距 + 底部导航的 bottom）。
+     * 主路径其实是**原生**推的 `--q-ime-bottom-native`（安卓 edge-to-edge 之后
+     * `adjustResize` 失效、可视视口也不变小，网页自己算不出来 —— 真机验证过）。
+     * 这里这份是给浏览器 / iOS 用的，两边取 `max`，互不覆盖。
      */
     return installKeyboardInset();
   }, []);
@@ -118,12 +117,12 @@ export function AppShell() {
     <div
       className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg"
       /**
-       * 键盘让位：`--q-ime-bottom` = 键盘高度（由 lib/keyboard.ts 写）。
+       * 键盘让位：`max(原生推的, 网页兜底算的)`。
        * 外壳整体缩一条键盘高的下内边距 → 页面里的输入框被顶到键盘上面；
        * 底部导航是 fixed，所以它自己那一处也要跟着抬（见下面 nav 的 bottom）。
-       * 没有键盘时这个变量是 0px，等于什么都没变。
+       * 没有键盘时两个变量都是 0px，等于什么都没变。
        */
-      style={{ paddingBottom: "var(--q-ime-bottom, 0px)" }}
+      style={{ paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
     >
       <GlassHighlight />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
@@ -178,7 +177,7 @@ export function AppShell() {
         <div
           className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]"
           /* 键盘弹起时导航跟着抬到键盘上面（它不消失在打字时 —— 用户定的规矩） */
-          style={{ bottom: "var(--q-ime-bottom, 0px)" }}
+          style={{ bottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
         >
           <nav
             aria-label="主导航"

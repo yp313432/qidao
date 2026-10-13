@@ -1,32 +1,29 @@
 /**
  * **键盘弹起来时，输入框被盖住** —— 把"键盘占了多高"变成一条 CSS 变量。
  *
- * ── 真机现场（2026-10 用户截图 + 描述）─────────────────────────────
+ * ── 真机现场（2026-10 用户截图 + 描述，报过两次）────────────────────
  * "键盘打字的时候，对话框依旧不弹出，被掩盖住，看不到打的字。"
- * 截图里：消息区一直到键盘上沿，键盘（带它自己那排工具条）把整个输入框卡片盖住了。
  *
  * ── 为什么会这样（两条一起看，不是猜）──────────────────────────────
  *   1. 原生为了"背景铺到状态栏/导航栏"，开了 **edge-to-edge**
- *      （`WindowCompat.setDecorFitsSystemWindows(window, false)`，见 ShellBridgePlugin）；
- *      这样一来 **`windowSoftInputMode="adjustResize"` 就管不了键盘了** ——
- *      窗口不再被键盘顶小，键盘是"盖"在页面上的（安卓 11+/15 的规矩）。
- *   2. 原生只把**系统栏**的高度推给了网页（`--q-inset-top/-bottom`），
- *      **从来没推过键盘**；而 `src/` 里搜不到任何 `visualViewport` 的用法
- *      （已核实：全仓 0 处）→ 页面完全不知道键盘弹了，输入框自然被盖住。
+ *      （`WindowCompat.setDecorFitsSystemWindows(window, false)`）；
+ *      安卓官方口径：这个模式下**系统不再按键盘顶小窗口**
+ *      （`windowSoftInputMode="adjustResize"` 失效），键盘是"盖"上来的，
+ *      IME 内衬得由 App 自己处理。
+ *   2. 于是**只能原生来读**：第一版这里用网页的 `visualViewport` 自己算，
+ *      真机上没生效 —— 因为这种模式下可视视口**不会跟着变小**，算出来恒为 0。
+ *      （参考 Android 官方《Understand window insets in WebView》）
  *
- * ── 修法：用 `visualViewport` 自己算（不依赖原生、不用改 Java）────────
- * 键盘弹起时，**可视视口**（visualViewport）会变小，而布局视口（innerHeight）
- * 常常不变。两者的差就是"键盘占了多少"：
+ * ── 现在的分工（两个变量，谁有值用谁）──────────────────────────────
+ *   · `--q-ime-bottom-native`：**原生**推的键盘高度（安卓 APK，主路径，
+ *     见 `ShellBridgePlugin.pushImeInset`）
+ *   · `--q-ime-bottom-web`：**网页**自己算的兜底（浏览器 / iOS，本文件）
+ *   · 消费点在 `app-shell.tsx`：`max(两者)` —— 两边不会互相覆盖。
  *
+ * 网页这份的算式：
  *     键盘高度 = innerHeight − visualViewport.height − visualViewport.offsetTop
- *
  * `offsetTop` 那一项是 iOS 上页面被顶上去时的情况；安卓一般是 0。
- * 这个算法**自带纠错**：
- *   · 万一某台机器（老安卓）真的把窗口缩了 → 两个高度一起变小 → 算出来是 0 → 不重复让位；
- *   · 键盘收起 → 算出来 0 → 变量归零。
- *
- * 结果写成 `--q-ime-bottom`，由外壳（`app-shell.tsx`）一处消费：
- * 外壳下内边距 + 底部导航的 bottom。**只有这一处定义、一处引用**。
+ * 它**自带纠错**：某台机器真把窗口缩了 → 两个高度一起变小 → 算出 0，不重复让位。
  */
 
 export type ViewportMetrics = {
@@ -57,8 +54,11 @@ export function imeInsetOf(m: ViewportMetrics): number {
  */
 const IME_MIN_PX = 80;
 
+/** 网页兜底写的是这个变量（原生那个是 `--q-ime-bottom-native`，互不覆盖） */
+export const WEB_IME_VAR = "--q-ime-bottom-web";
+
 /**
- * 挂上监听，把键盘高度写进 `--q-ime-bottom`。
+ * 挂上监听，把键盘高度写进 `--q-ime-bottom-web`（**兜底那一路**）。
  *
  * 返回一个卸载函数（组件卸载时调到，别留监听）。
  */
@@ -77,7 +77,7 @@ export function installKeyboardInset(): () => void {
     const settled = ime >= IME_MIN_PX ? ime : 0;
     if (settled === last) return;
     last = settled;
-    root.style.setProperty("--q-ime-bottom", `${settled}px`);
+    root.style.setProperty(WEB_IME_VAR, `${settled}px`);
   };
 
   apply();
@@ -89,6 +89,6 @@ export function installKeyboardInset(): () => void {
     vv?.removeEventListener("resize", apply);
     vv?.removeEventListener("scroll", apply);
     window.removeEventListener("resize", apply);
-    root.style.removeProperty("--q-ime-bottom");
+    root.style.removeProperty(WEB_IME_VAR);
   };
 }

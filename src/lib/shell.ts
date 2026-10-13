@@ -18,7 +18,7 @@
 import { registerPlugin } from "@capacitor/core";
 
 type ShellApi = {
-  getInsets: () => Promise<{ top?: number; bottom?: number }>;
+  getInsets: () => Promise<{ top?: number; bottom?: number; ime?: number }>;
   setBarIcons: (o: { light: boolean }) => Promise<void>;
 };
 
@@ -138,8 +138,15 @@ export async function initShell(): Promise<void> {
     const r = await ShellBridge.getInsets();
     const top = Math.max(0, Math.round(Number(r?.top ?? 0)));
     const bottom = Math.max(0, Math.round(Number(r?.bottom ?? 0)));
+    /**
+     * 键盘高度（原生读到的那一刻如果有键盘就带回来）。
+     * ⚠️ 这里**要连 0 一起写**：键盘刚收起来时"0"是有效信息
+     * （不然上一次的旧值会留在变量上，界面一直缩着一条）。
+     */
+    const ime = Math.max(0, Math.round(Number(r?.ime ?? 0)));
     if (top > 0) document.documentElement.style.setProperty("--q-inset-top", `${top}px`);
     if (bottom > 0) document.documentElement.style.setProperty("--q-inset-bottom", `${bottom}px`);
+    document.documentElement.style.setProperty("--q-ime-bottom-native", `${ime}px`);
   } catch {
     /* 插件不在（老包/网页版）→ 退回 env()，CSS 那边已经写了兜底 */
   }
