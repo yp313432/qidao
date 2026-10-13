@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { Heart, Send, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { ChevronLeft, Heart, ImagePlus, Send } from "lucide-react";
 import { Avatar } from "@/components/avatar";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { FileButton } from "@/components/file-button";
 import { resolveAiName } from "@/lib/branding";
+import { readImageFile } from "@/lib/image-file";
+import { backLabelOf, parentOf } from "@/lib/nav-tree";
 import { useApp } from "@/lib/store";
 import type { Moment } from "@/lib/types";
 import { cn, formatClock, formatDay } from "@/lib/utils";
@@ -11,56 +13,127 @@ import { cn, formatClock, formatDay } from "@/lib/utils";
 /**
  * 朋友圈 —— 「玩乐 → 动态空间 → 动态」那一页。
  *
- * ── 2026-10 从"动态流"改成仿微信朋友圈（用户定的）─────────────────
- * 用户原话："动态空间咱们改一下吧，改成仿微信朋友圈的那种。就是他发一条，
- * 我可以在下面回复点赞，然后我也可以发，然后他也可以看到回复那种。"
+ * ── 2026-10 第二轮：用户拿微信截图来对齐（他原话）────────────────
+ *   "上面是不是一个背景，这个背景点击还可以从相册面换。然后中间靠右边是头像，
+ *    然后下面是动态消息，不要用玻璃组件，就是纯纯的仿微信朋友圈的风格。"
  *
- * 所以这一页每张卡从"一条平铺的心情"变成：
- *   · 头像 + 名字 + 时间 + 正文
- *   · **点赞行**（♡ + 谁点了）与**评论列表**（多轮，`名字：内容`）
- *   · **底部一行输入**（我在这条下面回）
- * 上面一个「写点什么…」的发表入口 —— 我发的、他发的**都在同一条列表里**。
+ * 所以这一页**故意不跟栖岛那套玻璃**（不 `SceneBackdrop`、不 `bg-surface`、
+ * 不毛玻璃、不圆角卡），照微信那条结构来：
  *
- * ── 一并撤掉的两样（用户定的"删心情标签"）─────────────────────────
- *   · 那排心情胶囊（开心 / 平静…）**整排删掉**，新动态不再带心情；
- *   · 卡片上原来那个彩色小圆点 + 心情名也不再显示。
- * 旧存档里那份 `moment.mood` **数据不删**（切回老存储还要原样拼回去），
- * 只是从界面上消失 —— 这就是"旧数据不删、不显示、不新增"。
+ *   ┌──────────────────────────────┐
+ *   │  封面图（整块，点一下从相册换）      │  ← 顶到状态栏（背景铺满那条规矩还在）
+ *   │  ‹                    [头像] 我 │  ← 返回钮压在封面上；名字+头像贴右下
+ *   ├──────────────────────────────┤
+ *   │  ✎ 这一刻的想法…          发表  │  ← 发表入口
+ *   │  ○ 我      一条动态…            │  ← 纯白信息流：头像 + 蓝名字 + 正文
+ *   │     ♡ 谁赞了 / 谁：评论          │  ← 浅灰互动块
+ *   │     [评论…]          发送  ♡    │
+ *   └──────────────────────────────┘
  *
- * ── 两条纪律（都是踩过的坑）──────────────────────────────────────
- *   · 旧动态**没有** `likes` / `comments` 这两个键 → 一律 `?? []` 兜底，
- *     不许直接 `.length`（8 号 bug 的根因就是"键不存在"被当成数据）。
- *   · 空集合写回去时**显式写 `[]`**（见 store 的 toggleMomentLike）。
+ * ⚠️ 两条不能破的规矩（这页只换皮，不换纪律）：
+ *   · **返回目标仍从 `lib/nav-tree.ts` 读**（`parentOf` / `backLabelOf`），
+ *     而且必须放在 `<header>` 里 —— `verify-hierarchy.mjs` 就是靠
+ *     `header a[aria-label^="返回"]` 对账的；
+ *   · **首帧不读"浏览器才有"的东西**（相对时间那种要 `useEffect` 之后再显示），
+ *     否则 SSR 首帧跟客户端不一致 → `Hydration failed`。
+ *
+ * ── 配色是**写死的微信色**（不跟主题）─────────────────────────────
+ *   正文 `#191919` / 名字与赞 `#576b95` / 时间 `#b2b2b2` / 互动块 `#f7f7f7`。
+ *   用户要的是"纯纯的微信风格"，所以墨色主题下这一页也是白的 ——
+ *   这是他的选择，不是漏改（要跟随主题的话改这几个常量就行）。
  */
+const WX = {
+  text: "#191919",
+  link: "#576b95",
+  time: "#b2b2b2",
+  block: "#f7f7f7",
+  page: "#ffffff",
+  line: "#ededed",
+};
+
 export function MomentsWall() {
   const settings = useApp((s) => s.settings);
   const moments = useApp((s) => s.moments);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const myName = settings.displayName || "我";
+  const cover = settings.momentsCover || "";
+
+  function pickCover(files: File[]) {
+    const file = files[0];
+    if (!file) return;
+    // 封面是整屏铺一张的大图 → 缩到最长边 1440 再存，别让设置里塞进几 MB 原图
+    readImageFile(file, (url) => useApp.getState().patchSettings({ momentsCover: url }), 1440);
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <SceneBackdrop image={settings.diaryImage} />
-      <PlayHeader title="朋友圈" />
+    <div className="flex min-h-0 flex-1 flex-col" style={{ backgroundColor: WX.page }}>
+      {/* ── 封面：整块背景图，点一下从相册换 ── */}
+      <div className="relative h-[36dvh] shrink-0" style={{ backgroundColor: WX.line }}>
+        <FileButton
+          ariaLabel="换一张封面（从相册选）"
+          accept="image/*"
+          onPick={pickCover}
+          className="absolute inset-0 block h-full w-full"
+        >
+          {cover ? (
+            <img src={cover} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="flex size-full flex-col items-center justify-center gap-2 text-white/90">
+              <ImagePlus className="size-7" strokeWidth={1.6} />
+              <span className="text-[12px]">点一下，从相册选一张封面</span>
+            </span>
+          )}
+        </FileButton>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/*
+          返回钮压在封面上（微信就是这么放的）。
+          `pointer-events-none` 让整条 header 都不挡封面点击 —— 只有返回钮自己收事件，
+          所以点封面任意位置都能换图。
+          ⚠️ 规格跟全 App 一样（size-11 / ChevronLeft size-6 / strokeWidth 1.6），别自己发明尺寸。
+        */}
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-1 px-2 inset-top-50 pb-1">
+          <Link
+            to={(parentOf(pathname) ?? "/play") as never}
+            aria-label={backLabelOf(pathname)}
+            className="pointer-events-auto flex size-11 shrink-0 items-center justify-center text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+          >
+            <ChevronLeft className="size-6" strokeWidth={1.6} />
+          </Link>
+          <span className="min-w-0 flex-1 truncate font-serif text-lg font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
+            朋友圈
+          </span>
+        </header>
+
+        {/* 名字 + 头像：微信那样贴在封面右下角（名字在左、头像压着封面下沿） */}
+        <div className="pointer-events-none absolute right-4 -bottom-7 flex items-end gap-3">
+          <span
+            className="mb-8 max-w-[55vw] truncate text-[17px] font-medium text-white"
+            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}
+          >
+            {myName}
+          </span>
+          <Avatar role="user" size={64} className="border-2 border-white shadow-sm" />
+        </div>
+      </div>
+
+      {/* ── 动态消息（纯白信息流，没有玻璃）── */}
+      <div className="min-h-0 flex-1 overflow-y-auto pt-8" style={{ backgroundColor: WX.page }}>
         <Composer />
-
         {moments.length === 0 ? (
-          <div className="mt-3 rounded-3xl border border-dashed border-line px-6 py-10 text-center">
-            <Sparkles className="mx-auto size-6 text-muted" strokeWidth={1.5} />
-            <p className="mt-3 text-[13px] text-muted">还没有动态。上面写一条试试。</p>
-          </div>
+          <p className="px-4 py-12 text-center text-[14px]" style={{ color: WX.time }}>
+            还没有动态。上面写一条试试。
+          </p>
         ) : (
-          <ul className="mt-3 space-y-2.5">
+          <ul>
             {moments.map((m) => (
-              <li key={m.id}>
-                <MomentCard moment={m} />
+              <li key={m.id} className="border-b last:border-b-0" style={{ borderColor: WX.line }}>
+                <MomentPost moment={m} />
               </li>
             ))}
           </ul>
         )}
-
-        <p className="mt-10 text-center text-[10px] tracking-[0.28em] text-subtle uppercase">
-          feelings arrive before words do
+        <p className="py-8 text-center text-[11px] tracking-[0.2em]" style={{ color: "#d0d0d0" }}>
+          FEELINGS ARRIVE BEFORE WORDS DO
         </p>
       </div>
     </div>
@@ -69,12 +142,7 @@ export function MomentsWall() {
 
 /* ------------------------------------------------------------------ 发表 */
 
-/**
- * 我发一条。
- *
- * 微信那种"发表入口"：平时只是一行（头像 + 一句灰字），点一下才展开输入框 ——
- * 空着一大片输入框挂在最上面，反而把动态挤下去了。
- */
+/** 发表入口：平时一行（微信那种"这一刻的想法…"），点开才出输入框 */
 function Composer() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -92,11 +160,14 @@ function Composer() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 rounded-3xl border border-line bg-surface px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 border-b px-4 py-3 text-left"
+        style={{ borderColor: WX.line }}
       >
-        <Avatar role="user" size={32} />
-        <span className="min-w-0 flex-1 truncate text-[13px] text-subtle">写点什么…</span>
-        <span className="shrink-0 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium text-accent">
+        <Avatar role="user" size={40} />
+        <span className="min-w-0 flex-1 truncate text-[15px]" style={{ color: WX.time }}>
+          这一刻的想法…
+        </span>
+        <span className="shrink-0 text-[15px] font-medium" style={{ color: WX.link }}>
           发表
         </span>
       </button>
@@ -104,15 +175,16 @@ function Composer() {
   }
 
   return (
-    <div className="rounded-3xl border border-line bg-surface px-4 py-3">
+    <div className="border-b px-4 py-3" style={{ borderColor: WX.line }}>
       <textarea
         autoFocus
         rows={3}
         value={text}
         onChange={(e) => setText(e.target.value)}
         aria-label="写一条动态"
-        placeholder="此刻想到什么…"
-        className="w-full resize-none bg-transparent text-[13px] leading-6 outline-none placeholder:text-subtle"
+        placeholder="这一刻的想法…"
+        className="w-full resize-none text-[15px] leading-6 outline-none placeholder:text-[#c8c8c8]"
+        style={{ color: WX.text }}
       />
       <div className="mt-2 flex items-center justify-end gap-2">
         <button
@@ -121,7 +193,8 @@ function Composer() {
             setOpen(false);
             setText("");
           }}
-          className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-muted"
+          className={cn("rounded px-3 py-1.5 text-[14px]")}
+          style={{ color: WX.time, backgroundColor: WX.block }}
         >
           取消
         </button>
@@ -129,7 +202,8 @@ function Composer() {
           type="button"
           onClick={publish}
           disabled={!text.trim()}
-          className="flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-medium text-ink-fg disabled:opacity-45"
+          className="flex items-center gap-1.5 rounded px-3 py-1.5 text-[14px] font-medium text-white disabled:opacity-40"
+          style={{ backgroundColor: "#07c160" }}
         >
           <Send className="size-3.5" />
           发表
@@ -139,9 +213,9 @@ function Composer() {
   );
 }
 
-/* ------------------------------------------------------------------ 一张卡 */
+/* ------------------------------------------------------------------ 一条动态 */
 
-function MomentCard({ moment }: { moment: Moment }) {
+function MomentPost({ moment }: { moment: Moment }) {
   const settings = useApp((s) => s.settings);
   const aiName = resolveAiName(settings.aiName);
   const myName = settings.displayName || "我";
@@ -162,96 +236,129 @@ function MomentCard({ moment }: { moment: Moment }) {
   }
 
   return (
-    <article className="rounded-3xl border border-line bg-surface px-4 py-3.5">
-      <div className="flex items-start gap-3">
-        <Avatar role={mine ? "user" : "ai"} size={36} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="min-w-0 truncate text-[13px] font-medium">{nameOf(moment.by)}</span>
-            <span className="shrink-0 text-[11px] text-subtle">
-              {formatDay(moment.at)} {formatClock(moment.at)}
-            </span>
-          </div>
+    <article className="flex items-start gap-3 px-4 py-4">
+      <Avatar role={mine ? "user" : "ai"} size={40} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-medium" style={{ color: WX.link }}>
+          {nameOf(moment.by)}
+        </p>
 
-          <p className="mt-1 text-[13px] leading-6 break-words whitespace-pre-wrap">{moment.text}</p>
+        <p className="mt-1 text-[15px] leading-6 break-words whitespace-pre-wrap" style={{ color: WX.text }}>
+          {moment.text}
+        </p>
 
-          {/* 点赞行 + 评论列表（微信那样合成一块浅底） */}
-          {(likes.length > 0 || comments.length > 0) && (
-            <div className="mt-2.5 space-y-1.5 rounded-2xl bg-chip px-3 py-2">
-              {likes.length > 0 && (
-                <p className="flex items-start gap-1.5 text-[12px] leading-5">
-                  <Heart
-                    className="mt-0.5 size-3.5 shrink-0 text-accent"
-                    fill="currentColor"
-                    strokeWidth={0}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 break-words">
-                    {likes.map((l) => nameOf(l.by)).join("、")}
-                  </span>
-                </p>
-              )}
-              {comments.map((c) => (
-                <p key={c.id} className="text-[12px] leading-5 break-words">
-                  <span className="text-accent">{nameOf(c.by)}</span>
-                  <span className="text-subtle">：</span>
-                  <span>{c.text}</span>
-                </p>
-              ))}
-            </div>
-          )}
-
-          {/* 底部一行：写评论 + 点赞 */}
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") comment();
-              }}
-              aria-label="写评论"
-              placeholder="写评论…"
-              className="min-w-0 flex-1 rounded-2xl bg-chip px-3 py-2 text-[12px] outline-none placeholder:text-subtle"
-            />
-            {text.trim() !== "" && (
-              <button
-                type="button"
-                onClick={comment}
-                aria-label="发表评论"
-                className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-ink text-ink-fg"
-              >
-                <Send className="size-3.5" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => useApp.getState().toggleMomentLike(moment.id, "me")}
-              aria-label={likedByMe ? "取消赞" : "点赞"}
-              aria-pressed={likedByMe}
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-2xl",
-                likedByMe ? "bg-accent/15 text-accent" : "bg-chip text-muted",
-              )}
-            >
-              <Heart
-                className="size-4"
-                strokeWidth={1.7}
-                fill={likedByMe ? "currentColor" : "none"}
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+        <div className="mt-1.5 flex items-center gap-3 text-[12px]" style={{ color: WX.time }}>
+          <MomentTime at={moment.at} />
+          <button
+            type="button"
+            aria-label="删掉这条动态"
+            onClick={() => useApp.getState().deleteMoment(moment.id)}
+            className="ml-auto shrink-0"
+          >
+            删除
+          </button>
         </div>
 
-        <button
-          type="button"
-          aria-label="删掉这条动态"
-          onClick={() => useApp.getState().deleteMoment(moment.id)}
-          className="shrink-0 text-[11px] text-subtle"
-        >
-          删
-        </button>
+        {/* 赞 + 评论：微信是一块浅灰底（不是玻璃） */}
+        {(likes.length > 0 || comments.length > 0) && (
+          <div className="mt-2 space-y-1 rounded px-2.5 py-2" style={{ backgroundColor: WX.block }}>
+            {likes.length > 0 && (
+              <p className="flex items-start gap-1.5 text-[13px] leading-5">
+                <Heart
+                  className="mt-1 size-3.5 shrink-0"
+                  style={{ color: WX.link }}
+                  fill="currentColor"
+                  strokeWidth={0}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 break-words" style={{ color: WX.link }}>
+                  {likes.map((l) => nameOf(l.by)).join("，")}
+                </span>
+              </p>
+            )}
+            {comments.map((c) => (
+              <p key={c.id} className="text-[13px] leading-5 break-words" style={{ color: WX.text }}>
+                <span style={{ color: WX.link }}>{nameOf(c.by)}</span>
+                <span>：</span>
+                <span>{c.text}</span>
+              </p>
+            ))}
+          </div>
+        )}
+
+        {/* 底部一行：写评论 + 点赞（用户要的"底部一行输入"） */}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") comment();
+            }}
+            aria-label="写评论"
+            placeholder="评论"
+            className="min-w-0 flex-1 rounded px-2.5 py-1.5 text-[13px] outline-none placeholder:text-[#c8c8c8]"
+            style={{ backgroundColor: WX.block, color: WX.text }}
+          />
+          {text.trim() !== "" && (
+            <button
+              type="button"
+              onClick={comment}
+              className="shrink-0 rounded px-2.5 py-1.5 text-[13px] font-medium text-white"
+              style={{ backgroundColor: "#07c160" }}
+            >
+              发送
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => useApp.getState().toggleMomentLike(moment.id, "me")}
+            aria-label={likedByMe ? "取消赞" : "点赞"}
+            aria-pressed={likedByMe}
+            className="flex size-8 shrink-0 items-center justify-center rounded"
+            style={{ backgroundColor: WX.block, color: likedByMe ? WX.link : WX.time }}
+          >
+            <Heart
+              className="size-4"
+              strokeWidth={1.7}
+              fill={likedByMe ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </div>
     </article>
   );
+}
+
+/* ------------------------------------------------------------------ 时间 */
+
+/**
+ * 时间：**首帧先给绝对时间，挂载之后再换成微信那种相对时间**。
+ *
+ * ⚠️ 为什么不能首帧就算"3 分钟前"：那要读 `Date.now()`，
+ * 而这是 SSR 应用 —— 服务端渲染时算出来的是另一个值 → `Hydration failed`。
+ * 规矩写在 UI统一规范 §8：首帧不读"浏览器才有"的东西。
+ */
+function MomentTime({ at }: { at: number }) {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tick = () => setLabel(relativeTime(at));
+    tick();
+    const timer = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(timer);
+  }, [at]);
+
+  return <span suppressHydrationWarning>{label ?? `${formatDay(at)} ${formatClock(at)}`}</span>;
+}
+
+/** 微信那种"刚刚 / 5 分钟前 / 3 小时前 / 昨天 / 10月12日" */
+export function relativeTime(at: number, now = Date.now()): string {
+  const diff = now - at;
+  if (diff < 60_000) return "刚刚";
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
+  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
+  if (diff < 172800_000) return "昨天";
+  const d = new Date(at);
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }

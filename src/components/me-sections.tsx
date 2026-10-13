@@ -37,6 +37,7 @@ import { pingWake, readWakeLog, resetWake, wakeUrlSource } from "@/lib/wake-sync
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
+import { readImageFile } from "@/lib/image-file";
 import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
@@ -195,7 +196,7 @@ export function MeHub() {
           className="flex size-20 items-center justify-center rounded-full"
           onPick={(files) => {
             const file = files[0];
-            if (file) readBackground(file, (url) => patch({ userAvatar: url }));
+            if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
           }}
         >
           <Avatar role="user" size={80} />
@@ -2016,7 +2017,7 @@ function AvatarSlot({
         className="flex items-center gap-2.5 text-left"
         onPick={(files) => {
           const file = files[0];
-          if (file) readBackground(file, onChange);
+          if (file) readImageFile(file, onChange);
         }}
       >
         {preview}
@@ -2062,7 +2063,7 @@ function ImageRow({
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onPick={(files) => {
           const file = files[0];
-          if (file) readBackground(file, onPick);
+          if (file) readImageFile(file, onPick);
         }}
       >
         <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-elevated">
@@ -2190,10 +2191,4 @@ function SliderRow({
   );
 }
 
-function readBackground(file: File, done: (url: string) => void) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === "string") done(reader.result);
-  };
-  reader.readAsDataURL(file);
-}
+/** ⚠️ 「把相册里选的图读成 dataURL」已经搬去 `@/lib/image-file` 了（全 App 一处实现） */
