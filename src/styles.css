@@ -100,9 +100,9 @@
   --aster-fg: #1c1917;
   --aster-muted: #7a746c;
   --aster-subtle: #b0aaa2;
-  --aster-surface: color-mix(in oklab, #fffcf8 18%, transparent);
+  --aster-surface: color-mix(in oklab, #fffcf8 12%, transparent);
   --aster-elevated: color-mix(in oklab, #ffffff 28%, transparent);
-  --aster-chip: color-mix(in oklab, #ffffff 14%, transparent);
+  --aster-chip: color-mix(in oklab, #ffffff 9%, transparent);
   --aster-line: color-mix(in oklab, #ffffff 70%, transparent);
   --aster-accent: #c17b5a;
   --aster-accent-fg: #fffaf6;
@@ -129,9 +129,9 @@
   --aster-fg: #f3ece4;
   --aster-muted: #b5a99c;
   --aster-subtle: #8a7f74;
-  --aster-surface: color-mix(in oklab, #241f1b 17%, transparent);
+  --aster-surface: color-mix(in oklab, #241f1b 11%, transparent);
   --aster-elevated: color-mix(in oklab, #2c2621 26%, transparent);
-  --aster-chip: color-mix(in oklab, #342d27 13%, transparent);
+  --aster-chip: color-mix(in oklab, #342d27 8%, transparent);
   --aster-line: color-mix(in oklab, #f3ece4 30%, transparent);
   --aster-accent: #d49274;
   --aster-accent-fg: #1a1613;
@@ -158,9 +158,9 @@
   --aster-fg: #eceef2;
   --aster-muted: #9aa0ab;
   --aster-subtle: #6d7380;
-  --aster-surface: color-mix(in oklab, #16181d 17%, transparent);
-  --aster-elevated: color-mix(in oklab, #1d2026 26%, transparent);
-  --aster-chip: color-mix(in oklab, #262a32 13%, transparent);
+  --aster-surface: color-mix(in oklab, #16181d 11%, transparent);
+  --aster-elevated: color-mix(in oklab, #1d2026 20%, transparent);
+  --aster-chip: color-mix(in oklab, #262a32 8%, transparent);
   --aster-line: color-mix(in oklab, #eceef2 28%, transparent);
   --aster-accent: #c9cdd6;
   --aster-accent-fg: #0e0f12;
