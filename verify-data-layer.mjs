@@ -266,6 +266,99 @@ check(
   JSON.stringify(mo2Back),
 );
 
+/* ═══════════════ ⑨ 整份 state 往返（"装新包设置全没了"的回归闸）═══════════════
+ *
+ * ⚠️ 这一条是为一次**真机数据事故**补的（2026-10，用户："为啥每次更新背景和设置全没了"）。
+ *
+ * 根因：App 的 `partialize` 存了 **29 项**，而"读档"那条路只拼回了 25 项 ——
+ * `settings` / `gameStats` / `learnStats` / `thinkingArchive` 四样**没拼回来**。
+ * 后果分两步，都很致命：
+ *   ① App 拿到"没有 settings"的状态 → 用默认值顶上（主题/背景/密钥/模型全变默认，
+ *      而对话还在 —— 因为对话拼回来了：这就是用户看到的那幅画面）；
+ *   ② App 随后把这份**默认值又写回库** → 库里那份真设置被覆盖 → 真的没了。
+ *
+ * 所以这里拿"29 项全有料"的一份状态走一遍 **搬家 → 拼回**，**逐项对账**。
+ * 之前没有任何一条测试盯"整体完整性"（只按类别抽查），所以它藏了整整两个版本。
+ */
+const FULL_STATE = {
+  settings: {
+    theme: "ink",
+    customApiKey: "sk-probe",
+    customBaseUrl: "https://example.com/v1",
+    upstreamModel: "probe-model",
+    aiName: "小克",
+    displayName: "yan",
+    momentsCover: "data:image/png;base64,COVER",
+    background: { image: "data:image/png;base64,BG", opacity: 0.4 },
+  },
+  quota: { used: 3, windowStart: 100 },
+  conversations: [
+    /**
+     * ⚠️ `updatedAt` 是**唯一一处"允许凭空补"的例外**（这里有交代）：
+     * 它是 App 的必需字段（列表排序/显示用），老档没有时由"最后一条消息的时间"算出来 ——
+     * 而这正是 App 自己一直以来的做法。所以样例里给上它，别把这条例外误当成丢数据。
+     */
+    { id: "c1", title: "一个对话", createdAt: 10, updatedAt: 11, messages: [{ id: "m1", role: "user", content: "hi", createdAt: 11 }] },
+  ],
+  activeId: "c1",
+  model: "probe-model-id",
+  mcp: [{ id: "srv1", name: "服务器", url: "https://mcp.example", enabled: true, tools: [{ name: "t", description: "d" }] }],
+  httpTools: [{ id: "h1", name: "接口", method: "GET", url: "https://api.example", headers: "", body: "", enabled: true }],
+  actionLog: [{ id: "a1", title: "记一笔", result: "ok", message: "好了", at: 20 }],
+  gameStats: { gobang: { win: 2, loss: 1, draw: 0, lastAt: 30 } },
+  learnStats: { seen: 5, recent: ["abandon"], lastAt: 31 },
+  customWords: [{ id: "w1", word: "abandon", meaning: "放弃" }],
+  reminders: [{ id: "r1", text: "喝水", at: 40, ring: true }],
+  tasks: [{ id: "tk1", prompt: "说早安", time: "08:00", enabled: true, notify: false }],
+  emotionEvents: [{ id: "e1", kind: "miss", at: 50, note: "想他" }],
+  worldBook: [{ id: "wb1", title: "规矩", keywords: ["栖岛"], content: "只在聊到栖岛时注入", position: "tail", enabled: true, createdAt: 51 }],
+  chatDrafts: { c1: "写了一半的草稿" },
+  memories: [{ id: "me1", text: "他喜欢花", tags: ["喜好"], createdAt: 60, updatedAt: 61 }],
+  stickerLib: [{ id: "st1", url: "data:image/png;base64,ST", group: "未分组" }],
+  stickerGroups: ["未分组"],
+  requestLog: [{ id: "q1", at: 70, tokens: 5 }],
+  musicEmbeds: [{ id: "mu1", url: "https://music.example/x", name: "一首外链" }],
+  dates: [{ id: "d1", title: "生日", at: 80, yearly: true }],
+  todos: [{ id: "td1", text: "买菜", done: false, createdAt: 90 }],
+  moments: [{ id: "mo1", text: "今天风大", at: 91, by: "me", likes: [{ by: "ai", at: 92 }], comments: [{ id: "mc1", by: "ai", text: "多穿点", at: 93 }] }],
+  letters: [{ id: "l1", title: "给你的信", body: "见字如面", at: 94, seen: false }],
+  currentEmbedId: "mu1",
+  docs: [{ id: "doc1", title: "文档", content: "正文", source: "manual", createdAt: 95 }],
+  diary: [{ id: "dy1", mood: "平静", body: "今天还好", createdAt: 96 }],
+  thinkingArchive: [{ id: "th1", conversationId: "c1", title: "一段思考", thinking: "……", createdAt: 97 }],
+};
+
+const fullPlan = planMigration(FULL_STATE, 1000);
+const fullBack = roundTrip(fullPlan);
+const lostKeys = Object.keys(FULL_STATE).filter(
+  (k) => checksum(FULL_STATE[k]) !== checksum(fullBack[k]),
+);
+check(
+  `⑨ 整份 state 往返：${Object.keys(FULL_STATE).length} 项**一个都不丢**（含设置/统计/推理档案）`,
+  lostKeys.length === 0,
+  lostKeys.length ? `丢/变了的是：${lostKeys.join("、")}` : "全在",
+);
+check(
+  "⑨ 设置本体真的拼回来了（不是靠顶层展开凑的）",
+  fullBack.settings !== undefined && fullBack.settings.customApiKey === "sk-probe",
+  JSON.stringify(fullBack.settings ?? null),
+);
+check(
+  "⑨ 那些顶层小键也各回各位（model / mcp / quota / chatDrafts / currentEmbedId）",
+  ["model", "mcp", "quota", "chatDrafts", "currentEmbedId"].every((k) => checksum(FULL_STATE[k]) === checksum(fullBack[k])),
+  ["model", "mcp", "quota", "chatDrafts", "currentEmbedId"].filter((k) => checksum(FULL_STATE[k]) !== checksum(fullBack[k])).join("、") || "全在",
+);
+check(
+  "⑨ 守恒报告里有「设置内容」这条校验和（设置丢了就切不过去，绝不会静默）",
+  fullPlan.report.checksums["设置内容"] !== undefined && fullPlan.report.checksums["设置内容"].ok === true,
+  JSON.stringify(fullPlan.report.checksums["设置内容"]),
+);
+check(
+  "⑨ 反向哨兵：把设置里的密钥去掉 → 「设置内容」这条必须变红",
+  fullPlan.report.checksums["设置内容"].before !==
+    checksum({ ...FULL_STATE.settings, customApiKey: "" }),
+);
+
 /* ═══════════════ ③ 保留上限（D5：用户口径） ═══════════════ */
 check("③ 动作记录上限 = 200（用户口径）", ACTION_LOG_MAX === 200);
 check("③ 动作记录时间上限 = 1 天（用户口径）", ACTION_LOG_MAX_AGE_MS === 24 * 3600 * 1000);

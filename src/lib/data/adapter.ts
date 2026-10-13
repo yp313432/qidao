@@ -14,6 +14,7 @@
  */
 import {
   readAll,
+  readRecord,
   writeMany,
   deleteRecord,
   writeMeta,
@@ -23,6 +24,7 @@ import {
   type WriteResult,
 } from "./db";
 import { planMigration, roundTrip, type LegacyState, type MigrationPlan } from "./migrate";
+import { looksReset } from "./safety";
 import { TABLES, checksum, type TableName } from "./schema";
 
 /** 每张表"上次写进去的样子"：id → 内容校验和（用来算增量） */
@@ -174,7 +176,14 @@ export async function loadLegacyShaped(): Promise<ReadResult<string>> {
   const settingsBag = (fakePlan.settings ?? {}) as Record<string, unknown>;
   const merged: LegacyState = {
     ...legacy,
-    ...settingsBag,
+    /**
+     * ⚠️ **这里以前是 `...settingsBag`（把整袋设置摊到顶层）** —— 那是"读档漏 settings"
+     * 那场事故的现场（用户："为啥每次更新背景和设置全没了"）：
+     * 摊开只能把 `model/mcp/…` 这些小键放回顶层，**`settings` 本身谁也没补**，
+     * 于是 App 用默认值顶上、又把默认值写回库 → 真设置被覆盖。
+     * 现在 `roundTrip()` 自己就产出 `settings` + 那些小键（一份名单、进出对称），
+     * 这里只负责"每个集合都兜成数组"。
+     */
     conversations: arr(legacy.conversations),
     memories: arr(legacy.memories),
     worldBook: arr(legacy.worldBook),
@@ -190,6 +199,8 @@ export async function loadLegacyShaped(): Promise<ReadResult<string>> {
     customWords: arr(settingsBag.customWords),
     stickerLib: arr(settingsBag.stickerLib),
     stickerGroups: (Array.isArray(settingsBag.stickerGroups) ? (settingsBag.stickerGroups as string[]) : []) as string[],
+    /** 推理档案（2026-10 补：以前它连搬都没搬 → 换新存储就静默变空） */
+    thinkingArchive: arr(legacy.thinkingArchive),
     requestLog: arr(logs.filter((l) => l.kind === "request").map((l) => l.payload ?? {})),
     actionLog: arr(logs.filter((l) => l.kind === "action").map((l) => l.payload ?? {})),
   };
@@ -213,7 +224,14 @@ let digests: RowDigests | null = null;
  */
 let hydrated = false;
 /** 因为"还没读过"而拒绝的写入次数（界面可显示） */
-export const writeStats = { rowsWritten: 0, rowsSkipped: 0, saves: 0, refusedBeforeHydration: 0 };
+export const writeStats = {
+  rowsWritten: 0,
+  rowsSkipped: 0,
+  saves: 0,
+  refusedBeforeHydration: 0,
+  /** 因为"这份设置像被重置了、库里那份有料"而**拒绝覆盖设置行**的次数（自检面板显示） */
+  settingsKeptBack: 0,
+};
 
 /** 第一次保存前，把库里现有的行摘要读进来（否则第一写会把所有行重写一遍） */
 export async function primeDigests(): Promise<void> {
@@ -248,6 +266,26 @@ export async function saveLegacyShaped(json: string): Promise<WriteResult> {
   writeStats.saves += 1;
 
   for (const { table, rows } of planToTables(plan)) {
+    /**
+     * ⚠️ **设置写保护**（2026-10，用户"更新完背景和设置全没了"的第二道保险）。
+     *
+     * 如果这次要写的设置"像被重置了"（密钥 / 地址 / 模型 / 背景 / 自定义名字**全空**），
+     * 而库里那一行**有料** → **拒绝写这一行**。
+     *
+     * 为什么：那正是"读档出岔子 → App 拿默认值回写 → 真设置被覆盖"的现场
+     * （这次根因已经修了，见 `migrate.ts` 的 `splitSettingsBag`；但数据不该只有一层保护）。
+     * 宁可这次不保存设置，也不能把库里那份唯一真设置盖掉 —— §12.0 铁律 3 的精神。
+     * 反过来：用户**真的**把这几样全清空（很少见）时，库里会留着旧值，重启会"回来"，
+     * 所以自检面板里会如实记一笔（`writeStats.settingsKeptBack`）。
+     */
+    if (table === TABLES.settings) {
+      const stored = await readRecord<{ value?: Record<string, unknown> }>(TABLES.settings, "settings");
+      const storedValue = stored.ok ? stored.value?.value : undefined;
+      if (storedValue && looksReset(plan.settings) && !looksReset(storedValue)) {
+        writeStats.settingsKeptBack += 1;
+        continue;
+      }
+    }
     const map = d.get(table)!;
     const { put, del, unchanged } = changedRows(table, rows, map);
     writeStats.rowsSkipped += unchanged;

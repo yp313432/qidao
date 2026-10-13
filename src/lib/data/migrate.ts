@@ -157,6 +157,56 @@ export type MigrationReport = {
 };
 
 /** 旧存档 → 各表行（**纯函数**：同样的输入永远同样的输出） */
+/**
+ * **那些"小而关键"、原本在顶层的键** —— 新存储把它们塞进 `settings` 那一行。
+ *
+ * ⚠️ 这份名单是"搬进 / 拆出"两个方向的**唯一依据**：加一个顶层小键只改这一处。
+ * 漏了会怎样见 `splitSettingsBag` 的注释（那是一次真机数据事故）。
+ */
+export const SETTINGS_SMALL_KEYS = [
+  "model",
+  "quota",
+  "mcp",
+  "httpTools",
+  "chatDrafts",
+  "activeId",
+  "currentEmbedId",
+  "customWords",
+  "musicEmbeds",
+  "stickerGroups",
+  /** ⚠️ 表情库（`stickerLib`）**必须在这**：2026-10 的"整份 state 往返"测试抓到它没被搬，
+   *  换到新存储之后表情库会静默变空（页面照常、只是你的表情一张不剩）。 */
+  "stickerLib",
+  "stickers",
+] as const;
+
+/**
+ * 把 `settings` 袋拆成"设置本体 + 那些原本在顶层的键"。
+ *
+ * ── 这个函数是为一次**真机数据事故**补的（2026-10，用户："为啥每次更新背景和设置全没了"）──
+ *
+ * 起因：新存储把 29 项数据分表存，其中"设置"是**一整行** `settings`，
+ * 而那些本来在顶层的键（model/mcp/quota/…）**也塞进了这一行**。
+ * 读档时 `roundTrip()` 却**没有把 `settings` 拼回来**（只把袋子展开到顶层）——
+ * 于是交给 App 的状态里**根本没有 `settings`**：
+ *   ① App 用默认值顶上 → 主题/背景/密钥/模型**全变默认**（对话却还在，因为它拼回来了）；
+ *   ② App 随后把这份"默认值"**又写回库** → 库里那份真设置被覆盖 → **真的没了**（备份也救不回）。
+ *
+ * 现在两个方向共用这一份名单，谁也别想再漏。
+ * `verify-data-layer.mjs` 里那条"整份 state 往返"就是盯着它的（29 项逐个对账）。
+ */
+export function splitSettingsBag(bag: Loose | undefined): { settings: Loose; top: Loose } {
+  const settings: Loose = { ...(bag ?? {}) };
+  const top: Loose = {};
+  for (const k of SETTINGS_SMALL_KEYS) {
+    if (k in settings) {
+      top[k] = settings[k];
+      delete settings[k];
+    }
+  }
+  return { settings, top };
+}
+
 export function planMigration(old: LegacyState, now = 0): MigrationPlan {
   const notes: string[] = [];
   const settings: Loose = { ...(old.settings ?? {}) };
@@ -395,8 +445,7 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
         keys: {
           ...(textKey ? { text: textKey } : {}),
           ...(timeKey ? { time: timeKey } : {}),
-          ...(titleKey && pickTitle(it) ? { title: titleKey } : {}),
-        },
+          ...(titleKey && pickTitle(it) ? { title: titleKey } : {}),        },
       });
     }
   }
@@ -409,20 +458,39 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
     ...(typeof e.note === "string" ? { note: e.note } : {}),
   }));
 
-  /* ── 定时类（提醒/任务）── */
+  /* ── 定时类（提醒 / 任务）──
+   *
+   * ⚠️ **`time` 不能当成"时间字段"吃掉**（2026-10 的整份往返测试抓到的）：
+   * 任务里的 `time` 是 "08:00" 这种**每天几点**的字符串，而 `nextAt` 要的是时间戳 ——
+   * 原来把 `time` 列进了"已消费"的键里 → 它既没进 extra、也没按原样拼回来，
+   * 结果**定时任务的时间在换存储之后就没了**（任务还在，但不按点了）。
+   * 现在：`time` 留给 extra 原样带走；只把真正的"时间戳类"键算进 nextAt，
+   * 并且记下原件到底有没有那个键（没有就不许凭空补 `at`）。
+   */
   const schedules: ScheduleRecord[] = [];
-  for (const r of old.reminders ?? [])
+  const AT_KEYS = ["at", "createdAt", "updatedAt", "ts", "date"] as const;
+  const schedUsed = [
+    "id", "title", "name", "label", "text", "content", "body", "note", "summary",
+    "at", "createdAt", "updatedAt", "ts", "date",
+  ];
+  for (const r of old.reminders ?? []) {
+    const atKey = AT_KEYS.find((k) => r[k] !== undefined);
+    const hasText = ["text", "content", "body", "note", "summary"].some((k) => typeof r[k] === "string");
+    const extra = rest(r, schedUsed);
     schedules.push({
       id: typeof r.id === "string" ? r.id : newId("rem"),
       kind: "reminder",
       ...(pickTitle(r) ? { title: pickTitle(r) } : {}),
       text: pickText(r),
       nextAt: pickTime(r, now),
-      ...(rest(r, ["id", "title", "name", "label", "text", "content", "body", "note", "summary", "at", "createdAt", "updatedAt", "time", "ts", "date"])
-        ? { extra: rest(r, ["id", "title", "name", "label", "text", "content", "body", "note", "summary", "at", "createdAt", "updatedAt", "time", "ts", "date"]) }
-        : {}),
+      ...(extra ? { extra } : {}),
+      present: [...(atKey ? [atKey] : []), ...(hasText ? ["text"] : [])],
     } as ScheduleRecord);
-  for (const t of old.tasks ?? [])
+  }
+  for (const t of old.tasks ?? []) {
+    const atKey = AT_KEYS.find((k) => t[k] !== undefined);
+    const hasText = ["text", "content", "body", "note", "summary"].some((k) => typeof t[k] === "string");
+    const extra = rest(t, [...schedUsed, "done"]);
     schedules.push({
       id: typeof t.id === "string" ? t.id : newId("task"),
       kind: "task",
@@ -430,14 +498,18 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
       text: pickText(t),
       nextAt: pickTime(t, now),
       ...(t.done === true ? { done: true } : {}),
-      ...(rest(t, ["id", "title", "name", "label", "text", "content", "body", "note", "summary", "at", "createdAt", "updatedAt", "time", "ts", "date", "done"])
-        ? { extra: rest(t, ["id", "title", "name", "label", "text", "content", "body", "note", "summary", "at", "createdAt", "updatedAt", "time", "ts", "date", "done"]) }
-        : {}),
+      ...(extra ? { extra } : {}),
+      present: [...(atKey ? [atKey] : []), ...(hasText ? ["text"] : [])],
     } as ScheduleRecord);
+  }
 
-  /* ── 统计 ── */
+  /* ── 统计：三样"顶层小数据"都放这张 key-value 表 ──
+   * ⚠️ `thinkingArchive`（他过去的推理记录）以前**根本没搬**（顶层没它的位置，
+   * settings 那张"小而关键"的表也不该塞它）→ 换了新存储之后它会**静默变空**。
+   * 现在跟统计一样走 `stats` 一行，读档时原样拼回顶层。
+   */
   const stats: StatRecord[] = [];
-  for (const k of ["gameStats", "learnStats"] as const)
+  for (const k of ["gameStats", "learnStats", "thinkingArchive"] as const)
     stats.push({ key: k, value: old[k] ?? null, updatedAt: now });
 
   /* ── 运行记录（可丢，上限见 retention.ts）── */
@@ -447,9 +519,8 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
   for (const r of old.requestLog ?? [])
     logs.push({ id: newId("log"), kind: "request", at: pickTime(r, now), payload: r });
 
-  /* ── 那些"小而关键"的配置：全进 settings（含上游地址/密钥/模型）── */
-  for (const k of ["model", "quota", "mcp", "httpTools", "chatDrafts", "activeId", "currentEmbedId", "customWords", "musicEmbeds", "stickerGroups", "stickers"] as const)
-    if (old[k] !== undefined) settings[k] = old[k];
+/* ── 把顶层那些"小而关键"的键搬进 settings 袋（名单见 SETTINGS_SMALL_KEYS）── */
+for (const k of SETTINGS_SMALL_KEYS) if (old[k] !== undefined) settings[k] = old[k];
 
   const plan: MigrationPlan = {
     settings,
@@ -527,6 +598,14 @@ export function buildReport(old: LegacyState, plan: MigrationPlan): MigrationRep
   /** 内容校验和：把"搬完的样子"拼回旧形状再算一遍（roundTrip） */
   const back = roundTrip(plan);
   for (const [label, before, after] of [
+    /**
+     * ⚠️ **设置必须单独对账**（2026-10 补的，一次真机事故换来的）。
+     *
+     * 读档曾经**根本没把 `settings` 拼回来** → App 用默认值顶上、又把默认值写回库 →
+     * 库里那份真设置（背景/密钥/模型）**被覆盖没了**，而且备份也救不回。
+     * 之前这里没有任何"设置"的校验和，所以"搬丢了"没人发现 —— 条数对不对跟设置没关系。
+     */
+    ["设置内容", old.settings ?? {}, back.settings ?? {}],
     /** ⚠️ 隐藏对话（incognito）是**故意不搬**的 —— 对比时两边都要排除，否则假报警 */
     ["对话内容", (old.conversations ?? []).filter((c) => c.incognito !== true), back.conversations ?? []],
     ["消息内容", legacyMsgs, (back.conversations ?? []).flatMap((c: Loose) => (c.messages as Loose[]) ?? [])],
@@ -575,6 +654,8 @@ function groupsFor(
 ): { before: unknown[]; after: unknown[] } {
   const nonIncognito = (old.conversations ?? []).filter((c) => c.incognito !== true);
   switch (label) {
+    case "设置内容":
+      return { before: [old.settings ?? {}], after: [back.settings ?? {}] };
     case "对话内容":
       return { before: nonIncognito, after: back.conversations ?? [] };
     case "消息内容":
@@ -730,7 +811,13 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
          */
         const o: Record<string, unknown> = { id: w.id };
         if (w.title) o[w.keys?.title ?? "title"] = w.title;
-        o[w.keys?.text ?? "text"] = w.text;
+        /**
+         * ⚠️ **原件没有"正文"那个键就不许补**（跟世界书那边同一条纪律）：
+         * 「重要日子」只有 `title` + `at`，凭空补一个 `text: ""` 会让往返对不上 ——
+         * 多出来的空键跟丢掉键一样，都算"内容变了"。
+         */
+        if (w.keys?.text) o[w.keys.text] = w.text;
+        else if (w.text) o.text = w.text;
         o[w.keys?.time ?? "at"] = w.at;
         return { ...o, ...(w.extra ?? {}) };
       });
@@ -740,21 +827,61 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
     at: e.at,
     ...(e.note ? { note: e.note } : {}),
   }));
+  /**
+   * ⚠️ 定时类：**原位有没有那个时间键，才决定拼不拼 `at`**
+   * （没有就不许凭空补 —— 凭空补一个 `at: 0` 会让"一次性任务"看起来像 1970 年就该响）。
+   * `time`（每天几点）走 extra 原样回来，这里不碰。
+   */
+  const schedHasAt = (s: ScheduleRecord) => ((s as ScheduleRecord & { present?: string[] }).present ?? []).length > 0;
+  /**
+   * ⚠️ `text` 也只在"原件确实有正文键"时才拼（跟用户写的那些东西同一条纪律）：
+   * 任务的内容字段叫 `prompt`、日子叫 `title` —— 凭空补一个 `text: ""` 就是"内容变了"。
+   */
+  const schedHasText = (s: ScheduleRecord) =>
+    ((s as ScheduleRecord & { present?: string[] }).present ?? []).includes("text");
   const reminders = plan.schedules
     .filter((s) => s.kind === "reminder")
-    .map((s) => ({ id: s.id, text: s.text ?? "", ...(s.extra ?? {}), at: s.nextAt ?? 0 }));
+    .map((s) => ({
+      id: s.id,
+      ...(schedHasText(s) ? { text: s.text ?? "" } : {}),
+      ...(s.extra ?? {}),
+      ...(schedHasAt(s) ? { at: s.nextAt ?? 0 } : {}),
+    }));
   const tasks = plan.schedules
     .filter((s) => s.kind === "task")
     .map((s) => ({
       id: s.id,
-      text: s.text ?? "",
+      ...(schedHasText(s) ? { text: s.text ?? "" } : {}),
       ...(s.done ? { done: true } : {}),
       ...(s.extra ?? {}),
-      at: s.nextAt ?? 0,
+      ...(schedHasAt(s) ? { at: s.nextAt ?? 0 } : {}),
     }));
+  /**
+   * ⚠️ 运行记录（动作 / 请求）**也在这里拼回来**（2026-10 补）。
+   * 以前只有适配层在读完整块形状时顺手补上，`roundTrip` 自己不管 ——
+   * 于是"整份 state 往返"这条测试一对账就发现它俩根本不在，谁也不敢改适配层。
+   * 现在一处负责：`payload` 就是原件，原样还回去。
+   */
+  const actionLog = plan.logs.filter((l) => l.kind === "action").map((l) => (l.payload ?? {}) as Loose);
+  const requestLog = plan.logs.filter((l) => l.kind === "request").map((l) => (l.payload ?? {}) as Loose);
+  const settingsBag = splitSettingsBag(plan.settings);
   const first = <T,>(arr: T[]): T[] | undefined => (arr.length > 0 ? arr : undefined);
+  const statValue = (key: string): unknown => plan.stats.find((s) => s.key === key)?.value;
   return {
     ...out,
+    /**
+     * ⚠️ **设置本体必须显式拼回来**（2026-10 真机事故的根因，见 `splitSettingsBag`）。
+     * 少了这一行：App 读到的是"没有 settings" → 全变默认 → 再把默认写回库 → 真设置没了。
+     */
+    settings: settingsBag.settings,
+    /** 那些原本在顶层的键（model/mcp/quota/…）—— 同一份名单，进出对称 */
+    ...settingsBag.top,
+    /** 统计与推理档案（以前只有"搬"没有"拼回来"）：null 就不写，让 App 用默认值 */
+    ...(statValue("gameStats") ? { gameStats: statValue("gameStats") as Loose } : {}),
+    ...(statValue("learnStats") ? { learnStats: statValue("learnStats") as Loose } : {}),
+    ...(Array.isArray(statValue("thinkingArchive")) && (statValue("thinkingArchive") as unknown[]).length > 0
+      ? { thinkingArchive: statValue("thinkingArchive") as unknown as Loose[] }
+      : {}),
     ...(memories.length ? { memories } : {}),
     ...(worldBook.length ? { worldBook } : {}),
     ...(first(toLegacy("diary")) ? { diary: toLegacy("diary") } : {}),
@@ -766,5 +893,7 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
     ...(emotions.length ? { emotionEvents: emotions } : {}),
     ...(reminders.length ? { reminders } : {}),
     ...(tasks.length ? { tasks } : {}),
+    ...(actionLog.length ? { actionLog } : {}),
+    ...(requestLog.length ? { requestLog } : {}),
   };
 }

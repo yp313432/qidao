@@ -128,6 +128,19 @@ export function mirrorIsBetter(mirror: Loose | null, current: Loose | undefined 
 /** 每次设置变化都调它：抄两份（小份进 localStorage、整份进独立库） */
 export async function mirrorSettings(settings: Loose | undefined | null): Promise<void> {
   if (!settings || typeof settings !== "object") return;
+  /**
+   * ⚠️ **不许拿"像被重置的设置"盖掉一面有料的镜子**（2026-10 补）。
+   *
+   * 现场：App 一启动、hydration 还没完成时，各种守护进程/界面就会动一下 store，
+   * 于是这个订阅带着**默认设置**跑了一次、把镜子改成了默认值 ——
+   * 安全网在最需要它的那一刻（启动）反而是空的。
+   * 用户那次"背景全没了、密钥却还在"，就是这种半好的状态：
+   * 镜子被覆盖过，只剩下不够全的那份。
+   *
+   * 规矩跟主库那道写保护同一条：**宁可这次不更新镜子，也不许把好的覆盖成默认的**。
+   */
+  const existing = await readSettingsMirror();
+  if (existing && looksReset(settings) && !looksReset(existing)) return;
   const full = JSON.stringify(settings);
   const slim = JSON.stringify(slimSettings(settings));
   try {

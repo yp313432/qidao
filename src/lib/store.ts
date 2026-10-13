@@ -1745,11 +1745,17 @@ export function applyAppearance(settings: Settings) {
 if (typeof window !== "undefined") {
   let lastMirror = 0;
   let pending: ReturnType<typeof setTimeout> | null = null;
-  useApp.subscribe((s) => {
+  useApp.subscribe(() => {
     const now = Date.now();
     const run = () => {
       lastMirror = Date.now();
-      void import("@/lib/data/safety").then((m) => m.mirrorSettings(s.settings as unknown as Record<string, unknown>));
+      /**
+       * ⚠️ **现读**设置，不用订阅回调带进来的那份快照：
+       * 节流会把这次写推迟 1.5 秒，而"1.5 秒前的设置"可能已经不是最新的了
+       * （拖滑块、连着改两处就是这样 → 镜子存了一份半旧的）。
+       */
+      const latest = useApp.getState().settings as unknown as Record<string, unknown>;
+      void import("@/lib/data/safety").then((m) => m.mirrorSettings(latest));
     };
     if (now - lastMirror > 1500) {
       run();

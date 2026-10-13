@@ -209,6 +209,13 @@ export type ScheduleRecord = {
   nextAt?: number;
   done?: boolean;
   extra?: Record<string, unknown>;
+  /**
+   * ⚠️ **原件带了哪些"时间戳类"的键**（`at` / `createdAt` / `ts` / `date`…）。
+   * 拼回旧形状时只在"原件确实有"的时候才写 `at` —— 凭空补一个 `at: 0`
+   * 会让一次性任务看起来像 1970 年就该响（2026-10 整份往返测试抓到的）。
+   * 注意 `time`（"08:00" 这种每天几点）**不算**时间戳，它走 extra 原样带回。
+   */
+  present?: string[];
 };
 
 /** 统计（游戏/学习/动作/请求…） */
