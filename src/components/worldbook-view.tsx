@@ -45,8 +45,16 @@ export function WorldbookView() {
   const [keywords, setKeywords] = useState("");
   const [position, setPosition] = useState<"system" | "tail">("system");
 
-  const always = entries.filter((e) => e.position === "system" || e.keywords.length === 0);
-  const triggered = entries.filter((e) => e.position === "tail" && e.keywords.length > 0);
+  /**
+   * ⚠️ 一律 `(e.keywords ?? [])`：老档/搬坏过的档里**可能没有这个键**，
+   * 直接 `.length` 就是整页红屏（2026-10 真机截图抓到的就是这个）。
+   * 进 store 的那道口（`normalizeWorldBook`）会补，这里再兜一层 ——
+   * 页面宁可显示成"一直生效"，也绝不能崩。
+   */
+  const always = entries.filter((e) => e.position === "system" || (e.keywords ?? []).length === 0);
+  const triggered = entries.filter(
+    (e) => e.position === "tail" && (e.keywords ?? []).length > 0,
+  );
   const onCount = entries.filter((e) => e.enabled).length;
 
   function submit() {
@@ -92,9 +100,9 @@ export function WorldbookView() {
             <p className={cn("text-[13px] leading-5", e.enabled ? "text-fg" : "text-muted")}>
               {e.content}
             </p>
-            {e.keywords.length > 0 ? (
+            {(e.keywords ?? []).length > 0 ? (
               <p className="mt-1 text-[11px] text-subtle">
-                聊到 {e.keywords.map((k) => `「${k}」`).join(" ")} 时才注入
+                聊到 {(e.keywords ?? []).map((k) => `「${k}」`).join(" ")} 时才注入
               </p>
             ) : (
               <p className="mt-1 text-[11px] text-subtle">一直生效</p>
@@ -116,7 +124,7 @@ export function WorldbookView() {
                 <button
                   type="button"
                   onClick={() => {
-                    const next = window.prompt("关键词（空格分开）", e.keywords.join(" "));
+                    const next = window.prompt("关键词（空格分开）", (e.keywords ?? []).join(" "));
                     if (next === null) return;
                     update(e.id, {
                       keywords: next.split(/[\s,，、]+/).map((k) => k.trim()).filter(Boolean),

@@ -136,7 +136,37 @@ const LEGACY = {
     /** 另一种真实形状：正文叫 `content`、时间叫 `at` */
     { id: "me2", content: "另一条记忆", at: 520, tags: [] },
   ],
-  worldBook: [{ id: "wb1", text: "栖岛设定", tags: ["设定"] }],
+  /**
+   * ⚠️ **世界书这里是 2026-10 补的真形状**（原来是 `{id,text,tags}` 这种"想象出来的形状"）。
+   *
+   * 真实条目长这样：`title / keywords / content / position / enabled`（+ createdAt）。
+   * 样例里没有这几个字段 → "搬家把它们整块丢掉"这件事**一直没被发现**，
+   * 直到用户真机上「世界书」那一页红屏
+   * （`Cannot read properties of undefined (reading 'length')`，
+   * 截图见交接文档）+ 他手里那几条规矩**静默失效**（`enabled/content` 也没了）。
+   * 教训跟推⑱那次一样：**验收样例必须拿真形状**。
+   */
+  worldBook: [
+    { id: "wb1", text: "栖岛设定", tags: ["设定"] },
+    {
+      id: "preset_short_think",
+      title: "别想太久",
+      keywords: [],
+      content: "思考别超过十步。",
+      position: "system",
+      enabled: true,
+      createdAt: 400,
+    },
+    {
+      id: "wb_keys",
+      title: "聊到栖岛才注入",
+      keywords: ["栖岛", "这个app"],
+      content: "栖岛是用户自己做的私人 App。",
+      position: "tail",
+      enabled: false,
+      createdAt: 401,
+    },
+  ],
   diary: [{ id: "d1", text: "今天累", mood: "tired", at: 700 }],
   moments: [
     { id: "mo1", text: "发个动态", at: 710 },
@@ -178,14 +208,34 @@ check("② 图片附件进了二进制表（1 条 dataUrl）", plan.blobs.length
 check("② 文本附件留在消息里（不重复建二进制）", plan.messages.find((m) => m.id === "m2").attachments.length === 2);
 check("② 附件正文不在消息里（只有引用 blobId）", !JSON.stringify(plan.messages).includes("data:image"));
 check("② 消息带上对话 id（能按对话查）", plan.messages.every((m) => m.convId === "c1"));
-check("② 记忆 + 世界书进了同一张表，用 kind 分", plan.memories.filter((m) => m.kind === "worldbook").length === 1);
+check("② 记忆 + 世界书进了同一张表，用 kind 分（世界书 3 条）", plan.memories.filter((m) => m.kind === "worldbook").length === 3, String(plan.memories.filter((m) => m.kind === "worldbook").length));
 check("② 记忆 2 条（含「content/at」那种形状）", plan.memories.filter((m) => m.kind === "memory").length === 2, String(plan.memories.filter((m) => m.kind === "memory").length));
 check("② 日记/动态/信/文档/待办/日子合并成一张表（7 条）", plan.writings.length === 7, String(plan.writings.length));
 check("② 认不出的字段没丢（pinned 进了 extra）", JSON.stringify(plan.memories.find((m) => m.id === "me1")).includes("pinned"));
 check("② 守恒报告：条数全对", Object.values(plan.report.counts).every((c) => c.ok), JSON.stringify(Object.entries(plan.report.counts).filter(([, c]) => !c.ok)));
 check("② 守恒报告：内容校验和全对", Object.values(plan.report.checksums).every((c) => c.ok), JSON.stringify(Object.entries(plan.report.checksums).filter(([, c]) => !c.ok)));
 check("② 守恒报告：没有对不上的（anyMismatch=false）", plan.report.anyMismatch === false);
-/** 朋友圈那两个新字段（likes / comments）走的是 extra 这条路 —— 这里钉住它没被搬丢 */
+/**
+ * 世界书（2026-10 真机红屏那条）：关键字段必须原样带走 —— 丢一个就会
+ * ① 那一页 `.length` 红屏 ② 那些规矩静默失效。
+ */
+check(
+  "② 世界书的关键字段在搬家路上没丢（title/keywords/position/enabled 落进 extra）",
+  ["title", "keywords", "position", "enabled"].every((k) =>
+    new RegExp(`"${k}"`).test(JSON.stringify(plan.memories.find((m) => m.id === "wb_keys"))),
+  ),
+  JSON.stringify(plan.memories.find((m) => m.id === "wb_keys")),
+);
+check(
+  "② 守恒报告里有「世界书内容」这条校验和（不许只看条数）",
+  plan.report.checksums["世界书内容"] !== undefined && plan.report.checksums["世界书内容"].ok,
+  JSON.stringify(plan.report.checksums["世界书内容"]),
+);
+/** 反向哨兵（非 REVERSE 也跑）：证明这条校验和**真的在看内容**，不是摆设 */
+check(
+  "② 反向哨兵：改一个关键词 → 世界书校验和就变（这条断言真的在看内容）",
+  checksum([{ ...LEGACY.worldBook[2], keywords: ["改了"] }]) !== checksum([LEGACY.worldBook[2]]),
+);
 check(
   "② 动态的 likes/comments 在搬家路上没丢（落进了 extra）",
   /"likes"/.test(JSON.stringify(plan.writings.find((w) => w.id === "mo2"))) &&
@@ -195,7 +245,16 @@ check(
 const back = roundTrip(plan);
 check("② 往返：消息内容一字不差", checksum(back.conversations) === checksum([LEGACY.conversations[0]]));
 check("② 往返：附件正文能拼回 dataUrl", JSON.stringify(back.conversations).includes("data:image/png;base64,AAAA"));
-check("② 往返：世界书能拼回去", JSON.stringify(back.worldBook) === JSON.stringify(LEGACY.worldBook));
+check("② 往返：世界书一字不差（含 keywords/position/enabled）", checksum(back.worldBook) === checksum(LEGACY.worldBook), JSON.stringify(back.worldBook));
+const wbBack = (back.worldBook ?? []).find((w) => w.id === "wb_keys");
+check(
+  "② 往返：世界书那条「聊到才生效」拼回了原名与原值（content/keywords/position/enabled）",
+  wbBack?.content === "栖岛是用户自己做的私人 App。" &&
+    JSON.stringify(wbBack?.keywords) === JSON.stringify(["栖岛", "这个app"]) &&
+    wbBack?.position === "tail" &&
+    wbBack?.enabled === false,
+  JSON.stringify(wbBack),
+);
 check("② 往返：提醒/任务能拼回去", back.reminders.length === 1 && back.tasks.length === 1);
 check("② 往返：字符串附件字段（truncated）没丢", JSON.stringify(back.conversations).includes("truncated"));
 /** 往返：新字段（点赞/评论）一字不差地拼回旧形状 —— 切回老存储也不会丢 */

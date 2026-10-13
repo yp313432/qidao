@@ -13,6 +13,7 @@ import { TaskDaemon } from "@/components/task-daemon";
 import { WakeDaemon } from "@/components/wake-daemon";
 import { UiEffects } from "@/components/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
+import { installKeyboardInset } from "@/lib/keyboard";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
@@ -63,6 +64,15 @@ export function AppShell() {
    */
   useEffect(() => {
     void initShell();
+    /**
+     * **键盘**：把"键盘占了多高"写成 `--q-ime-bottom`（见 `lib/keyboard.ts`）。
+     *
+     * 用户真机报的（2026-10）："键盘打字的时候，对话框依旧不弹出，被掩盖住，
+     * 看不到打的字。" 原因是 edge-to-edge 之后 `adjustResize` 管不了键盘、
+     * 原生也只推了系统栏高度 —— 页面根本不知道键盘弹了。
+     * 这里挂一次监听，**消费只在下面两处**（外壳下内边距 + 底部导航的 bottom）。
+     */
+    return installKeyboardInset();
   }, []);
 
   /**
@@ -105,7 +115,16 @@ export function AppShell() {
     // 一条"底"。现在口径统一成：
     //   · 页面背景**铺满**（外壳不给内边距，谁的背景都能铺到最上面）
     //   · **每一页自己的顶栏**吃 `--q-inset-top`（见各 header 的 `pt-[max(...)]`）
-    <div className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg">
+    <div
+      className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg"
+      /**
+       * 键盘让位：`--q-ime-bottom` = 键盘高度（由 lib/keyboard.ts 写）。
+       * 外壳整体缩一条键盘高的下内边距 → 页面里的输入框被顶到键盘上面；
+       * 底部导航是 fixed，所以它自己那一处也要跟着抬（见下面 nav 的 bottom）。
+       * 没有键盘时这个变量是 0px，等于什么都没变。
+       */
+      style={{ paddingBottom: "var(--q-ime-bottom, 0px)" }}
+    >
       <GlassHighlight />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
       <UiEffects />
@@ -156,7 +175,11 @@ export function AppShell() {
          * z-[60]：必须高于对话抽屉（z-50）。抽屉只占左边 84% 宽，
          * 导航在右边一直露着，用户才能一边看列表一边切页。
          */
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]"
+          /* 键盘弹起时导航跟着抬到键盘上面（它不消失在打字时 —— 用户定的规矩） */
+          style={{ bottom: "var(--q-ime-bottom, 0px)" }}
+        >
           <nav
             aria-label="主导航"
             className="glass-nav-bar pointer-events-auto flex w-full items-stretch"

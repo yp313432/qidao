@@ -210,8 +210,15 @@ export type WorldEntry = {
   id: string;
   /** 给用户看的名字（可空，列表里会拿内容开头当标题） */
   title?: string;
-  /** 触发关键词；留空 = 常驻 */
-  keywords: string[];
+  /**
+   * 触发关键词；留空 = 常驻。
+   *
+   * ⚠️ 2026-10 起是**可选**的，别写 `e.keywords.length`：
+   * 搬家那一版曾经把这个键整个丢掉（旧档/搬坏的档里就是没有），
+   * 而"世界书"那一页直接读 `.length` → **整页红屏**（用户真机截图）。
+   * 读的时候一律 `(e.keywords ?? [])`；进 store 的那道口会把它补齐（见 store.ts 的 normalizeWorldBook）。
+   */
+  keywords?: string[];
   content: string;
   position: "system" | "tail";
   enabled: boolean;
@@ -516,6 +523,12 @@ export type Settings = {
   musicImage: string;
   /** 日记动态页自己的背景图（没设就用主页背景） */
   diaryImage: string;
+  /**
+   * **朋友圈的封面图**（2026-10 用户要的仿微信朋友圈："上面是一个背景，
+   * 点击还可以从相册换"）。dataURL，存在设置里 —— 跟 `diaryImage` 同一个路数。
+   * 空 = 还没设过，页面显示"点一下选一张"的占位。
+   */
+  momentsCover: string;
   /**
    * 动画：auto = 跟随系统的「减弱动态效果」；on = 始终开启；off = 关闭。
    * 系统开了「减弱动态效果」时，浏览器会把所有动画压成 0.01ms —— 那就是"看不到动态"。

@@ -133,6 +133,8 @@ const defaultSettings: Settings = {
   weatherFor: "",
   musicImage: "",
   diaryImage: "",
+  /** 朋友圈封面（仿微信那种整块背景图）；空 = 还没设过 */
+  momentsCover: "",
   motion: "auto",
   chatFontSize: "normal",
   maxTokens: 0,
@@ -286,6 +288,64 @@ function rotateQuota(q: QuotaState, now = Date.now()): QuotaState {
     return { used: 0, windowStart: now };
   }
   return q;
+}
+
+/**
+ * 把世界书条目抹平成**一定能用**的形状（2026-10 真机红屏之后加的）。
+ *
+ * ── 为什么需要它（两个后果，一个看得见一个看不见）───────────────
+ * 搬到"新存储"那一版曾经把 `keywords / position / enabled` 整块丢掉：
+ *   1. **看得见**：「世界书」那一页读 `e.keywords.length` → 整页红屏
+ *      （用户截图："AI 概览 → 怎么和你相处 → Something went wrong /
+ *       Cannot read properties of undefined (reading 'length')"）；
+ *   2. **看不见**：`pickWorldEntries()` 要求 `enabled && content`，
+ *      这两个也没了 → 他那几条规矩**静默失效**（提示词里一条都不进）。
+ *
+ * 数据层已经修好（`migrate.ts` 两条腿都补了 + 守恒校验加上"世界书内容"），
+ * 但**已经搬坏的那份档**还得能自己站起来 —— 所以进 store 的这一道统一补齐。
+ * 它是**唯一**的入口（persist 的 merge），一处定义、全局受益。
+ *
+ * 三条口径：
+ *   · 正文：`content` 没有就用旧键 `text` 顶上（搬坏的档正文就落在 text 里）
+ *   · keywords / position 缺了就补 `[]` / "system"
+ *   · **enabled 缺了一律当"关"** —— 宁可让他手动再开一次，
+ *     也不许偷偷把他 AI 的行为改了（这跟"不许凭空补字段"是同一条精神）
+ *   · 内置预设（id 是 `preset_*`）能按 id 从 `worldPresets()` 找回完整原文
+ */
+function normalizeWorldBook(raw: unknown): WorldEntry[] {
+  const list = Array.isArray(raw) ? (raw as unknown[]) : [];
+  if (list.length === 0) return worldPresets();
+  const presets = new Map(worldPresets().map((p) => [p.id, p]));
+  return list
+    .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object")
+    .map((e): WorldEntry => {
+      const id = typeof e.id === "string" ? e.id : uid("wb");
+      const preset = presets.get(id);
+      const content =
+        typeof e.content === "string" && e.content.trim()
+          ? e.content
+          : typeof e.text === "string"
+            ? e.text
+            : "";
+      return {
+        id,
+        ...(typeof e.title === "string" && e.title.trim()
+          ? { title: e.title }
+          : preset?.title
+            ? { title: preset.title }
+            : {}),
+        keywords: Array.isArray(e.keywords)
+          ? (e.keywords as unknown[]).filter((k): k is string => typeof k === "string")
+          : (preset?.keywords ?? []),
+        content: content || preset?.content || "",
+        position:
+          e.position === "tail" ? "tail" : e.position === "system" ? "system" : (preset?.position ?? "system"),
+        enabled: e.enabled === true,
+        createdAt:
+          typeof e.createdAt === "number" ? e.createdAt : (preset?.createdAt ?? Date.now()),
+      };
+    })
+    .slice(0, 60);
 }
 
 export type AppState = {
@@ -1477,11 +1537,12 @@ export const useApp = create<AppState>()(
         /**
          * 世界书是后加的：老存档没有这个字段。
          * 这里补上预设（**全部默认关着**），用户去「我的 → 世界书」自己开。
+         *
+         * ⚠️ 2026-10：不再直接把存档里那份拿来用 —— 先过 `normalizeWorldBook()`。
+         * 起因是"搬家把 keywords/position/enabled 丢掉"→「世界书」那一页红屏 +
+         * 他那几条规矩静默失效（详见那个函数的注释）。已经搬坏的档也靠这一步站起来。
          */
-        const worldBook: WorldEntry[] =
-          Array.isArray(saved.worldBook) && (saved.worldBook as unknown[]).length > 0
-            ? (saved.worldBook as WorldEntry[])
-            : worldPresets();
+        const worldBook: WorldEntry[] = normalizeWorldBook(saved.worldBook);
         /**
          * MCP 的 `tools` 字段升级过：老存档里是**工具名字符串数组**
          * （`["remember","recall"]`），现在是 `McpTool[]`（带说明和参数结构）。

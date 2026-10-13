@@ -134,16 +134,21 @@ export type PromptInput = {
  * 关键词留空的按"常驻"处理（用户显然是想让它一直生效）。
  */
 export function pickWorldEntries(
-  entries: { keywords: string[]; content: string; position: "system" | "tail"; enabled: boolean }[] | undefined,
+  /**
+   * ⚠️ `keywords` 是**可选**的：旧档/搬坏过的档里可能没有这个键。
+   * 这里以前写的是 `e.keywords.length` —— 那样**发一条消息就会崩**（红屏）。
+   * 一律 `?? []`（进 store 那道口也会补，见 store.ts 的 normalizeWorldBook）。
+   */
+  entries: { keywords?: string[]; content: string; position: "system" | "tail"; enabled: boolean }[] | undefined,
   userText: string,
 ): { always: string[]; hit: string[] } {
   const on = (entries ?? []).filter((e) => e.enabled && e.content.trim());
   const always = on
-    .filter((e) => e.position === "system" || e.keywords.length === 0)
+    .filter((e) => e.position === "system" || (e.keywords ?? []).length === 0)
     .map((e) => e.content.trim());
   const hit = on
-    .filter((e) => e.position === "tail" && e.keywords.length > 0)
-    .filter((e) => e.keywords.some((k) => k.trim() && userText.includes(k.trim())))
+    .filter((e) => e.position === "tail" && (e.keywords ?? []).length > 0)
+    .filter((e) => (e.keywords ?? []).some((k) => k.trim() && userText.includes(k.trim())))
     .map((e) => e.content.trim());
   return { always, hit };
 }

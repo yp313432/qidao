@@ -317,15 +317,48 @@ export function planMigration(old: LegacyState, now = 0): MigrationPlan {
       },
     } as MemoryRecord);
   }
-  for (const w of old.worldBook ?? [])
+  /**
+   * ── 世界书 ────────────────────────────────────────────────────────────
+   *
+   * ⚠️ **2026-10 真机红屏的根因就在这一段**。用户截图：
+   * "AI 概览 →「怎么和你相处」点进去 = Something went wrong /
+   *  Cannot read properties of undefined (reading 'length')"。
+   *
+   * 原来这里只搬 `id / text / tags / 时间`：`keywords` / `position` / `enabled` / `title`
+   * 被当成"不认识的键"整块丢掉，于是有两个后果 —— 一个看得见、一个看不见：
+   *   1. **看得见**：「世界书」那一页读 `e.keywords.length` → 整页红屏；
+   *   2. **看不见**（更严重）：`pickWorldEntries()` 要求 `enabled && content` 才注入，
+   *      这两个也没了 → **他手里那几条规矩静默失效**，提示词里一条都不进。
+   *
+   * 现在跟"用户写的东西"同一个待遇：不认识的键进 `extra`、原字段名记进 `keys`，
+   * 往返一个字不差。`buildReport` 也把「世界书内容」加进校验和了 —— 下次再丢当场报红。
+   */
+  for (const w of old.worldBook ?? []) {
+    const usedKeys = [
+      "id", "title", "name", "label", "text", "content", "body", "note", "summary",
+      "tags", "createdAt", "updatedAt", "at", "time", "ts", "date",
+    ];
+    const wbTextKey = ["text", "content", "body", "note", "summary"].find((k) => typeof w[k] === "string");
+    const wbTitleKey = ["title", "name", "label"].find((k) => typeof w[k] === "string");
+    const wbCreatedKey = ["createdAt", "at", "time", "ts", "date"].find((k) => w[k] !== undefined);
+    const wbExtra = rest(w, usedKeys);
     memories.push({
       id: typeof w.id === "string" ? w.id : newId("wb"),
       kind: "worldbook",
+      ...(pickTitle(w) ? { title: pickTitle(w) } : {}),
       text: pickText(w),
       ...(Array.isArray(w.tags) ? { tags: w.tags as string[] } : {}),
       createdAt: pickTime(w, now),
       updatedAt: pickUpdatedAt(w, pickTime(w, now)),
+      ...(wbExtra ? { extra: wbExtra } : {}),
+      keys: {
+        ...(wbTextKey ? { text: wbTextKey } : {}),
+        ...(wbTitleKey && pickTitle(w) ? { title: wbTitleKey } : {}),
+        ...(wbCreatedKey ? { createdAt: wbCreatedKey } : {}),
+        ...(w.updatedAt !== undefined ? { updatedAt: "updatedAt" } : {}),
+      },
     } as MemoryRecord);
+  }
 
   /* ── 用户写的东西（日记/动态/信/文档/待办/日子 → 一张表 + kind）── */
   const writings: WritingRecord[] = [];
@@ -498,6 +531,14 @@ export function buildReport(old: LegacyState, plan: MigrationPlan): MigrationRep
     ["对话内容", (old.conversations ?? []).filter((c) => c.incognito !== true), back.conversations ?? []],
     ["消息内容", legacyMsgs, (back.conversations ?? []).flatMap((c: Loose) => (c.messages as Loose[]) ?? [])],
     ["记忆内容", old.memories ?? [], back.memories ?? []],
+    /**
+     * ⚠️ **世界书必须单独对账**（2026-10 补的）。
+     *
+     * 之前它只算在「记忆+世界书」的**条数**里 —— 所以"条数对、字段全丢"
+     * （keywords/position/enabled 被吃掉 → 那一页红屏 + 规矩静默失效）**一直没被发现**。
+     * 条数不是守恒，内容才是。
+     */
+    ["世界书内容", old.worldBook ?? [], back.worldBook ?? []],
     ["日记内容", old.diary ?? [], back.diary ?? []],
     ["情绪内容", old.emotionEvents ?? [], back.emotionEvents ?? []],
   ] as [string, unknown, unknown][]) {
@@ -543,6 +584,8 @@ function groupsFor(
       };
     case "记忆内容":
       return { before: old.memories ?? [], after: back.memories ?? [] };
+    case "世界书内容":
+      return { before: old.worldBook ?? [], after: back.worldBook ?? [] };
     case "日记内容":
       return { before: old.diary ?? [], after: back.diary ?? [] };
     case "情绪内容":
@@ -656,11 +699,26 @@ export function roundTrip(plan: MigrationPlan): LegacyState {
       : {}),
     ...((m as MemoryRecord & { extra?: Loose }).extra ?? {}),
   }));
-  const worldBook = plan.memories.filter((m) => m.kind === "worldbook").map((m) => ({
-    id: m.id,
-    text: m.text,
-    ...(m.tags ? { tags: m.tags } : {}),
-  }));
+  /**
+   * ⚠️ 世界书**必须按原字段名 + extra 拼回去**（跟上面记忆、下面"用户写的东西"同一条规矩）。
+   *
+   * 原来这里只拼 `{id, text, tags}` —— `keywords / position / enabled / title / content`
+   * 全在这一句里被吃掉，这就是"世界书那一页红屏 + 那些规矩静默失效"的另一半原因。
+   */
+  const worldBook = plan.memories
+    .filter((m) => m.kind === "worldbook")
+    .map((m) => {
+      const rec = m as MemoryRecord & { keys?: RecordKeys; extra?: Loose };
+      const title = (m as MemoryRecord & { title?: string }).title;
+      const o: Record<string, unknown> = { id: m.id };
+      if (rec.keys?.title && title) o[rec.keys.title] = title;
+      o[rec.keys?.text ?? "text"] = m.text;
+      if (m.tags) o.tags = m.tags;
+      // ⚠️ 原件**没有**这个时间键就不许补（凭空补也算"变了"，真机守恒校验抓过）
+      if (rec.keys?.createdAt) o[rec.keys.createdAt] = m.createdAt;
+      if (rec.keys?.updatedAt) o[rec.keys.updatedAt] = m.updatedAt;
+      return { ...o, ...(rec.extra ?? {}) };
+    });
   const toLegacy = (kind: WritingRecord["kind"]) =>
     plan.writings
       .filter((w) => w.kind === kind)

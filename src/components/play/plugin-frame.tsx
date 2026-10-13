@@ -136,6 +136,82 @@ export function PluginFrame({
   const [opened, setOpened] = useState(false);
 
   const loadedRef = useRef(false);
+  /**
+   * 顶部那条**安全区缝**（2026-10 用户报的"时感那块直接顶到最上面了，
+   * 把它往下挪挪"）。
+   *
+   * 别的页面都由各自 header 吃 `--q-inset-top`（原生推的状态栏高度）；
+   * **插件页是例外**：iframe 从 y=0 开始，插件自己的内容就贴着屏幕最上面
+   * （时感那个大头钟实测就在 y=0，跟状态栏挤在一起）。
+   *
+   * 修法**故意放在宿主这一侧**（不给 iframe 内部加 padding）：
+   *   · 不依赖插件内部结构（它是打包产物，内部 class 一改就失效 —— 上一轮那个
+   *     "内容居中"的注入就是靠 `main > section > div.overflow-y-auto` 认路，
+   *     还好这次量下来它仍然对得上，但"认内部结构"这件事本身就脆）；
+   *   · iframe 矮一条 inset → 插件自己那套 `h-dvh` 布局**自动适应**，不会被切掉。
+   *
+   * 缝的颜色取插件自己的背景色（同源才读得到）—— 这样"背景铺到最上面"这条
+   * 全局规矩没破，只是内容往下让了一条。
+   */
+  const [topInset, setTopInset] = useState(0);
+  const [frameBg, setFrameBg] = useState("");
+
+  /**
+   * 读宿主的 `--q-inset-top`（原生推的状态栏高度）。
+   *
+   * 为什么不 `useState(0)` 之后就不管了：那个变量是**原生异步推上来的**
+   * （`lib/shell.ts` 的 `initShell()`），插件页可能比它先挂载 ——
+   * 所以用 MutationObserver 盯住 `<html style>` 的变化，推一次读一次。
+   */
+  useEffect(() => {
+    const read = () => {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue("--q-inset-top").trim();
+      const n = Number.parseFloat(raw);
+      setTopInset(Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    window.addEventListener("resize", read);
+    return () => {
+      mo.disconnect();
+      window.removeEventListener("resize", read);
+    };
+  }, []);
+
+  /**
+   * 读插件自己的背景色，用来把上面那条缝**涂成同一个色** ——
+   * 这样"背景铺满"没破，只是内容往下让了一条。
+   * 同源才读得到；跨域就保持默认（白），不硬猜。
+   */
+  useEffect(() => {
+    /**
+     * ⚠️ 三条都得照顾到（探针实测过的坑）：
+     *   · 插件是**先渲染再套主题**的：第一次读到的是中间态（实测 11,11,12 → 最终 8,8,9），
+     *     所以"读到第一个不透明色就收工"会留下一条**色差缝**；
+     *   · 所以：**每次读到变化都更新**，一直盯到"连续 2 秒没变"才收工；
+     *   · 最多盯 15 秒，之后不再打扰（插件自己后面再换色，那是它的事）。
+     */
+    let tries = 0;
+    let stable = 0;
+    let prev = "";
+    const timer = window.setInterval(() => {
+      tries += 1;
+      const doc = (document.getElementById("plugin-frame") as HTMLIFrameElement | null)?.contentDocument;
+      const el = doc?.documentElement ?? doc?.body ?? null;
+      const bg = el ? getComputedStyle(el).backgroundColor : "";
+      const usable = bg && !/rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(bg);
+      if (usable && bg !== prev) {
+        prev = bg;
+        stable = 0;
+        setFrameBg(bg);
+      } else {
+        stable += 1;
+      }
+      if (stable >= 10 || tries > 75) window.clearInterval(timer);
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [url]);
 
   /**
    * **让"内容比屏幕短"的插件别顶在上面**（2026-10 用户报的 3 号：
@@ -279,7 +355,15 @@ export function PluginFrame({
   }, [url]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-white">
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      /**
+       * 顶部那条安全区缝：`paddingTop` = 状态栏高度，颜色 = 插件自己的背景色。
+       * iframe 因此从"状态栏下面"开始 —— 跟全 App 其它页面同一个口径
+       * （其它页面是各自 header 吃 `--q-inset-top`）。
+       */
+      style={{ paddingTop: topInset, backgroundColor: frameBg || "#fff" }}
+    >
       {/* 对方自己的页面。不加 sandbox：这是我们/用户自己的页面，脚本要能正常工作。 */}
       <iframe
         id="plugin-frame"
@@ -292,7 +376,8 @@ export function PluginFrame({
           // 加载完成 = 文档在了 → 把插件的 matchMedia 兜住（跨域会自己跳过）
           patchFrameMotion(sameOriginFrameWindow());
         }}
-        className="size-full border-0 bg-white"
+        className="min-h-0 w-full flex-1 border-0"
+        style={{ backgroundColor: frameBg || "#fff" }}
       />
 
       {/* 返回钮：压在左上角、半透明黑底（跟时感同一套，用户已经用惯了） */}

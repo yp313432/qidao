@@ -80,14 +80,20 @@ check(
   "② 网页也能**主动问一次**（万一 load 时推得太早）",
   plugin.includes("public void getInsets") && shell.includes("getInsets"),
 );
+/**
+ * ⚠️ 这两条 2026-10 对齐过：以前钉的是 `.app-inset-top`（外壳统一加内边距）。
+ * 推⑪/⑫ 之后口径变了 —— **外壳不再加内边距**（否则页面自己的背景会被挤下去、
+ * 插件页/五子棋会露一条底），改成"**每一页自己的顶栏**吃 `--q-inset-top`"
+ * （就是 `.inset-top-25/50/60/75/100/175` 那一组）。
+ * 老期望留在脚本里 = 天天报假红，所以按代码现在的样子改。
+ */
 check(
-  "② 网页外壳真的用了那个变量给状态栏让位",
-  appShell.includes("app-inset-top") && shell.includes("initShell"),
+  "② 网页外壳真的用了那个变量给状态栏让位（initShell + 各页顶栏 `.inset-top-*` 一组）",
+  appShell.includes("initShell") && css.includes("var(--q-inset-top") && css.includes(".inset-top-50"),
 );
 check(
   "② 底部（输入框/导航）也用上了变量，且 env() 只当兜底",
-  css.includes("var(--q-inset-bottom, env(safe-area-inset-bottom, 0px))") &&
-    css.includes(".app-inset-top"),
+  css.includes("var(--q-inset-bottom, env(safe-area-inset-bottom, 0px))"),
 );
 check(
   "② 外壳挂载时真的调了 initShell（不是写了不用）",
@@ -121,6 +127,52 @@ check(
   (parseColor("rgb(255, 255, 255)")?.r ?? 0) === 255 &&
     (parseColor("#000000")?.r ?? 1) === 0 &&
     parseColor("不是颜色") === null,
+);
+
+/* ── ④ 键盘让位（2026-10 真机："键盘打字时对话框被盖住，看不到打的字"）──
+ *
+ * 根因（已核实）：原生开了 edge-to-edge（`setDecorFitsSystemWindows(window,false)`），
+ * 安卓 11+ 起 **`adjustResize` 就不再顶小窗口了**；而原生只推了**系统栏**高度、
+ * 从来没推过键盘 —— 页面完全不知道键盘弹了，输入框就被盖在键盘后面。
+ * 修法：网页端用 `visualViewport` 自己算（见 `src/lib/keyboard.ts`）。
+ */
+const keyboardSrc = src("src/lib/keyboard.ts");
+const { imeInsetOf } = await import("./src/lib/keyboard.ts");
+check(
+  "④ 键盘高度 = 布局视口 − 可视视口（键盘弹起时 innerHeight 不变、visualViewport 变小）",
+  imeInsetOf({ innerHeight: 844, vvHeight: 544, vvTop: 0 }) === 300,
+);
+check(
+  "④ 系统自己把窗口缩了（老安卓 adjustResize 生效）→ 算出 0，**不重复让位**",
+  imeInsetOf({ innerHeight: 544, vvHeight: 544, vvTop: 0 }) === 0,
+);
+check(
+  "④ iOS 上页面被顶起来那一段（offsetTop）要减掉",
+  imeInsetOf({ innerHeight: 844, vvHeight: 544, vvTop: 120 }) === 180,
+);
+check(
+  "④ 负数 / NaN 一律归 0（宁可不让位，也不许把输入框顶出屏幕）",
+  imeInsetOf({ innerHeight: 500, vvHeight: 600, vvTop: 0 }) === 0 &&
+    imeInsetOf({ innerHeight: Number.NaN, vvHeight: 100, vvTop: 0 }) === 0,
+);
+check("④ 小于门槛（80px）的抖动不算键盘（地址栏/手势条会抖几像素）", /IME_MIN_PX\s*=\s*80/.test(keyboardSrc));
+check("④ 网页真的在听可视视口，而不是只写在注释里", keyboardSrc.includes("visualViewport") && keyboardSrc.includes('addEventListener("resize"'));
+check("④ 外壳挂载时真的挂上了监听、卸载时拆掉", appShell.includes("return installKeyboardInset()"));
+check("④ 外壳自己让位（下内边距 = 键盘高度）", appShell.includes('paddingBottom: "var(--q-ime-bottom, 0px)"'));
+check(
+  "④ 底部导航也跟着抬（打字时导航**不消失** —— 用户定的规矩）",
+  appShell.includes('bottom: "var(--q-ime-bottom, 0px)"'),
+);
+
+/* ── ⑤ 插件页顶部那条安全区缝（2026-10："时感那块直接顶到最上面了"）── */
+const pluginFrame = src("src/components/play/plugin-frame.tsx");
+check(
+  "⑤ 插件页也吃 `--q-inset-top`（跟全 App 其它页面同一个口径）",
+  pluginFrame.includes("--q-inset-top") && pluginFrame.includes("paddingTop: topInset"),
+);
+check(
+  "⑤ 缝的颜色取插件自己的背景色（背景仍然铺到最上面）",
+  pluginFrame.includes("frameBg") && pluginFrame.includes("backgroundColor"),
 );
 
 if (REVERSE) {
