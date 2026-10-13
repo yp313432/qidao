@@ -325,14 +325,20 @@ export function Composer({ onSend, disabled, streaming }: Props) {
   return (
     <div className="px-4 pb-composer">
       {/*
-        ⚠️ **实底 + 阴影**（2026-10 用户提的）："把那个对话框浮起来，做成一个单独的组件，
-        不跟底下的背景是融合的。"
-        原来这里是 `aster-card`（半透明玻璃）—— 在花背景图上，输入框卡片跟背景糊在一起，
-        键盘一弹更看不出边界。现在改成**主题底色实心**的悬浮面板（`.composer-panel`），
-        底边还有一层淡淡的投影，一眼能看出"这是一块独立的输入面板"。
-        （不是造新玻璃类：它就是实心面板，玻璃层级那三档没动。）
+        ⚠️ 用**玻璃里最实的那一档** `.glass-menu`（§3：输入框/弹层要最高可读性用它）。
+        用户两次的原话都记在这儿，别再走回头路：
+          · "把它浮起来，做成一个单独的组件，不跟底下的背景融合" →
+            所以不能是 `.aster-card`（最透的那档，在花背景图上糊成一片）；
+          · "对话框好歹要跟玻璃组件统一吧……要是换白色字体，直接啥也看不清了" →
+            **不许自己发明底色**。上一版我自造了 `.composer-panel`（用 `--aster-bg`），
+            结果出现"浅底 + 浅字"，整块面板看着是空的（用户截图抓到的就是这个）。
+            `.glass-menu` 跟着主题走（深色主题=深玻璃+浅字，浅色主题反过来），94% 不透明，
+            所以既是"玻璃组件"、又永远看得清。
+          · "他和导航栏做切割，不放在一起，导航栏打字可以不浮起来" →
+            对话框落到键盘上面；**底部导航打字时不抬**（就在键盘后面），
+            打字时也不再给导航留那 4.5rem（见 styles.css 里 `[data-keyboard="up"]` 那条）。
       */}
-      <div ref={cardRef} className="composer-panel rounded-3xl border border-line p-2">
+      <div ref={cardRef} className="glass-menu rounded-3xl border border-line p-2">
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。

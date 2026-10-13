@@ -173,12 +173,13 @@ export function AppShell() {
          *
          * z-[60]：必须高于对话抽屉（z-50）。抽屉只占左边 84% 宽，
          * 导航在右边一直露着，用户才能一边看列表一边切页。
+         *
+         * ⚠️ **打字时它不抬**（2026-10 用户第二次纠正）：
+         *   "导航栏不弹起，对话框弹起来就行了……他和导航栏做切割，不放在一起。"
+         *   键盘一弹，只有**对话框**落到键盘上面；导航留在屏幕底下（在键盘后面）。
+         *   上一版我让它跟着抬，用户装上去说"填 API 的时候导航也跟着起来，很怪"。
          */
-        <div
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]"
-          /* 键盘弹起时导航跟着抬到键盘上面（它不消失在打字时 —— 用户定的规矩） */
-          style={{ bottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
-        >
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
           <nav
             aria-label="主导航"
             className="glass-nav-bar pointer-events-auto flex w-full items-stretch"

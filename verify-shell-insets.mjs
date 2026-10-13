@@ -58,6 +58,7 @@ const css = src("src/styles.css");
 const shell = src("src/lib/shell.ts");
 const appShell = src("src/components/app-shell.tsx");
 const bgLayer = src("src/components/background-layer.tsx");
+const composerSrc = src("src/components/chat/composer.tsx");
 
 /* ── ① 原生：edge-to-edge ── */
 check(
@@ -162,12 +163,30 @@ check(
 );
 check("④ 外壳挂载时真的挂上了监听、卸载时拆掉", appShell.includes("return installKeyboardInset()"));
 check(
-  "④ 外壳自己让位（下内边距 = max(原生, 网页)）",
+  "④ **对话框**自己让位（外壳下内边距 = max(原生, 网页)）",
   appShell.includes('paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))"'),
 );
+/**
+ * ⚠️ 用户第二次纠正（2026-10）：**导航栏打字时不抬**，只让对话框起 ——
+ *   "导航栏不弹起，对话框弹起来就行了……他和导航栏做切割，不放在一起。"
+ * 上一版让它跟着抬，用户装上去说"填 API 的时候导航也跟着起来，很怪"。
+ */
 check(
-  "④ 底部导航也跟着抬（打字时导航**不消失** —— 用户定的规矩）",
-  appShell.includes('bottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))"'),
+  "④ 底部导航打字时**不抬**（只让对话框起 —— 用户口径）",
+  appShell.includes("pointer-events-none fixed inset-x-0 bottom-0 z-[60]") &&
+    !/bottom:\s*"max\(var\(--q-ime-bottom/.test(appShell),
+);
+check(
+  "④ 打字时输入框不再给导航留那 4.5rem（CSS 里那条 data-keyboard 规则）",
+  css.includes('html[data-keyboard="up"] .pb-composer'),
+);
+check(
+  "④ 键盘弹没弹会写成 `<html data-keyboard>`（原生推的值 + 网页兜底两路都看）",
+  keyboardSrc.includes("root.dataset.keyboard") && keyboardSrc.includes("nativeIme"),
+);
+check(
+  "④ 对话框用**现成玻璃** `.glass-menu`（不自己造底色 —— 上一版浅底浅字看不见）",
+  composerSrc.includes('className="glass-menu') && !/className="[^"]*composer-panel/.test(composerSrc),
 );
 /**
  * ⚠️ **键盘高度必须原生读**（2026-10 第二次修）：

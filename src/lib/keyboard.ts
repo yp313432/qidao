@@ -66,29 +66,60 @@ export function installKeyboardInset(): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") return () => {};
   const root = document.documentElement;
   const vv = window.visualViewport ?? null;
-  let last = -1;
+  let lastWeb = -1;
+  let lastUp: boolean | null = null;
 
-  const apply = () => {
-    const ime = imeInsetOf({
-      innerHeight: window.innerHeight,
-      vvHeight: vv?.height ?? window.innerHeight,
-      vvTop: vv?.offsetTop ?? 0,
-    });
-    const settled = ime >= IME_MIN_PX ? ime : 0;
-    if (settled === last) return;
-    last = settled;
-    root.style.setProperty(WEB_IME_VAR, `${settled}px`);
+  /** 原生那条路推的值（安卓主路径，见 ShellBridgePlugin） */
+  const nativeIme = (): number => {
+    const raw = getComputedStyle(root).getPropertyValue("--q-ime-bottom-native").trim();
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   };
 
-  apply();
-  vv?.addEventListener("resize", apply);
-  vv?.addEventListener("scroll", apply);
+  /**
+   * 一次同步做两件事：
+   *   ① 网页兜底那份（`--q-ime-bottom-web`）；
+   *   ② 给 `<html>` 挂 `data-keyboard="up|down"` ——
+   *      CSS 用它决定"打字时输入框还留不留那 4.5rem"（见 styles.css）。
+   *      **两个来源都要看**：安卓上是原生推的值，浏览器/iOS 上是这里算的。
+   */
+  const sync = () => {
+    const web = (() => {
+      const ime = imeInsetOf({
+        innerHeight: window.innerHeight,
+        vvHeight: vv?.height ?? window.innerHeight,
+        vvTop: vv?.offsetTop ?? 0,
+      });
+      return ime >= IME_MIN_PX ? ime : 0;
+    })();
+    if (web !== lastWeb) {
+      lastWeb = web;
+      root.style.setProperty(WEB_IME_VAR, `${web}px`);
+    }
+    const up = Math.max(web, nativeIme()) >= IME_MIN_PX;
+    if (up !== lastUp) {
+      lastUp = up;
+      root.dataset.keyboard = up ? "up" : "down";
+    }
+  };
+
+  sync();
+  vv?.addEventListener("resize", sync);
+  vv?.addEventListener("scroll", sync);
   // 有些 WebView 只在 window 上发 resize（可视视口那条事件不来）
-  window.addEventListener("resize", apply);
+  window.addEventListener("resize", sync);
+  /**
+   * 原生是"往 `<html>` 上写 CSS 变量"的方式推键盘高度 —— 盯住那次 style 变化，
+   * 这样 data-keyboard 才会跟着翻转（网页自己算不出来的时候全靠它）。
+   */
+  const mo = new MutationObserver(sync);
+  mo.observe(root, { attributes: true, attributeFilter: ["style"] });
   return () => {
-    vv?.removeEventListener("resize", apply);
-    vv?.removeEventListener("scroll", apply);
-    window.removeEventListener("resize", apply);
+    mo.disconnect();
+    vv?.removeEventListener("resize", sync);
+    vv?.removeEventListener("scroll", sync);
+    window.removeEventListener("resize", sync);
     root.style.removeProperty(WEB_IME_VAR);
+    delete root.dataset.keyboard;
   };
 }
