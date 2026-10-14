@@ -80,7 +80,8 @@ const defaultSettings: Settings = {
   notifications: true,
   geoEnabled: false,
   quotaAlerts: true,
-  diaryReminders: false,
+  /** 2026-10 起它表示「他每天写一篇日记」（不再是提醒用户）—— 默认开 */
+  diaryReminders: true,
   reminderTime: "21:00",
   /**
    * 整轮预算（**系统提示词 + 工具定义 + 历史** 都算在里面）。

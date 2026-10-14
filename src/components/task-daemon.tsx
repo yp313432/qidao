@@ -4,6 +4,7 @@ import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
+import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
 
 /**
@@ -39,13 +40,26 @@ export function TaskDaemon() {
 
       // 护栏②：安静时段不说话
       if (now.getHours() >= QUIET_FROM || now.getHours() < QUIET_TO) return;
-      // 护栏①：今天已经说够次数了
-      const ranToday = st.tasks.filter((t) => t.lastRunDay === today).length;
+      /**
+       * 护栏①：今天已经说够次数了。
+       *
+       * ⚠️ 2026-10：他"自己的日子"那三类（自由活动 / 日记保底 / 回响）**单独计数**
+       * —— 用户定的是"独立额度"：他自己有事干而醒来，不该吃掉"用户给他定的定时任务"的次数。
+       * 见 `lib/wake-schedule.ts`。
+       */
+      const ranToday = st.tasks.filter((t) => t.lastRunDay === today && !isSystemWake(t)).length;
       if (ranToday >= DAILY_CAP) return;
+      const level = levelOf(st.settings);
+      const ranFree = st.tasks.filter((t) => t.lastRunDay === today && isFreeWake(t)).length;
+      const ranDiary = st.tasks.filter((t) => t.lastRunDay === today && isDiaryWake(t)).length;
+      const ranEcho = st.tasks.filter((t) => t.lastRunDay === today && isEchoWake(t)).length;
 
       // 找一个到点的任务（护栏③：同一天只跑一次）
       const due = st.tasks.find((t) => {
         if (!t.enabled || t.lastRunDay === today) return false;
+        if (isDiaryWake(t) && ranDiary >= 1) return false;
+        if (isFreeWake(t) && ranFree >= freeCountOf(level)) return false;
+        if (isEchoWake(t) && ranEcho >= echoCapOf(level)) return false;
         if (t.at) return Date.now() >= t.at;
         if (!t.time) return false;
         const [h, m] = t.time.split(":").map(Number);

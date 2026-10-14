@@ -10,6 +10,7 @@ import { EmbedHost } from "@/components/play/embed-host";
 import { ReminderDaemon } from "@/components/reminder-daemon";
 import { AlarmOverlay } from "@/components/alarm-overlay";
 import { TaskDaemon } from "@/components/task-daemon";
+import { WakePlan } from "@/components/wake-plan";
 import { WakeDaemon } from "@/components/wake-daemon";
 import { UiEffects } from "@/components/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
@@ -148,6 +149,7 @@ export function AppShell() {
       <ReminderDaemon />
       {/* 定时任务：到点让他自己开口（App 活着时；关掉时靠原生通知兜底） */}
       <TaskDaemon />
+      <WakePlan />
       {/* 「主动找你」：把人设/最近对话/规矩同步给 Worker，供后台唤醒时用（见 lib/wake-sync） */}
       <WakeDaemon />
       {/* 闹钟到点：全屏响铃（只发通知的话人会睡过去） */}

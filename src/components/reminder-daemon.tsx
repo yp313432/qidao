@@ -80,23 +80,18 @@ export function ReminderDaemon() {
     };
   }, [reminderKey]);
 
+  /**
+   * ⚠️ 2026-10：**这条"提醒用户写日记"的通知删掉了**。
+   *
+   * 用户原话："日记是让他写，不是提醒给我写。" 现在到 20:30 还没写，
+   * 由 `lib/wake-schedule.ts` 的**日记保底**唤醒他本人去写（见 `wake-plan.tsx`），
+   * 不再弹通知打扰用户（用户定的通知规则：只有评论/点赞/发动态弹）。
+   */
   useEffect(() => {
-    if (!enabled) return;
-
-    const check = () => {
-      const now = new Date();
-      const [h, m] = time.split(":").map((v) => Number(v));
-      const dueAt = (Number.isFinite(h) ? h : 21) * 60 + (Number.isFinite(m) ? m : 0);
-      if (now.getHours() * 60 + now.getMinutes() < dueAt) return;
-      const today = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-      if (kvGet(LAST_KEY) === today) return;
-      kvSet(LAST_KEY, today);
-      void localNotify("栖岛", `${name} 提醒你：今天还没写日记。`);
-    };
-
-    check();
-    const id = window.setInterval(check, 30_000);
-    return () => window.clearInterval(id);
+    void LAST_KEY;
+    void enabled;
+    void time;
+    void name;
   }, [enabled, time, name]);
 
   // 他设的提醒：到点就发（同一个提醒每天只响一次）

@@ -37,6 +37,7 @@ import { pingWake, readWakeLog, resetWake, wakeUrlSource } from "@/lib/wake-sync
 import { speakTextAsync } from "@/lib/tts";
 import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
+import { WAKE_LEVELS } from "@/lib/wake-schedule";
 import { readImageFile } from "@/lib/image-file";
 import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -1678,23 +1679,48 @@ function MeSections({ tab }: { tab: MeTab }) {
           checked={settings.quotaAlerts}
           onChange={(v) => patch({ quotaAlerts: v })}
         />
+        {/*
+          「日记提醒」原来是**提醒用户**写日记（弹一条"今天还没写日记"）——
+          2026-10 用户纠正："日记是让他写，不是提醒给我写。" 所以改成：
+          **他每天写一篇（到点还没写就唤醒他补）**，不再打扰用户。
+          （用户定的参数：保底时间晚上八点半；日记不弹通知。）
+        */}
         <Row
-          label="日记提醒"
-          hint="App 开着时到点提醒；完全关闭收不到"
+          label="日记（他每天写一篇）"
+          hint="到晚上 20:30 还没写就唤醒他补一篇；你也能自己写，他写的会挂「他写的」"
           checked={settings.diaryReminders}
           onChange={(v) => patch({ diaryReminders: v })}
         />
-        {settings.diaryReminders && (
-          <label className="mt-2 flex items-center justify-between rounded-2xl bg-chip px-3.5 py-3">
-            <span className="text-[13px]">提醒时间</span>
-            <input
-              type="time"
-              value={settings.reminderTime}
-              onChange={(e) => patch({ reminderTime: e.target.value })}
-              className="bg-transparent text-[13px] outline-none"
-            />
-          </label>
-        )}
+
+        {/*
+          **活跃度**（2026-10 用户定的"他自己的日子"第一批）。
+          用户原话："每天他不定时唤醒，做他自己想能做的……" —— 这一档决定他一天自己动几次。
+        */}
+        <p className="mt-4 mb-2 text-[12px] text-muted">他的活跃度（一天自己动几次）</p>
+        <div className="flex items-center gap-1.5" role="group" aria-label="他的活跃度">
+          {WAKE_LEVELS.map((lv) => {
+            const active = (settings.wakeLevel ?? "daily") === lv.id;
+            return (
+              <button
+                key={lv.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => patch({ wakeLevel: lv.id })}
+                className={cn(
+                  "flex-1 rounded-2xl px-2 py-2 text-[12px] transition",
+                  active ? "bg-accent/20 text-accent" : "bg-chip text-muted active:bg-surface",
+                )}
+              >
+                {lv.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+          {WAKE_LEVELS.find((lv) => lv.id === (settings.wakeLevel ?? "daily"))?.hint}
+          <br />
+          他醒来做的事会出现在对话/朋友圈/日记页；**评论、点赞、发动态会弹通知**，其他不弹（你定的）。
+        </p>
 
         {/*
           「闹钟 / 提醒」的列表入口**已挪到「玩乐 → 小日子 → 闹钟」**

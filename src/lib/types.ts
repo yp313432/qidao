@@ -474,6 +474,12 @@ export type Settings = {
   weatherFor?: string;
   quotaAlerts: boolean;
   diaryReminders: boolean;
+  /**
+   * **活跃度**（2026-10 用户定的第一批"他自己的日子"）。
+   * 安静 = 只在你互动时回应；日常（默认）= 日记 1 + 自由活动 1 + 互动最多 3；
+   * 活跃 = 自由活动 2 + 互动最多 5。见 `lib/wake-schedule.ts`。
+   */
+  wakeLevel?: "quiet" | "daily" | "active";
   /** 日记提醒时间，形如 "21:00" */
   reminderTime: string;
   /** 上下文预算（估算 token 数） */

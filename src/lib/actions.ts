@@ -96,9 +96,14 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
    * 通知这条链路**一律不许影响动作本身**：网页版没授权、App 里被拒，
    * 都只是没弹出来，动态该落的库照落（所以 notifyMoment 自己吞掉所有异常）。
    */
-  const notifyMoment = async (kind: "comment" | "like", text: string): Promise<void> => {
+  const notifyMoment = async (kind: "comment" | "like" | "post", text: string): Promise<void> => {
     const aiName = resolveAiName(useApp.getState().settings.aiName);
-    const body = kind === "like" ? "给你的动态点了个赞" : `在你的动态下评论：${text.slice(0, 40)}`;
+    const body =
+      kind === "like"
+        ? "给你的动态点了个赞"
+        : kind === "post"
+          ? `发了一条动态：${text.slice(0, 30)}`
+          : `在你的动态下评论：${text.slice(0, 40)}`;
     try {
       const { localNotify } = await import("@/lib/notify");
       await localNotify(aiName, body);
@@ -385,6 +390,8 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       if (!text) return "动态得有内容";
       // ⚠️ 2026-10：不再传 mood（心情标签退役）；新动态只留正文
       useApp.getState().addMoment(text, "ai");
+      /** 用户定的通知规则："评论、点赞、发动态弹，其他不弹" */
+      void notifyMoment("post", text);
       return `已发一条动态（${text.slice(0, 16)}${text.length > 16 ? "…" : ""}）`;
     }
 
