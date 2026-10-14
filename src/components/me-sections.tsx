@@ -1696,6 +1696,13 @@ function MeSections({ tab }: { tab: MeTab }) {
           **活跃度**（2026-10 用户定的"他自己的日子"第一批）。
           用户原话："每天他不定时唤醒，做他自己想能做的……" —— 这一档决定他一天自己动几次。
         */}
+        <Row
+          label="他自己的日子"
+          hint="自由活动 / 每天一篇日记 / 你互动他就回响 —— 关掉就完全安静（也不弹那些到点通知）"
+          checked={settings.autonomyEnabled !== false}
+          onChange={(v) => patch({ autonomyEnabled: v })}
+        />
+
         <p className="mt-4 mb-2 text-[12px] text-muted">他的活跃度（一天自己动几次）</p>
         <div className="flex items-center gap-1.5" role="group" aria-label="他的活跃度">
           {WAKE_LEVELS.map((lv) => {

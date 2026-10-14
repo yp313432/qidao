@@ -148,7 +148,7 @@ export function planDay(
   /** 日记保底：20:30 —— 今天写过了就不排；时间已过就排"现在就写" */
   if (opts.level !== "quiet" && opts.diaryOn && !opts.hasAiDiaryToday) {
     const diaryAt = msAt(now, DIARY_HOUR * 60 + DIARY_MINUTE);
-    addTask({ prompt: buildDiaryWakePrompt(), at: Math.max(diaryAt, Date.now() + 60_000), notify: false });
+    addTask({ prompt: buildDiaryWakePrompt(), at: Math.max(diaryAt, Date.now() + 60_000), notify: true });
     queued += 1;
   }
   /** 自由活动：随机时间，避开日记点前后半小时 */
@@ -164,7 +164,7 @@ export function planDay(
     const at = msAt(now, minutes);
     /** 今天已经过了的点就顺延到"再过 20 分钟"（否则一开 App 就连着补做，像刷屏） */
     const when = at > Date.now() + 60_000 ? at : Date.now() + 20 * 60_000 + i * 10 * 60_000;
-    addTask({ prompt: buildFreeWakePrompt(), at: when, notify: false });
+    addTask({ prompt: buildFreeWakePrompt(), at: when, notify: true });
     queued += 1;
   }
   return queued;
@@ -189,7 +189,7 @@ export function queueEchoes(
   const now = Date.now();
   let queued = 0;
   const push = (key: string, prompt: string) => {
-    addTask({ prompt, at: now + 3 * 60_000, notify: false });
+    addTask({ prompt, at: now + 3 * 60_000, notify: true });
     seen.add(key);
     queued += 1;
   };

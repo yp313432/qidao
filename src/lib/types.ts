@@ -480,6 +480,13 @@ export type Settings = {
    * 活跃 = 自由活动 2 + 互动最多 5。见 `lib/wake-schedule.ts`。
    */
   wakeLevel?: "quiet" | "daily" | "active";
+  /**
+   * **「他自己的日子」总开关**（2026-10 用户要的："这个活动也加一个开关，可以关闭的那种"）。
+   * ⚠️ 跟上面的 `wakeEnabled`（"让他主动找我"那条后台通道）**不是同一个**：
+   * 那个是"他会不会主动找你说话"，这个是"他自己过日子（自由活动/日记/回响）"。
+   * 关掉 = 不排、也不弹那些到点通知。默认开（`!== false`）。
+   */
+  autonomyEnabled?: boolean;
   /** 日记提醒时间，形如 "21:00" */
   reminderTime: string;
   /** 上下文预算（估算 token 数） */

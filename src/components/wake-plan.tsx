@@ -28,6 +28,11 @@ export function WakePlan() {
   useEffect(() => {
     if (!hydrated) return;
     const st = useApp.getState();
+    /** 总开关（用户要的"可以关闭的那种"）：关掉就不排新的，并把还没跑的撤掉 */
+    if (st.settings.autonomyEnabled === false) {
+      for (const task of st.tasks) if (isSystemWake(task)) st.removeTask(task.id);
+      return;
+    }
     const level = levelOf(st.settings);
     const today = new Date();
     const dayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
