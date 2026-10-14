@@ -58,11 +58,25 @@ export type WakeConfigInput = {
  * `enabled` 写 `"0"`、指纹写空 —— 这样后台醒来会看到"没配置、别说话"，
  * 而不是继续用一份旧配置（W1 的修法）。
  */
+/**
+ * **上游到底能不能用** —— 全项目只认这一处（2026-10 用户点名要求）。
+ *
+ * 用户原话："记得和上游统一，不要出现我没填 api 还能做事这样的。"
+ * 所以：地址 / key / 模型**三样齐**才算能用；不齐时：
+ *   · 后台唤醒那条：`cfg_enabled = "0"`（运行器直接不动，不装样子）
+ *   · 「他自己的日子」（自由活动/日记/回响）：**根本不排任务**（见 `wake-plan.tsx`）
+ */
+export function upstreamComplete(input: { baseUrl?: string; apiKey?: string; model?: string }): boolean {
+  return Boolean(
+    (input.baseUrl ?? "").trim() && (input.apiKey ?? "").trim() && (input.model ?? "").trim(),
+  );
+}
+
 export function wakeConfigPayload(input: WakeConfigInput): Record<string, string> {
   const baseUrl = (input.baseUrl ?? "").trim().replace(/\/+$/, "");
   const apiKey = (input.apiKey ?? "").trim();
   const model = (input.model ?? "").trim();
-  const complete = Boolean(baseUrl && apiKey && model);
+  const complete = upstreamComplete({ baseUrl, apiKey, model });
 
   const payload: Record<string, string> = { ...input.rest };
   payload.cfg_base_url = complete ? baseUrl : "";

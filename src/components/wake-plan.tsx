@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { upstreamComplete } from "@/lib/data/wake-config";
 import { useApp } from "@/lib/store";
 import {
   echoCapOf,
@@ -30,6 +31,21 @@ export function WakePlan() {
     const st = useApp.getState();
     /** 总开关（用户要的"可以关闭的那种"）：关掉就不排新的，并把还没跑的撤掉 */
     if (st.settings.autonomyEnabled === false) {
+      for (const task of st.tasks) if (isSystemWake(task)) st.removeTask(task.id);
+      return;
+    }
+    /**
+     * ⚠️ **上游不全就一件事都不排**（用户点名要求："记得和上游统一，
+     * 不要出现我没填 api 还能做事这样的"）。跟后台唤醒那条共用同一个判定
+     * （`upstreamComplete`）—— 地址/key/模型三样齐才算能用。
+     */
+    if (
+      !upstreamComplete({
+        baseUrl: st.settings.customBaseUrl,
+        apiKey: st.settings.customApiKey,
+        model: st.settings.upstreamModel,
+      })
+    ) {
       for (const task of st.tasks) if (isSystemWake(task)) st.removeTask(task.id);
       return;
     }
