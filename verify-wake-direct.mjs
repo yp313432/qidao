@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 验收脚本：**甲那条路 —— 后台那段 JS 直接问你的 AI**（本地，不用真机）。
  *
  * 这是用户选的方案：`qidao.…workers.dev` 在国内被 DNS 污染，而他的 AI 是国内那条快的 ——
@@ -75,6 +75,8 @@ function drawer(over = {}) {
     cfg_api_key: "sk-FAKE-DIRECT-KEY",
     cfg_model: "fake-model",
     cfg_ai_name: "星芒",
+    /** ⚠️ 2026-10 补：指纹是后加的功能，老脚本没注入 → 运行器判"配置来路不明"直接不发 */
+    cfg_fingerprint: "deadbeef",
     cfg_enabled: "1",
     cfg_quiet_start: "0",
     cfg_quiet_end: "0",

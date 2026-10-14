@@ -73,6 +73,8 @@ function drawer(over = {}) {
     cfg_api_key: "sk-FAKE-DIRECT-KEY",
     cfg_model: "fake-model",
     cfg_ai_name: "星芒",
+    /** ⚠️ 2026-10 补：指纹是后加的功能，老脚本没注入 → 运行器判"配置来路不明"直接不发 */
+    cfg_fingerprint: "deadbeef",
     cfg_enabled: "1",
     cfg_quiet_start: "0",
     cfg_quiet_end: "0",
