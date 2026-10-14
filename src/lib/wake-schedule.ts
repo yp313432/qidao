@@ -136,9 +136,11 @@ function msAt(day: Date, minutes: number): number {
  * 返回排了几条（给界面/验收看）。幂等：同一天只排一次（`plans` 记 day）。
  */
 export function planDay(
-  opts: { level: WakeLevel; diaryOn: boolean; hasAiDiaryToday: boolean }, 
+  opts: { level: WakeLevel; diaryOn: boolean; hasAiDiaryToday: boolean; upstreamOk: boolean },
   addTask: (t: { prompt: string; at?: number; time?: string; notify?: boolean }) => string,
 ): number {
+  /** ⚠️ 上游不全 → 一件事都不排（用户点名："不要出现我没填 api 还能做事"）。模块内再拦一道，防绕过。 */
+  if (!opts.upstreamOk) return 0;
   const now = new Date();
   const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   if (kvGetJSON<string>(PLAN_KEY, "") === day) return 0;
@@ -183,7 +185,10 @@ const ECHO_SEEN_KEY = "qidao:echo-seen";
 export function queueEchoes(
   moments: readonly Moment[],
   addTask: (t: { prompt: string; at?: number; time?: string; notify?: boolean }) => string,
+  upstreamOk = true,
 ): number {
+  /** 上游不全 → 不排回响（同上：不装样子做事） */
+  if (!upstreamOk) return 0;
   const seen = new Set(kvGetJSON<string[]>(ECHO_SEEN_KEY, []));
   const fresh = 15 * 60_000;
   const now = Date.now();

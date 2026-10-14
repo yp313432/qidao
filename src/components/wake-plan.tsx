@@ -39,13 +39,12 @@ export function WakePlan() {
      * 不要出现我没填 api 还能做事这样的"）。跟后台唤醒那条共用同一个判定
      * （`upstreamComplete`）—— 地址/key/模型三样齐才算能用。
      */
-    if (
-      !upstreamComplete({
-        baseUrl: st.settings.customBaseUrl,
-        apiKey: st.settings.customApiKey,
-        model: st.settings.upstreamModel,
-      })
-    ) {
+    const upstreamOk = upstreamComplete({
+      baseUrl: st.settings.customBaseUrl,
+      apiKey: st.settings.customApiKey,
+      model: st.settings.upstreamModel,
+    });
+    if (!upstreamOk) {
       for (const task of st.tasks) if (isSystemWake(task)) st.removeTask(task.id);
       return;
     }
@@ -58,7 +57,7 @@ export function WakePlan() {
       const t = new Date(d.createdAt);
       return `${t.getFullYear()}-${t.getMonth() + 1}-${t.getDate()}` === dayKey;
     });
-    planDay({ level, diaryOn: st.settings.diaryReminders !== false, hasAiDiaryToday: aiDiaryToday }, (t) =>
+    planDay({ level, diaryOn: st.settings.diaryReminders !== false, hasAiDiaryToday: aiDiaryToday, upstreamOk }, (t) =>
       useApp.getState().addTask(t),
     );
     /** 回响：先按额度裁一下（超了就这次不排；第二天额度自然重置） */
@@ -69,7 +68,7 @@ export function WakePlan() {
         (t.lastRunDay ?? "") === todayKey,
     ).length;
     const pendingEcho = st.tasks.filter((t) => t.prompt.startsWith("【回响】") && !t.lastRunDay).length;
-    if (ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t));
+    if (ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t), upstreamOk);
   }, [hydrated, moments, diary, settings]);
 
   /** ③ 清掉跑过的系统唤醒（用户自己定的定时任务不动） */
