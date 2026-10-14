@@ -711,6 +711,25 @@ addEventListener("qidaoWake", function (resolve, reject) {
         .replace(/\{\{ELAPSED\}\}/g, elapsedText(elapsed));
 
       /**
+       * **回响**（用户："我发动态他现在能知道并反应吗"）：把 App 推进来的那份料
+       * 贴给他，让他**只针对这一条**回应 —— 评论 / 点赞 / 或写点什么都行；
+       * **没感觉就回一个空对象 {}**（那就什么都不做，不会硬凑）。
+       */
+      if (actionMode === "echo") {
+        var echoId = cfg("cfg_echo_id");
+        system =
+          system +
+          "\n\n【这次是为了回应他】" +
+          cfg("cfg_echo_what") +
+          "\n只针对这一条。可以评论：{\"kind\":\"moment.comment\",\"momentId\":\"" +
+          echoId +
+          "\",\"text\":\"你想说的话\"}；也可以点赞：{\"kind\":\"moment.like\",\"momentId\":\"" +
+          echoId +
+          "\"}；想写封信或单发一条动态也行。" +
+          "\n**没感觉就回 {}**（空对象 = 什么都不做）。";
+      }
+
+      /**
        * ⑤ 直接问你的上游（失败会自己诊断"为什么找不到上游"）
        *
        * ⚠️ 2026-10 改（用户提的"换家 API 唤醒就白做了"）：

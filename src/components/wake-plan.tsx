@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { upstreamComplete } from "@/lib/data/wake-config";
+import { WAKE_KEYS, pushWakeConfig } from "@/lib/wake-bridge";
 import { useApp } from "@/lib/store";
 import {
   echoCapOf,
@@ -68,7 +69,10 @@ export function WakePlan() {
         (t.lastRunDay ?? "") === todayKey,
     ).length;
     const pendingEcho = st.tasks.filter((t) => t.prompt.startsWith("【回响】") && !t.lastRunDay).length;
-    if (ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t), upstreamOk);
+    if (ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t), upstreamOk, (info) => {
+      /** 顺手交给后台：你互动的那一刻 App 开着，所以这份料能存下来 */
+      void pushWakeConfig({ [WAKE_KEYS.echoId]: info.id, [WAKE_KEYS.echoWhat]: info.what });
+    });
   }, [hydrated, moments, diary, settings]);
 
   /** ③ 清掉跑过的系统唤醒（用户自己定的定时任务不动） */

@@ -186,6 +186,12 @@ export function queueEchoes(
   moments: readonly Moment[],
   addTask: (t: { prompt: string; at?: number; time?: string; notify?: boolean }) => string,
   upstreamOk = true,
+  /**
+   * **顺手把这份"互动的料"交给后台**（2026-10）——用户："我发动态他现在能知道并反应吗"。
+   * 你互动的那一刻 App 一定是开着的，所以这里把"哪条动态 + 你干了什么"推进抽屉；
+   * 之后哪怕你马上关掉 App，他下一次后台醒来（≤60 分钟）也能看到并回应。
+   */
+  onEcho?: (info: { id: string; what: string }) => void,
 ): number {
   /** 上游不全 → 不排回响（同上：不装样子做事） */
   if (!upstreamOk) return 0;
@@ -193,27 +199,38 @@ export function queueEchoes(
   const fresh = 15 * 60_000;
   const now = Date.now();
   let queued = 0;
-  const push = (key: string, prompt: string) => {
+  const push = (key: string, prompt: string, id: string, what: string) => {
     addTask({ prompt, at: now + 3 * 60_000, notify: true });
     seen.add(key);
     queued += 1;
+    try {
+      onEcho?.({ id, what });
+    } catch {
+      /* 推给后台失败不影响前台这条回响 */
+    }
   };
   for (const m of moments) {
     if (m.by === "me") {
       const key = `post:${m.id}`;
-      if (!seen.has(key) && now - m.at < fresh) push(key, buildEchoPrompt("post", m, m.text.replace(/\s+/g, " ").slice(0, 60)));
+      const brief = m.text.replace(/\s+/g, " ").slice(0, 60);
+      if (!seen.has(key) && now - m.at < fresh) {
+        push(key, buildEchoPrompt("post", m, brief), m.id, `他刚发了一条动态：「${brief}」`);
+      }
       continue;
     }
     /** 他的动态：看我的评论 / 点赞（`by === "me"`） */
     for (const c of m.comments ?? []) {
       const key = `cmt:${m.id}:${c.at}`;
+      const brief = c.text.replace(/\s+/g, " ").slice(0, 40);
       if (c.by === "me" && !seen.has(key) && now - c.at < fresh) {
-        push(key, buildEchoPrompt("comment", m, c.text.replace(/\s+/g, " ").slice(0, 40)));
+        push(key, buildEchoPrompt("comment", m, brief), m.id, `他在你的动态下评论了：「${brief}」`);
       }
     }
     for (const l of m.likes ?? []) {
       const key = `like:${m.id}:${l.at}`;
-      if (l.by === "me" && !seen.has(key) && now - l.at < fresh) push(key, buildEchoPrompt("like", m, ""));
+      if (l.by === "me" && !seen.has(key) && now - l.at < fresh) {
+        push(key, buildEchoPrompt("like", m, ""), m.id, "他给你的动态点了个赞");
+      }
     }
   }
   kvSetJSON(ECHO_SEEN_KEY, [...seen].slice(-100));

@@ -133,7 +133,7 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
         [WAKE_KEYS.autonomyOn]: (s.autonomyEnabled !== false && (s.wakeEnabled ?? true)) ? "1" : "0",
         [WAKE_KEYS.actionDiary]: (s.diaryReminders !== false) ? "1" : "0",
         [WAKE_KEYS.actionFree]: "1",
-        [WAKE_KEYS.actionEcho]: "0",
+        [WAKE_KEYS.actionEcho]: "1",
         [WAKE_KEYS.actionHour]: String(s.wakeLevel === "active" ? 20 : 20),
         [WAKE_KEYS.actionMinute]: "30",
         [WAKE_KEYS.actionDay]: lastAiDiaryDay() ?? "",
