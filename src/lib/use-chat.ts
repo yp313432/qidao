@@ -453,7 +453,23 @@ export function useChatStream(opts: UseChatOpts = {}) {
         };
       };
 
+      /**
+       * ⚠️ **卡死看门狗**（2026-10 真机）：用户那次回复从 02:30 一直"正在写回复"卡到 03:15，
+       * 之后异常退出 —— 上游连接断了却没人收尾，界面就一直挂着。
+       * 现在：**90 秒**没有任何新内容 → 主动中断这一轮（界面显示成一次失败，可以重发）。
+       */
+      const STALL_MS = 90_000;
+      let lastBeat = Date.now();
+      const stallTimer = window.setInterval(() => {
+        if (Date.now() - lastBeat > STALL_MS) {
+          window.clearInterval(stallTimer);
+          crumb("chat", "上游 90 秒没有新内容 → 主动中断（免得一直卡在正在写回复）");
+          ac.abort();
+        }
+      }, 10_000);
+
       const onDelta = (d: ChatDelta) => {
+        lastBeat = Date.now();
         if (d.error) {
           /**
            * 错误正文先当"这一轮的话"显示出来（`content || d.error`：已经有正文就不覆盖）。
@@ -643,7 +659,11 @@ export function useChatStream(opts: UseChatOpts = {}) {
           if (native && !rejectedToText) {
             await runNative(state);
           } else {
-            await streamChat(buildReq(false), onDelta, ac.signal);
+            try {
+        await streamChat(buildReq(false), onDelta, ac.signal);
+      } finally {
+        window.clearInterval(stallTimer);
+      }
           }
           lastErr = null;
         } catch (err) {

@@ -309,6 +309,8 @@ function buildActionPrompt(): string {
     `· 写一封信 {"kind":"letter.write","title":"…","body":"…"}\n` +
     `· 更新一下此刻的心情 {"kind":"emotion.report","primaryEmotion":"…","intensity":0.5,"confidence":0.6}\n` +
     `（只能这些。**不许**删东西、不许改设置、不许调用外部工具。）\n` +
+    `⚠️ **必须在回复里真的给出这个动作块**（日记/动态的正文写进动作里）。\n` +
+    `只在正文里描述"我写了日记/我发了动态"而没有动作块 = 这次什么都不算。\n` +
     `写法：\n\`\`\`qidao\n{"kind":"diary.add","body":"…"}\n\`\`\`\n` +
     `我是${name}，写给用户看的；别写成流水账，别硬凑。`
   );

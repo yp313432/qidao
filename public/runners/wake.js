@@ -898,6 +898,16 @@ addEventListener("qidaoWake", function (resolve, reject) {
            */
           var outText = said;
           var outKind = "";
+          /**
+           * ⚠️ 2026-10 真机：他"开了口却没说出什么" —— 回复被清洗后**只剩空串**
+           * （正文只有动作块、或模型什么都没说），却照样发了通知/草稿，
+           * 前台就插进一条空的"他自己说的"。**空的一律不发。**
+           */
+          if (!String(said).trim()) {
+            kvSet("speak_acc", 1);
+            logLine("#" + count + " " + stamp + " 回复是空的 → 这次不发（不插空消息）");
+            return;
+          }
           if (actionMode) {
             var act = extractAction(said);
             var td = dayStamp(now);
