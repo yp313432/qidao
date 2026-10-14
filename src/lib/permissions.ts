@@ -136,7 +136,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "rename_chat", title: "重命名 / 置顶对话", hint: "帮你整理对话", risk: "L1", status: "ready", group: "ui" },
 
   // ---------------- 内容写入（L2） ----------------
-  { id: "diary", title: "写日记", hint: "往你的日记里加一条", risk: "L2", status: "ready", group: "write" },
+  { id: "diary", title: "写日记", hint: "他写下一篇日记（你也能自己写；他写的会挂「他写的」标记）", risk: "L2", status: "ready", group: "write" },
   { id: "chat", title: "新建对话", hint: "开一个新话题", risk: "L2", status: "ready", group: "write" },
   { id: "docs_write", title: "新建 / 编辑文档", hint: "帮你写笔记", risk: "L2", status: "ready", group: "write" },
   { id: "archive_chat", title: "把对话存成文档", hint: "归档一段对话", risk: "L2", status: "ready", group: "write" },

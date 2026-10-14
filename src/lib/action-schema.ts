@@ -242,6 +242,30 @@ export const ACTION_SCHEMA = [
       { name: "notify", type: "boolean", required: false, note: "关掉 App 时用通知兜底" },
     ],
   },
+  /**
+   * **改 / 删定时任务**（2026-10 用户实测补的配套）。原话：
+   * "没有改删定时任务的功能，包括日记、信，权限得是配套的你知道吗，检查一下还有没有其他这样的。"
+   * 真实场景：他设了"每天 7:30 写信"，想改成只做一次 → 手上没动作，只能让用户自己去页面里清。
+   * 跟提醒/记忆同一套口径：模型不知道 id，用**内容片段**（query）匹配。
+   */
+  {
+    kind: "cron.update",
+    group: "提醒",
+    summary: "改一个定时任务（他按时主动开口那种）",
+    fields: [
+      { name: "query", type: "string", required: true, note: "内容片段，用来找到那一条" },
+      { name: "prompt", type: "string", required: false, note: "改成让他说什么" },
+      { name: "time", type: "string", required: false, note: "每天几点 HH:MM" },
+      { name: "at", type: "string", required: false, note: "改成只做一次的时间" },
+      { name: "notify", type: "boolean", required: false },
+    ],
+  },
+  {
+    kind: "cron.remove",
+    group: "提醒",
+    summary: "删掉一个定时任务",
+    fields: [{ name: "query", type: "string", required: true, note: "内容片段" }],
+  },
   {
     kind: "emotion.report",
     group: "自我",
@@ -479,7 +503,15 @@ export const ACTION_SCHEMA = [
     fields: [
       { name: "title", type: "string", required: true },
       { name: "body", type: "string", required: true },
+      /**
+       * 兼容写法（2026-10 用户实测"第一次没写成功、第二次才成功"）：
+       * 模型会把正文塞进这几个字段名里的任意一个 —— 执行处全都认
+       * （见 `actions.ts` 的 letter.write）。列出来是为了跟执行处对齐。
+       */
       { name: "text", type: "string", required: false, note: "兼容写法：正文塞进 text 也认" },
+      { name: "content", type: "string", required: false, note: "兼容写法：正文塞进 content 也认" },
+      { name: "message", type: "string", required: false, note: "兼容写法：正文塞进 message 也认" },
+      { name: "note", type: "string", required: false, note: "兼容写法：正文塞进 note 也认" },
     ],
   },
   {
@@ -504,6 +536,21 @@ export const ACTION_SCHEMA = [
     group: "记录",
     summary: "写一条日记",
     fields: [{ name: "body", type: "string", required: true }],
+  },
+  {
+    kind: "diary.update",
+    group: "记录",
+    summary: "改一条你写过的日记",
+    fields: [
+      { name: "query", type: "string", required: true, note: "内容片段" },
+      { name: "body", type: "string", required: true, note: "改成什么" },
+    ],
+  },
+  {
+    kind: "diary.remove",
+    group: "记录",
+    summary: "删一条日记（按内容片段找）",
+    fields: [{ name: "query", type: "string", required: true, note: "内容片段" }],
   },
   {
     kind: "chat.new",
@@ -579,6 +626,16 @@ export const ACTION_SCHEMA = [
     group: "记录",
     summary: "删掉一封信",
     fields: [{ name: "query", type: "string", required: false, note: "不写 = 最近一封" }],
+  },
+  {
+    kind: "letter.update",
+    group: "记录",
+    summary: "改一封信的标题或正文",
+    fields: [
+      { name: "query", type: "string", required: true, note: "内容片段（标题或正文）" },
+      { name: "title", type: "string", required: false },
+      { name: "body", type: "string", required: false },
+    ],
   },
   {
     kind: "tool.call",

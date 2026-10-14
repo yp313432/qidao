@@ -231,7 +231,29 @@ export type ManualInput = {
   titles: { id: string; title: string }[];
   displayName: string;
   aiName: string;
+  /**
+   * 用户设的称呼（`""` / `"女"` / `"男"`）。
+   *
+   * 用户原话："我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
+   * 说了才改。" 说明书以前**写死了「他」**（"他那台设备"），所以这就是源头之一。
+   */
+  userGender?: "" | "女" | "男";
 };
+
+/** 指代用户的人称：「女」→她 / 「男」→他 / 没说 → TA（不假装知道） */
+export function pronounOf(gender: "" | "女" | "男" | undefined): string {
+  if (gender === "女") return "她";
+  if (gender === "男") return "他";
+  return "TA";
+}
+
+/** 一句硬规矩（放在规则最前面，思考链也会照它走） */
+export function addressRule(displayName: string, gender: "" | "女" | "男" | undefined): string {
+  if (gender === "女" || gender === "男") {
+    return `**称呼用户**：${displayName} 是${gender === "女" ? "女生" : "男生"}，凡是提到${displayName}（包括你思考链里想的）一律用「${pronounOf(gender)}」，不要用另一个。`;
+  }
+  return `**称呼用户**：${displayName} 没说过性别 —— **不要用「他」也不要猜**：指代就用「你」或直接叫名字（想用第三人称就用「TA」）。`;
+}
 
 /**
  * 说明书里"这个 App 的边界"那几行 —— **跟平台有关，所以动态生成**。
@@ -310,12 +332,15 @@ function permissionSection(input: ManualInput): string {
 }
 
 export function buildManual(input: ManualInput): string {
+  const ta = pronounOf(input.userGender);
   return [
+    addressRule(input.displayName, input.userGender),
+    "",
     RULES,
     "",
     `【栖岛说明书 · 关于这个 App 你需要知道的全部】`,
-    `这是${input.displayName}自己动手做的私人空间，界面、数据、记忆都只存在他那台设备上。`,
-    `你叫${input.aiName}，是他给你起的名字。`,
+    `这是${input.displayName}自己动手做的私人空间，界面、数据、记忆都只存在${ta}那台设备上。`,
+    `你叫${input.aiName}，是${ta}给你起的名字。`,
     "",
     MAP,
     "",

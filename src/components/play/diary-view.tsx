@@ -129,7 +129,7 @@ export function DiaryWall() {
 
       {diary.length === 0 && !writing && (
         <p className="py-10 text-center text-sm text-muted">
-          还没有写过。点右上角「写一张」贴第一张纸。
+          这一页还是空的 —— 他写过日记就会出现在这里；你也可以点右上角「写一张」自己贴一张。
         </p>
       )}
 
@@ -162,6 +162,15 @@ export function DiaryWall() {
                 <span className="flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-accent" />
                   <span className="text-[11px] text-muted">{moodLabel}</span>
+                  {/*
+                    谁写的 —— 2026-10 用户要求："日记他写吧，入口别删，我要能看到他写的。"
+                    只有他写的那条挂标签（用户自己写的不打标签，界面清静）。
+                  */}
+                  {d.by === "ai" && (
+                    <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
+                      他写的
+                    </span>
+                  )}
                 </span>
                 <span className="mt-1.5 block text-[13px] leading-5">
                   {open ? d.body : clip(d.body, d.body.length > 60 ? 46 : 60)}

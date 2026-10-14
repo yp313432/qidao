@@ -215,6 +215,37 @@ export function MeHub() {
         <p className="mt-1 text-[11px] text-subtle">
           他会用这个名字称呼你 · AI 头像与名字在「我的空间」里
         </p>
+        {/*
+          称呼（性别）—— 2026-10 用户点名要的：
+          "我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
+           说了才改 —— 要不要给我头像下面设置个性别设置，让 AI 能知道的。"
+          他自己没法猜，只能靠这里告诉他一处、处处生效（提示词 + 说明书都带上）。
+        */}
+        <div className="mt-3 flex items-center justify-center gap-1.5" role="group" aria-label="他该怎么称呼你">
+          {(
+            [
+              { v: "", label: "不说" },
+              { v: "女", label: "用「她」" },
+              { v: "男", label: "用「他」" },
+            ] as const
+          ).map((opt) => {
+            const active = (settings.userGender ?? "") === opt.v;
+            return (
+              <button
+                key={opt.v || "none"}
+                type="button"
+                aria-pressed={active}
+                onClick={() => patch({ userGender: opt.v })}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[11px] transition",
+                  active ? "bg-accent/20 text-accent" : "bg-chip text-muted active:bg-surface",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {/*

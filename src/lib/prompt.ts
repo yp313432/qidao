@@ -97,6 +97,11 @@ export type PromptInput = {
    */
   nativeTools?: boolean;
   /**
+   * 用户设的称呼（`""` / `"女"` / `"男"`）—— 决定他说「她」还是「他」。
+   * 见 `Settings.userGender`：用户点名要的（他思考链里一直用「他」，说了才改）。
+   */
+  userGender?: "" | "女" | "男";
+  /**
    * 这一轮的原生 tools 是**按需挑的**（P3 按需注册：只发跟当前对话相关的动作）。
    *
    * 为什么必须让提示词知道：筛掉的动作**不等于不存在**。用户要用的那个恰好没被选中时，
@@ -315,8 +320,14 @@ const ABILITIES = `【你能直接操作这个 App】
   · 删闹钟 {"kind":"reminder.remove","query":"吃药"}；标记完成 {"kind":"reminder.done","query":"吃药"}
   · 待办：{"kind":"todo.done","query":"垃圾"}、{"kind":"todo.remove","query":"垃圾"}
   · 删日子 {"kind":"date.remove","query":"交稿"}；删动态 {"kind":"moment.remove"}（不带 query = 最近一条）
-  · 删信 {"kind":"letter.remove","query":"标题"}
+  · 删信 {"kind":"letter.remove","query":"标题"}；改信 {"kind":"letter.update","query":"标题","body":"新的正文"}
+  · **改 / 删定时任务**（2026-10 补的配套 —— 以前你只能建、不能改删，
+    用户实测过"想改成只做一次，你只能让他自己去页面里清"）：
+    改 {"kind":"cron.update","query":"早安","time":"08:30"}、删 {"kind":"cron.remove","query":"早安"}
+  · 改日记 {"kind":"diary.update","query":"片段","body":"改成什么"}、删日记 {"kind":"diary.remove","query":"片段"}
   改删之前**先说一句你要动哪条**（尤其删除）；匹配不到就如实说"没找到那条"，别装作改了。
+- **日记是"你写下的东西"**（用户定的："日记他写吧，入口别删，我要能看到他写的"）：
+  写 {"kind":"diary.add","body":"..."} —— 界面会给这条挂上「他写的」标记，所以**别把它当成"替用户记事"**。
 - **定个任务让你以后主动开口** {"kind":"cron.add","prompt":"跟用户说句早安，顺便提一下今天该做的事","time":"08:00"}
   （time = 每天几点；想只做一次就给 at 一个具体时间，如 "2026-10-05T09:00"）
   说明：App 开着时你**真的会到点说话**；App 完全关着时只能靠系统通知提醒，用户点开你才补上。
@@ -441,6 +452,7 @@ export function systemPrompt(input: PromptInput): string {
     titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
     displayName: who,
     aiName: self,
+    userGender: input.userGender,
   });
   return `${manual}
 

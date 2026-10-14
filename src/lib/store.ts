@@ -593,8 +593,16 @@ export type AppState = {
   recordWord: (word: string) => void;
   saveDoc: (doc: Omit<SavedDoc, "id" | "createdAt">) => void;
   deleteDoc: (id: string) => void;
-  addDiary: (mood: DiaryEntry["mood"], body: string) => void;
+  /**
+   * 写一条日记。`by` 是"谁写的"（2026-10 用户要求："日记他写吧，入口别删，
+   * 我要能看到他写的"）—— 界面只给他写的那条挂「他写的」标签；默认按用户写的算。
+   */
+  addDiary: (mood: DiaryEntry["mood"], body: string, by?: "ai" | "me") => void;
+  /** 改一条日记的正文（改与删的配套，见 `diary.update` 动作） */
+  patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"] }) => void;
   deleteDiary: (id: string) => void;
+  /** 改一封信的标题/正文（不碰 `seen` —— 改完不该又变成"没拆过"） */
+  patchLetter: (id: string, patch: { title?: string; body?: string }) => void;
   markSavedToDocs: (conversationId: string, messageId: string) => void;
   enabledTools: () => McpServer[];
 };
@@ -1331,11 +1339,19 @@ export const useApp = create<AppState>()(
           docs: [{ ...doc, id: uid("doc"), createdAt: Date.now() }, ...s.docs],
         })),
       deleteDoc: (id) => set((s) => ({ docs: s.docs.filter((d) => d.id !== id) })),
-      addDiary: (mood, body) =>
+      addDiary: (mood, body, by = "me") =>
         set((s) => ({
-          diary: [{ id: uid("dy"), mood, body, createdAt: Date.now() }, ...s.diary],
+          diary: [{ id: uid("dy"), mood, body, createdAt: Date.now(), by }, ...s.diary],
+        })),
+      patchDiary: (id, patch) =>
+        set((s) => ({
+          diary: s.diary.map((d) => (d.id === id ? { ...d, ...patch } : d)),
         })),
       deleteDiary: (id) => set((s) => ({ diary: s.diary.filter((d) => d.id !== id) })),
+      patchLetter: (id, patch) =>
+        set((s) => ({
+          letters: s.letters.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        })),
 
       /* ---------- 动态空间：动态 / 一天一篇日记 / 信 ---------- */
 

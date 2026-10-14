@@ -399,6 +399,17 @@ export type CustomPlugin = {
 export type Settings = {
 
   displayName: string;
+  /**
+   * **他该用哪个"她/他"称呼你**（2026-10 用户点名要的）。
+   *
+   * 用户原话："我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
+   * 说了才改。要不要给我头像下面设置个性别设置，让 AI 能知道的。"
+   *
+   * 取 ""（不说）/ "女" / "男"。老存档没有这个字段 → 当 "" 处理（不提，别瞎猜）。
+   * 系统提示词 + 说明书都带上（`prompt.ts` / `manual.ts`）——
+   * ⚠️ 思考链里的字是他自己写的，只能靠提示词约束，界面无从替换。
+   */
+  userGender?: "" | "女" | "男";
   /** AI 的名字（用户自填，空则用默认名） */
   aiName: string;
   /** AI 的头像（dataURL，空表示用默认标识） */
@@ -838,6 +849,14 @@ export type DiaryEntry = {
   mood: MoodId;
   body: string;
   createdAt: number;
+  /**
+   * **谁写的**（2026-10 用户要求）。
+   *
+   * 用户原话："日记他写吧，入口别删，我要能看到他写的。"
+   * 所以这一页两条路都留着（他自己写 / 你也能写），但要能一眼分出哪条是他写的。
+   * 老存档没有这个字段 → 当"你写的"，界面就不打标签（只有他写的才挂「他写的」）。
+   */
+  by?: "ai" | "me";
 };
 
 export type QuotaState = {
@@ -929,6 +948,17 @@ export type FeatureId =
   /** 定时任务：到点让他自己开口（App 活着时真的会说话；关掉时靠通知兜底） */
   | { kind: "cron.add"; prompt: string; time?: string; at?: string; notify?: boolean }
   /**
+   * **改 / 删定时任务**（2026-10 用户实测补的配套）。
+   *
+   * 用户原话："没有改删定时任务的功能，包括日记、信，权限得是配套的你知道吗，
+   * 检查一下还有没有其他这样的。"
+   * 真实场景：他设了一条"每天 7:30 写信"，用户想改成"只明天一次" →
+   * 他手上**没有改删的动作**，只能说"你去「玩乐 → 小日子 → 定时任务」里清一条"。
+   * 跟提醒/记忆同一套口径：模型不知道 id，用**内容片段**匹配。
+   */
+  | { kind: "cron.update"; query: string; prompt?: string; time?: string; at?: string; notify?: boolean }
+  | { kind: "cron.remove"; query: string }
+  /**
    * **上报一笔情绪**（新词表）。
    *
    * 2026-10 起这是**唯一**的情绪上报通道：旧的 `state.report`（那朵花的 11 个维度）
@@ -1006,6 +1036,11 @@ export type FeatureId =
   | { kind: "date.add"; title: string; at: string; yearly?: boolean; note?: string }
   | { kind: "todo.add"; text: string }
   | { kind: "diary.add"; body: string }
+  /** 改 / 删日记（2026-10 配套：以前只能"删最近一条"，不能按条改删） */
+  | { kind: "diary.update"; query: string; body: string }
+  | { kind: "diary.remove"; query: string }
+  /** 改一封信（标题/正文）；删信用 `letter.remove` */
+  | { kind: "letter.update"; query: string; title?: string; body?: string }
   | { kind: "chat.new" }
   /**
    * ——— 改与删 ———

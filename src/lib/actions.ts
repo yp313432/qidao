@@ -13,7 +13,7 @@ import { cancelNative } from "@/lib/notify";
 import { runSenseAction } from "@/lib/sense";
 import { speakTextAsync } from "@/lib/tts";
 import { runWebAction } from "@/lib/web-actions";
-import type { AppAction, FeatureId, McpOAuth, Memory, Moment, Settings } from "@/lib/types";
+import type { AppAction, FeatureId, McpOAuth, Memory, Moment, ScheduledTask, Settings } from "@/lib/types";
 
 /**
  * 动作执行器 —— 所有 AI 请求的动作最终都在**前端**这里落地。
@@ -325,9 +325,10 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `开始朗读「${text.slice(0, 12)}」`;
     }
     case "diary.add":
-      // 这个动作没有 mood 字段（他写日记时多半只看正文）—— 给个中性的「反思」
-      st.addDiary("reflect", action.body);
-      return "日记已写入";
+      // 这个动作没有 mood 字段（他写日记时多半只看正文）—— 给个中性的「反思」。
+      // by:"ai" = 这条是他写的（界面会挂「他写的」标签，用户要求"我要能看到他写的"）
+      st.addDiary("reflect", action.body, "ai");
+      return "日记已写入（会挂上「他写的」标记）";
     case "chat.new":
       st.newChat();
       return "已新建对话";
@@ -551,13 +552,94 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
     }
 
     case "letter.write": {
-      // 模型偶尔会把正文写成 text（跟「发动态」同一个字段名）——
-      // 兼容一下。否则这里 action.body.trim() 会直接抛错，信就没了。
-      const body = (str(action.body) || str((action as { text?: unknown }).text)).trim();
-      const title = str(action.title).trim() || "给你的信";
-      if (!body) return "信得有内容";
+      /**
+       * 模型偶尔会把正文写成 text / content / message（跟「发动态」混了字段名）—— 都兼容。
+       * 2026-10 用户实测："第一次没写成功，第二次才成功" —— 那次是**正文一个都没给**
+       * （`body` 空 → 直接返回"信得有内容"）。所以错误里把可用字段名说清楚，他下一轮就会补。
+       */
+      const asText = (v: unknown) => (typeof v === "string" ? v : "");
+      const body = (
+        str(action.body) ||
+        asText((action as { text?: unknown }).text) ||
+        asText((action as { content?: unknown }).content) ||
+        asText((action as { message?: unknown }).message) ||
+        asText((action as { note?: unknown }).note)
+      ).trim();
+      if (!body) {
+        return '信没写成：**正文是空的**。正文要放在 body（或 text）里，例如 {"kind":"letter.write","title":"…","body":"…"}。';
+      }
+      /** 标题没给就**拿正文第一句**当标题（比固定叫"给你的信"像样） */
+      const firstLine = body.split(/\n/)[0]?.trim() ?? "";
+      const autoTitle = firstLine.length > 18 ? `${firstLine.slice(0, 18)}…` : firstLine;
+      const title = str(action.title).trim() || autoTitle || "给你的信";
       useApp.getState().writeLetter(title, body);
-      return `信写好了（「${title}」）—— 去「玩乐 → 动态空间 → 信」，会看到一封没拆的信`;
+      return `信写好了（「${title}」）—— 会自动弹给他拆（不管他当时在哪个页面）`;
+    }
+
+    case "cron.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      if (!q) return "得说清删哪一条（给个内容片段）";
+      const hit = findByText(useApp.getState().tasks, q, (t) => `${t.prompt} ${t.time ?? ""}`);
+      if (!hit) return `没找到跟「${q}」对得上的定时任务`;
+      useApp.getState().removeTask(hit.id);
+      return `删掉了：${hit.time ? `每天 ${hit.time} · ` : ""}${hit.prompt.slice(0, 20)}`;
+    }
+
+    case "cron.update": {
+      const q = str((action as { query?: unknown }).query).trim();
+      if (!q) return "得说清改哪一条（给个内容片段）";
+      const hit = findByText(useApp.getState().tasks, q, (t) => `${t.prompt} ${t.time ?? ""}`);
+      if (!hit) return `没找到跟「${q}」对得上的定时任务`;
+      const patch: Partial<ScheduledTask> = {};
+      const newPrompt = str((action as { prompt?: unknown }).prompt).trim();
+      if (newPrompt) patch.prompt = newPrompt;
+      const time = str((action as { time?: unknown }).time).trim();
+      if (/^\d{1,2}:\d{2}$/.test(time)) patch.time = time;
+      if (action.at) {
+        const t = Date.parse(str(action.at));
+        if (!Number.isNaN(t)) patch.at = t;
+      }
+      if (typeof action.notify === "boolean") patch.notify = action.notify;
+      if (Object.keys(patch).length === 0) return "没给要改的内容";
+      useApp.getState().updateTask(hit.id, patch);
+      return `改好了：${hit.time ? `每天 ${hit.time} · ` : ""}${hit.prompt.slice(0, 16)} → ${
+        patch.time ? `每天 ${patch.time} · ` : ""
+      }${(patch.prompt ?? hit.prompt).slice(0, 16)}`;
+    }
+
+    case "diary.update": {
+      const q = str((action as { query?: unknown }).query).trim();
+      const body = str(action.body).trim();
+      if (!q) return "得说清改哪一条（给个内容片段）";
+      if (!body) return "得给新的正文";
+      const hit = findByText(useApp.getState().diary, q, (d) => d.body);
+      if (!hit) return `没找到跟「${q}」对得上的日记`;
+      useApp.getState().patchDiary(hit.id, { body });
+      return `日记改好了（原：${hit.body.slice(0, 14)}… → 新：${body.slice(0, 14)}…）`;
+    }
+
+    case "diary.remove": {
+      const q = str((action as { query?: unknown }).query).trim();
+      if (!q) return "得说清删哪一条（给个内容片段）";
+      const hit = findByText(useApp.getState().diary, q, (d) => d.body);
+      if (!hit) return `没找到跟「${q}」对得上的日记`;
+      useApp.getState().deleteDiary(hit.id);
+      return `删掉了那条日记：${hit.body.slice(0, 16)}…`;
+    }
+
+    case "letter.update": {
+      const q = str((action as { query?: unknown }).query).trim();
+      if (!q) return "得说清改哪一封（给个内容片段）";
+      const hit = findByText(useApp.getState().letters, q, (l) => `${l.title} ${l.body}`);
+      if (!hit) return `没找到跟「${q}」对得上的信`;
+      const patch: { title?: string; body?: string } = {};
+      const title = str(action.title).trim();
+      const body = str(action.body).trim();
+      if (title) patch.title = title;
+      if (body) patch.body = body;
+      if (Object.keys(patch).length === 0) return "没给要改的内容（title / body 至少给一个）";
+      useApp.getState().patchLetter(hit.id, patch);
+      return `信改好了（「${patch.title ?? hit.title}」）`;
     }
 
     /* ---------------- 改与删 ----------------

@@ -43,6 +43,8 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "learn.addCard": "learn_card",
   "reminder.add": "reminder",
   "cron.add": "scheduled_job",
+  "cron.update": "scheduled_job",
+  "cron.remove": "scheduled_job",
   /**
    * ——— 情绪这两个动作**不挂权限**（2026-10 用户要求删掉"情绪权限"那一项）———
    *
@@ -85,6 +87,9 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "date.add": "date_add",
   "todo.add": "todo_add",
   "diary.add": "diary",
+  "diary.update": "diary",
+  "diary.remove": "delete_diary",
+  "letter.update": "letter_write",
   "chat.new": "chat",
   // 改与删：落在各自功能原有的权限上（不新开权限）
   "memory.update": "memory",
@@ -188,6 +193,10 @@ export function actionTitle(action: AppAction): string {
       return `设一个提醒：${action.text.slice(0, 16)}${action.time ? `（${action.time}）` : ""}`;
     case "cron.add":
       return `设一个定时任务：${action.prompt.slice(0, 14)}${action.time ? `（每天 ${action.time}）` : ""}`;
+    case "cron.update":
+      return `改一个定时任务（按「${action.query.slice(0, 12)}」找）`;
+    case "cron.remove":
+      return `删掉定时任务「${action.query.slice(0, 14)}」`;
     case "emotion.report": {
       // 词表外的词在 actions.ts 会被退回 —— 这里只负责把那笔写成人话
       const secondary = (action.secondaryEmotions ?? []).slice(0, 2);
@@ -252,6 +261,10 @@ export function actionTitle(action: AppAction): string {
       return `记一件待办：${action.text.slice(0, 18)}`;
     case "diary.add":
       return `写一条日记：${action.body.slice(0, 18)}${action.body.length > 18 ? "…" : ""}`;
+    case "diary.update":
+      return `改一条日记（按「${action.query.slice(0, 12)}」找）`;
+    case "diary.remove":
+      return `删一条日记（按「${action.query.slice(0, 12)}」找）`;
     case "chat.new":
       return "新建一个对话";
     case "memory.update":
@@ -274,6 +287,8 @@ export function actionTitle(action: AppAction): string {
       return `删掉动态${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一条）"}`;
     case "letter.remove":
       return `删掉信${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一封）"}`;
+    case "letter.update":
+      return `改一封信（按「${action.query.slice(0, 12)}」找）`;
     case "tool.call":
       return `调用外部工具「${action.tool}」${action.server ? `（服务器：${action.server.slice(0, 20)}）` : ""}`;
     case "http.call":

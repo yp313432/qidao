@@ -136,11 +136,24 @@ function collectFrom(chunk: string, out: AppAction[]) {
   }
 }
 
-/** 去掉动作块（含流式期间只收到一半的），让对话里只显示正文。 */
+/**
+ * 去掉动作块（含流式期间只收到一半的），让对话里只显示正文。
+ *
+ * ⚠️ 2026-10 补了最后一条兜底：**裸动作 JSON**。
+ * 用户截图抓到过正文里漏出半截 JSON（`s":["心动"],"intensity":0.7,"conf:`）——
+ * 那是模型（或中转）把动作参数**没放进围栏**、直接吐在正文里；流被步数上限截断时更明显。
+ * 前两条规则只认带 ``` 围栏的块，所以那种情况会原样漏给用户看。
+ * 这一条只砍**尾巴**（换行之后、40 字内出现动作专有字段名 + 冒号 → 砍到结尾），
+ * 尽量别误伤正常正文。
+ */
+const BARE_ACTION_TAIL =
+  /\n[^\n]{0,40}"(?:intensity|confidence|primaryEmotion|secondaryEmotions|suggestedMode|dimensions|memoryQuery|momentId|kind)"\s*:[\s\S]*$/;
+
 export function stripActions(text: string): string {
   return text
     .replace(STRICT_BLOCK, "")
     .replace(/```[ \t]*qidao[\s\S]*$/i, "")
+    .replace(BARE_ACTION_TAIL, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -423,6 +436,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           upstreamModel: settings.upstreamModel || undefined,
           maxTokens: settings.maxTokens,
           name: settings.displayName,
+          userGender: settings.userGender,
           aiName,
           persona: settings.persona || undefined,
           context,

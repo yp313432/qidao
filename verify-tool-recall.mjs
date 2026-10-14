@@ -96,6 +96,8 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["learn.addCard", "学习"],
   ["reminder.add", "提醒"],
   ["cron.add", "提醒"],
+  ["cron.update", "提醒"],
+  ["cron.remove", "提醒"],
   ["emotion.report", "自我"],
   ["emotion.lexicon", "自我"],
   ["sticker.send", "自我"],
@@ -124,6 +126,8 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["date.add", "记录"],
   ["todo.add", "记录"],
   ["diary.add", "记录"],
+  ["diary.update", "记录"],
+  ["diary.remove", "记录"],
   ["chat.new", "聊天"],
   ["memory.update", "记忆"],
   ["memory.remove", "记忆"],
@@ -135,6 +139,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["date.remove", "记录"],
   ["moment.remove", "记录"],
   ["letter.remove", "记录"],
+  ["letter.update", "记录"],
   ["tool.call", "工具"],
   ["http.call", "工具"],
   /**
@@ -172,7 +177,7 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 74;
+const EXPECTED_TOTAL = 79;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */

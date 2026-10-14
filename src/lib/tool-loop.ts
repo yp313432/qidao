@@ -36,11 +36,18 @@ import type { AppAction, ToolCallRecord } from "@/lib/types";
  * （动作执行由调用方注入，见下面 `runActions` / `runOneAction`）。
  */
 
-/** 一轮最多几**步**（一次工具执行算一步）—— agent loop 的步数上限 */
-export const TOOL_LOOP_MAX = 6;
+/**
+ * 一轮最多几**步**（一次工具执行算一步）—— agent loop 的步数上限。
+ *
+ * ⚠️ 2026-10 从 **6 抬到 12**：用户实测"经常停"（原话："动手上限解除吧，不然经常停"）。
+ * 12 是折中：既让他一次把"删旧的 + 建新的 + 改外观"这种多步活干完，
+ * 又不至于放任模型"调一下、再调一下"（每多一步 = 一次真金白银的往返）。
+ * 撞上限时照旧**如实说明**（`limitNote`），不许假装做完了。
+ */
+export const TOOL_LOOP_MAX = 12;
 
 /** 一整轮（从发出第一条消息到收尾）的墙钟预算：到点必须停下来并如实说明 */
-export const TOOL_LOOP_BUDGET_MS = 60_000;
+export const TOOL_LOOP_BUDGET_MS = 150_000;
 
 /** 等"某一笔动作被用户点掉"的单笔上限。用户可能正在犹豫要不要授权，所以给得宽一点。 */
 const RESOLVE_TIMEOUT_MS = 5 * 60_000;
