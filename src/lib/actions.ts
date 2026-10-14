@@ -537,6 +537,107 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return `表情分组（发的时候把分组名写进 feel）：\n${lines.join("\n")}`;
     }
 
+    /**
+     * **只读的"列出来"**（2026-10 用户："你看看其他的有没有列出功能，检查一遍，都加上"）。
+     * 一个动作覆盖九类：定时任务 / 日记 / 信 / 动态 / 提醒 / 待办 / 记忆 / 重要日子 / 会话。
+     * ⚠️ 只读：不写、不改、不删任何数据。
+     */
+    case "view.list": {
+      const what = str((action as { what?: unknown }).what).trim();
+      const s = useApp.getState();
+      const flat = (v: unknown, n = 36) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+      const when = (ms?: number) =>
+        ms
+          ? new Date(ms).toLocaleString("zh-CN", {
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—";
+      const head = (shown: number, total: number, label: string) =>
+        `${label}（共 ${total} 条，下面是最新的 ${shown} 条）：`;
+      const lines: string[] = [];
+      if (what === "cron") {
+        const list = [...s.tasks];
+        if (list.length === 0) return "定时任务现在是空的。";
+        for (const t of list.slice(0, 20)) {
+          const o = t as { time?: string; at?: number; enabled?: boolean; prompt?: unknown };
+          lines.push(`· ${o.time ?? when(o.at)} · ${o.enabled === false ? "（已停用）" : ""}${flat(o.prompt, 44)}`);
+        }
+        return head(lines.length, list.length, "定时任务") + "\n" + lines.join("\n");
+      }
+      if (what === "diary") {
+        const list = [...s.diary].sort((a, b) => b.createdAt - a.createdAt);
+        if (list.length === 0) return "日记还是空的。";
+        for (const d of list.slice(0, 10)) {
+          lines.push(`· ${when(d.createdAt)} · ${d.by === "ai" ? "他写的" : "我写的"}：${flat(d.body, 34)}`);
+        }
+        return head(lines.length, list.length, "日记") + "\n" + lines.join("\n");
+      }
+      if (what === "letter") {
+        const list = [...s.letters].sort((a, b) => b.at - a.at);
+        if (list.length === 0) return "信还是空的。";
+        for (const l of list.slice(0, 10)) {
+          lines.push(`· ${when(l.at)} · 《${flat(l.title, 20)}》${l.seen ? "" : "（还没拆）"}`);
+        }
+        return head(lines.length, list.length, "信") + "\n" + lines.join("\n");
+      }
+      if (what === "moment") {
+        const list = [...s.moments].sort((a, b) => b.at - a.at);
+        if (list.length === 0) return "动态还是空的。";
+        for (const m of list.slice(0, 10)) {
+          lines.push(
+            `· ${when(m.at)} · ${m.by === "ai" ? "他" : "我"}：${flat(m.text, 30)}（${(m.comments ?? []).length} 评论 / ${(m.likes ?? []).length} 赞）`,
+          );
+        }
+        return head(lines.length, list.length, "动态") + "\n" + lines.join("\n");
+      }
+      if (what === "todo") {
+        const list = s.todos ?? [];
+        if (list.length === 0) return "待办是空的。";
+        for (const t of list.slice(0, 20)) lines.push(`· ${t.done ? "✅" : "⬜"} ${flat(t.text, 36)}`);
+        return head(lines.length, list.length, "待办") + "\n" + lines.join("\n");
+      }
+      if (what === "reminder") {
+        const list = s.reminders ?? [];
+        if (list.length === 0) return "提醒是空的。";
+        for (const r of list.slice(0, 20)) {
+          const o = r as { time?: unknown; text?: unknown; note?: unknown };
+          lines.push(`· ${flat(o.time, 6)} ${flat(o.text ?? o.note, 34)}`);
+        }
+        return head(lines.length, list.length, "提醒") + "\n" + lines.join("\n");
+      }
+      if (what === "memory") {
+        const list = s.memories ?? [];
+        if (list.length === 0) return "记忆还是空的。";
+        for (const m of list.slice(0, 10)) {
+          const o = m as { note?: unknown; text?: unknown; content?: unknown };
+          lines.push(`· ${flat(o.note ?? o.text ?? o.content, 36)}`);
+        }
+        return head(lines.length, list.length, "记忆") + "\n" + lines.join("\n");
+      }
+      if (what === "date") {
+        const list = s.dates ?? [];
+        if (list.length === 0) return "重要日子还没记。";
+        for (const d of list.slice(0, 10)) {
+          const o = d as { title?: unknown; label?: unknown; name?: unknown; date?: unknown; at?: unknown };
+          lines.push(`· ${flat(o.title ?? o.label ?? o.name, 18)} · ${flat(o.date ?? o.at, 16)}`);
+        }
+        return head(lines.length, list.length, "重要日子") + "\n" + lines.join("\n");
+      }
+      if (what === "chat") {
+        const list = s.conversations ?? [];
+        if (list.length === 0) return "会话是空的。";
+        for (const c of list.slice(0, 10)) {
+          const o = c as { title?: unknown; name?: unknown; pinned?: unknown };
+          lines.push(`· ${flat(o.title ?? o.name, 24)}${o.pinned ? "（置顶）" : ""}`);
+        }
+        return head(lines.length, list.length, "会话") + "\n" + lines.join("\n");
+      }
+      return `不认识的类别「${what}」。能填：cron / diary / letter / moment / reminder / todo / memory / date / chat。`;
+    }
+
     case "cron.add": {
       const prompt = str((action as { prompt?: unknown }).prompt).trim();
       if (!prompt) return "定时任务得说清让他做什么";

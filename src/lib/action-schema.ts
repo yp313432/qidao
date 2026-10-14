@@ -343,6 +343,13 @@ export const ACTION_SCHEMA = [
     fields: [],
   },
   {
+    kind: "view.list",
+    group: "自我",
+    summary:
+      "列出一类东西（只读，不改任何数据）。what 只能填：cron=定时任务 · diary=日记 · letter=信 · moment=动态 · reminder=提醒 · todo=待办 · memory=记忆 · date=重要日子 · chat=会话",
+    fields: [{ name: "what", type: "string", required: true }],
+  },
+  {
     kind: "memory.add",
     group: "记忆",
     summary: "记住一件事（他以后能想起来）",

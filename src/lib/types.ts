@@ -1011,6 +1011,14 @@ export type FeatureId =
    * 跟 `emotion.lexicon` 同一个套路：分组清单不常驻提示词，要挑得准时现取一次。
    */
   | { kind: "sticker.groups" }
+  /**
+   * **只读的"列出来"**（2026-10 用户："你看看其他的有没有列出功能，检查一遍，都加上"）。
+   * 一个动作覆盖九类，**只读**：不写、不改、不删。
+   */
+  | {
+      kind: "view.list";
+      what: "cron" | "diary" | "letter" | "moment" | "reminder" | "todo" | "memory" | "date" | "chat";
+    }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
   | { kind: "play.gobang" }

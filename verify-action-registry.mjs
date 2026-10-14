@@ -43,7 +43,7 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * 同一个数也同步到了 `verify-tool-recall.mjs` 的 `EXPECTED_TOTAL` 与抄件）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 79;
+const EXPECTED_KIND_COUNT = 80;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。
@@ -58,7 +58,7 @@ const EXPECTED_KIND_COUNT = 79;
  * 也不写任何别人的东西。用户明确要求"不新增一张卡片"（每次发表情都弹卡片会烦死），
  * 所以它跟情绪那两个一样归"不需要授权"。
  */
-const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon", "sticker.send", "sticker.groups"];
+const NO_PERMISSION_KINDS = ["view.list", "emotion.report", "emotion.lexicon", "sticker.send", "sticker.groups"];
 const EXPECTED_PERMISSION_BOUND_COUNT = EXPECTED_KIND_COUNT - NO_PERMISSION_KINDS.length;
 
 const fails = [];

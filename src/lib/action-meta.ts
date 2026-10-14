@@ -211,6 +211,8 @@ export function actionTitle(action: AppAction): string {
       return "发一张表情包";
     case "sticker.groups":
       return "看一眼表情分组";
+    case "view.list":
+      return `列一下${action.what}`;
     case "memory.add":
       return `记住：${action.note.slice(0, 20)}`;
     case "persona.set":

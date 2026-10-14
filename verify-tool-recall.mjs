@@ -102,6 +102,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["emotion.lexicon", "自我"],
   ["sticker.send", "自我"],
   ["sticker.groups", "自我"],
+  ["view.list", "自我"],
   ["memory.add", "记忆"],
   ["persona.set", "自我"],
   ["play.gobang", "玩"],
@@ -177,7 +178,7 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  */
-const EXPECTED_TOTAL = 79;
+const EXPECTED_TOTAL = 80;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
