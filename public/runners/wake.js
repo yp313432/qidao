@@ -514,23 +514,49 @@ function cleanReply(raw, aiName) {
  * 抠不出来就返回 null，**绝不编**。
  */
 function extractAction(text) {
-  try {
-    var m = /\{[\s\S]*\}/.exec(String(text || ""));
-    if (!m) return null;
-    var o = JSON.parse(m[0]);
-    if (!o || typeof o.kind !== "string") return null;
-    var allow = {
-      "diary.add": 1,
-      "moment.post": 1,
-      "letter.write": 1,
-      "moment.comment": 1,
-      "moment.like": 1,
-      "emotion.report": 1,
-    };
-    return allow[o.kind] ? o : null;
-  } catch (e) {
-    return null;
+  var s = String(text || "");
+  var allow = {
+    "diary.add": 1,
+    "moment.post": 1,
+    "letter.write": 1,
+    "moment.comment": 1,
+    "moment.like": 1,
+    "emotion.report": 1,
+  };
+  /**
+   * ⚠️ 2026-10 真机踩到的坑：模型把动作写成**数组**（`[{...}]`，甚至两个动作），
+   * 老写法（一个贪婪 `/\{[\s\S]*\}/` + 一次 `JSON.parse`）会当场失败 →
+   * 结果"原始 JSON 被当成他说的话"发进了对话（用户截图看到的就是这个）。
+   * 所以现在：① 先试整段数组 ② 再**逐个抠平衡的花括号对象**，谁先合法用谁。
+   */
+  var tries = [];
+  var arrMatch = /\[[\s\S]*\]/.exec(s);
+  if (arrMatch) tries.push(arrMatch[0]);
+  var depth = 0;
+  var start = -1;
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        tries.push(s.slice(start, i + 1));
+        start = -1;
+      }
+    }
   }
+  for (var j = 0; j < tries.length; j++) {
+    try {
+      var v = JSON.parse(tries[j]);
+      if (Object.prototype.toString.call(v) === "[object Array]") v = v[0];
+      if (v && typeof v.kind === "string" && allow[v.kind]) return v;
+    } catch (e) {
+      /* 试下一个 */
+    }
+  }
+  return null;
 }
 
 addEventListener("qidaoWake", function (resolve, reject) {
@@ -895,8 +921,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
               logLine("#" + count + " " + stamp + " 自主行动(" + actionMode + ")：" + act.kind);
             } else if (actionMode === "echo") {
               /**
-               * 回响抠不出动作 = **他不想回** → 什么都不做（不弹通知、不写草稿），
-               * 但也记一笔当天的账，免得同一个料每次醒来都再问一遍。
+               * 回响抠不出动作 = **他不想回**（可能就回了个 `{}`）→ 什么都不做
+               * （不弹通知、不写草稿），但也记一笔当天的账，免得同一个料每次醒来都再问一遍。
                */
               var ec2 = (cfg("echo_day") === td ? kvNum("echo_count") : 0) + 1;
               kvSet("echo_day", td);
@@ -906,7 +932,17 @@ addEventListener("qidaoWake", function (resolve, reject) {
               logLine("#" + count + " " + stamp + " 回响：他没想回 → 不动任何东西");
               return;
             } else {
-              logLine("#" + count + " " + stamp + " 自主行动没抠出动作 → 按「他说了一句」处理");
+              /**
+               * ⚠️ 自主行动（日记/自由活动）抠不出动作 → **这次什么都不做**。
+               * 绝不把原始 JSON 当"他说的话"发给用户（真机踩过：对话里冒出一段
+               * `[{"kind":"moment.comment"…` —— 用户截图就是这个）。
+               * 也不记当天的账，下一次醒来再试。
+               */
+              kvSet("speak_acc", 1);
+              logLine(
+                "#" + count + " " + stamp + " 自主行动(" + actionMode + ")没抠出动作 → 这次什么都不做（不把原始 JSON 当话发出去）",
+              );
+              return;
             }
           }
           kvSet("last_spoke_at", now);

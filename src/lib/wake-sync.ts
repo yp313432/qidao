@@ -400,6 +400,33 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
       try {
         const { runAction } = await import("@/lib/actions");
         const back = await runAction(parsed as never, { navigate: () => {} });
+        /**
+         * **顺手在对话里也留一句**（用户："他不应该在动态回吗，或者两个都有"）——
+         * 评论/动态落在玩乐那边，这里让他在对话里也看得见（同一句话，不另编）。
+         */
+        try {
+          const obj = parsed as { text?: unknown; body?: unknown };
+          const say =
+            typeof obj.text === "string"
+              ? obj.text
+              : typeof obj.body === "string"
+                ? obj.body
+                : actionKind === "moment.like"
+                  ? "（给你点了个赞）"
+                  : "";
+          if (say) {
+            const startedSay = useApp.getState().beginScheduledReply(say);
+            if (startedSay) {
+              useApp.getState().finalizeAssistant(startedSay.conversationId, startedSay.messageId, {
+                content: say,
+                thinking: "",
+                thinkingDurationMs: 0,
+              });
+            }
+          }
+        } catch {
+          /* 对话里那一句没插上不算失败：动作已经执行了 */
+        }
         await clearWakePending(stamp, key);
         return { ok: true, landed: true, message: `已按他的草稿执行：${String(back).slice(0, 40)}` };
       } catch (e) {
