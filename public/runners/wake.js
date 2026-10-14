@@ -667,15 +667,33 @@ addEventListener("qidaoWake", function (resolve, reject) {
        * ⚠️ 完全不动下面原来那条"主动说话"的逻辑 —— 没命中时 `actionMode` 是空串，一切照旧。
        */
       var actionMode = "";
-      if (cfg("cfg_autonomy_on") === "1" && cfg("cfg_action_diary") === "1" && cfg("cfg_action_prompt")) {
-        var dHour = cfgNumOr("cfg_action_hour", 20);
-        var dMin = cfgNumOr("cfg_action_minute", 30);
-        var nowMin = now.getHours() * 60 + now.getMinutes();
-        var target = dHour * 60 + dMin;
-        var inWindow = nowMin >= target && nowMin <= target + 90;
+      if (cfg("cfg_autonomy_on") === "1" && cfg("cfg_action_prompt")) {
         var today = dayStamp(now);
-        var wroteToday = cfg("cfg_action_day") === today || cfg("diary_done_day") === today;
-        if (inWindow && !wroteToday) actionMode = "diary";
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+        /**
+         * 优先级（用户定的）：**回响 > 日记保底 > 自由活动**，一次醒来只做一件。
+         */
+        /* ① 回响：App 把你互动过的料推进抽屉了（你发动态 / 评论了他 / 点了赞） */
+        if (cfg("cfg_action_echo") === "1" && cfg("cfg_echo_what")) {
+          var echoMax = cfgNumOr("cfg_action_echo_max", 3);
+          var echoCount = cfg("echo_day") === today ? kvNum("echo_count") : 0;
+          if (echoCount < echoMax) actionMode = "echo";
+        }
+        /* ② 日记保底：窗口内（默认 20:30–22:00）+ 今天他还没写过 */
+        if (!actionMode && cfg("cfg_action_diary") === "1") {
+          var dTarget = cfgNumOr("cfg_action_hour", 20) * 60 + cfgNumOr("cfg_action_minute", 30);
+          var wroteToday = cfg("cfg_action_day") === today || cfg("diary_done_day") === today;
+          if (nowMin >= dTarget && nowMin <= dTarget + 90 && !wroteToday) actionMode = "diary";
+        }
+        /* ③ 自由活动：9:00–22:00 + **掷骰子**（用户要的"不定时"）+ 当天不超上限 */
+        if (!actionMode && cfg("cfg_action_free") === "1") {
+          var freeMax = cfgNumOr("cfg_action_free_max", 1);
+          var freeCount = cfg("free_day") === today ? kvNum("free_count") : 0;
+          var pct = cfgNumOr("cfg_action_free_pct", 30);
+          if (nowMin >= 9 * 60 && nowMin <= 22 * 60 && freeCount < freeMax && Math.random() * 100 < pct) {
+            actionMode = "free";
+          }
+        }
       }
 
       /* ⑤ 挑指令：平时那段允许他回 SKIP；"必定说"那段不许 */
@@ -837,11 +855,37 @@ addEventListener("qidaoWake", function (resolve, reject) {
           var outKind = "";
           if (actionMode) {
             var act = extractAction(said);
+            var td = dayStamp(now);
             if (act) {
               outText = JSON.stringify(act);
               outKind = "action";
-              kvSet("diary_done_day", dayStamp(now));
-              logLine("#" + count + " " + stamp + " 自主行动：" + act.kind);
+              /** 各自记当天的账（独立额度）；回响用掉就把那格料清掉，不会重复回 */
+              if (actionMode === "diary") {
+                kvSet("diary_done_day", td);
+              } else if (actionMode === "free") {
+                var fc = (cfg("free_day") === td ? kvNum("free_count") : 0) + 1;
+                kvSet("free_day", td);
+                kvSet("free_count", fc);
+              } else if (actionMode === "echo") {
+                var ec = (cfg("echo_day") === td ? kvNum("echo_count") : 0) + 1;
+                kvSet("echo_day", td);
+                kvSet("echo_count", ec);
+                kvSet("cfg_echo_what", "");
+                kvSet("cfg_echo_id", "");
+              }
+              logLine("#" + count + " " + stamp + " 自主行动(" + actionMode + ")：" + act.kind);
+            } else if (actionMode === "echo") {
+              /**
+               * 回响抠不出动作 = **他不想回** → 什么都不做（不弹通知、不写草稿），
+               * 但也记一笔当天的账，免得同一个料每次醒来都再问一遍。
+               */
+              var ec2 = (cfg("echo_day") === td ? kvNum("echo_count") : 0) + 1;
+              kvSet("echo_day", td);
+              kvSet("echo_count", ec2);
+              kvSet("cfg_echo_what", "");
+              kvSet("cfg_echo_id", "");
+              logLine("#" + count + " " + stamp + " 回响：他没想回 → 不动任何东西");
+              return;
             } else {
               logLine("#" + count + " " + stamp + " 自主行动没抠出动作 → 按「他说了一句」处理");
             }

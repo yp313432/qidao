@@ -96,6 +96,12 @@ export const WAKE_KEYS = {
   actionMinute: "cfg_action_minute",
   actionDay: "cfg_action_day",
   actionPrompt: "cfg_action_prompt",
+  /** 自由活动：一天最多几次 + 每次醒来的命中概率（用户要的"不定时"） */
+  actionFreeMax: "cfg_action_free_max",
+  actionFreePct: "cfg_action_free_pct",
+  /** 回响：App 把你互动过的料推进来（哪条动态 + 你干了什么），后台回完就清空 */
+  echoId: "cfg_echo_id",
+  echoWhat: "cfg_echo_what",
 } as const;
 
 /** 后台交给前台的那几个键（置空时要一起置空） */
