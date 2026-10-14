@@ -64,6 +64,11 @@ export const WAKE_KEYS = {
    * "我能收到弹窗通知，但是那个通知不在上下文里"。这四个键就是那条缺的通道。
    */
   pendingText: "wake_pending_text",
+  /**
+   * **这份草稿是哪一类**（2026-10 方案一加）：`""`/`say` = 他"说了一句话"（照旧进会话）；
+   * `action` = 草稿正文是一段**动作 JSON**（写日记/发动态/写信/评论点赞），前台**按白名单执行**。
+   */
+  pendingKind: "wake_pending_kind",
   /** 他说话的时间（本地时间字符串，给人看） */
   pendingAt: "wake_pending_at",
   /** 同一个时间的机器可读版本（排序 / 判重用） */
@@ -74,11 +79,29 @@ export const WAKE_KEYS = {
   pendingConsumedAt: "wake_pending_consumed_at",
   /** 同上，但机器可读：`<时间戳>|<正文>`，用来**逐字判重**（跨重启也认得） */
   pendingConsumedKey: "wake_pending_consumed_key",
+  /**
+   * ── 「他自己的日子」（2026-10 方案一）────────────────────────────
+   * 前台推给后台、后台据此决定"要不要自己写点什么"：
+   *   · `autonomyOn` —— 总开关（关掉 = 自由活动/日记/回响全不做）
+   *   · `actionDiary` / `actionFree` / `actionEcho` —— 三类各自开关（**这一批只开日记**）
+   *   · `actionHour` / `actionMinute` —— 日记窗口（用户定的 20:30）
+   *   · `actionDay` —— **他上一次写日记是哪一天**（后台据此判断"今天写没写"）
+   *   · `actionPrompt` —— 给他的那段话：只能输出一个动作块，且只准白名单里的那几种
+   */
+  autonomyOn: "cfg_autonomy_on",
+  actionDiary: "cfg_action_diary",
+  actionFree: "cfg_action_free",
+  actionEcho: "cfg_action_echo",
+  actionHour: "cfg_action_hour",
+  actionMinute: "cfg_action_minute",
+  actionDay: "cfg_action_day",
+  actionPrompt: "cfg_action_prompt",
 } as const;
 
 /** 后台交给前台的那几个键（置空时要一起置空） */
 export const WAKE_PENDING_KEYS = [
   WAKE_KEYS.pendingText,
+  WAKE_KEYS.pendingKind,
   WAKE_KEYS.pendingAt,
   WAKE_KEYS.pendingAtMs,
   WAKE_KEYS.pendingUrge,

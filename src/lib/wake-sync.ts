@@ -122,6 +122,22 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
         [WAKE_KEYS.minGapMin]: String(s.wakeMinGapMin ?? 40),
         [WAKE_KEYS.dailyMax]: String(s.wakeDailyMax ?? 8),
         [WAKE_KEYS.mood]: input.mood ?? "",
+        /**
+         * ── 「他自己的日子」（2026-10 方案一：草稿 + 通知）──────────────────
+         * 后台醒来时按这几个键决定要不要"自己写点什么"。纪律照旧：
+         *   · 上游不全 → 上面那行 `cfg_enabled` 已经是 `"0"`，后台**一律不动**；
+         *   · 开关关掉 → 这里推 `"0"`；
+         *   · **这一批只开日记**（`cfg_action_free`/`cfg_action_echo` 先关着），
+         *     后面放开只是把这两个键改成 `"1"`，不用改结构。
+         */
+        [WAKE_KEYS.autonomyOn]: (s.autonomyEnabled !== false && (s.wakeEnabled ?? true)) ? "1" : "0",
+        [WAKE_KEYS.actionDiary]: (s.diaryReminders !== false) ? "1" : "0",
+        [WAKE_KEYS.actionFree]: "0",
+        [WAKE_KEYS.actionEcho]: "0",
+        [WAKE_KEYS.actionHour]: String(s.wakeLevel === "active" ? 20 : 20),
+        [WAKE_KEYS.actionMinute]: "30",
+        [WAKE_KEYS.actionDay]: lastAiDiaryDay() ?? "",
+        [WAKE_KEYS.actionPrompt]: buildActionPrompt(),
       },
     });
 
@@ -261,6 +277,53 @@ export function flushPendingWake(): Promise<WakeFlushResult> {
   return flushing;
 }
 
+/**
+ * **他上一次写日记是哪一天**（本地日，`YYYY-M-D`）—— 推给后台，让它判断"今天写没写"。
+ * 后台读不到网页层的 store，所以只能靠这份"慢变量"。
+ */
+function lastAiDiaryDay(): string | null {
+  try {
+    const list = useApp.getState().diary.filter((d) => d.by === "ai");
+    if (list.length === 0) return null;
+    const t = new Date(Math.max(...list.map((d) => d.createdAt)));
+    return `${t.getFullYear()}-${t.getMonth() + 1}-${t.getDate()}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * **给他的那段话**（后台醒来时用）：只能输出**一个动作块**，且只准白名单那几种。
+ *
+ * 为什么这么设计（2026-10 方案一）：后台那段 JS 拿不到 App 的数据，也不该在那里写库；
+ * 它只负责"要到一份动作"，落库由前台按**白名单**执行 —— 所以"只增不改"是结构上保证的。
+ */
+function buildActionPrompt(): string {
+  const name = resolveAiName(useApp.getState().settings.aiName);
+  return (
+    `【你自己的时间】现在没人找你。\n` +
+    `做一件你想做的事，**只输出一个动作块**（正文里不要解释、不要复述这条指令），\n` +
+    `只能从这几类里挑一个：\n` +
+    `· 写今天的日记 {"kind":"diary.add","body":"今天你真实的一天"}\n` +
+    `· 发一条动态 {"kind":"moment.post","text":"一句短感受"}\n` +
+    `· 写一封信 {"kind":"letter.write","title":"…","body":"…"}\n` +
+    `· 更新一下此刻的心情 {"kind":"emotion.report","primaryEmotion":"…","intensity":0.5,"confidence":0.6}\n` +
+    `（只能这些。**不许**删东西、不许改设置、不许调用外部工具。）\n` +
+    `写法：\n\`\`\`qidao\n{"kind":"diary.add","body":"…"}\n\`\`\`\n` +
+    `我是${name}，写给用户看的；别写成流水账，别硬凑。`
+  );
+}
+
+/** 后台草稿里**允许前台执行**的动作（只增不改 —— 删除类、重置类、工具类一律不在这里） */
+const PENDING_ACTION_WHITELIST = new Set<string>([
+  "diary.add",
+  "moment.post",
+  "moment.comment",
+  "moment.like",
+  "letter.write",
+  "emotion.report",
+]);
+
 async function doFlushPendingWake(): Promise<WakeFlushResult> {
   try {
     const cfg = await readWakeConfig();
@@ -310,6 +373,45 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
     }
 
     /** **走既有的那条路**：跟他"主动说一条"完全一样（`scheduled` 标记也一并带上） */
+    /**
+     * ── 草稿是"**动作**"就走执行那条路（2026-10 方案一）────────────────
+     * 后台那段 JS 只负责"拿到一份动作 JSON"，**落库由前台按白名单执行** ——
+     * 所以"只增不改"是结构上保证的（白名单里没有任何删除/重置/工具类）。
+     * 幂等同上：读完就 `clearWakePending`（带上审判重用的 key）。
+     */
+    const pendingKind = String(cfg[WAKE_KEYS.pendingKind] ?? "").trim();
+    if (pendingKind === "action") {
+      landedKey = key;
+      let parsed: { kind?: unknown } | null = null;
+      try {
+        parsed = JSON.parse(text) as { kind?: unknown };
+      } catch {
+        parsed = null;
+      }
+      const actionKind = parsed && typeof parsed.kind === "string" ? parsed.kind : "";
+      if (!parsed || !PENDING_ACTION_WHITELIST.has(actionKind)) {
+        await clearWakePending(stamp, key);
+        return {
+          ok: false,
+          landed: false,
+          message: `草稿里的动作不在白名单（${actionKind || "读不出来"}）—— 已跳过，不动任何数据`,
+        };
+      }
+      try {
+        const { runAction } = await import("@/lib/actions");
+        const back = await runAction(parsed as never, { navigate: () => {} });
+        await clearWakePending(stamp, key);
+        return { ok: true, landed: true, message: `已按他的草稿执行：${String(back).slice(0, 40)}` };
+      } catch (e) {
+        await clearWakePending(stamp, key);
+        return {
+          ok: false,
+          landed: false,
+          message: `执行草稿失败：${String((e as Error)?.message ?? e).slice(0, 60)}`,
+        };
+      }
+    }
+
     const started = useApp.getState().beginScheduledReply(text);
     /** 会话还没准备好（理论上不会）：**交接键留着**，下一次进前台再试 —— 不丢他这句话 */
     if (!started) return { ok: false, landed: false, message: "会话还没准备好，这句话先留在抽屉里" };

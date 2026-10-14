@@ -506,6 +506,33 @@ function cleanReply(raw, aiName) {
 
 /* ───────── 主流程 ───────── */
 
+/**
+ * **从回复里抠出一个"动作"**（2026-10 方案一：他自己过日子）。
+ *
+ * 后台只能拿到一段文字 —— 所以这里只认**白名单**里的种类，其它一律返回 null
+ * （前台还会再按同一份白名单兜一道；两边都拦，删东西/改设置这类永远进不来）。
+ * 抠不出来就返回 null，**绝不编**。
+ */
+function extractAction(text) {
+  try {
+    var m = /\{[\s\S]*\}/.exec(String(text || ""));
+    if (!m) return null;
+    var o = JSON.parse(m[0]);
+    if (!o || typeof o.kind !== "string") return null;
+    var allow = {
+      "diary.add": 1,
+      "moment.post": 1,
+      "letter.write": 1,
+      "moment.comment": 1,
+      "moment.like": 1,
+      "emotion.report": 1,
+    };
+    return allow[o.kind] ? o : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 addEventListener("qidaoWake", function (resolve, reject) {
   try {
     var now = Date.now();
@@ -632,8 +659,29 @@ addEventListener("qidaoWake", function (resolve, reject) {
         return;
       }
 
+      /**
+       * ⑤a **他自己的日子：日记保底**（2026-10 方案一「草稿 + 通知」）──────────
+       * 条件全满足才走这条：总开关开 · 日记开关开 · 在窗口内（默认 20:30–22:00）·
+       * **今天他还没写过**（前台推来的 `cfg_action_day` 或后台自己记的 `diary_done_day`）。
+       * 命中就用"动作指令"问他一次；他给的动作**交给前台**按白名单执行（后台不写库）。
+       * ⚠️ 完全不动下面原来那条"主动说话"的逻辑 —— 没命中时 `actionMode` 是空串，一切照旧。
+       */
+      var actionMode = "";
+      if (cfg("cfg_autonomy_on") === "1" && cfg("cfg_action_diary") === "1" && cfg("cfg_action_prompt")) {
+        var dHour = cfgNumOr("cfg_action_hour", 20);
+        var dMin = cfgNumOr("cfg_action_minute", 30);
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+        var target = dHour * 60 + dMin;
+        var inWindow = nowMin >= target && nowMin <= target + 90;
+        var today = dayStamp(now);
+        var wroteToday = cfg("cfg_action_day") === today || cfg("diary_done_day") === today;
+        if (inWindow && !wroteToday) actionMode = "diary";
+      }
+
       /* ⑤ 挑指令：平时那段允许他回 SKIP；"必定说"那段不许 */
-      var tpl = cfg(mustSpeak ? "cfg_prompt_force" : "cfg_prompt_normal");
+      var tpl = actionMode
+        ? cfg("cfg_action_prompt")
+        : cfg(mustSpeak ? "cfg_prompt_force" : "cfg_prompt_normal");
       if (!tpl) {
         logLine("#" + count + " " + stamp + " 抽屉里没有指令（App 还没交过来？）");
         errorNotify(count, stamp, "抽屉里没有指令：App 还没把配置交过来");
@@ -780,8 +828,27 @@ addEventListener("qidaoWake", function (resolve, reject) {
        */
       function finish(said, forced) {
         if (said) {
+          /**
+           * **自主行动那条**（actionMode 命中时）：把回复里的动作抠出来交给前台执行。
+           * 抠不出来 → **照旧当他"说了一句话"**（不编动作、不硬塞）；这样最坏情况
+           * 也只是退化成现在这套行为，绝不会丢东西或者假装做了事。
+           */
+          var outText = said;
+          var outKind = "";
+          if (actionMode) {
+            var act = extractAction(said);
+            if (act) {
+              outText = JSON.stringify(act);
+              outKind = "action";
+              kvSet("diary_done_day", dayStamp(now));
+              logLine("#" + count + " " + stamp + " 自主行动：" + act.kind);
+            } else {
+              logLine("#" + count + " " + stamp + " 自主行动没抠出动作 → 按「他说了一句」处理");
+            }
+          }
           kvSet("last_spoke_at", now);
-          bumpSpokeToday(now);
+          /** ⚠️ 自主行动**不占**"主动说话"的额度（用户定的独立额度） */
+          if (!actionMode) bumpSpokeToday(now);
           kvSet("speak_acc", 0);
           /**
            * **说成一句 → "醒了几次"归零**（用户："都跑到 82 次了，看着好多"）。
@@ -791,8 +858,10 @@ addEventListener("qidaoWake", function (resolve, reject) {
           kvSet("wake_count", 0);
           notify(NOTIFY_ID_BASE + (count % 1000), aiName, said, WAKE_NOTIFY_ACTION);
           /** 这句话**完整**交给前台，好让它落进会话（不只是弹一条点不开的通知） */
-          markPending(said, urgeFromElapsed(elapsed));
-          logLine("#" + count + " " + stamp + " 说了" + (forced ? "（上次没说 → 这次必定说）" : "") + "：" + said.slice(0, 40));
+          markPending(outText, urgeFromElapsed(elapsed));
+          /** 交给前台的"这是动作草稿"标记（前台落库后会把这一格一起置空） */
+          if (outKind) kvSet("wake_pending_kind", outKind);
+          logLine("#" + count + " " + stamp + " 说了" + (forced ? "（上次没说 → 这次必定说）" : "") + "：" + String(outText).slice(0, 40));
         } else {
           kvSet("speak_acc", 1);
           logLine("#" + count + " " + stamp + " 这次选择不说 → 下次必定说（距上次说话 " + elapsedText(elapsed) + "）");
