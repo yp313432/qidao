@@ -698,6 +698,21 @@ export function ChatView() {
                           {c.messages.at(-1)?.content.slice(0, 24) || "空对话"}
                         </span>
                       </button>
+                      {/*
+                        **改名**（用户："对话列表可以重命名"）—— `chat.rename` 动作早就有、
+                        store 里也有 `renameChat`，缺的就是这里一个入口；空名字当取消。
+                      */}
+                      <button
+                        type="button"
+                        aria-label="改名"
+                        className="size-9 text-[11px] text-muted"
+                        onClick={() => {
+                          const name = window.prompt("给这段对话起个名字", c.title);
+                          if (name && name.trim()) useApp.getState().renameChat(c.id, name.trim());
+                        }}
+                      >
+                        改
+                      </button>
                       <button
                         type="button"
                         aria-label="置顶"
