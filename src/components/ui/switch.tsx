@@ -24,12 +24,13 @@ export function Switch({
          * 也是选了哪档，看不出来"）。
          * 现在"开"用**主题色**（accent），跟"关"的灰底拉出明显差别。
          */
-        checked ? "bg-accent" : "bg-line",
+        checked ? "bg-fg" : "bg-line",
       )}
     >
       <span
         className={cn(
-          "absolute top-0.5 left-0.5 size-6 rounded-full bg-elevated shadow-sm transition-transform duration-200",
+          "absolute top-0.5 left-0.5 size-6 rounded-full shadow-sm transition-transform duration-200",
+          checked ? "bg-bg" : "bg-elevated",
           checked && "translate-x-5",
         )}
       />

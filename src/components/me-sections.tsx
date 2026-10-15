@@ -240,7 +240,7 @@ export function MeHub() {
                 onClick={() => patch({ userGender: opt.v })}
                 className={cn(
                   "rounded-full px-3 py-1 text-[11px] transition",
-                  active ? "bg-accent/20 text-accent" : "bg-chip text-muted active:bg-surface",
+                  active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
                 )}
               >
                 {opt.label}
@@ -1716,7 +1716,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeLevel: lv.id })}
                 className={cn(
                   "flex-1 rounded-2xl px-2 py-2 text-[12px] transition",
-                  active ? "bg-accent/20 text-accent" : "bg-chip text-muted active:bg-surface",
+                  active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
                 )}
               >
                 {lv.label}

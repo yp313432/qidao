@@ -95,7 +95,7 @@ export function MemoryDetail({
               onClick={() => setKind(k)}
               className={cn(
                 "rounded-full px-2.5 py-1 text-[11px]",
-                kind === k ? "bg-accent text-accent-fg" : "bg-chip text-muted",
+                kind === k ? "bg-fg text-bg" : "bg-chip text-muted",
               )}
             >
               {KIND_LABEL[k]}

@@ -151,7 +151,7 @@ export function MemoryLibrary() {
                   onClick={() => setDraftKind(k)}
                   className={cn(
                     "rounded-full px-2.5 py-1 text-[11px]",
-                    draftKind === k ? "bg-accent text-accent-fg" : "bg-chip text-muted",
+                    draftKind === k ? "bg-fg text-bg" : "bg-chip text-muted",
                   )}
                 >
                   {KIND_LABEL[k]}
@@ -226,7 +226,7 @@ export function MemoryLibrary() {
             onClick={() => setKind("all")}
             className={cn(
               "rounded-full px-2.5 py-1 text-[11px]",
-              kind === "all" ? "bg-accent text-accent-fg" : "bg-chip text-muted",
+              kind === "all" ? "bg-fg text-bg" : "bg-chip text-muted",
             )}
           >
             全部
@@ -238,7 +238,7 @@ export function MemoryLibrary() {
               onClick={() => setKind(k)}
               className={cn(
                 "rounded-full px-2.5 py-1 text-[11px]",
-                kind === k ? "bg-accent text-accent-fg" : "bg-chip text-muted",
+                kind === k ? "bg-fg text-bg" : "bg-chip text-muted",
               )}
             >
               {KIND_LABEL[k]}
