@@ -120,6 +120,29 @@ export function ChatView() {
   const [hitIndex, setHitIndex] = useState(0);
   const [flashId, setFlashId] = useState<string | null>(null);
 
+  /**
+   * **引用**（用户："长按引用就可以"）。
+   *
+   * 语义（跟用户定的）：引用的是**你点中的那一个气泡** —— 开着分段回复时他一条消息有
+   * 好几个气泡，长按哪一段就引哪一段；关掉分段回复时只有一个气泡，于是自然就是"引整条"。
+   * 发送时把 `> 引用：…` 拼在你这条消息**前面**：你和他都看得见引的是哪句，
+   * 他也从上下文里知道该回应哪句 —— **不改任何数据格式**。
+   */
+  const [quote, setQuote] = useState<{ text: string } | null>(null);
+  const pressTimer = useRef(0);
+  const quotePress = (raw: string) => ({
+    onPointerDown: () => {
+      const brief = raw.replace(/\s+/g, " ").trim().slice(0, 60);
+      if (!brief) return;
+      pressTimer.current = window.setTimeout(() => setQuote({ text: brief }), 500);
+    },
+    onPointerUp: () => window.clearTimeout(pressTimer.current),
+    onPointerLeave: () => window.clearTimeout(pressTimer.current),
+    onPointerCancel: () => window.clearTimeout(pressTimer.current),
+    /** 长按在安卓上会弹系统菜单（选中/翻译），挡掉它 */
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  });
+
   const hits = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !conv) return [] as string[];
@@ -479,6 +502,7 @@ export function ChatView() {
                                 {parts.map((p, i) => (
                                   <div
                                     key={i}
+                                    {...quotePress(p)}
                                     className={cn(
                                       "max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
@@ -494,7 +518,10 @@ export function ChatView() {
 
                           const liveText = streaming ? firstSegment(m.content) : m.content;
                           return liveText ? (
-                            <div className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                            <div
+                              {...quotePress(liveText)}
+                              className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                            >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
                                 **流式期间只写纯文本，不解析 Markdown** —— 原来是每 250ms 把越来越长的
@@ -611,7 +638,30 @@ export function ChatView() {
         </div>
       )}
 
-      <Composer onSend={send} disabled={busy} streaming={busy} />
+      {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
+      {quote && (
+        <div className="mx-3 mb-1 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[11px] text-muted">
+          <span className="min-w-0 flex-1 truncate">引用：{quote.text}</span>
+          <button
+            type="button"
+            aria-label="取消引用"
+            className="shrink-0 px-1 text-[13px]"
+            onClick={() => setQuote(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <Composer
+        onSend={(text, atts) => {
+          /** 把引用拼在**你这条消息前面**（他也能从上下文看到引的是哪句） */
+          const full = quote ? `> 引用：${quote.text}\n\n${text}` : text;
+          setQuote(null);
+          send(full, atts);
+        }}
+        disabled={busy}
+        streaming={busy}
+      />
 
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet
