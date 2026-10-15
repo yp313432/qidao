@@ -129,6 +129,8 @@ export function ChatView() {
    * 他也从上下文里知道该回应哪句 —— **不改任何数据格式**。
    */
   const [quote, setQuote] = useState<{ text: string } | null>(null);
+  /** **修改消息**（用户要的最后一件）：只允许改自己发的 —— 改完把后面那条回复**重新生成**一次 */
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const pressTimer = useRef(0);
   const quotePress = (raw: string) => ({
     onPointerDown: () => {
@@ -571,6 +573,7 @@ export function ChatView() {
                           这正是"执行结果那一栏永远有回话"。
                         */}
                         {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
+System.Object[]
                         {m.content && !streaming && (
                           <MessageActions
                             content={m.content}
