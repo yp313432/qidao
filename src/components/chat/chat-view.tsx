@@ -42,6 +42,8 @@ export function ChatView() {
   const [menu, setMenu] = useState(false);
   /** 会话列表每行的 ⋯ 菜单（第 3 条：重命名 / 置顶 / 删除 收进一个菜单） */
   const [rowMenu, setRowMenu] = useState<string | null>(null);
+  /** **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */
+  const [renameFor, setRenameFor] = useState<{ id: string; text: string } | null>(null);
   /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
   const [thinkSheet, setThinkSheet] = useState<{
     text: string;
@@ -756,6 +758,46 @@ export function ChatView() {
           )}
         </div>
       )}
+      {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
+      {renameFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/25 p-6"
+          onClick={() => setRenameFor(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-line bg-elevated p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
+            <input
+              autoFocus
+              value={renameFor.text}
+              onChange={(e) => setRenameFor({ id: renameFor.id, text: e.target.value })}
+              className="h-10 w-full rounded-2xl bg-chip px-3 text-[13px] outline-none"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-full px-4 py-1.5 text-[12px] text-muted"
+                onClick={() => setRenameFor(null)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-fg px-4 py-1.5 text-[12px] text-bg"
+                onClick={() => {
+                  const name = renameFor.text.trim();
+                  if (name) useApp.getState().renameChat(renameFor.id, name);
+                  setRenameFor(null);
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
       {quote && (
@@ -894,8 +936,7 @@ export function ChatView() {
                           type="button"
                           className="block w-full px-3 py-2 text-left"
                           onClick={() => {
-                            const name = window.prompt("给这段对话起个名字", c.title);
-                            if (name && name.trim()) useApp.getState().renameChat(c.id, name.trim());
+                            setRenameFor({ id: c.id, text: c.title });
                             setRowMenu(null);
                           }}
                         >
