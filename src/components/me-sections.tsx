@@ -749,7 +749,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ textTone: t.id })}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[13px]",
-                settings.textTone === t.id ? "bg-ink text-ink-fg" : "bg-chip",
+                settings.textTone === t.id ? "bg-fg text-bg" : "bg-chip",
               )}
             >
               {t.label}
@@ -784,7 +784,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ planetTone: t.id })}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
-                settings.planetTone === t.id ? "bg-ink text-ink-fg" : "bg-chip",
+                settings.planetTone === t.id ? "bg-fg text-bg" : "bg-chip",
               )}
             >
               {t.swatch && (
