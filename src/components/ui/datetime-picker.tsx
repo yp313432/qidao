@@ -55,7 +55,7 @@ export function WheelPicker({
   return (
     <div className="min-w-0 flex-1">
       <p className="mb-1 text-center text-[11px] text-muted">{label}</p>
-      <div className="relative h-[220px] overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="relative h-[220px] overflow-hidden rounded-2xl border border-line bg-bg">
         {/* 中间那条 = 反色实心（选中项就落在它上面） */}
         <div className="pointer-events-none absolute top-1/2 right-2 left-2 h-11 -translate-y-1/2 rounded-full border border-fg bg-fg shadow-sm" />
         <div
@@ -236,11 +236,11 @@ export function DateTimeField({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-5"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-5"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-line bg-surface p-4 shadow-xl"
+            className="w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-3 text-[13px] font-medium">{label ?? (mode === "date" ? "选个日子" : "选个时间")}</p>

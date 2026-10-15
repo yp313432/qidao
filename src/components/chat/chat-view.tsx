@@ -413,7 +413,7 @@ export function ChatView() {
 
                     {mine ? (
                       <div className={cn("flex", "justify-end")}>
-                        <div {...quotePress(m.id, m.content)} className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                        <div {...quotePress(m.id, m.content)} className="w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                           {m.attachments?.length ? (
                             <div className="flex flex-wrap gap-1.5">
                               {m.attachments.map((a) =>
@@ -515,7 +515,7 @@ export function ChatView() {
                                     key={i}
                                     {...quotePress(m.id, p)}
                                     className={cn(
-                                      "w-max min-w-[4em] max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      "w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
@@ -531,7 +531,7 @@ export function ChatView() {
                           return liveText ? (
                             <div
                               {...quotePress(m.id, liveText)}
-                              className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className="w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
@@ -584,11 +584,11 @@ export function ChatView() {
                         {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
                         {msgMenu?.id === m.id && (
                           <div
-                            className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
+                            className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
                             onClick={() => setMsgMenu(null)}
                           >
                             <div
-                              className="w-full max-w-[16rem] rounded-3xl border border-line bg-surface p-2 shadow-xl"
+                              className="w-full max-w-[16rem] rounded-3xl border border-line bg-bg p-2 shadow-xl"
                               onClick={(e) => e.stopPropagation()}
                             >
                               
@@ -761,11 +761,11 @@ export function ChatView() {
       {/* **会话 ⋯ 菜单**：放在根级（列表容器会裁掉 fixed 浮层 → 之前"点了没反应"就是这个），屏幕中间一张卡片 */}
       {rowMenu && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
           onClick={() => setRowMenu(null)}
         >
           <div
-            className="w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line bg-surface p-1.5 text-[13px] shadow-xl"
+            className="w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line bg-bg p-1.5 text-[13px] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -805,11 +805,11 @@ export function ChatView() {
       {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
       {renameFor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
           onClick={() => setRenameFor(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-line bg-surface p-4 shadow-xl"
+            className="w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
