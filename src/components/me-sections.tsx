@@ -1,3 +1,4 @@
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import { listVoiceModels } from "@/lib/voice-service";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
@@ -827,13 +828,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             <br />
             「一起多少天」
           </span>
-          <input
-            type="date"
-            value={settings.togetherSince}
-            onChange={(e) => patch({ togetherSince: e.target.value })}
-            aria-label="认识的日子"
-            className="shrink-0 bg-transparent font-mono text-[13px] outline-none"
-          />
+          <DateTimeField mode="date" label="认识的日子" value={settings.togetherSince} onChange={(v) => patch({ togetherSince: v })} />
         </label>
         <p className="mt-1.5 text-[11px] leading-4 text-subtle">
           {settings.togetherSince

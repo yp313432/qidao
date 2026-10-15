@@ -1,3 +1,4 @@
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import { useEffect, useState } from "react";
 import { AlarmClock, Bell, BellOff, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -117,12 +118,7 @@ export function AlarmsView() {
               className="h-11 w-full rounded-2xl bg-chip px-3 text-[13px] outline-none"
             />
             <div className="mt-2 flex items-center gap-2">
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="h-11 rounded-2xl bg-chip px-3 text-[13px] outline-none"
-              />
+              <DateTimeField mode="time" value={time} onChange={setTime} />
               <button
                 type="button"
                 onClick={() => setRing((v) => !v)}
@@ -146,12 +142,7 @@ export function AlarmsView() {
             {/* 空 = 每天；填了日期 = 只响这一次 */}
             <div className="mt-2 flex items-center gap-2">
               <span className="text-[12px] text-muted">只这一次</span>
-              <input
-                type="date"
-                value={onceDate}
-                onChange={(e) => setOnceDate(e.target.value)}
-                className="h-10 rounded-2xl bg-chip px-3 text-[13px] outline-none"
-              />
+              <DateTimeField mode="date" value={onceDate} onChange={setOnceDate} />
               {onceDate && (
                 <button
                   type="button"

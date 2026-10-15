@@ -1,0 +1,24 @@
+﻿feat(第7条·下半·本地→推送): 自绘日期/时间选择器（时间滚轮 + 日期月历），替掉 4 处系统控件
+
+用户第 7 条："改对话名称和选择时间……这是安卓系统最底层的对话框吧……做个适配，可以吗"，
+并批准了方案：**时间用滚轮、日期用月历**，选中一律"反色实心"。
+
+## 新增 `src/components/ui/datetime-picker.tsx`
+
+· `WheelPicker` —— 滚轮（`snap-y snap-mandatory` + 滚动结束回调），中间一条**反色实心**选中条；
+  打开时自动滚到当前值；点某一项也能选中并滚过去（手感跟系统闹钟一致）；
+· `CalendarPicker` —— 月历（周一当第一列、有今天细描边、选中日 = 反色实心圆、左右圆钮翻月）；
+· `TimeWheels` —— 小时/分钟两列滚轮（`HH:MM`）；
+· `DateTimeField` —— **一个字段 + 弹层**：玻璃卡片 + 半透明遮罩 + 取消/确定（确定 = 反色实心），
+  页面里直接用它替掉 `input type="date" / "time"`。
+
+## 替换的 4 处
+
+· `alarms-view.tsx`：闹钟的**时间**（滚轮）+ **只这一次的日期**（月历）；
+· `me-sections.tsx`：认识的日子（`settings.togetherSince`）；
+· `components/play/tools-days.tsx`：倒数日的日期。
+
+## 验收
+
+tsc 0 · eslint 0 error · `verify-hierarchy` 30 个页面 / 0 错误。
+⚠️ 滚轮/月历的真机手感（滑动手势、吸附）只能装机验 —— 这是纯前端交互，本地没有真触摸。

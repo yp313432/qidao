@@ -1,3 +1,4 @@
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import { useMemo, useState } from "react";
 import { CalendarHeart, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { SceneBackdrop } from "@/components/background-layer";
@@ -297,13 +298,7 @@ function DateForm({ initial, onDone }: { initial: number | null; onDone: () => v
         className="mt-2.5 w-full rounded-2xl bg-chip px-3.5 py-2.5 text-[13px] outline-none placeholder:text-subtle"
       />
       <div className="mt-2.5 flex items-center gap-2">
-        <input
-          type="date"
-          value={day}
-          onChange={(e) => setDay(e.target.value)}
-          aria-label="日期"
-          className="min-w-0 flex-1 rounded-2xl bg-chip px-3.5 py-2.5 text-[13px] outline-none"
-        />
+              <DateTimeField mode="date" value={day} onChange={setDay} />
         <button
           type="button"
           onClick={() => setYearly((v) => !v)}
