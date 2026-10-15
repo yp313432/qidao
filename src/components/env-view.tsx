@@ -122,7 +122,7 @@ export function EnvView() {
                 <span className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", DOT[it.status])} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-[13px] font-medium">{it.label}</p>
+                    <p className="min-w-0 break-all text-[13px] font-medium">{it.label}</p>
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
@@ -136,9 +136,9 @@ export function EnvView() {
                       {WORD[it.status]}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] leading-4 text-muted">{it.detail}</p>
+                  <p className="mt-1 break-all text-[11px] leading-4 text-muted">{it.detail}</p>
                   {it.fix && (
-                    <p className="mt-1.5 rounded-xl bg-fg/8 px-2.5 py-1.5 text-[11px] leading-4 text-fg">
+                    <p className="mt-1.5 break-all rounded-xl bg-fg/8 px-2.5 py-1.5 text-[11px] leading-4 text-fg">
                       怎么办：{it.fix}
                     </p>
                   )}

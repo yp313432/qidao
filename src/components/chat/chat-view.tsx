@@ -495,7 +495,18 @@ export function ChatView() {
                           const liveText = streaming ? firstSegment(m.content) : m.content;
                           return liveText ? (
                             <div className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
-                              <Markdown text={liveText} />
+                              {/*
+                                ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
+                                **流式期间只写纯文本，不解析 Markdown** —— 原来是每 250ms 把越来越长的
+                                正文整个重新解析一遍，越写越卡、还一段段地蹦。收尾那一次才解析
+                                （`streaming` 转 false 之后走 Markdown）。省下的预算用来把
+                                `use-chat` 的 FLUSH_MS 降到 100ms，看起来就是字一条条往外冒。
+                              */}
+                              {streaming ? (
+                                <p className="whitespace-pre-wrap break-words">{liveText}</p>
+                              ) : (
+                                <Markdown text={liveText} />
+                              )}
                             </div>
                           ) : streaming ? (
                             <p className="thinking-shimmer text-sm">正在写回复…</p>

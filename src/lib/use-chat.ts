@@ -319,7 +319,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 同一批还把 `formatClock/formatDay` 的重复造 Intl 修了（那才是主犯）。
        * 结束时照旧补最后一次（最后一段不会丢）。
        */
-      const FLUSH_MS = 250;
+      /**
+       * ⚠️ 2026-10 从 250ms 降到 **100ms**：流式期间**不再解析 Markdown**（只写纯文本，
+       * 见 `chat-view.tsx`），每次刷新的成本从"重新解析整段正文"降到"写一段文本"，
+       * 所以可以放宽到接近逐字 —— 用户要的"一条条往外冒"的顺滑感。
+       */
+      const FLUSH_MS = 100;
       let flushTimer = 0;
       let dirty = false;
       const flush = () => {
