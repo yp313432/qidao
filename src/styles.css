@@ -1386,7 +1386,9 @@ html[data-keyboard="up"] .pb-composer {
   border-color: var(--aster-line, rgba(127, 127, 127, 0.25));
 }
 .choice-card-on {
-  border-color: color-mix(in oklab, var(--aster-accent) 70%, transparent);
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
 }
 .choice-card-off {
   border-color: var(--aster-line, rgba(127, 127, 127, 0.25));

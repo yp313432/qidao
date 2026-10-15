@@ -614,7 +614,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ motion: id })}
                 className={cn(
                   "rounded-full py-1.5 text-[11px]",
-                  settings.motion === id ? "bg-fg/10 font-medium text-fg" : "text-muted",
+                  settings.motion === id ? "bg-fg text-bg font-medium" : "text-muted",
                 )}
               >
                 {label}

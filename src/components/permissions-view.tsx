@@ -566,7 +566,7 @@ export function PermissionsView() {
                             className={cn(
                               "rounded-full py-1.5 text-[11px]",
                               mode === m.id
-                                ? "bg-fg/10 font-medium text-fg"
+                                ? "bg-fg text-bg font-medium"
                                 : "text-muted",
                             )}
                           >
