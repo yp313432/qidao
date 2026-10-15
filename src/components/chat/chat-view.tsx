@@ -132,11 +132,18 @@ export function ChatView() {
   /** **修改消息**（用户要的最后一件）：只允许改自己发的 —— 改完把后面那条回复**重新生成**一次 */
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const pressTimer = useRef(0);
-  const quotePress = (raw: string) => ({
+  /**
+   * **长按菜单**（用户第 2/5 条）：长按任意消息 → **App 内**浮层（不是浏览器/系统那个），
+   * 里面至少给"引用这一句"（分段时带的是**你按的那一段**）、复制，
+   * 自己的消息多一个"修改"，他的消息多一个"重新生成"。
+   * 下一步：把气泡下面那排图标（赞/踩/朗读/分享/收藏）也搬进来，只留统计那行。
+   */
+  const [msgMenu, setMsgMenu] = useState<{ id: string; part: string } | null>(null);
+  const quotePress = (id: string, raw: string) => ({
     onPointerDown: () => {
-      const brief = raw.replace(/\s+/g, " ").trim().slice(0, 60);
+      const brief = raw.replace(/\s+/g, " ").trim();
       if (!brief) return;
-      pressTimer.current = window.setTimeout(() => setQuote({ text: brief }), 500);
+      pressTimer.current = window.setTimeout(() => setMsgMenu({ id, part: brief }), 500);
     },
     onPointerUp: () => window.clearTimeout(pressTimer.current),
     onPointerLeave: () => window.clearTimeout(pressTimer.current),
@@ -504,7 +511,7 @@ export function ChatView() {
                                 {parts.map((p, i) => (
                                   <div
                                     key={i}
-                                    {...quotePress(p)}
+                                    {...quotePress(m.id, p)}
                                     className={cn(
                                       "w-max min-w-[4em] max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
@@ -521,7 +528,7 @@ export function ChatView() {
                           const liveText = streaming ? firstSegment(m.content) : m.content;
                           return liveText ? (
                             <div
-                              {...quotePress(liveText)}
+                              {...quotePress(m.id, liveText)}
                               className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
@@ -572,6 +579,64 @@ export function ChatView() {
                           （见 use-chat 的 onRound），流式期间当然也要看得见 ——
                           这正是"执行结果那一栏永远有回话"。
                         */}
+                        {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
+                        {msgMenu?.id === m.id && (
+                          <div
+                            className="fixed inset-0 z-50 flex items-end bg-fg/25"
+                            onClick={() => setMsgMenu(null)}
+                          >
+                            <div
+                              className="w-full rounded-t-3xl border border-line bg-elevated p-3 pb-8"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line" />
+                              <button
+                                type="button"
+                                className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                onClick={() => {
+                                  setQuote({ text: msgMenu.part.replace(/\s+/g, " ").trim().slice(0, 60) });
+                                  setMsgMenu(null);
+                                }}
+                              >
+                                引用这一句
+                              </button>
+                              <button
+                                type="button"
+                                className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                onClick={() => {
+                                  void navigator.clipboard?.writeText(m.content);
+                                  setMsgMenu(null);
+                                }}
+                              >
+                                复制
+                              </button>
+                              {mine && !busy && (
+                                <button
+                                  type="button"
+                                  className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                  onClick={() => {
+                                    setEditing({ id: m.id, text: m.content });
+                                    setMsgMenu(null);
+                                  }}
+                                >
+                                  修改
+                                </button>
+                              )}
+                              {!mine && !streaming && (
+                                <button
+                                  type="button"
+                                  className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                  onClick={() => {
+                                    void regenerate(m.id);
+                                    setMsgMenu(null);
+                                  }}
+                                >
+                                  重新生成
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
                         {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
                         {mine && !busy && editing?.id !== m.id && (
