@@ -3,6 +3,7 @@ import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
+import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
@@ -27,6 +28,62 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
+/** 动作白名单（**只增不改**）：跟前台收草稿那条路、后台运行器是同一套，删东西/改设置永远进不来 */
+const DRAFT_ACTION_WHITELIST = new Set([
+  "diary.add",
+  "moment.post",
+  "moment.comment",
+  "moment.like",
+  "letter.write",
+  "emotion.report",
+]);
+
+/**
+ * 把回复里的**动作块**抠出来，同时给出**去掉动作块之后给人看的正文**。
+ *
+ * ⚠️ 2026-10 真机踩到的（用户："唤醒说要写日记，实际没写"）：
+ * 定时任务这条路（`task-daemon`）原来**既不执行动作、也不把动作块藏起来** ——
+ * 于是对话里摊着一串 `{"kind":"diary.add","body":"…"}`，而日记页是空的。
+ * 抠不出来就 `action: null` + 原文返回，**绝不编、绝不动数据**。
+ */
+function splitAction(text: string): { action: Record<string, unknown> | null; rest: string } {
+  const s = String(text ?? "");
+  const tries: string[] = [];
+  const arr = /\[[\s\S]*\]/.exec(s);
+  if (arr) tries.push(arr[0]);
+  let depth = 0;
+  let start = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        tries.push(s.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  for (const raw of tries) {
+    try {
+      let v = JSON.parse(raw) as unknown;
+      if (Array.isArray(v)) v = v[0];
+      const o = v as { kind?: unknown };
+      if (o && typeof o.kind === "string" && DRAFT_ACTION_WHITELIST.has(o.kind)) {
+        const at = s.indexOf(raw);
+        return {
+          action: o as Record<string, unknown>,
+          rest: at >= 0 ? (s.slice(0, at) + s.slice(at + raw.length)) : s,
+        };
+      }
+    } catch {
+      /* 试下一个 */
+    }
+  }
+  return { action: null, rest: s };
+}
 export function TaskDaemon() {
   const busy = useRef(false);
 
@@ -158,15 +215,29 @@ export function TaskDaemon() {
         content = content || "（他自己开口时没连上模型）";
       }
       flush();
+      /**
+       * **他自己的时间 → 回复里那串动作要真的执行**（用户真机："说要写日记实际没写"）：
+       * 先抠出来按白名单执行，再把动作块从**看得见的正文**里去掉。
+       */
+      const { action: draftAction, rest: draftRest } = splitAction(content);
+      if (draftAction) {
+        try {
+          await runAction(draftAction as never, { navigate: () => {} });
+        } catch {
+          /* 动作没执行成功也不该让这条消息本身消失 */
+        }
+      }
+      const shown =
+        draftRest.trim() || (draftAction ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
       useApp.getState().finalizeAssistant(conversationId, messageId, {
-        content: content || "（他自己开了口，但没说出什么）",
+        content: shown,
         thinking,
         thinkingDurationMs: 0,
         /** 来源标记：这条是**定时任务**（跟主动唤醒共用一个 `scheduled`，界面靠它区分） */
         origin: "cron",
       });
       if (due.notify) {
-        void localNotify(aiName, (content || "他主动说了句话").slice(0, 60));
+        void localNotify(aiName, shown.slice(0, 60));
       }
       busy.current = false;
     };
