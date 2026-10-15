@@ -573,7 +573,53 @@ export function ChatView() {
                           这正是"执行结果那一栏永远有回话"。
                         */}
                         {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
-System.Object[]
+                        {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
+                        {mine && !busy && editing?.id !== m.id && (
+                          <div className="mt-1 flex justify-end">
+                            <button
+                              type="button"
+                              className="rounded-full border border-line px-2 py-0.5 text-[10px] text-muted"
+                              onClick={() => setEditing({ id: m.id, text: m.content })}
+                            >
+                              改
+                            </button>
+                          </div>
+                        )}
+                        {editing?.id === m.id && (
+                          <div className="mt-1.5 rounded-2xl border border-line bg-surface p-2">
+                            <textarea
+                              value={editing.text}
+                              onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
+                              rows={3}
+                              className="w-full resize-none rounded-xl bg-chip px-2.5 py-2 text-[12px] outline-none"
+                            />
+                            <div className="mt-1.5 flex justify-end gap-2">
+                              <button
+                                type="button"
+                                className="rounded-full px-3 py-1 text-[11px] text-muted"
+                                onClick={() => setEditing(null)}
+                              >
+                                取消
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-full bg-accent px-3 py-1 text-[11px] text-white"
+                                onClick={() => {
+                                  const next = editing.text.trim();
+                                  if (!next) return;
+                                  const list = conv?.messages ?? [];
+                                  const at = list.findIndex((x) => x.id === m.id);
+                                  const after = list.slice(at + 1).find((x) => x.role !== "user");
+                                  useApp.getState().patchMessage(conv!.id, m.id, { content: next });
+                                  setEditing(null);
+                                  if (after) void regenerate(after.id);
+                                }}
+                              >
+                                保存并重答
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {m.content && !streaming && (
                           <MessageActions
                             content={m.content}
