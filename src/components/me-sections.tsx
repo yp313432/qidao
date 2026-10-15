@@ -1894,6 +1894,10 @@ function MeSections({ tab }: { tab: MeTab }) {
             <br />
             硅基流动那家：地址填 https://api.siliconflow.cn/v1 ，
             转文字 FunAudioLLM/SenseVoiceSmall，合成 FunAudioLLM/CosyVoice2-0.5B ✅
+            <br />
+            要换 ElevenLabs：地址填 https://api.elevenlabs.io/v1 ，转文字模型写 scribe_v1，
+            合成模型写 eleven_multilingual_v2，音色那格点「拉取模型」会自动填 voice_id ✅
+            （它要国际卡、免费额度小，而且国内直连不通，得挂梯或经你自己的服务器中转。）✅
           </p>
           {[
             { k: "voiceBaseUrl" as const, label: "地址", ph: "https://api.siliconflow.cn/v1" },

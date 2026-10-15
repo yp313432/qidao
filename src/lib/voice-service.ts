@@ -103,6 +103,30 @@ export async function transcribe(
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   if (!cfg) return { ok: false, reason: "还没配语音服务（我的 → 语音服务）" };
   try {
+    /**
+     * ⚠️ **ElevenLabs 单独一条路**（2026-10 用户要换它）：头是 `xi-api-key`（不是 Bearer）、
+     * 路径 `/speech-to-text`、模型字段叫 `model_id`（默认 `scribe_v1`）。
+     */
+    if (voiceProviderOf(cfg.baseUrl) === "elevenlabs") {
+      const eh = new FormData();
+      eh.append("file", audio, audio.type.includes("mp4") ? "speech.mp4" : "speech.webm");
+      eh.append("model_id", cfg.asrModel || "scribe_v1");
+      const er = await fetch(join(cfg.baseUrl, "/speech-to-text"), {
+        method: "POST",
+        headers: { "xi-api-key": cfg.apiKey },
+        body: eh,
+      });
+      const eraw = await er.text();
+      if (!er.ok) return { ok: false, reason: `转文字失败（HTTP ${er.status}）：${eraw.slice(0, 160)}` };
+      let etext = "";
+      try {
+        etext = ((JSON.parse(eraw) as { text?: string }).text ?? "").trim();
+      } catch {
+        etext = eraw.trim();
+      }
+      return etext ? { ok: true, text: etext } : { ok: false, reason: "服务返回了空文字" };
+    }
+
     const form = new FormData();
     // 文件名带扩展名：有些服务靠它判断格式
     form.append("file", audio, audio.type.includes("mp4") ? "speech.mp4" : "speech.webm");
@@ -136,6 +160,34 @@ export async function synthesize(
 ): Promise<{ ok: true; url: string } | { ok: false; reason: string }> {
   if (!cfg) return { ok: false, reason: "还没配语音服务" };
   try {
+    /**
+     * ⚠️ **ElevenLabs 单独一条路**：`POST {base}/text-to-speech/{voice_id}`，
+     * 头 `xi-api-key`，body 用 `model_id`，回来是 mp3。
+     * 音色那格填 **voice_id**（点设置页的「拉取模型」会把第一个音色填进去）。
+     */
+    if (voiceProviderOf(cfg.baseUrl) === "elevenlabs") {
+      const voiceId = cfg.voice || "21m00Tcm4TlvDq8ikWAM";
+      const er = await fetch(join(cfg.baseUrl, `/text-to-speech/${encodeURIComponent(voiceId)}`), {
+        method: "POST",
+        headers: {
+          "xi-api-key": cfg.apiKey,
+          "content-type": "application/json",
+          accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text: text.slice(0, 1200),
+          model_id: cfg.ttsModel || "eleven_multilingual_v2",
+        }),
+      });
+      if (!er.ok) {
+        const eraw = await er.text();
+        return { ok: false, reason: `合成失败（HTTP ${er.status}）：${eraw.slice(0, 160)}` };
+      }
+      const eblob = await er.blob();
+      if (eblob.size === 0) return { ok: false, reason: "合成返回了空音频" };
+      return { ok: true, url: URL.createObjectURL(eblob) };
+    }
+
     const res = await fetch(join(cfg.baseUrl, "/audio/speech"), {
       method: "POST",
       headers: {
