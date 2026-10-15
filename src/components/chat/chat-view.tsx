@@ -413,7 +413,7 @@ export function ChatView() {
 
                     {mine ? (
                       <div className={cn("flex", "justify-end")}>
-                        <div className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                        <div {...quotePress(m.id, m.content)} className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                           {m.attachments?.length ? (
                             <div className="flex flex-wrap gap-1.5">
                               {m.attachments.map((a) =>
@@ -584,14 +584,14 @@ export function ChatView() {
                         {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
                         {msgMenu?.id === m.id && (
                           <div
-                            className="fixed inset-0 z-50 flex items-end bg-fg/25"
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
                             onClick={() => setMsgMenu(null)}
                           >
                             <div
-                              className="w-full rounded-t-3xl border border-line bg-elevated p-3 pb-8"
+                              className="w-full max-w-[16rem] rounded-3xl border border-line bg-surface p-2 shadow-xl"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line" />
+                              
                               <button
                                 type="button"
                                 className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
@@ -758,14 +758,58 @@ export function ChatView() {
           )}
         </div>
       )}
+      {/* **会话 ⋯ 菜单**：放在根级（列表容器会裁掉 fixed 浮层 → 之前"点了没反应"就是这个），屏幕中间一张卡片 */}
+      {rowMenu && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
+          onClick={() => setRowMenu(null)}
+        >
+          <div
+            className="w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line bg-surface p-1.5 text-[13px] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="block w-full rounded-2xl px-3 py-3 text-left"
+              onClick={() => {
+                const c = conversations.find((x) => x.id === rowMenu);
+                if (c) setRenameFor({ id: c.id, text: c.title });
+                setRowMenu(null);
+              }}
+            >
+              重命名
+            </button>
+            <button
+              type="button"
+              className="block w-full rounded-2xl px-3 py-3 text-left"
+              onClick={() => {
+                useApp.getState().pinChat(rowMenu);
+                setRowMenu(null);
+              }}
+            >
+              置顶 / 取消置顶
+            </button>
+            <button
+              type="button"
+              className="block w-full rounded-2xl px-3 py-3 text-left"
+              onClick={() => {
+                useApp.getState().deleteChat(rowMenu);
+                setRowMenu(null);
+              }}
+            >
+              删除
+            </button>
+          </div>
+        </div>
+      )}
       {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
       {renameFor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/25 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/45 p-6"
           onClick={() => setRenameFor(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-line bg-elevated p-4"
+            className="w-full max-w-sm rounded-3xl border border-line bg-surface p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
@@ -905,8 +949,6 @@ export function ChatView() {
                       >
                         <span className="font-medium">{c.title}</span>
                         <span className="text-muted">
-                          {" · "}
-                          {c.messages.at(-1)?.content.slice(0, 24) || "空对话"}
                         </span>
                       </button>
                       {/*
@@ -931,39 +973,6 @@ export function ChatView() {
                 但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
                 所以让装饰接管它
                     {rowMenu === c.id && (
-                      <div className="mb-2 ml-auto w-36 overflow-hidden rounded-2xl border border-line bg-elevated text-[12px] shadow-lg">
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left"
-                          onClick={() => {
-                            setRenameFor({ id: c.id, text: c.title });
-                            setRowMenu(null);
-                          }}
-                        >
-                          重命名
-                        </button>
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left"
-                          onClick={() => {
-                            useApp.getState().pinChat(c.id);
-                            setRowMenu(null);
-                          }}
-                        >
-                          {c.pinned ? "取消置顶" : "置顶"}
-                        </button>
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left text-muted"
-                          onClick={() => {
-                            useApp.getState().deleteChat(c.id);
-                            setRowMenu(null);
-                          }}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    )}
               · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
             */}
             <DrawerCosmos />
