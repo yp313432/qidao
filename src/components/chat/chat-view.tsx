@@ -26,6 +26,7 @@ import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
 import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
 import { resolveAiName } from "@/lib/branding";
+import { crumb } from "@/lib/breadcrumbs";
 import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -135,6 +136,8 @@ export function ChatView() {
   /** **修改消息**（用户要的最后一件）：只允许改自己发的 —— 改完把后面那条回复**重新生成**一次 */
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const pressTimer = useRef(0);
+  /** 长按时的起点：手指真的滑动过（> 10px）就当"在滚列表"，撤销长按 */
+  const pressFrom = useRef<{ x: number; y: number } | null>(null);
   /**
    * **长按菜单**（用户第 2/5 条）：长按任意消息 → **App 内**浮层（不是浏览器/系统那个），
    * 里面至少给"引用这一句"（分段时带的是**你按的那一段**）、复制，
@@ -142,27 +145,58 @@ export function ChatView() {
    * 下一步：把气泡下面那排图标（赞/踩/朗读/分享/收藏）也搬进来，只留统计那行。
    */
   const [msgMenu, setMsgMenu] = useState<{ id: string; part: string } | null>(null);
-  const quotePress = (id: string, raw: string) => ({
-    onPointerDown: () => {
-      const brief = raw.replace(/\s+/g, " ").trim();
-      if (!brief) return;
-      pressTimer.current = window.setTimeout(() => setMsgMenu({ id, part: brief }), 500);
-    },
-    onPointerUp: () => window.clearTimeout(pressTimer.current),
-    onPointerLeave: () => window.clearTimeout(pressTimer.current),
-    onPointerCancel: () => window.clearTimeout(pressTimer.current),
+  const quotePress = (id: string, raw: string) => {
+    const brief = raw.replace(/\s+/g, " ").trim();
     /**
-     * ⚠️ **长按的兜底**（真机踩到：只有触感、没有卡片）：
-     * 安卓长按时会先冒系统选中/菜单，同时把 pointer 序列**取消**掉，
-     * 所以"按住 0.5 秒"那个计时器常常根本等不到 —— 但 `contextmenu` **一定会来**。
-     * 于是这里也直接开菜单（顺手 preventDefault 挡掉系统那套）。
+     * ⚠️ **长按自己的消息为什么一直没卡片**（真机踩了两回，这次弄明白了）：
+     *   气泡上有 `select-none`。安卓长按它时**没有可选中/可复制的东西**，
+     *   所以 `contextmenu` **不来**；可它照样把 pointer 序列 `pointercancel` 掉（只有触感）。
+     *   于是两条路一起死：计时器被 cancel 清掉、contextmenu 又不来。
+     *   而"他"那条消息里的文字是可选的 → contextmenu 会来 → 一直是靠那个兜底生效的。
+     * 现在的规则：
+     *   · 计时器提前到 **380ms**（系统长按手势大约 500ms 才接管，要抢在它前面）；
+     *   · `pointercancel` / `pointerleave` **不再无条件清零** —— 只有真滑动过才撤销；
+     *   · `pointerup`（正常松手）照旧清零，免得"点一下"过一会儿自己弹出来；
+     *   · `contextmenu` 兜底保留（可选中文字那条路仍然走它）。
      */
-    onContextMenu: (e: React.MouseEvent) => {
-      e.preventDefault();
-      const brief = raw.replace(/\s+/g, " ").trim();
-      if (brief) setMsgMenu({ id, part: brief });
-    },
-  });
+    const cancelIfMoved = () => {
+      if (pressFrom.current === null) window.clearTimeout(pressTimer.current);
+    };
+    return {
+      onPointerDown: (e: React.PointerEvent) => {
+        if (!brief) return;
+        pressFrom.current = { x: e.clientX, y: e.clientY };
+        pressTimer.current = window.setTimeout(() => {
+          pressFrom.current = null;
+          crumb("longpress", "计时器开卡片");
+          setMsgMenu({ id, part: brief });
+        }, 380);
+      },
+      onPointerMove: (e: React.PointerEvent) => {
+        const from = pressFrom.current;
+        if (!from) return;
+        if (Math.abs(e.clientX - from.x) > 10 || Math.abs(e.clientY - from.y) > 10) {
+          pressFrom.current = null;
+          window.clearTimeout(pressTimer.current);
+        }
+      },
+      onPointerUp: () => {
+        pressFrom.current = null;
+        window.clearTimeout(pressTimer.current);
+      },
+      onPointerLeave: cancelIfMoved,
+      onPointerCancel: cancelIfMoved,
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        pressFrom.current = null;
+        window.clearTimeout(pressTimer.current);
+        if (brief) {
+          crumb("longpress", "contextmenu 开卡片");
+          setMsgMenu({ id, part: brief });
+        }
+      },
+    };
+  };
 
   const hits = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -591,6 +625,75 @@ export function ChatView() {
                           （见 use-chat 的 onRound），流式期间当然也要看得见 ——
                           这正是"执行结果那一栏永远有回话"。
                         */}
+                        {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
+                        {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
+                        {mine && !busy && editing?.id !== m.id && (
+                          <div className="mt-1 flex justify-end">
+                            <button
+                              type="button"
+                              className="rounded-full border border-line px-2 py-0.5 text-[10px] text-muted"
+                              onClick={() => setEditing({ id: m.id, text: m.content })}
+                            >
+                              改
+                            </button>
+                          </div>
+                        )}
+                        {editing?.id === m.id && (
+                          <div className="mt-1.5 rounded-2xl border border-line bg-surface p-2">
+                            <textarea
+                              value={editing.text}
+                              onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
+                              rows={3}
+                              className="w-full resize-none rounded-xl bg-chip px-2.5 py-2 text-[12px] outline-none"
+                            />
+                            <div className="mt-1.5 flex justify-end gap-2">
+                              <button
+                                type="button"
+                                className="rounded-full px-3 py-1 text-[11px] text-muted"
+                                onClick={() => setEditing(null)}
+                              >
+                                取消
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-full bg-accent px-3 py-1 text-[11px] text-white"
+                                onClick={() => {
+                                  const next = editing.text.trim();
+                                  if (!next) return;
+                                  const list = conv?.messages ?? [];
+                                  const at = list.findIndex((x) => x.id === m.id);
+                                  const after = list.slice(at + 1).find((x) => x.role !== "user");
+                                  useApp.getState().patchMessage(conv!.id, m.id, { content: next });
+                                  setEditing(null);
+                                  if (after) void regenerate(after.id);
+                                }}
+                              >
+                                保存并重答
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {m.usage && (m.usage.prompt || m.usage.completion) && (
+                          <p className="mt-1 px-1 text-[10px] text-subtle">
+                            {m.usage.prompt ? `输入 ${m.usage.prompt}` : ""}
+                            {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
+                            {/*
+                              缓存显示成**命中率**（用户："改成缓存命中率，
+                              比如百分之多少，方便好看一点，不然我还得自己计算"）。
+                              分母用输入 token —— 缓存本来就是"输入里有多少被命中了"。
+                            */}
+                            {typeof m.usage.cached === "number" &&
+                            m.usage.cached > 0 &&
+                            m.usage.prompt
+                              ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
+                              : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                      {/* ⚠️ **这三个块（长按菜单 / 改 / 编辑框）必须放在 mine 与 他 的分支之外**：
+                          以前它们写在「他的」那个分支里 —— 长按自己的消息时状态设了、却什么都不渲染，
+                          表现成“长按我的消息没卡片、只有触感”（用户报了两回）；「改」和编辑框同一个坑。 */}
                         {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
                         {msgMenu?.id === m.id && createPortal(
                           <div
@@ -680,7 +783,6 @@ export function ChatView() {
                           </div>,
                           document.body,
                         )}
-                        {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
                         {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
                         {mine && !busy && editing?.id !== m.id && (
                           <div className="mt-1 flex justify-end">
@@ -728,24 +830,6 @@ export function ChatView() {
                             </div>
                           </div>
                         )}
-                        {m.usage && (m.usage.prompt || m.usage.completion) && (
-                          <p className="mt-1 px-1 text-[10px] text-subtle">
-                            {m.usage.prompt ? `输入 ${m.usage.prompt}` : ""}
-                            {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
-                            {/*
-                              缓存显示成**命中率**（用户："改成缓存命中率，
-                              比如百分之多少，方便好看一点，不然我还得自己计算"）。
-                              分母用输入 token —— 缓存本来就是"输入里有多少被命中了"。
-                            */}
-                            {typeof m.usage.cached === "number" &&
-                            m.usage.cached > 0 &&
-                            m.usage.prompt
-                              ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
-                              : ""}
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </li>
               );
