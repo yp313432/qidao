@@ -140,13 +140,13 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
   {
     to: "/core",
     label: "AI 概览",
-    hint: "他是谁 · 能知道什么 · 怎么和你相处 · 什么状态 · 记得你什么",
+    hint: "他是谁 · 能知道什么 · 怎么和你相处 · 记得你什么",
     icon: Sparkles,
   },
   {
     to: "/space",
     label: "我的空间",
-    hint: "形象 · 背景空间 · 时感地址 · 个性化",
+    hint: "形象 · 背景空间 · 个性化",
     icon: Palette,
   },
   {
@@ -155,7 +155,7 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
     hint: "用量 · 上下文与内存 · 自定义上游",
     icon: Activity,
   },
-  { to: "/data", label: "数据", hint: "备份与恢复（记忆库、世界书在「AI 概览」里）", icon: Database },
+  { to: "/data", label: "数据", hint: "备份与恢复", icon: Database },
   {
     to: "/system",
     /*

@@ -404,7 +404,7 @@ export function ChatView() {
 
                     {mine ? (
                       <div className={cn("flex", "justify-end")}>
-                        <div className="max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
+                        <div className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
                           {m.attachments?.length ? (
                             <div className="flex flex-wrap gap-1.5">
                               {m.attachments.map((a) =>
@@ -506,7 +506,7 @@ export function ChatView() {
                                     key={i}
                                     {...quotePress(p)}
                                     className={cn(
-                                      "max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      "w-max min-w-[4em] max-w-[99%] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
@@ -522,7 +522,7 @@ export function ChatView() {
                           return liveText ? (
                             <div
                               {...quotePress(liveText)}
-                              className="max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className="w-max min-w-[4em] max-w-[99%] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
