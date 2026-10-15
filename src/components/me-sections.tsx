@@ -1,3 +1,4 @@
+import { listVoiceModels } from "@/lib/voice-service";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -1917,6 +1918,34 @@ function MeSections({ tab }: { tab: MeTab }) {
             语音页和输入框的麦克风都改走它（YOYO 不再出现 ✅），朗读也用它家的音色 ✅
             「试听一句」用的就是这个音色 ✅
           </p>
+          <button
+            type="button"
+            className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
+            onClick={async () => {
+              const r = await listVoiceModels();
+              if (!r.ok) {
+                window.alert(r.reason);
+                return;
+              }
+              const pick = (re: RegExp) => r.models.find((m) => re.test(m)) ?? "";
+              const asr = pick(/sensevoice|whisper|asr|transcri/i);
+              const tts = pick(/cosyvoice|tts|vits|speech/i);
+              patch({
+                ...(asr ? { voiceAsrModel: asr } : {}),
+                ...(tts ? { voiceTtsModel: tts } : {}),
+                ...(r.voices[0] ? { voiceTtsVoice: r.voices[0] } : {}),
+              } as Partial<typeof settings>);
+              window.alert(
+                `拉到了 ${r.models.length} 个模型${r.voices.length ? ` / ${r.voices.length} 个音色` : ""}` +
+                  `（${r.provider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"}）：\n` +
+                  [asr && `转文字 → ${asr}`, tts && `合成 → ${tts}`, r.voices[0] && `音色 → ${r.voices[0]}`]
+                    .filter(Boolean)
+                    .join("\n"),
+              );
+            }}
+          >
+            拉取模型（按地址自动认服务商，拉到就填上面三个）
+          </button>
         </div>
 
         <p className="mt-4 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>

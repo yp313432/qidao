@@ -44,6 +44,58 @@ export function voiceConfigured(): boolean {
 
 const join = (base: string, path: string) => `${base.replace(/\/+$/, "")}${path}`;
 
+/**
+ * **语音服务商**：按地址认。
+ *
+ * ⚠️ 2026-10 用户问："后续我想换 ElevenLabs 的语音模型，能使用吗" ——
+ * **能，但它不是 OpenAI 形状**：它用自己的 `xi-api-key` 头、路径是
+ * `/text-to-speech/{voice_id}` 与 `/speech-to-text`，音色要用 `/voices` 拉；合成出来是 mp3。
+ * 所以这里先**认服务商**（地址里带 `elevenlabs.io` 就是它），下面每条路分开走。
+ */
+export type VoiceProvider = "openai" | "elevenlabs";
+
+export function voiceProviderOf(baseUrl: string): VoiceProvider {
+  return /elevenlabs\.io/i.test(baseUrl.trim()) ? "elevenlabs" : "openai";
+}
+
+/**
+ * **拉取可用的模型 / 音色**（用户："现在是硅基流动的 key，但是没做拉取模型"）。
+ *
+ * · OpenAI 兼容那类（硅基流动等）：`GET {base}/models` → `data[].id`；
+ * · ElevenLabs：`GET {base}/voices`（它的"模型"是固定的三个，音色才是要拉的）→ `voices[].voice_id`。
+ * 只读、不改任何数据；失败原因如实返回，不猜。
+ */
+export async function listVoiceModels(
+  cfg = voiceConfig(),
+): Promise<
+  { ok: true; provider: VoiceProvider; models: string[]; voices: string[] } | { ok: false; reason: string }
+> {
+  if (!cfg) return { ok: false, reason: "先在「我的 → 语音服务」填密钥" };
+  const provider = voiceProviderOf(cfg.baseUrl);
+  try {
+    if (provider === "elevenlabs") {
+      const res = await fetch(join(cfg.baseUrl, "/voices"), { headers: { "xi-api-key": cfg.apiKey } });
+      if (!res.ok) return { ok: false, reason: `ElevenLabs 音色拉取失败：HTTP ${res.status}（密钥对吗？）` };
+      const j = (await res.json()) as { voices?: { voice_id?: string; name?: string }[] };
+      const voices = (j.voices ?? []).map((v) => v.voice_id ?? "").filter(Boolean);
+      return {
+        ok: true,
+        provider,
+        models: ["eleven_multilingual_v2", "eleven_turbo_v2_5", "scribe_v1"],
+        voices,
+      };
+    }
+    const res = await fetch(join(cfg.baseUrl, "/models"), {
+      headers: { authorization: `Bearer ${cfg.apiKey}` },
+    });
+    if (!res.ok) return { ok: false, reason: `拉取失败：HTTP ${res.status}（地址或密钥不对？）` };
+    const j = (await res.json()) as { data?: { id?: string }[] };
+    return { ok: true, provider, models: (j.data ?? []).map((m) => m.id ?? "").filter(Boolean), voices: [] };
+  } catch (e) {
+    return { ok: false, reason: `拉取失败：${String((e as Error)?.message ?? e).slice(0, 60)}` };
+  }
+}
+
 /** 语音 → 文字。audio 是录下来的音频（webm/mp4 都行） */
 export async function transcribe(
   audio: Blob,
