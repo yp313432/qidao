@@ -634,6 +634,36 @@ export function ChatView() {
                                   重新生成
                                 </button>
                               )}
+                              {/* 赞/踩/朗读/分享/收藏/重新生成 —— 从气泡下面搬进来的（用户第 2/5 条） */}
+                              {!mine && !streaming && (
+                                <div className="mt-2 border-t border-line pt-2">
+                          {m.content && !streaming && (
+                            <MessageActions
+                              content={m.content}
+                              feedback={m.feedback}
+                              busy={busy}
+                              saved={m.savedToDocs}
+                              onFeedback={(fb) =>
+                                useApp.getState().patchMessage(conv!.id, m.id, {
+                                  feedback: m.feedback === fb ? undefined : fb,
+                                })
+                              }
+                              onRegenerate={() => void regenerate(m.id)}
+                              onSaveDoc={() => {
+                                useApp.getState().saveDoc({
+                                  title: conv!.title,
+                                  content: m.thinking
+                                    ? `## 思考\n\n${m.thinking}\n\n## 回复\n\n${m.content}`
+                                    : m.content,
+                                  source: "chat",
+                                  conversationId: conv!.id,
+                                });
+                                useApp.getState().markSavedToDocs(conv!.id, m.id);
+                              }}
+                            />
+                          )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -684,31 +714,6 @@ export function ChatView() {
                               </button>
                             </div>
                           </div>
-                        )}
-                        {m.content && !streaming && (
-                          <MessageActions
-                            content={m.content}
-                            feedback={m.feedback}
-                            busy={busy}
-                            saved={m.savedToDocs}
-                            onFeedback={(fb) =>
-                              useApp.getState().patchMessage(conv!.id, m.id, {
-                                feedback: m.feedback === fb ? undefined : fb,
-                              })
-                            }
-                            onRegenerate={() => void regenerate(m.id)}
-                            onSaveDoc={() => {
-                              useApp.getState().saveDoc({
-                                title: conv!.title,
-                                content: m.thinking
-                                  ? `## 思考\n\n${m.thinking}\n\n## 回复\n\n${m.content}`
-                                  : m.content,
-                                source: "chat",
-                                conversationId: conv!.id,
-                              });
-                              useApp.getState().markSavedToDocs(conv!.id, m.id);
-                            }}
-                          />
                         )}
                         {m.usage && (m.usage.prompt || m.usage.completion) && (
                           <p className="mt-1 px-1 text-[10px] text-subtle">
