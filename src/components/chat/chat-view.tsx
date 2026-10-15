@@ -8,11 +8,9 @@ import {
   Mic,
   Paperclip,
   Pause,
-  Pin,
   Play,
   Plus,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 import { prettySize } from "@/lib/attachments";
@@ -42,6 +40,8 @@ export function ChatView() {
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const [menu, setMenu] = useState(false);
+  /** 会话列表每行的 ⋯ 菜单（第 3 条：重命名 / 置顶 / 删除 收进一个菜单） */
+  const [rowMenu, setRowMenu] = useState<string | null>(null);
   /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
   const [thinkSheet, setThinkSheet] = useState<{
     text: string;
@@ -799,34 +799,14 @@ export function ChatView() {
                       </button>
                       {/*
                         **改名**（用户："对话列表可以重命名"）—— `chat.rename` 动作早就有、
-                        store 里也有 `renameChat`，缺的就是这里一个入口；空名字当取消。
-                      */}
+                      {/* 第 3 条：三个内联按钮 → 一个 ⋯（点开才有 重命名/置顶/删除） */}
                       <button
                         type="button"
-                        aria-label="改名"
-                        className="size-9 text-[11px] text-muted"
-                        onClick={() => {
-                          const name = window.prompt("给这段对话起个名字", c.title);
-                          if (name && name.trim()) useApp.getState().renameChat(c.id, name.trim());
-                        }}
+                        aria-label="更多"
+                        className="size-9 shrink-0 text-[15px] leading-none text-muted"
+                        onClick={() => setRowMenu(rowMenu === c.id ? null : c.id)}
                       >
-                        改
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="置顶"
-                        className="size-9 text-muted"
-                        onClick={() => useApp.getState().pinChat(c.id)}
-                      >
-                        <Pin className={cn("mx-auto size-4", c.pinned && "text-accent")} />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="删除"
-                        className="size-9 text-muted"
-                        onClick={() => useApp.getState().deleteChat(c.id)}
-                      >
-                        <Trash2 className="mx-auto size-4" />
+                        ⋯
                       </button>
                     </div>
                   </li>
@@ -838,6 +818,41 @@ export function ChatView() {
               · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
                 但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
                 所以让装饰接管它
+                    {rowMenu === c.id && (
+                      <div className="mb-2 ml-auto w-36 overflow-hidden rounded-2xl border border-line bg-elevated text-[12px] shadow-lg">
+                        <button
+                          type="button"
+                          className="block w-full px-3 py-2 text-left"
+                          onClick={() => {
+                            const name = window.prompt("给这段对话起个名字", c.title);
+                            if (name && name.trim()) useApp.getState().renameChat(c.id, name.trim());
+                            setRowMenu(null);
+                          }}
+                        >
+                          重命名
+                        </button>
+                        <button
+                          type="button"
+                          className="block w-full px-3 py-2 text-left"
+                          onClick={() => {
+                            useApp.getState().pinChat(c.id);
+                            setRowMenu(null);
+                          }}
+                        >
+                          {c.pinned ? "取消置顶" : "置顶"}
+                        </button>
+                        <button
+                          type="button"
+                          className="block w-full px-3 py-2 text-left text-muted"
+                          onClick={() => {
+                            useApp.getState().deleteChat(c.id);
+                            setRowMenu(null);
+                          }}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    )}
               · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
             */}
             <DrawerCosmos />
