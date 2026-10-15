@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useBackdropDismiss } from "./use-backdrop-dismiss";
 import { cn } from "@/lib/utils";
 
 /**
@@ -217,6 +219,8 @@ export function DateTimeField({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  /** 点空白处返回（统一规则；滚轮拖完松手不会误关） */
+  const backdrop = useBackdropDismiss(() => setOpen(false));
   const [draft, setDraft] = useState(value);
   const openIt = () => {
     setDraft(value);
@@ -234,10 +238,10 @@ export function DateTimeField({
       >
         {value || (mode === "date" ? "选日期" : "选时间")}
       </button>
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-5"
-          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-5"
+          {...backdrop}
         >
           <div
             className="w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl"
@@ -253,7 +257,7 @@ export function DateTimeField({
               <button
                 type="button"
                 className="rounded-full px-4 py-1.5 text-[12px] text-muted"
-                onClick={() => setOpen(false)}
+                {...backdrop}
               >
                 取消
               </button>
@@ -269,8 +273,9 @@ export function DateTimeField({
               </button>
             </div>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

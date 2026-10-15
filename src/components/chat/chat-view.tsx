@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
@@ -150,8 +151,17 @@ export function ChatView() {
     onPointerUp: () => window.clearTimeout(pressTimer.current),
     onPointerLeave: () => window.clearTimeout(pressTimer.current),
     onPointerCancel: () => window.clearTimeout(pressTimer.current),
-    /** 长按在安卓上会弹系统菜单（选中/翻译），挡掉它 */
-    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    /**
+     * ⚠️ **长按的兜底**（真机踩到：只有触感、没有卡片）：
+     * 安卓长按时会先冒系统选中/菜单，同时把 pointer 序列**取消**掉，
+     * 所以"按住 0.5 秒"那个计时器常常根本等不到 —— 但 `contextmenu` **一定会来**。
+     * 于是这里也直接开菜单（顺手 preventDefault 挡掉系统那套）。
+     */
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      const brief = raw.replace(/\s+/g, " ").trim();
+      if (brief) setMsgMenu({ id, part: brief });
+    },
   });
 
   const hits = useMemo(() => {
@@ -582,9 +592,9 @@ export function ChatView() {
                           这正是"执行结果那一栏永远有回话"。
                         */}
                         {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
-                        {msgMenu?.id === m.id && (
+                        {msgMenu?.id === m.id && createPortal(
                           <div
-                            className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
+                            className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
                             onClick={() => setMsgMenu(null)}
                           >
                             <div
@@ -667,7 +677,8 @@ export function ChatView() {
                                 </div>
                               )}
                             </div>
-                          </div>
+                          </div>,
+                          document.body,
                         )}
                         {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
                         {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
@@ -759,9 +770,9 @@ export function ChatView() {
         </div>
       )}
       {/* **会话 ⋯ 菜单**：放在根级（列表容器会裁掉 fixed 浮层 → 之前"点了没反应"就是这个），屏幕中间一张卡片 */}
-      {rowMenu && (
+      {rowMenu && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
           onClick={() => setRowMenu(null)}
         >
           <div
@@ -800,12 +811,13 @@ export function ChatView() {
               删除
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
-      {renameFor && (
+      {renameFor && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-fg/45 p-6"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
           onClick={() => setRenameFor(null)}
         >
           <div
@@ -840,7 +852,8 @@ export function ChatView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}

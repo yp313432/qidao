@@ -111,7 +111,13 @@ export function ActionGate() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-      <div className="absolute inset-0 bg-fg/25" />
+      {/* 点空白处返回 = 拒绝（用户："所有弹层逻辑都要一致"；拒绝是安全默认，不会误批） */}
+      <button
+        type="button"
+        aria-label="关闭（等于拒绝）"
+        className="absolute inset-0 bg-fg/25"
+        onClick={() => deny(false)}
+      />
       <div
         className={cn(
           "glass-menu relative z-10 w-full max-w-sm rounded-3xl px-5 py-5",
