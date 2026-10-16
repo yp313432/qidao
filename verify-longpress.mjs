@@ -153,6 +153,24 @@ check("出了卡片", hisOpen);
 if (hisOpen) check("带「重新生成」", await page.evaluate(() => /重新生成/.test(document.body.innerText ?? "")));
 await closeMenu();
 
+console.log("=== 4b. 他的气泡：安卓提前来 contextmenu（约 500ms）也不许提前弹（用户 m02163 第 1 条）===");
+await fire(HIS, "pointerdown");
+await page.waitForTimeout(450);
+await fire(HIS, "contextmenu");
+await page.waitForTimeout(60); // 此刻约 510ms —— 还没到 600ms
+const earlyOpen = await menuOpen();
+check("510ms（只有 contextmenu）还没弹", !earlyOpen);
+await page.waitForTimeout(300); // 越过 600ms，计时器该说话了
+check("过了 600ms 计时器弹出（和我的气泡一致）", await menuOpen());
+await closeMenu();
+
+console.log("=== 4c. 鼠标右键（pointerType=mouse + contextmenu）立刻弹 ===");
+await fire(MINE, "pointerdown", { pointerType: "mouse", button: 2 });
+await fire(MINE, "contextmenu");
+await page.waitForTimeout(120);
+check("右键立即弹卡片", await menuOpen());
+await closeMenu();
+
 console.log("=== 5. 控制台 / 运行时报错 ===");
 check("没有页面报错", errors.length === 0, errors.slice(0, 3).join(" | "));
 

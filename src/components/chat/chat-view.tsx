@@ -222,6 +222,8 @@ export function ChatView() {
   const pressTimer = useRef(0);
   /** 长按时的起点：手指真的滑动过（> 10px）就当"在滚列表"，撤销长按 */
   const pressFrom = useRef<{ x: number; y: number } | null>(null);
+  /** 这次按下是手指还是鼠标（决定 contextmenu 要不要立刻开卡片，见 quotePress） */
+  const pressType = useRef<string>("");
   /**
    * **长按菜单**（用户第 2/5 条）：长按任意消息 → **App 内**浮层（不是浏览器/系统那个），
    * 里面至少给"引用这一句"（分段时带的是**你按的那一段**）、复制，
@@ -244,7 +246,10 @@ export function ChatView() {
      *     还没停留多久，立马出现弹层很影响体验" —— 以前是 380ms，太灵敏）；
      *   · `pointercancel` / `pointerleave` **不再无条件清零** —— 只有真滑动过才撤销；
      *   · `pointerup`（正常松手）照旧清零，免得"点一下"过一会儿自己弹出来；
-     *   · `contextmenu` 兜底保留（可选中文字那条路仍然走它）。
+     *   · `contextmenu` **只在鼠标右键时**开卡片（用户 m02163 第 1 条：手机上"他的"气泡
+     *     文字可选 → 安卓长按会提前（约 500ms）发 contextmenu → 卡片比 600ms 更早弹出来，
+     *     和"我的"气泡手感不一致。现在手机上一律只认这个 600ms 计时器，两类气泡完全一样；
+     *     右键仍然立刻开（那是"主动点"不是"停留"）。`preventDefault` 照旧压掉系统菜单。
      */
     const cancelIfMoved = () => {
       if (pressFrom.current === null) window.clearTimeout(pressTimer.current);
@@ -252,6 +257,7 @@ export function ChatView() {
     return {
       onPointerDown: (e: React.PointerEvent) => {
         if (!brief) return;
+        pressType.current = e.pointerType;
         pressFrom.current = { x: e.clientX, y: e.clientY };
         pressTimer.current = window.setTimeout(() => {
           pressFrom.current = null;
@@ -275,10 +281,12 @@ export function ChatView() {
       onPointerCancel: cancelIfMoved,
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
+        /* 手机上"停留"不该比 600ms 更早弹卡片：只让计时器那一条路说话 */
+        if (pressType.current === "touch") return;
         pressFrom.current = null;
         window.clearTimeout(pressTimer.current);
         if (brief) {
-          crumb("longpress", "contextmenu 开卡片");
+          crumb("longpress", "右键开卡片");
           setMsgMenu({ id, part: brief });
         }
       },
@@ -485,12 +493,12 @@ export function ChatView() {
               → 差 8px，一眼就看出"对不齐"。现在统一 16px。
 
               历史（别改回去）：px-5 + max-w-[86%] → 用户嫌"缩在中间太局促"，
-              所以宽度仍然让它**占满内容列**（`max-w-[99%]`），只是两侧留白跟输入框一致。
+              所以宽度仍然让它**占满内容列**（`max-w-full`），只是两侧留白跟输入框一致。
               短消息仍然靠它该靠的那一边（我的靠右、他的靠左）—— 那是气泡宽度跟着文字走，
               不是被挤住了。
             */}
             <ol
-              className="space-y-5 px-4 pt-4"
+              className="space-y-5 px-3.5 pt-4"
               style={{
                 fontSize: `${chatFontPx(settings.chatFontSize)}px`,
                 /* paddingBottom 由悬浮对话框的实测高度决定（见 composerWrap）：
@@ -508,44 +516,70 @@ export function ChatView() {
                   key={m.id}
                   id={`msg-${m.id}`}
                   className={cn(
-                    "flex gap-2.5 rounded-3xl transition",
-                    mine ? "flex-row-reverse" : "flex-row",
+                    /*
+                      ⭐ 用户 m02250 / m02816 定稿的**方案丁**（"头像放在上面，气泡另起一行"）：
+                        原来是一条 `flex` 行里"头像 + 气泡"并排，头像会把气泡往里顶：
+                        他那边顶右 40px、我这边顶左 40px → **气泡左右边距不一样大**，
+                        跟底下悬浮对话框的边也就错开（用户原话"会有交错"）。
+                        现在改成**竖着一列**：第一行是"头像 + 名字 + 时间"，气泡单独一行，
+                        于是气泡左右都贴同一条 14px 边距、长度也能用满整行。
+                        `mine ? items-end : items-start` 只管整列靠哪边。
+                    */
+                    "flex flex-col rounded-3xl transition",
                     // 搜索跳过来的那条闪一圈，不然不知道跳到哪了
                     flashId === m.id && "aster-highlight",
                   )}
                 >
-                  <Avatar role={mine ? "user" : "ai"} size={30} className="mt-0.5" />
-
-                  <div className="min-w-0 flex-1">
+                  {/*
+                    ⭐ 方案丁：头像挪到**名字这一行**（他的名字在左、我的在右），气泡另起一行。
+                    `w-full` + `items-start/end` 保证气泡能长到整条边距、靠它该靠的那边。
+                  */}
+                  <div
+                    className={cn(
+                      "flex w-full min-w-0 flex-col gap-1",
+                      mine ? "items-end" : "items-start",
+                    )}
+                  >
                     {/*
-                      名字 + 时间那一行。
+                      名字 + 时间那一行（现在**头像也在这行**）。
                       用户那侧要**整体靠右**，所以用 justify-end。
                       ⚠️ 不能同时写 flex-row-reverse —— 它会把主轴翻过去，
                          justify-end 于是又变回"靠左"，两者互相抵消（我踩过）。
-                      名字在 DOM 里的顺序本来就是「名字、时间」，用 justify 控制位置就够了。
+                      头像用 26px（用户 m02816 选的）：名字行里够看，整条消息又不显臃肿。
                     */}
                     <div
                       className={cn(
-                        "mb-1 flex items-baseline gap-2",
+                        "mb-1 flex items-center gap-2",
                         mine ? "justify-end" : "justify-start",
                       )}
                     >
-                      <span className="text-[13px] font-medium text-fg">
-                        {mine ? settings.displayName : aiName}
-                      </span>
-                      {/*
-                        来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
-                        所以要看 `origin` 分开说（用户要求）：
-                          · origin === "wake" → 「他主动说的」
-                          · 其余（"cron" 或老消息没这个字段）→ 「定时 · 他自己说的」
-                        ⚠️ 老消息没有 origin，必须保持原样显示，不能因为"读不到来源"就不显示。
-                      */}
-                      {m.scheduled && (
-                        <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
-                          {m.origin === "wake" ? "他主动说的" : "定时 · 他自己说的"}
-                        </span>
+                      {mine ? (
+                        <>
+                          <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
+                          <span className="text-[13px] font-medium text-fg">
+                            {settings.displayName}
+                          </span>
+                          <Avatar role="user" size={26} />
+                        </>
+                      ) : (
+                        <>
+                          <Avatar role="ai" size={26} />
+                          <span className="text-[13px] font-medium text-fg">{aiName}</span>
+                          {/*
+                            来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
+                            所以要看 `origin` 分开说（用户要求）：
+                              · origin === "wake" → 「他主动说的」
+                              · 其余（"cron" 或老消息没这个字段）→ 「定时 · 他自己说的」
+                            ⚠️ 老消息没有 origin，必须保持原样显示，不能因为"读不到来源"就不显示。
+                          */}
+                          {m.scheduled && (
+                            <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
+                              {m.origin === "wake" ? "他主动说的" : "定时 · 他自己说的"}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
+                        </>
                       )}
-                      <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
                     </div>
 
                     {mine ? (
@@ -564,9 +598,13 @@ export function ChatView() {
                           (a) => !(a.dataUrl && a.kind !== "audio"),
                         );
                         return (
-                          <div className="flex flex-col items-end">
+                          /* ⚠️ `w-full` 不能省：这是 flex 列里的一个 flex 项，
+                             不写它就会被"内容最大宽度"撑开（长消息会横向溢出，
+                             气泡的 max-w-full 也会以它为基准算错）—— 验收脚本里
+                             "没有横向溢出"那条断言就是防这个的。 */
+                          <div className="flex w-full flex-col items-end">
                             {pics.length > 0 && (
-                              <div className="flex max-w-[99%] flex-wrap justify-end gap-1.5">
+                              <div className="flex max-w-full flex-wrap justify-end gap-1.5">
                                 {pics.map((a) => (
                                   <button
                                     key={a.id}
@@ -593,7 +631,7 @@ export function ChatView() {
                               <div
                                 {...quotePress(m.id, body)}
                                 className={cn(
-                                  "w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                  "w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                   pics.length > 0 && "mt-1",
                                 )}
                               >
@@ -625,7 +663,8 @@ export function ChatView() {
                         );
                       })()
                     ) : (
-                      <div className="min-w-0">
+                      /* ⚠️ 同上：`w-full` 必须留（否则长回复会把这一列撑成"一行不换行"） */
+                      <div className="w-full min-w-0">
                         {/*
                           ⭐ agent loop 的进度：他现在走到第几步、正在执行哪个动作。
                           用户原话："这一轮我发出动作，成没成，要等下一轮结果回来才知道；
@@ -689,7 +728,7 @@ export function ChatView() {
                                     key={i}
                                     {...quotePress(m.id, p)}
                                     className={cn(
-                                      "w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      "w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
@@ -705,7 +744,7 @@ export function ChatView() {
                           return liveText ? (
                             <div
                               {...quotePress(m.id, liveText)}
-                              className="w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className="w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：

@@ -357,7 +357,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || reasonOpen || stickerOpen);
 
   return (
-    <div className="px-4 pb-composer">
+    <div className="px-1.5 pb-composer">
       {/*
         ⚠️ 玻璃用**哪一档**：`.glass-panel`（半透明 + 30px 模糊 + 投影）。
         用户三次口径叠起来才是这个结论，别再走回头路：
@@ -371,8 +371,11 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         又有投影 + 边框把它跟背景分开；跟着主题走（深色主题深玻璃、浅色主题浅玻璃），
         文字用主题的 `--aster-fg`，不会再出现"白字看不见"。
       */}
-      {/* glass-float：**悬浮**在消息流上面的那一层（比 glass-panel 实，见 styles.css 注释） */}
-      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-2 shadow-lg">
+      {/* glass-float：**悬浮**在消息流上面的那一层（比 glass-panel 实，见 styles.css 注释）
+          ⭐ 用户 m02163 第 3/4 条 + m02254「然后选B」：形状改**细长**（卡片 p-1.5、输入框 min-h-9、
+          两边圆钮 size-9，整块矮约 20px：125px → 101px），玻璃改成 **B 档：82% + 模糊 48px**（见 .glass-float）。
+          侧边留白 8px（浮层外壳）+ 6px（这里）= 14px —— 用户要"别贴着侧边栏、也别太局促"。 */}
+      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-1.5 shadow-lg">
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。
@@ -574,7 +577,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             }
           }}
           placeholder={`和${aiName}聊聊…`}
-          className="min-h-11 w-full resize-none bg-transparent px-3 py-2.5 text-[16px] text-fg outline-none placeholder:text-subtle"
+          className="min-h-9 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
         />
         <div className="flex items-center gap-2 px-1 pb-1">
           <div className="relative">
@@ -586,7 +589,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 setModelOpen(false);
                 setStickerOpen(false);
               }}
-              className="flex size-11 items-center justify-center rounded-full bg-chip text-fg"
+              className="flex size-9 items-center justify-center rounded-full bg-chip text-fg"
             >
               <Plus className="size-5" strokeWidth={1.75} />
             </button>
@@ -790,7 +793,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               else void startRec();
             }}
             className={cn(
-              "flex size-11 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
+              "flex size-9 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
               recMs !== null && "bg-warn",
             )}
           >

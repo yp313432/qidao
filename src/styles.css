@@ -384,15 +384,21 @@ html[data-motion="off"] *::after {
 
 /*
   **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层"）。
-  它跟 .glass-panel 的区别只有一个：**更实**（88% 而不是 52%）。
+  它跟 .glass-panel 的区别只有一个：**更实**（比 52% 实）。
   因为它底下**是滚动的消息流** —— 52% 那档会让消息的字从输入框里透出来，
   跟输入框自己的字叠在一起，两边都看不清（设计总则 §6.1 ③：浮层要实心底）。
+
+  ⭐ 用户 m02163 第 3 条 + m02254「然后选B」定稿为 **B 档：82% + 模糊 48px**：
+    · 比原来的 88% + 24px **更"毛玻璃"**（模糊拉大 → 背后的字被糊开、不再是一行清楚的字）；
+    · 又不像 .glass-panel（52%）那样在花背景上跟背景糊成一块、字压字。
+    ⚠️ 一开始按 78% + 40px 做，真机/浏览器截图看**大号深色字还是会透上来**（"第 7 句…"能认出来），
+      所以把不透明度提到 82%、模糊提到 48px：还是玻璃，但背后那行字认不出来了。
 */
 .glass-float {
-  background-color: color-mix(in oklab, var(--aster-canvas) 88%, transparent);
+  background-color: color-mix(in oklab, var(--aster-canvas) 82%, transparent);
   background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 30%);
-  -webkit-backdrop-filter: blur(24px) saturate(1.7);
-  backdrop-filter: blur(24px) saturate(1.7);
+  -webkit-backdrop-filter: blur(48px) saturate(1.6);
+  backdrop-filter: blur(48px) saturate(1.6);
   box-shadow:
     inset 0 1px 0 0 var(--aster-glass-highlight),
     var(--aster-shadow);
@@ -841,9 +847,15 @@ html[data-drawer-open] .glass-nav-bar {
  *     这里收掉它，输入框就贴着键盘上沿。
  *
  * `data-keyboard` 由 `lib/keyboard.ts` 挂（原生推的值和网页兜底算的值都会看）。
+ *
+ * ⚠️ 用户 m02163 第 2 条（"对话框和键盘底部空隙太大了，缩小一点"）：
+ *   原来这里还加 `--q-inset-bottom`（系统手势条/导航条的高度）。可键盘弹起来时
+ *   那条手势条**在键盘后面**，再加一遍就等于凭空多出 40~56px 的空隙。
+ *   键盘高度已经由外壳的内边距让出来了（见 app-shell 的 paddingBottom），
+ *   所以这里只留 **4px** 的细缝：输入框贴着键盘上沿。
  * ------------------------------------------------------------------ */
 html[data-keyboard="up"] .pb-composer {
-  padding-bottom: calc(0.75rem + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  padding-bottom: 0.25rem;
 }
 /* ------------------------------------------------------------------
  * 「她高亮这里」用的一圈光晕。几秒后自动褪掉，不常驻、不改结构。

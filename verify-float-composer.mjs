@@ -193,7 +193,15 @@ const overlapping = await page.evaluate(() => {
   });
 });
 check("此刻有消息正从输入框那一层经过（重叠）", overlapping);
-/* 留一张"消息正从对话框下面过"的样子：看玻璃够不够实（字要看得清） */
+/* 留一张"消息正从对话框下面过"的样子：看玻璃够不够实（字要看得清）
+   先往下挪 70px，让一整行字**落在卡片中间**（不是压在卡片上沿），这样才看得出透不透 */
+await page.evaluate(() => {
+  const box = document.querySelector("[data-testid='composer-layer']") ?? null;
+  void box;
+  const el = document.querySelectorAll("ol")[0];
+  if (el) el.scrollTop += 70;
+});
+await page.waitForTimeout(500);
 await page.screenshot({ path: "shots/float-composer-mid.png" });
 
 console.log("=== 3. 最后一条仍然滑得出来（不被浮层盖住）===");
