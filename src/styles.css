@@ -382,6 +382,22 @@ html[data-motion="off"] *::after {
     var(--aster-shadow);
 }
 
+/*
+  **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层"）。
+  它跟 .glass-panel 的区别只有一个：**更实**（88% 而不是 52%）。
+  因为它底下**是滚动的消息流** —— 52% 那档会让消息的字从输入框里透出来，
+  跟输入框自己的字叠在一起，两边都看不清（设计总则 §6.1 ③：浮层要实心底）。
+*/
+.glass-float {
+  background-color: color-mix(in oklab, var(--aster-canvas) 88%, transparent);
+  background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 30%);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  backdrop-filter: blur(24px) saturate(1.7);
+  box-shadow:
+    inset 0 1px 0 0 var(--aster-glass-highlight),
+    var(--aster-shadow);
+}
+
 /* 抽屉里的对话列表：单独一层，一直铺到底。 */
 .glass-tray {
   background-color: color-mix(in oklab, var(--aster-canvas) 62%, transparent);

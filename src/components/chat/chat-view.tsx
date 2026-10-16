@@ -79,6 +79,26 @@ export function ChatView() {
   } | null>(null);
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
+  /**
+   * **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层，然后消息是可滚动消息流，
+   * 滑动时会一条条从对话框过去，而对话框保持不动"）。
+   *
+   * 做法：输入框那一块从"文档流里的最后一行"改成**浮在消息区上面**（absolute），
+   * 消息区因此铺满整屏、真的从它下面滑过去。
+   * 代价是最后一条消息会被它盖住 → 量它的实际高度，给消息列表补等量的底部留白
+   * （输入框长高了留白跟着长，用 ResizeObserver，写死一个数迟早不够）。
+   */
+  const composerWrap = useRef<HTMLDivElement>(null);
+  const [padBottom, setPadBottom] = useState(168);
+  useEffect(() => {
+    const el = composerWrap.current;
+    if (!el) return;
+    const sync = () => setPadBottom(Math.round(el.offsetHeight) + 14);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const conv = conversations.find((c) => c.id === activeId) ?? null;
   const empty = !conv || conv.messages.length === 0;
   const aiName = resolveAiName(settings.aiName);
@@ -295,7 +315,8 @@ export function ChatView() {
   }, [query]);
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    /* relative：悬浮的对话框（absolute）以这一块为参照 —— 见上面 composerWrap 那段注释 */
+    <div className="relative flex h-full min-h-0 flex-1 flex-col">
       {/*
         ⚠️ 顶部内边距**故意很小**（2026-11 用户装机后："是我圈起来的那块导航栏给往上稍微
         挪一点点吧，因为空的太大了"）。
@@ -469,8 +490,13 @@ export function ChatView() {
               不是被挤住了。
             */}
             <ol
-              className="space-y-5 px-4 py-4 pb-8"
-              style={{ fontSize: `${chatFontPx(settings.chatFontSize)}px` }}
+              className="space-y-5 px-4 pt-4"
+              style={{
+                fontSize: `${chatFontPx(settings.chatFontSize)}px`,
+                /* paddingBottom 由悬浮对话框的实测高度决定（见 composerWrap）：
+                   这样最后一条消息能滑到它**上面**，不会被浮层盖住 */
+                paddingBottom: padBottom,
+              }}
             >
             {/* 「更早的对话（摘要）」那条线 —— 只在这条对话真有摘要时出现（P4b） */}
             <SummaryLine conversationId={conv!.id} />
@@ -883,7 +909,9 @@ export function ChatView() {
                   if (box.scrollHeight - box.scrollTop - box.clientHeight > 8) box.scrollTop = box.scrollHeight;
                 }, 500);
               }}
-              className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border border-line bg-surface/92 px-3.5 py-2 text-[12px] text-fg shadow-sm backdrop-blur"
+              /* 贴在消息区底部、**悬浮对话框的上面**（不然会压在输入框上） */
+              style={{ bottom: padBottom + 6 }}
+              className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full border border-line bg-surface/92 px-3.5 py-2 text-[12px] text-fg shadow-sm backdrop-blur"
             >
               ↓ 回到最新
             </button>
@@ -977,58 +1005,71 @@ export function ChatView() {
         document.body,
       )}
 
-      {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
-      {quote && (
-        <div className="mx-3 mb-1 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[11px] text-muted">
-          <span className="min-w-0 flex-1 truncate">引用：{quote.text}</span>
-          <button
-            type="button"
-            aria-label="取消引用"
-            className="shrink-0 px-1 text-[13px]"
-            onClick={() => setQuote(null)}
-          >
-            ×
-          </button>
+      {/*
+        **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层，然后消息是可滚动消息流，
+        滑动时会一条条从对话框过去，而对话框保持不动"）。
+
+        · `absolute inset-x-0 bottom-0` + `pointer-events-none` 外壳：
+          它是浮层，但**没覆盖到的地方必须还能滑消息**（外层的 none + 内层的 auto）；
+        · 引用条跟着它一起浮（引用是"这一句要发给谁"的提示，跟输入框是一体）；
+        · 高度用 ResizeObserver 量给消息列表当底部留白（见上面的 composerWrap）。
+      */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-2">
+        <div ref={composerWrap} className="pointer-events-auto">
+          {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
+          {quote && (
+            <div className="mx-1 mb-1 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[11px] text-muted">
+              <span className="min-w-0 flex-1 truncate">引用：{quote.text}</span>
+              <button
+                type="button"
+                aria-label="取消引用"
+                className="shrink-0 px-1 text-[13px]"
+                onClick={() => setQuote(null)}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <Composer
+            onSend={(text, atts) => {
+              /**
+               * **正在「修改这一条」**（用户 m01893：只留一个输入框，改完点发送就行）。
+               * 输入框里现在是新正文 → 存回去，再让后面那条回复重答；
+               * 引用头（`> 引用：…`）不参与编辑，保存时从**原来那条**里原样接回去。
+               */
+              if (editing) {
+                const next = text.trim();
+                if (!next) return;
+                const orig = (conv?.messages ?? []).find((x) => x.id === editing.id)?.content ?? "";
+                const quoted = splitQuote(orig).quote;
+                const content = quoted ? `> 引用：${quoted}\n\n${next}` : next;
+                const list = conv?.messages ?? [];
+                const at = list.findIndex((x) => x.id === editing.id);
+                const after = list.slice(at + 1).find((x) => x.role !== "user");
+                if (conv) useApp.getState().patchMessage(conv.id, editing.id, { content });
+                setEditing(null);
+                setQuote(null);
+                if (after) void regenerate(after.id);
+                const bel = scroller.current;
+                if (bel) bel.scrollTop = bel.scrollHeight;
+                return;
+              }
+              /** 把引用拼在**你这条消息前面**（他也能从上下文看到引的是哪句） */
+              const full = quote ? `> 引用：${quote.text}\n\n${text}` : text;
+              setQuote(null);
+              /* 你自己发消息 = 你要看最新的：先贴回底部，不然上翻着发完会停在半空 */
+              stickBottom.current = true;
+              send(full, atts);
+              const el = scroller.current;
+              if (el) el.scrollTop = el.scrollHeight;
+            }}
+            disabled={busy}
+            streaming={busy}
+            editingText={editing?.text ?? null}
+            onCancelEdit={() => setEditing(null)}
+          />
         </div>
-      )}
-      <Composer
-        onSend={(text, atts) => {
-          /**
-           * **正在「修改这一条」**（用户 m01893：只留一个输入框，改完点发送就行）。
-           * 输入框里现在是新正文 → 存回去，再让后面那条回复重答；
-           * 引用头（`> 引用：…`）不参与编辑，保存时从**原来那条**里原样接回去。
-           */
-          if (editing) {
-            const next = text.trim();
-            if (!next) return;
-            const orig = (conv?.messages ?? []).find((x) => x.id === editing.id)?.content ?? "";
-            const quoted = splitQuote(orig).quote;
-            const content = quoted ? `> 引用：${quoted}\n\n${next}` : next;
-            const list = conv?.messages ?? [];
-            const at = list.findIndex((x) => x.id === editing.id);
-            const after = list.slice(at + 1).find((x) => x.role !== "user");
-            if (conv) useApp.getState().patchMessage(conv.id, editing.id, { content });
-            setEditing(null);
-            setQuote(null);
-            if (after) void regenerate(after.id);
-            const bel = scroller.current;
-            if (bel) bel.scrollTop = bel.scrollHeight;
-            return;
-          }
-          /** 把引用拼在**你这条消息前面**（他也能从上下文看到引的是哪句） */
-          const full = quote ? `> 引用：${quote.text}\n\n${text}` : text;
-          setQuote(null);
-          /* 你自己发消息 = 你要看最新的：先贴回底部，不然上翻着发完会停在半空 */
-          stickBottom.current = true;
-          send(full, atts);
-          const el = scroller.current;
-          if (el) el.scrollTop = el.scrollHeight;
-        }}
-        disabled={busy}
-        streaming={busy}
-        editingText={editing?.text ?? null}
-        onCancelEdit={() => setEditing(null)}
-      />
+      </div>
 
       {/* 看大图（用户 m01498 第 3 条）：整页只挂这一个，点哪儿都关 */}
       {viewImg &&

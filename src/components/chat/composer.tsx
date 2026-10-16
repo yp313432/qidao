@@ -371,7 +371,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         又有投影 + 边框把它跟背景分开；跟着主题走（深色主题深玻璃、浅色主题浅玻璃），
         文字用主题的 `--aster-fg`，不会再出现"白字看不见"。
       */}
-      <div ref={cardRef} className="glass-panel rounded-3xl border border-line p-2">
+      {/* glass-float：**悬浮**在消息流上面的那一层（比 glass-panel 实，见 styles.css 注释） */}
+      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-2 shadow-lg">
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。

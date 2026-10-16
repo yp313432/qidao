@@ -188,8 +188,9 @@ check(
   keyboardSrc.includes("root.dataset.keyboard") && keyboardSrc.includes("nativeIme"),
 );
 check(
-  "④ 对话框用**现成玻璃**（`.glass-panel`：半透明 + 模糊，不自己造底色）",
-  composerSrc.includes('className="glass-panel') && !/className="[^"]*composer-panel/.test(composerSrc),
+  "④ 对话框用**现成玻璃**（`.glass-float`/`.glass-panel`：模糊 + 跟着主题走，不自己造底色）",
+  /className="glass-(float|panel)/.test(composerSrc) &&
+    !/className="[^"]*composer-panel/.test(composerSrc),
 );
 /**
  * ⚠️ **键盘高度必须原生读**（2026-10 第二次修）：
