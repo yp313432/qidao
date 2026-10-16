@@ -36,6 +36,31 @@ import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 
+/**
+ * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
+ * 这样你和他都看得见引的是哪句、模型也能从上下文读到。
+ *
+ * 但**显示**时不许把它当正文摆在气泡里（用户 m01498 第 1 条："引用修改在气泡下面引用，
+ * 跟微信那样"）：这里把它摘出来，气泡**下面**单独摆一条小灰条。数据本身不动 ——
+ * 引用仍然原样存在消息正文里，所以历史消息、模型上下文全都不受影响。
+ */
+const QUOTE_HEAD = /^>\s*引用\s*[：:]\s*([^\n]*)\n+([\s\S]*)$/;
+
+function splitQuote(content: string): { quote: string | null; body: string } {
+  const m = QUOTE_HEAD.exec(content);
+  if (!m) return { quote: null, body: content };
+  return { quote: m[1]!.trim(), body: m[2]! };
+}
+
+/** 气泡下面的引用小条（灰底 + 左侧一道竖线，跟微信那套一致） */
+function QuoteBar({ text }: { text: string }) {
+  return (
+    <p className="mt-1 max-w-[85%] truncate rounded-lg border-l-2 border-line bg-chip/80 px-2.5 py-1.5 text-[11px] text-muted">
+      {text}
+    </p>
+  );
+}
+
 export function ChatView() {
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
@@ -92,9 +117,19 @@ export function ChatView() {
     };
   }, [menu]);
 
+  /**
+   * ⭐ **自动跟滚**（用户 m01498 第 4 条："ai回复消息时，界面不能翻动，会上下抽搐，
+   * 改一下，即使他在回复我也可以上翻界面"）。
+   *
+   * 以前是"消息一变就 `scrollTop = scrollHeight`" —— 流式回复每 100ms 就改一次内容，
+   * 于是你手指往上翻的同一时刻它又把你拽回底部：表现就是**抽搐**、翻不上去。
+   * 现在只在"你本来就在底部"（离底 < 80px）时才跟着滚；你一上翻，它就老实待着不动，
+   * 由右下角「↓ 回到最新」按钮决定什么时候回来。
+   */
+  const stickBottom = useRef(true);
   useEffect(() => {
     const el = scroller.current;
-    if (!el) return;
+    if (!el || !stickBottom.current) return;
     el.scrollTop = el.scrollHeight;
   }, [conv?.messages, liveId]);
 
@@ -105,11 +140,32 @@ export function ChatView() {
     if (!el) return;
     const onScroll = () => {
       const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      /* 离开底部就停手、回到最底（<24px）才重新跟上。
+         中间那段（24~80）**不翻状态** —— 手指拖到一半时来回跨过 80 也不会抖 */
+      if (gap > 80) stickBottom.current = false;
+      else if (gap < 24) stickBottom.current = true;
       setShowJump(gap > 420);
+    };
+    /* ⭐ 手指一按就"放手"：流式还在蹦的时候，你指尖刚碰上去它就该停，
+       而不是等你拖出 80px —— 那 80px 里它可能已经把你拽回底部一两次了 */
+    const onGrab = () => {
+      stickBottom.current = false;
     };
     onScroll();
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    el.addEventListener("pointerdown", onGrab, { passive: true });
+    el.addEventListener("touchstart", onGrab, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("pointerdown", onGrab);
+      el.removeEventListener("touchstart", onGrab);
+    };
+  }, [conv?.id]);
+
+  /** 换会话时先当成"贴在底部"（不然上个会话翻到一半，切过来会停在半空） */
+  useEffect(() => {
+    stickBottom.current = true;
+    setShowJump(false);
   }, [conv?.id]);
 
   /**
@@ -145,6 +201,8 @@ export function ChatView() {
    * 下一步：把气泡下面那排图标（赞/踩/朗读/分享/收藏）也搬进来，只留统计那行。
    */
   const [msgMenu, setMsgMenu] = useState<{ id: string; part: string } | null>(null);
+  /** 点图片全屏看大图（用户 m01498 第 3 条："照片要能点击放大"）—— 存 dataUrl，null = 关着 */
+  const [viewImg, setViewImg] = useState<string | null>(null);
   const quotePress = (id: string, raw: string) => {
     const brief = raw.replace(/\s+/g, " ").trim();
     /**
@@ -154,7 +212,8 @@ export function ChatView() {
      *   于是两条路一起死：计时器被 cancel 清掉、contextmenu 又不来。
      *   而"他"那条消息里的文字是可选的 → contextmenu 会来 → 一直是靠那个兜底生效的。
      * 现在的规则：
-     *   · 计时器提前到 **380ms**（系统长按手势大约 500ms 才接管，要抢在它前面）；
+     *   · 计时器 **600ms**（用户 m01498 第 5 条："长按弹层的时间长一些，不然我翻上下文，
+     *     还没停留多久，立马出现弹层很影响体验" —— 以前是 380ms，太灵敏）；
      *   · `pointercancel` / `pointerleave` **不再无条件清零** —— 只有真滑动过才撤销；
      *   · `pointerup`（正常松手）照旧清零，免得"点一下"过一会儿自己弹出来；
      *   · `contextmenu` 兜底保留（可选中文字那条路仍然走它）。
@@ -170,7 +229,7 @@ export function ChatView() {
           pressFrom.current = null;
           crumb("longpress", "计时器开卡片");
           setMsgMenu({ id, part: brief });
-        }, 380);
+        }, 600);
       },
       onPointerMove: (e: React.PointerEvent) => {
         const from = pressFrom.current;
@@ -456,44 +515,81 @@ export function ChatView() {
                     </div>
 
                     {mine ? (
-                      <div className={cn("flex", "justify-end")}>
-                        <div {...quotePress(m.id, m.content)} className="w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]">
-                          {m.attachments?.length ? (
-                            <div className="flex flex-wrap gap-1.5">
-                              {m.attachments.map((a) =>
-                                a.kind === "audio" && a.dataUrl ? (
-                                  <VoiceBubble key={a.id} att={a} />
-                                ) : a.dataUrl ? (
-                                  <img
+                      (() => {
+                        const { quote: q, body } = splitQuote(m.content);
+                        /**
+                         * 用户 m01498 第 3 条："照片要能点击放大…另外照片不要有气泡，
+                         * 就是一张图片发过去，不要把他放在汽泡里"。
+                         * 所以图片/表情**裸着**摆（不套气泡）、点一下进全屏；
+                         * 语音和文件还留在气泡里（它们不是"一张图"）。
+                         */
+                        const pics = (m.attachments ?? []).filter(
+                          (a) => a.dataUrl && a.kind !== "audio",
+                        );
+                        const rest = (m.attachments ?? []).filter(
+                          (a) => !(a.dataUrl && a.kind !== "audio"),
+                        );
+                        return (
+                          <div className="flex flex-col items-end">
+                            {pics.length > 0 && (
+                              <div className="flex max-w-[99%] flex-wrap justify-end gap-1.5">
+                                {pics.map((a) => (
+                                  <button
                                     key={a.id}
-                                    src={a.dataUrl}
-                                    alt={a.name}
-                                    className={cn(
-                                      "rounded-xl object-contain",
-                                      // 表情固定尺寸；普通图片给小图一个最小可见尺寸
-                                      a.kind === "sticker"
-                                        ? "size-24"
-                                        : "max-h-56 min-h-16 w-auto min-w-16 max-w-full",
-                                    )}
-                                  />
-                                ) : (
-                                  <span
-                                    key={a.id}
-                                    className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-[12px]"
+                                    type="button"
+                                    aria-label="看大图"
+                                    className="p-0"
+                                    onClick={() => setViewImg(a.dataUrl!)}
                                   >
-                                    <Paperclip className="size-3.5 text-muted" />
-                                    <span className="max-w-40 truncate">{a.name}</span>
-                                    <span className="text-[10px] text-subtle">
-                                      {a.text ? "已读正文" : prettySize(a.size)}
-                                    </span>
-                                  </span>
-                                ),
-                              )}
-                            </div>
-                          ) : null}
-                          {m.content}
-                        </div>
-                      </div>
+                                    <img
+                                      src={a.dataUrl}
+                                      alt={a.kind === "sticker" ? "表情" : a.name}
+                                      className={cn(
+                                        "rounded-2xl object-contain",
+                                        a.kind === "sticker"
+                                          ? "size-24"
+                                          : "max-h-56 min-h-16 w-auto min-w-16 max-w-full",
+                                      )}
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {(body || rest.length > 0) && (
+                              <div
+                                {...quotePress(m.id, body)}
+                                className={cn(
+                                  "w-max min-w-[4em] max-w-[99%] select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                  pics.length > 0 && "mt-1",
+                                )}
+                              >
+                                {rest.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {rest.map((a) =>
+                                      a.kind === "audio" && a.dataUrl ? (
+                                        <VoiceBubble key={a.id} att={a} />
+                                      ) : (
+                                        <span
+                                          key={a.id}
+                                          className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-[12px]"
+                                        >
+                                          <Paperclip className="size-3.5 text-muted" />
+                                          <span className="max-w-40 truncate">{a.name}</span>
+                                          <span className="text-[10px] text-subtle">
+                                            {a.text ? "已读正文" : prettySize(a.size)}
+                                          </span>
+                                        </span>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                                {body}
+                              </div>
+                            )}
+                            {q && <QuoteBar text={q} />}
+                          </div>
+                        );
+                      })()
                     ) : (
                       <div className="min-w-0">
                         {/*
@@ -604,17 +700,25 @@ export function ChatView() {
                           <div className="mt-1.5 flex flex-wrap items-end gap-1.5">
                             {m.attachments.map((a) =>
                               a.dataUrl && (a.kind === "sticker" || a.kind === "image") ? (
-                                <img
+                                /* 点一下全屏看大图（用户 m01498 第 3 条：两种状态都要 —— 他发的图也能点） */
+                                <button
                                   key={a.id}
-                                  src={a.dataUrl}
-                                  alt={a.kind === "sticker" ? "表情" : a.name}
-                                  className={cn(
-                                    "rounded-xl",
-                                    a.kind === "sticker"
-                                      ? "max-h-32 max-w-32"
-                                      : "max-h-48 max-w-[70%] rounded-2xl",
-                                  )}
-                                />
+                                  type="button"
+                                  aria-label="看大图"
+                                  className="p-0"
+                                  onClick={() => setViewImg(a.dataUrl!)}
+                                >
+                                  <img
+                                    src={a.dataUrl}
+                                    alt={a.kind === "sticker" ? "表情" : a.name}
+                                    className={cn(
+                                      "rounded-xl",
+                                      a.kind === "sticker"
+                                        ? "max-h-32 max-w-32"
+                                        : "max-h-48 max-w-[70%] rounded-2xl",
+                                    )}
+                                  />
+                                </button>
                               ) : null,
                             )}
                           </div>
@@ -626,53 +730,10 @@ export function ChatView() {
                           这正是"执行结果那一栏永远有回话"。
                         */}
                         {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
-                        {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
-                        {mine && !busy && editing?.id !== m.id && (
-                          <div className="mt-1 flex justify-end">
-                            <button
-                              type="button"
-                              className="rounded-full border border-line px-2 py-0.5 text-[10px] text-muted"
-                              onClick={() => setEditing({ id: m.id, text: m.content })}
-                            >
-                              改
-                            </button>
-                          </div>
-                        )}
-                        {editing?.id === m.id && (
-                          <div className="mt-1.5 rounded-2xl border border-line bg-surface p-2">
-                            <textarea
-                              value={editing.text}
-                              onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
-                              rows={3}
-                              className="w-full resize-none rounded-xl bg-chip px-2.5 py-2 text-[12px] outline-none"
-                            />
-                            <div className="mt-1.5 flex justify-end gap-2">
-                              <button
-                                type="button"
-                                className="rounded-full px-3 py-1 text-[11px] text-muted"
-                                onClick={() => setEditing(null)}
-                              >
-                                取消
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded-full bg-accent px-3 py-1 text-[11px] text-white"
-                                onClick={() => {
-                                  const next = editing.text.trim();
-                                  if (!next) return;
-                                  const list = conv?.messages ?? [];
-                                  const at = list.findIndex((x) => x.id === m.id);
-                                  const after = list.slice(at + 1).find((x) => x.role !== "user");
-                                  useApp.getState().patchMessage(conv!.id, m.id, { content: next });
-                                  setEditing(null);
-                                  if (after) void regenerate(after.id);
-                                }}
-                              >
-                                保存并重答
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        {/* ⚠️ 「改」和编辑框**不在这里**了：它们原先写在这个分支里，
+                            而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
+                            状态设了却什么都不出来（跟长按菜单同一个坑）。
+                            现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
                         {m.usage && (m.usage.prompt || m.usage.completion) && (
                           <p className="mt-1 px-1 text-[10px] text-subtle">
                             {m.usage.prompt ? `输入 ${m.usage.prompt}` : ""}
@@ -730,7 +791,7 @@ export function ChatView() {
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
                                   onClick={() => {
-                                    setEditing({ id: m.id, text: m.content });
+                                    setEditing({ id: m.id, text: splitQuote(m.content).body });
                                     setMsgMenu(null);
                                   }}
                                 >
@@ -783,13 +844,17 @@ export function ChatView() {
                           </div>,
                           document.body,
                         )}
-                        {/* **修改自己发的消息**（只有自己的才显示"改"）：改完让后面那条回复重新生成 */}
+                        {/* **修改自己发的消息**（用户 m01498 第 1 条："引用修改在气泡下面"）：
+                            入口摆在气泡**下面**（引用条就在它上面），点一下就地改、改完让后面那条回复重新生成。
+                            改的只是**正文**：引用头（`> 引用：…`）不参与编辑，保存时原样接回去。 */}
                         {mine && !busy && editing?.id !== m.id && (
                           <div className="mt-1 flex justify-end">
                             <button
                               type="button"
                               className="rounded-full border border-line px-2 py-0.5 text-[10px] text-muted"
-                              onClick={() => setEditing({ id: m.id, text: m.content })}
+                              onClick={() =>
+                                setEditing({ id: m.id, text: splitQuote(m.content).body })
+                              }
                             >
                               改
                             </button>
@@ -817,10 +882,13 @@ export function ChatView() {
                                 onClick={() => {
                                   const next = editing.text.trim();
                                   if (!next) return;
+                                  /* 引用头原样接回去 —— 不然改一句话就把"引的是哪句"弄丢了 */
+                                  const quoted = splitQuote(m.content).quote;
+                                  const content = quoted ? `> 引用：${quoted}\n\n${next}` : next;
                                   const list = conv?.messages ?? [];
                                   const at = list.findIndex((x) => x.id === m.id);
                                   const after = list.slice(at + 1).find((x) => x.role !== "user");
-                                  useApp.getState().patchMessage(conv!.id, m.id, { content: next });
+                                  useApp.getState().patchMessage(conv!.id, m.id, { content });
                                   setEditing(null);
                                   if (after) void regenerate(after.id);
                                 }}
@@ -844,7 +912,17 @@ export function ChatView() {
               type="button"
               onClick={() => {
                 const el = scroller.current;
+                /* 先表态"我又要跟了"：不然平滑滚动还在路上、内容又长了一截，
+                   滚到的是**旧**的底，最后停在离底一屏的地方 */
+                stickBottom.current = true;
                 el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                /* 平滑滚动会被"正文刚刚收尾重排"打断（实测停在半路），兜一道：
+                   半秒后还没到底就直接钉到底（点这一下就是要看到最新，必须真的到底） */
+                window.setTimeout(() => {
+                  const box = scroller.current;
+                  if (!box) return;
+                  if (box.scrollHeight - box.scrollTop - box.clientHeight > 8) box.scrollTop = box.scrollHeight;
+                }, 500);
               }}
               className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border border-line bg-surface/92 px-3.5 py-2 text-[12px] text-fg shadow-sm backdrop-blur"
             >
@@ -959,11 +1037,35 @@ export function ChatView() {
           /** 把引用拼在**你这条消息前面**（他也能从上下文看到引的是哪句） */
           const full = quote ? `> 引用：${quote.text}\n\n${text}` : text;
           setQuote(null);
+          /* 你自己发消息 = 你要看最新的：先贴回底部，不然上翻着发完会停在半空 */
+          stickBottom.current = true;
           send(full, atts);
+          const el = scroller.current;
+          if (el) el.scrollTop = el.scrollHeight;
         }}
         disabled={busy}
         streaming={busy}
       />
+
+      {/* 看大图（用户 m01498 第 3 条）：整页只挂这一个，点哪儿都关 */}
+      {viewImg &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-3"
+            onClick={() => setViewImg(null)}
+          >
+            <img src={viewImg} alt="看大图" className="max-h-full max-w-full object-contain" />
+            <button
+              type="button"
+              aria-label="关闭"
+              className="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1 text-[13px] text-white"
+              onClick={() => setViewImg(null)}
+            >
+              ×
+            </button>
+          </div>,
+          document.body,
+        )}
 
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet

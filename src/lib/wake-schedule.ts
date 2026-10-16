@@ -59,6 +59,25 @@ export const isEchoWake = (t: Pick<ScheduledTask, "prompt">) => t.prompt.startsW
 export const isSystemWake = (t: Pick<ScheduledTask, "prompt">) =>
   isFreeWake(t) || isDiaryWake(t) || isEchoWake(t);
 
+/* ───────────────────── 一次性任务 ───────────────────── */
+
+/**
+ * 一次性任务（`at` = 某一个具体时刻）**过期多久就不补发了**。
+ *
+ * 用户 m01498 第 2 条："一次性任务做完自动删，别留着" —— 所以到点说完就把它删掉，
+ * 列表里不再挂一张"今天已经说过"的旧卡。
+ *
+ * 但删除之前先判断一句：App 关着过了夜，第二天早上启动才轮到它 ——
+ * 这时候把昨晚那句"该睡了"补出来比不说更糟。超过这个时长（12 小时）就只删、不开
+ * 口。见 `components/task-daemon.tsx`。
+ */
+export const ONEOFF_STALE_MS = 12 * 60 * 60 * 1000;
+
+/** 这个一次性任务是不是"过期太久，别补发"（没有 `at` 的日常任务永远是 false） */
+export function isStaleOneOff(at: number | undefined | null, nowMs: number): boolean {
+  return typeof at === "number" && nowMs - at > ONEOFF_STALE_MS;
+}
+
 /** 日记保底时间（用户定的晚上八点半） */
 export const DIARY_HOUR = 20;
 export const DIARY_MINUTE = 30;

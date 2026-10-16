@@ -5,7 +5,7 @@ import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
-import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isSystemWake, levelOf } from "@/lib/wake-schedule";
+import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
 
 /**
@@ -126,8 +126,24 @@ export function TaskDaemon() {
       if (!due) return;
 
       busy.current = true;
-      // 先标记跑过 —— 否则 30 秒后又触发一次
-      useApp.getState().markTaskRun(due.id);
+      /**
+       * ⭐ **一次性任务（带 `at` = 某一个具体时刻）说完就删**（用户 m01498 第 2 条：
+       * "一次性任务做完自动删，别留着"）—— 不然定时任务列表里会永远挂着一张
+       * "今天已经说过"的旧卡。
+       *
+       * 例外：**过期太久的不补发**。App 关着过了夜，第二天早上启动才轮到它，
+       * 这时候把昨晚那句"该睡了"补出来，比不说更糟 —— 超过 12 小时直接删掉、不开口。
+       */
+      if (due.at) {
+        useApp.getState().removeTask(due.id);
+        if (isStaleOneOff(due.at, Date.now())) {
+          busy.current = false;
+          return;
+        }
+      } else {
+        // 先标记跑过 —— 否则 30 秒后又触发一次（一次性任务整条删了，不用再标）
+        useApp.getState().markTaskRun(due.id);
+      }
 
       const started = useApp.getState().beginScheduledReply(due.prompt);
       if (!started) {

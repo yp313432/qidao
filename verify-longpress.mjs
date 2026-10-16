@@ -111,7 +111,8 @@ console.log("=== 1. 长按自己的消息：中途被 pointercancel 也必须出
 await fire(MINE, "pointerdown");
 await page.waitForTimeout(120);
 await fire(MINE, "pointercancel");
-await page.waitForTimeout(600);
+// 长按判定 600ms（用户 m01498 第 5 条要求放长，以前 380ms 太灵敏）→ 等够 700ms
+await page.waitForTimeout(700);
 check("出了卡片", await menuOpen());
 check("卡片里有「引用这一句」/「复制」/「修改」", await page.evaluate(() => {
   const t = document.body.innerText ?? "";
@@ -125,7 +126,7 @@ await fire(MINE, "pointerdown");
 await page.waitForTimeout(60);
 await fire(MINE, "pointermove", { clientX: 999 });
 await fire(MINE, "pointermove", { clientY: 999 });
-await page.waitForTimeout(600);
+await page.waitForTimeout(700);
 check("没弹卡片", !(await menuOpen()));
 await fire(MINE, "pointercancel");
 await page.waitForTimeout(200);
@@ -134,12 +135,19 @@ console.log("=== 3. 轻点一下不该弹卡片 ===");
 await fire(MINE, "pointerdown");
 await page.waitForTimeout(90);
 await fire(MINE, "pointerup");
-await page.waitForTimeout(650);
+await page.waitForTimeout(750);
 check("没弹卡片", !(await menuOpen()));
+
+console.log("=== 3b. 停在界面上不动、但没到 600ms 就松手 → 不该弹（用户嫌太灵敏）===");
+await fire(MINE, "pointerdown");
+await page.waitForTimeout(450);
+await fire(MINE, "pointerup");
+await page.waitForTimeout(400);
+check("450ms 松手不弹卡片", !(await menuOpen()));
 
 console.log("=== 4. 他的消息长按：也要出卡片，且带「重新生成」 ===");
 await fire(HIS, "pointerdown");
-await page.waitForTimeout(560);
+await page.waitForTimeout(750);
 const hisOpen = await menuOpen();
 check("出了卡片", hisOpen);
 if (hisOpen) check("带「重新生成」", await page.evaluate(() => /重新生成/.test(document.body.innerText ?? "")));

@@ -125,6 +125,25 @@ async function waitInteractive() {
 async function seed() {
   await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await waitInteractive();
+  /* 等 App 自己把快照写进库（落盘是 debounce 过的，实测 ~1 秒后才出现 `aster-app`）。
+     ⚠️ 别用 `page.waitForFunction(async () => …)`：Playwright 不 await 异步断言，
+     返回的 Promise 是**真值** → 它立刻放行，紧接着的读取还是 undefined（这里踩过）。 */
+  let ready = false;
+  for (let i = 0; i < 60 && !ready; i += 1) {
+    ready = await page.evaluate(async () => {
+      const db = await new Promise((res) => {
+        const r = indexedDB.open("qidao-store", 1);
+        r.onsuccess = () => res(r.result);
+      });
+      const raw = await new Promise((res) => {
+        const g = db.transaction("kv", "readonly").objectStore("kv").get("aster-app");
+        g.onsuccess = () => res(g.result);
+      });
+      return typeof raw === "string" && raw.length > 2;
+    });
+    if (!ready) await page.waitForTimeout(250);
+  }
+  if (!ready) throw new Error("等不到 App 把 aster-app 写进 IndexedDB");
   await page.evaluate(async (base) => {
     const db = await new Promise((res) => {
       const r = indexedDB.open("qidao-store", 1);
