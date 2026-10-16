@@ -220,12 +220,93 @@ if (hisBox) {
   check("他的图看完也能关掉", (await lightboxOpen()) === null);
 }
 
-console.log("=== 4. 「改」也在气泡下面（引用/修改同一个地方）===");
-const editChip = await page.evaluate(() => {
-  const btn = [...document.querySelectorAll("button")].find((b) => (b.innerText ?? "").trim() === "改");
-  return Boolean(btn);
+console.log("=== 4. 修改只走长按卡片 + 整页只有一个输入框（m01893）===");
+/* 用户 m01893："把改字也挪到长按弹层里，太累赘了……并且改字去掉，放到卡片里就行，
+   然后对话框只留一个，不要加对话框，打完字点下面对话框的发送就行" */
+const chipGone = await page.evaluate(
+  () =>
+    ![...document.querySelectorAll("button")].some((b) => (b.innerText ?? "").trim() === "改"),
+);
+check("气泡下面不再有「改」（挪进长按卡片了）", chipGone);
+
+/** 在"我的气泡"上派发一串 pointer 事件（跟 verify-longpress.mjs 同一套） */
+const fire = (text, kind) =>
+  page.evaluate(
+    ([text, kind]) => {
+      const li = Array.from(document.querySelectorAll("li")).find((n) =>
+        n.textContent?.includes(text),
+      );
+      const bubble = li?.querySelector("div[class*='bg-chip']");
+      if (!bubble) return "no-bubble";
+      const r = bubble.getBoundingClientRect();
+      bubble.dispatchEvent(
+        new PointerEvent(kind, {
+          bubbles: true,
+          cancelable: true,
+          clientX: Math.round(r.left + r.width / 2),
+          clientY: Math.round(r.top + r.height / 2),
+          pointerId: 1,
+          pointerType: "touch",
+          isPrimary: true,
+        }),
+      );
+      return "ok";
+    },
+    [text, kind],
+  );
+
+check("找得到我那条引用的气泡", (await fire(BODY, "pointerdown")) === "ok");
+await page.waitForTimeout(750);
+check(
+  "长按弹出卡片，里面有「修改」",
+  await page.evaluate(() => {
+    const t = document.body.innerText ?? "";
+    return /引用这一句/.test(t) && /修改/.test(t);
+  }),
+);
+
+await page.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((b) => (b.innerText ?? "").trim() === "修改")
+    ?.click();
 });
-check("自己的消息下面有「改」", editChip);
+await page.waitForTimeout(450);
+const editState = await page.evaluate(() => {
+  const tas = [...document.querySelectorAll("textarea")];
+  return {
+    count: tas.length,
+    value: (tas[0]?.value ?? "").trim(),
+    hint: /正在修改这一条/.test(document.body.innerText ?? ""),
+    menuGone: !/引用这一句/.test(document.body.innerText ?? ""),
+  };
+});
+check("整页只有 1 个输入框（不再多开一个对话框）", editState.count === 1, JSON.stringify(editState));
+check("点「修改」→ 正文自动填进下面那个输入框", editState.value === BODY, JSON.stringify(editState));
+check("有「正在修改这一条」的提示", editState.hint);
+check("卡片关掉了", editState.menuGone);
+/* 留一张"修改中的样子"给用户看（输入框里是正文，上面一行提示） */
+await page.screenshot({ path: "shots/bubble-edit.png" });
+
+/* 改完点**下面那个**发送按钮 → 气泡里的字要变成新的 */
+await page.fill("textarea", BODY + "（改过）");
+await page.waitForTimeout(120);
+await page.evaluate(() => {
+  const btn = [...document.querySelectorAll("button")].find(
+    (b) => (b.getAttribute("aria-label") ?? "") === "发送",
+  );
+  btn?.click();
+});
+await page.waitForTimeout(900);
+const afterSend = await page.evaluate(
+  (body) => ({
+    changed: (document.body.innerText ?? "").includes(body + "（改过）"),
+    oldGone: !(document.body.innerText ?? "").includes(body + "\n"),
+    hintGone: !/正在修改这一条/.test(document.body.innerText ?? ""),
+  }),
+  BODY,
+);
+check("点下面那个发送按钮 → 消息真的改成新内容了", afterSend.changed, JSON.stringify(afterSend));
+check("改完就不再显示「正在修改」提示", afterSend.hintGone);
 
 console.log("=== 5. 控制台 / 运行时报错 ===");
 check("没有页面报错", errors.length === 0, errors.slice(0, 3).join(" | "));

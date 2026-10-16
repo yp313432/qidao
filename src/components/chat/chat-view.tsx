@@ -191,6 +191,14 @@ export function ChatView() {
   const [quote, setQuote] = useState<{ text: string } | null>(null);
   /** **修改消息**（用户要的最后一件）：只允许改自己发的 —— 改完把后面那条回复**重新生成**一次 */
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  /**
+   * 换了一对话（或从抽屉里切走）→ **退出修改**。
+   * 不然输入框上那行"正在修改这一条"会跟着跑到别的对话里，
+   * 而那条消息根本不在这个对话里（用户 m01893：编辑只走下面这一个输入框，别串台）。
+   */
+  useEffect(() => {
+    setEditing(null);
+  }, [activeId]);
   const pressTimer = useRef(0);
   /** 长按时的起点：手指真的滑动过（> 10px）就当"在滚列表"，撤销长按 */
   const pressFrom = useRef<{ x: number; y: number } | null>(null);
@@ -844,60 +852,11 @@ export function ChatView() {
                           </div>,
                           document.body,
                         )}
-                        {/* **修改自己发的消息**（用户 m01498 第 1 条："引用修改在气泡下面"）：
-                            入口摆在气泡**下面**（引用条就在它上面），点一下就地改、改完让后面那条回复重新生成。
-                            改的只是**正文**：引用头（`> 引用：…`）不参与编辑，保存时原样接回去。 */}
-                        {mine && !busy && editing?.id !== m.id && (
-                          <div className="mt-1 flex justify-end">
-                            <button
-                              type="button"
-                              className="rounded-full border border-line px-2 py-0.5 text-[10px] text-muted"
-                              onClick={() =>
-                                setEditing({ id: m.id, text: splitQuote(m.content).body })
-                              }
-                            >
-                              改
-                            </button>
-                          </div>
-                        )}
-                        {editing?.id === m.id && (
-                          <div className="mt-1.5 rounded-2xl border border-line bg-surface p-2">
-                            <textarea
-                              value={editing.text}
-                              onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
-                              rows={3}
-                              className="w-full resize-none rounded-xl bg-chip px-2.5 py-2 text-[12px] outline-none"
-                            />
-                            <div className="mt-1.5 flex justify-end gap-2">
-                              <button
-                                type="button"
-                                className="rounded-full px-3 py-1 text-[11px] text-muted"
-                                onClick={() => setEditing(null)}
-                              >
-                                取消
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded-full bg-accent px-3 py-1 text-[11px] text-white"
-                                onClick={() => {
-                                  const next = editing.text.trim();
-                                  if (!next) return;
-                                  /* 引用头原样接回去 —— 不然改一句话就把"引的是哪句"弄丢了 */
-                                  const quoted = splitQuote(m.content).quote;
-                                  const content = quoted ? `> 引用：${quoted}\n\n${next}` : next;
-                                  const list = conv?.messages ?? [];
-                                  const at = list.findIndex((x) => x.id === m.id);
-                                  const after = list.slice(at + 1).find((x) => x.role !== "user");
-                                  useApp.getState().patchMessage(conv!.id, m.id, { content });
-                                  setEditing(null);
-                                  if (after) void regenerate(after.id);
-                                }}
-                              >
-                                保存并重答
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        {/* **修改自己发的消息**：入口只有一个 —— 长按卡片里的「修改」
+                            （用户 m01893："把改字也挪到长按弹层里，太累赘了……并且改字去掉，
+                            放到卡片里就行，然后对话框只留一个，不要加对话框，打完字点下面对话框的发送就行"）。
+                            所以气泡下面**不再有**「改」，也不再有第二个输入框：
+                            点「修改」→ 正文填进下面那个唯一的输入框 → 发送 = 保存并重答。 */}
                   </div>
                 </li>
               );
@@ -1034,6 +993,28 @@ export function ChatView() {
       )}
       <Composer
         onSend={(text, atts) => {
+          /**
+           * **正在「修改这一条」**（用户 m01893：只留一个输入框，改完点发送就行）。
+           * 输入框里现在是新正文 → 存回去，再让后面那条回复重答；
+           * 引用头（`> 引用：…`）不参与编辑，保存时从**原来那条**里原样接回去。
+           */
+          if (editing) {
+            const next = text.trim();
+            if (!next) return;
+            const orig = (conv?.messages ?? []).find((x) => x.id === editing.id)?.content ?? "";
+            const quoted = splitQuote(orig).quote;
+            const content = quoted ? `> 引用：${quoted}\n\n${next}` : next;
+            const list = conv?.messages ?? [];
+            const at = list.findIndex((x) => x.id === editing.id);
+            const after = list.slice(at + 1).find((x) => x.role !== "user");
+            if (conv) useApp.getState().patchMessage(conv.id, editing.id, { content });
+            setEditing(null);
+            setQuote(null);
+            if (after) void regenerate(after.id);
+            const bel = scroller.current;
+            if (bel) bel.scrollTop = bel.scrollHeight;
+            return;
+          }
           /** 把引用拼在**你这条消息前面**（他也能从上下文看到引的是哪句） */
           const full = quote ? `> 引用：${quote.text}\n\n${text}` : text;
           setQuote(null);
@@ -1045,6 +1026,8 @@ export function ChatView() {
         }}
         disabled={busy}
         streaming={busy}
+        editingText={editing?.text ?? null}
+        onCancelEdit={() => setEditing(null)}
       />
 
       {/* 看大图（用户 m01498 第 3 条）：整页只挂这一个，点哪儿都关 */}

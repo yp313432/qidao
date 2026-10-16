@@ -38,9 +38,18 @@ type Props = {
   onSend: (text: string, attachments?: Attachment[]) => void;
   disabled?: boolean;
   streaming?: boolean;
+  /**
+   * 正在**修改**的那一条的正文（null = 没在改）。
+   *
+   * 用户 m01893："把改字也挪到长按弹层里，太累赘了……对话框只留一个，
+   * 不要加对话框，打完字点下面对话框的发送就行" ——
+   * 所以改消息**不再开第二个输入框**：把正文填进这一个，发送 = 保存并重答。
+   */
+  editingText?: string | null;
+  onCancelEdit?: () => void;
 };
 
-export function Composer({ onSend, disabled, streaming }: Props) {
+export function Composer({ onSend, disabled, streaming, editingText, onCancelEdit }: Props) {
   const [value, setValue] = useState("");
   const activeChatId = useApp((s) => s.activeId);
   /**
@@ -143,6 +152,31 @@ export function Composer({ onSend, disabled, streaming }: Props) {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [value]);
+
+  /**
+   * 点长按卡片里的「修改」→ 把那条的正文填进**这一个**输入框（用户 m01893）。
+   *
+   * 只认"**新一次**修改"：`editingText` 从 null 变成某条正文时填一次；
+   * 之后用户自己敲字、或点「取消」，都不会被这里覆盖回去（拿上一次的值挡一道）。
+   */
+  const editingRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (editingText == null) {
+      editingRef.current = null;
+      return;
+    }
+    if (editingRef.current === editingText) return;
+    editingRef.current = editingText;
+    /* 当"动过"：不然草稿那套会认为没填过，把刚填进来的正文又擦掉 */
+    editedRef.current = true;
+    setValue(editingText);
+    requestAnimationFrame(() => {
+      const el = ta.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [editingText]);
 
   function submit() {
     const t = value.trim();
@@ -480,6 +514,29 @@ export function Composer({ onSend, disabled, streaming }: Props) {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/*
+          「正在修改」的那条提示（用户 m01893）：整页**只有这一个输入框**，
+          所以这里只说明"发送 = 保存并重答"，再加一个「取消」。
+        */}
+        {editingText != null && (
+          <div className="mb-1.5 flex items-center justify-between gap-2 rounded-2xl border border-line bg-chip px-2.5 py-1.5">
+            <span className="truncate text-[11px] text-muted">
+              正在修改这一条 · 发送就是「保存并重答」
+            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[11px] text-muted"
+              onClick={() => {
+                setValue("");
+                useApp.getState().setChatDraft(draftKey, "");
+                onCancelEdit?.();
+              }}
+            >
+              取消
+            </button>
           </div>
         )}
 
