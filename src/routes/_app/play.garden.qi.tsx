@@ -96,6 +96,8 @@ function ChessTable() {
 
   const [board, setBoard] = useState<Stone[]>(() => emptyBoard());
   const [last, setLast] = useState<Point | null>(null);
+  /** 每一手都记下来：主对话里他能说出"你在 H8 落子"这种细节 */
+  const [moves, setMoves] = useState<Array<{ side: Side; r: number; c: number }>>([]);
   const [phase, setPhase] = useState<Phase>("play");
   const [busy, setBusy] = useState(false);
 
@@ -117,21 +119,47 @@ function ChessTable() {
       return [...prev, { id, side, text }].slice(-12);
     });
 
-  /** 一进来就把"轮到你"告诉感知层 —— 主对话里他能记得刚才这盘棋 */
+  /**
+   * 把棋局 + 刚才的对话同步给感知层。
+   *
+   * 用户 m01220 的原话："不管我在哪里跟他说话，都是和主页面相通的，五子棋那个我问他，
+   * 他只知道我去了花园，但是干了什么，棋局状态和说的话就不知道。"
+   * → 所以这里写的 detail 必须够他回答"下到哪了、谁占优、你刚说了什么"，
+   *   而不是一句"轮到我"。
+   */
   useEffect(() => {
-    const stones = board.filter((x) => x !== 0).length;
-    const who =
+    const black = board.filter((x) => x === 1).length;
+    const white = board.filter((x) => x === 2).length;
+    const total = stats.win + stats.loss + stats.draw;
+    const no = total + (phase === "play" ? 1 : 0);
+    const coord = (r: number, c: number) => `${"ABCDEFGHIJKLMNO"[c] ?? "?"}${r + 1}`;
+    const recent = moves
+      .slice(-4)
+      .map((m) => `${m.side === "me" ? "你" : "我"} ${coord(m.r, m.c)}`)
+      .join("、");
+    const state =
       phase === "win"
-        ? "我赢了"
+        ? "这局你赢了"
         : phase === "lose"
-          ? `${aiName}赢了`
+          ? "这局我赢了"
           : phase === "draw"
-            ? "和棋"
+            ? "这局和棋"
             : busy
-              ? `${aiName}落子中`
-              : "轮到我";
-    useApp.getState().setGameContext({ game: "五子棋", detail: `${who} · 已落 ${stones} 手` });
-  }, [board, phase, busy, aiName]);
+              ? `我在想落哪（轮到我）`
+              : "轮到你落子";
+    const talk = bubbles
+      .slice(-3)
+      .map((b) => `${b.side === "me" ? "你" : "我"}：${b.text.replace(/\s+/g, " ").slice(0, 40)}`)
+      .join(" / ");
+    useApp.getState().setGameContext({
+      game: "五子棋",
+      detail:
+        `第 ${no} 局 · 你执黑、我执白 · 已落 ${black + white} 手（黑 ${black} 白 ${white}）· ${state}` +
+        (recent ? ` · 最后几手：${recent}` : "") +
+        ` · 战绩：你 ${stats.win} 胜 ${stats.loss} 负 ${stats.draw} 和` +
+        (talk ? ` · 刚才在棋桌说的话：${talk}` : ""),
+    });
+  }, [board, phase, busy, aiName, moves, bubbles, stats]);
 
   const ended = phase !== "play";
   const stoneCount = useMemo(() => board.filter((x) => x !== 0).length, [board]);
@@ -139,6 +167,7 @@ function ChessTable() {
   function reset() {
     setBoard(emptyBoard());
     setLast(null);
+    setMoves([]);
     setPhase("play");
     setBusy(false);
   }
@@ -151,6 +180,7 @@ function ChessTable() {
     const win = lineOfFive(next, r, c);
     setBoard(next);
     setLast({ r, c });
+    setMoves((m) => [...m, { side: "me", r, c }]);
     if (win) {
       setPhase("win");
       push("ai", REACTION.win);
@@ -171,6 +201,7 @@ function ChessTable() {
       const aiWin = lineOfFive(after, mv.r, mv.c);
       setBoard(after);
       setLast(mv);
+      setMoves((m) => [...m, { side: "ai", r: mv.r, c: mv.c }]);
         setBusy(false);
       if (aiWin) {
         setPhase("lose");
@@ -223,7 +254,17 @@ function ChessTable() {
       aiName: aiNameRef.current,
       persona: setting.persona || undefined,
       context: {
-        activity: "在花园的棋桌边和我下五子棋",
+        // 棋盘状态直接写进上下文：他此刻能看到"下到第几手、谁在哪落的子"
+        activity:
+          "在花园的棋桌边和我下五子棋。当前局面：" +
+          `黑子(你)${board.filter((x) => x === 1).length} 颗、白子(我)${board.filter((x) => x === 2).length} 颗；` +
+          (moves.length
+            ? `最后几手：${moves
+                .slice(-4)
+                .map((m) => `${m.side === "me" ? "你" : "我"}在${"ABCDEFGHIJKLMNO"[m.c] ?? "?"}${m.r + 1}落子`)
+                .join("，")}；`
+            : "还没落子；") +
+          (phase === "play" ? (board.filter((x) => x !== 0).length % 2 === 0 ? "轮到你落子。" : "轮到我落子。") : "这局已经结束。"),
         now: new Date().toLocaleString("zh-CN"),
       },
       permissions: setting.permissions,

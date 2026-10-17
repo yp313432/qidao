@@ -27,7 +27,7 @@ export type GardenSpot = {
   x: number;
   y: number;
   /** 有 to 才是能点的房间；留着空 = 地图上的装饰 */
-  to?: "/play/garden/qi";
+  to?: "/play/garden/qi" | "/play/garden/stagno";
 };
 
 /**
@@ -42,7 +42,7 @@ export const GARDEN_SPOTS: GardenSpot[] = [
   { id: "casa", zh: "小屋", la: "Casa", x: 32.8, y: 20.4 },
   { id: "portico", zh: "拱廊", la: "Portico", x: 80, y: 38.2 },
   { id: "fiori", zh: "花圃", la: "Fiori", x: 22.6, y: 58.5 },
-  { id: "stagno", zh: "池塘", la: "Stagno", x: 84.6, y: 65.4 },
+  { id: "stagno", zh: "池塘", la: "Stagno", x: 84.6, y: 65.4, to: "/play/garden/stagno" },
   { id: "tavolo", zh: "棋桌", la: "Tavolo", x: 13.3, y: 75.4, to: "/play/garden/qi" },
 ];
 
@@ -84,7 +84,7 @@ export const GARDEN_TRAIL = {
     { t: "11:04", x: 244, y: 734 },
   ],
   /** 入口题字的位置（画面百分比） */
-  label: { zh: "踪迹", la: "Vestigia", x: 44, y: 90.6 },
+  label: { zh: "踪迹", la: "Vestigia", x: 44, y: 90.6, to: "/play/garden/vestigia" as const },
 };
 
 /** 棋桌页顶部那句题词 —— 意大利语 + 中文，跟花园同一套语气。 */

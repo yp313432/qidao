@@ -76,13 +76,15 @@ function GardenView() {
             {m.t}
           </span>
         ))}
-        <span
-          className="garden-spot"
+        <Link
+          to={GARDEN_TRAIL.label.to}
+          className="garden-spot garden-spot-live"
+          aria-label={`看${GARDEN_TRAIL.label.zh}`}
           style={{ left: `${GARDEN_TRAIL.label.x}%`, top: `${GARDEN_TRAIL.label.y}%` }}
         >
           <span className="zh">{GARDEN_TRAIL.label.zh}</span>
           <span className="la">{GARDEN_TRAIL.label.la}</span>
-        </span>
+        </Link>
       </div>
 
       {/*
@@ -111,7 +113,7 @@ function GardenView() {
         </div>
       </header>
 
-      {/* 五个房间的地名（有 to 的能点，没有的只是画上的题字） */}
+      {/* 五个房间的地名（有 to 的能点：棋桌、池塘；其余只是画上的题字） */}
       {GARDEN_SPOTS.map((s) => {
         const inner = (
           <>
