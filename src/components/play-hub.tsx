@@ -5,12 +5,11 @@ import {
   CalendarHeart,
   ChevronRight,
   Disc3,
-  Gamepad2,
   GraduationCap,
-  Hourglass,
   ImagePlus,
   Puzzle,
   Sparkles,
+  Trees,
   X,
 } from "lucide-react";
 import { FileButton } from "@/components/file-button";
@@ -250,12 +249,13 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
   { to: "/play/space", label: "动态空间", icon: BookHeart },
   { to: "/play/tools", label: "小日子", icon: CalendarHeart },
   /*
-    「真心话」原来单独一格，现在跟五子棋合并成了「小游戏」分区
-    （用户："把五子棋放到真心话那里，他们俩做成一个分区叫小游戏，
-           点进去有这两个游戏，后续我还要加小游戏类型的"）。
-    真心话还在，只是从这一格**挪进了小游戏里面**。
+    这一格原来是「小游戏」，现在换成「花园」。
+    用户："花园放在玩乐区的游戏那里，就是把游戏取代了，变成花园，
+          因为之后游戏我打算塞到花园里"。
+    所以 `/play/games` 那一页没删也没坏，只是**入口从这里挪进花园里**了
+    （花园的棋桌上就是原来的五子棋，见 routes/_app/play.garden.qi.tsx）。
   */
-  { to: "/play/games", label: "小游戏", icon: Gamepad2 },
+  { to: "/play/garden", label: "花园", icon: Trees },
   { to: "/play/learn", label: "英语学习", icon: GraduationCap },
   /*
     原来是「时感」单独一格，现在收进「插件」里了 ——
@@ -264,12 +264,6 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
     时感没丢，只是从这一格**挪进了插件里面**（跟"真心话挪进小游戏"同一套做法）。
   */
   { to: "/play/plugins", label: "插件", icon: Puzzle },
-  /*
-    屏幕时间（2026-11）：用户"我还加个功能，就是能看到屏幕使用时长，
-    就是知道我一天每个app用了多久那个"。放这一排是因为它跟其它「小东西」一样
-    是点进去就能看的一页，不是设置项。
-  */
-  { to: "/play/screen-time", label: "屏幕时间", icon: Hourglass },
 ];
 
 function ShowcaseGrid() {

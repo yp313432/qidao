@@ -32,6 +32,8 @@ const TERTIARY_PARENT = {
   "/play/tools/tasks": "/play/tools",
   "/play/games/gobang": "/play/games",
   "/play/games/truth": "/play/games",
+  // 花园里的棋桌（2026-11）：上一级是花园，不是玩乐首页
+  "/play/garden/qi": "/play/garden",
   "/play/add": "/play/listen",
   // 动态空间拆成三页（2026-10）：上一级都是动态空间目录
   "/play/space/moments": "/play/space",
@@ -95,6 +97,8 @@ const PAGES = [
   "/play/games",
   "/play/games/gobang",
   "/play/games/truth",
+  "/play/garden",
+  "/play/garden/qi",
 ];
 
 const browser = await chromium.launch({ channel: "msedge" });

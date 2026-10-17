@@ -1,0 +1,459 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ChevronLeft, ArrowUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { resolveAiName } from "@/lib/branding";
+import type { ChatRequest } from "@/lib/chat-client";
+import { streamChat } from "@/lib/chat-client";
+import { CHESS_EPIGRAPH, GARDEN_BASE } from "@/lib/garden";
+import { aiMove, BOARD, boardFull, emptyBoard, idx, lineOfFive, type Point, type Stone } from "@/lib/gobang";
+import { useApp } from "@/lib/store";
+import { useActivity } from "@/lib/use-activity";
+import { cn } from "@/lib/utils";
+
+/**
+ * `/play/garden/qi` —— 棋桌：**陪伴式**五子棋。
+ *
+ * 用户要的形态（原话）：
+ *   "我要陪伴式的花园，下五子棋的时候，我们要能对话，就是界面左右是各自的头像，
+ *    头像上面是聊天气泡，文字从左到右逐渐浮现，上面的文字往上走消失在气泡界限里，
+ *    防止他发的内容太多导致气泡直接塞满整个屏幕，我们是可以实时对话的，
+ *    显示当前该谁下了，可以留个对战记录"
+ *
+ * 所以：棋盘只占下半屏，上半屏全是「他和我」的对话空间；
+ * 气泡往上长、旧的在遮罩里化掉（样式见 styles.css 的 .qi-col）；
+ * 底部输入框随时能跟他说话 —— 走的是**跟主对话同一条上游**（lib/chat-client），
+ * 但这条线程只活在棋桌里，不往主对话里塞。
+ */
+export const Route = createFileRoute("/_app/play/garden/qi")({
+  component: ChessTable,
+});
+
+type Side = "ai" | "me";
+type Bubble = { id: number; side: Side; text: string; streaming?: boolean };
+type Phase = "play" | "win" | "lose" | "draw";
+
+/** 他落子之后偶尔自言自语两句（不接模型，纯粹是"人坐在对面"的感觉） */
+const AI_TALK = [
+  "嗯。",
+  "这手有点意思。",
+  "我在想。",
+  "这儿风大，棋子压得住。",
+  "你别急，我慢慢下。",
+  "我不让了。",
+  "你看那边，花开了。",
+];
+
+const REACTION: Record<Exclude<Phase, "play">, string> = {
+  win: "你赢了。最后那一下我没挡住。",
+  lose: "这局我拿下了 —— 中间有几手你下得挺紧。",
+  draw: "棋盘满了，谁也没连成五子。",
+};
+
+const STARS: Point[] = [
+  { r: 3, c: 3 },
+  { r: 3, c: 11 },
+  { r: 11, c: 3 },
+  { r: 11, c: 11 },
+  { r: 7, c: 7 },
+];
+
+/** 开场那几句（一进来就在，不用等模型） */
+const OPENING: Array<{ side: Side; text: string }> = [
+  { side: "ai", text: "坐下吧，今天不赶时间。" },
+  { side: "me", text: "我随便走走就走到这儿了。" },
+  { side: "ai", text: "你先，我执白。" },
+  { side: "me", text: "行，那我不客气了。" },
+];
+
+/** 逐字浮出来（他说的是"文字从左到右逐渐浮现"） */
+function Typed({ text, onDone }: { text: string; onDone: () => void }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (n >= text.length) {
+      onDone();
+      return;
+    }
+    const t = window.setTimeout(() => setN((v) => v + 1), 26);
+    return () => window.clearTimeout(t);
+  }, [n, text.length, onDone]);
+  const done = n >= text.length;
+  return (
+    <>
+      {text.slice(0, n)}
+      {!done && <span className="qi-caret" />}
+    </>
+  );
+}
+
+function ChessTable() {
+  useActivity("在花园的棋桌边下五子棋");
+
+  const aiName = useApp((s) => resolveAiName(s.settings.aiName));
+  const aiAvatar = useApp((s) => s.settings.aiAvatar);
+  const myAvatar = useApp((s) => s.settings.userAvatar);
+  const myName = useApp((s) => s.settings.displayName);
+  const stats = useApp((s) => s.gameStats.gobang);
+
+  const [board, setBoard] = useState<Stone[]>(() => emptyBoard());
+  const [last, setLast] = useState<Point | null>(null);
+  const [phase, setPhase] = useState<Phase>("play");
+  const [busy, setBusy] = useState(false);
+
+  const [bubbles, setBubbles] = useState<Bubble[]>(() =>
+    OPENING.map((b, i) => ({ id: i, side: b.side, text: b.text })),
+  );
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const nextId = useRef(OPENING.length);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const aiNameRef = useRef(aiName);
+  aiNameRef.current = aiName;
+
+  const push = (side: Side, text: string) =>
+    setBubbles((prev) => {
+      const id = nextId.current++;
+      // 只留最近 12 条：更早的已经在遮罩里化掉了，留着只是白占内存
+      return [...prev, { id, side, text }].slice(-12);
+    });
+
+  /** 一进来就把"轮到你"告诉感知层 —— 主对话里他能记得刚才这盘棋 */
+  useEffect(() => {
+    const stones = board.filter((x) => x !== 0).length;
+    const who =
+      phase === "win"
+        ? "我赢了"
+        : phase === "lose"
+          ? `${aiName}赢了`
+          : phase === "draw"
+            ? "和棋"
+            : busy
+              ? `${aiName}落子中`
+              : "轮到我";
+    useApp.getState().setGameContext({ game: "五子棋", detail: `${who} · 已落 ${stones} 手` });
+  }, [board, phase, busy, aiName]);
+
+  const ended = phase !== "play";
+  const stoneCount = useMemo(() => board.filter((x) => x !== 0).length, [board]);
+
+  function reset() {
+    setBoard(emptyBoard());
+    setLast(null);
+    setPhase("play");
+    setBusy(false);
+  }
+
+  function playAt(r: number, c: number) {
+    if (phase !== "play" || busy) return;
+    if (board[idx(r, c)]) return;
+    const next = board.slice();
+    next[idx(r, c)] = 1;
+    const win = lineOfFive(next, r, c);
+    setBoard(next);
+    setLast({ r, c });
+    if (win) {
+      setPhase("win");
+      push("ai", REACTION.win);
+      useApp.getState().recordGame("win");
+      return;
+    }
+    if (boardFull(next)) {
+      setPhase("draw");
+      push("ai", REACTION.draw);
+      useApp.getState().recordGame("draw");
+      return;
+    }
+    setBusy(true);
+    window.setTimeout(() => {
+      const mv = aiMove(next, 2);
+      const after = next.slice();
+      after[idx(mv.r, mv.c)] = 2;
+      const aiWin = lineOfFive(after, mv.r, mv.c);
+      setBoard(after);
+      setLast(mv);
+        setBusy(false);
+      if (aiWin) {
+        setPhase("lose");
+        push("ai", REACTION.lose);
+        useApp.getState().recordGame("loss");
+        return;
+      }
+      if (boardFull(after)) {
+        setPhase("draw");
+        push("ai", REACTION.draw);
+        useApp.getState().recordGame("draw");
+        return;
+      }
+      const n = after.filter((x) => x !== 0).length;
+      if (n % 4 === 0) push("ai", AI_TALK[(n / 2) % AI_TALK.length]!);
+    }, 240);
+  }
+
+  /** 跟他说话：走主对话那条上游（人设、语气跟主对话一致），只把这一小段历史发过去 */
+  async function send() {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setDraft("");
+    push("me", text);
+
+    const st = useApp.getState();
+    const setting = st.settings;
+    const history = bubbles
+      .filter((b) => !b.streaming)
+      .slice(-6)
+      .map((b) => ({ role: b.side === "me" ? ("user" as const) : ("assistant" as const), content: b.text }));
+
+    const bubbleId = nextId.current++;
+    setBubbles((prev) => [...prev, { id: bubbleId, side: "ai" as const, text: "", streaming: true }].slice(-12));
+    setSending(true);
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+    let acc = "";
+    const req: ChatRequest = {
+      model: st.model,
+      messages: [...history, { role: "user", content: text }],
+      style: setting.replyStyle,
+      tools: [],
+      customBaseUrl: setting.customBaseUrl || undefined,
+      customApiKey: setting.customApiKey || undefined,
+      upstreamModel: setting.upstreamModel || undefined,
+      maxTokens: setting.maxTokens,
+      name: setting.displayName,
+      aiName: aiNameRef.current,
+      persona: setting.persona || undefined,
+      context: {
+        activity: "在花园的棋桌边和我下五子棋",
+        now: new Date().toLocaleString("zh-CN"),
+      },
+      permissions: setting.permissions,
+    };
+
+    try {
+      await streamChat(
+        req,
+        (d) => {
+          if (d.error) {
+            // 一句人话直接落进气泡（没接模型 / 上游报错都是这条路）
+            acc = acc || d.error;
+            setBubbles((prev) =>
+              prev.map((b) => (b.id === bubbleId ? { ...b, text: acc } : b)),
+            );
+          }
+          if (d.content) {
+            acc += d.content;
+            setBubbles((prev) =>
+              prev.map((b) => (b.id === bubbleId ? { ...b, text: acc } : b)),
+            );
+          }
+          if (d.done) {
+            setBubbles((prev) =>
+              prev.map((b) => (b.id === bubbleId ? { ...b, streaming: false } : b)),
+            );
+          }
+        },
+        ac.signal,
+      );
+    } catch {
+      /* 上面已经把错误写进气泡了 */
+    } finally {
+      setSending(false);
+      abortRef.current = null;
+      setBubbles((prev) => prev.map((b) => (b.id === bubbleId ? { ...b, streaming: false } : b)));
+    }
+  }
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const aiBubs = bubbles.filter((b) => b.side === "ai");
+  const meBubs = bubbles.filter((b) => b.side === "me");
+  const lastAi = aiBubs[aiBubs.length - 1];
+  const lastN = BOARD - 1;
+  const round = stats.win + stats.loss + stats.draw + 1;
+
+  return (
+    <div className="qi">
+      <img src={GARDEN_BASE} alt="" aria-hidden="true" className="qi-bg" />
+      <div className="qi-veil" aria-hidden="true" />
+
+      {/* 返回花园（放 <header> 里，verify-hierarchy 靠它核对上一级） */}
+      <header
+        className="absolute left-0 top-0 z-20"
+        style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}
+      >
+        <Link
+          to="/play/garden"
+          aria-label="返回花园"
+          className="flex size-10 items-center justify-center text-[#F7F0E2]/85"
+        >
+          <ChevronLeft className="size-6" strokeWidth={1.4} />
+        </Link>
+      </header>
+
+      {/* 对战记录（这一版只显示，历史列表不做） */}
+      <div className="qi-rec">
+        对战记录
+        <b>
+          第 {round} 局 · 你 {stats.win} : {stats.loss} {aiName}
+        </b>
+      </div>
+
+      {/* 顶部题词 */}
+      <div className="qi-epi">
+        <svg className="mx-auto mb-[9px] block h-[23px] w-[126px]" viewBox="0 0 132 24" fill="none" aria-hidden="true">
+          <path d="M2 12H46" stroke="rgba(250,243,229,.5)" strokeWidth=".8" />
+          <path d="M86 12H130" stroke="rgba(250,243,229,.5)" strokeWidth=".8" />
+          <g stroke="rgba(250,243,229,.62)" strokeWidth=".9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M66 3.2v4.2M64 5.3h4" />
+            <path d="M62.4 10.4c-.7 2.2-1.1 4.4-1.3 6.6h9.8c-.2-2.2-.6-4.4-1.3-6.6" />
+            <path d="M60 20.6h12" />
+          </g>
+          <circle cx="53" cy="12" r="1.1" fill="rgba(250,243,229,.55)" />
+          <circle cx="79" cy="12" r="1.1" fill="rgba(250,243,229,.55)" />
+        </svg>
+        <p className="it">{CHESS_EPIGRAPH.it}</p>
+        <p className="cn">{CHESS_EPIGRAPH.cn}</p>
+      </div>
+
+      {/* 他的气泡（左，从下往上长） */}
+      <div className="qi-col qi-col-ai" aria-live="polite">
+        {aiBubs.map((b) => (
+          <div key={b.id} className="qi-bub">
+            {b.id === lastAi?.id && !b.streaming && b.text ? (
+              <Typed text={b.text} onDone={() => undefined} />
+            ) : (
+              <>
+                {b.text}
+                {b.streaming && <span className="qi-caret" />}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* 我的气泡（右） */}
+      <div className="qi-col qi-col-me">
+        {meBubs.map((b) => (
+          <div key={b.id} className="qi-bub">
+            {b.text}
+          </div>
+        ))}
+      </div>
+
+      {/* 两个头像 */}
+      <div className="qi-avrow">
+        <div className="flex items-center">
+          <span className="qi-av">
+            {aiAvatar ? (
+              <img src={aiAvatar} alt="" className="size-full object-cover" />
+            ) : (
+              aiName.slice(0, 1)
+            )}
+          </span>
+          <span className="qi-av-name">
+            {aiName}
+            <em>seduto</em>
+          </span>
+        </div>
+        <div className="flex items-center">
+          <span className="qi-av-name qi-av-name-me">
+            {myName || "我"}
+            <em>io</em>
+          </span>
+          <span className="qi-av">
+            {myAvatar ? (
+              <img src={myAvatar} alt="" className="size-full object-cover" />
+            ) : (
+              (myName || "我").slice(0, 1)
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* 该谁下了 */}
+      <div className="qi-status">
+        <p className="qi-status-k">{ended ? "FINITA" : busy ? "PENSA" : "TOCCA A TE"}</p>
+        <p className="qi-status-t">
+          {phase === "win"
+            ? "你连成五子"
+            : phase === "lose"
+              ? `${aiName}连成五子`
+              : phase === "draw"
+                ? "和棋"
+                : busy
+                  ? `${aiName}在想`
+                  : "轮到你 · 你执黑"}
+        </p>
+        {ended && (
+          <button type="button" onClick={reset} className="qi-again">
+            再来一局
+          </button>
+        )}
+      </div>
+
+      {/* 棋盘 */}
+      <div className="qi-board">
+        <svg viewBox={`0 0 ${lastN} ${lastN}`} aria-hidden="true">
+          {Array.from({ length: BOARD }, (_, i) => (
+            <g key={i}>
+              <line x1={i} y1={0} x2={i} y2={lastN} stroke="#8a6b47" strokeOpacity="0.4" strokeWidth="0.035" />
+              <line x1={0} y1={i} x2={lastN} y2={i} stroke="#8a6b47" strokeOpacity="0.4" strokeWidth="0.035" />
+            </g>
+          ))}
+          {STARS.map((p) => (
+            <circle key={`${p.r}-${p.c}`} cx={p.c} cy={p.r} r="0.1" fill="#8a6b47" fillOpacity="0.5" />
+          ))}
+        </svg>
+        {Array.from({ length: BOARD * BOARD }, (_, i) => {
+          const r = Math.floor(i / BOARD);
+          const c = i % BOARD;
+          const s = board[i];
+          const isLast = last?.r === r && last?.c === c;
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`第 ${r + 1} 行 ${c + 1} 列`}
+              disabled={phase !== "play" || busy}
+              onClick={() => playAt(r, c)}
+              className="qi-cell"
+              style={{ left: `${6 + (c / lastN) * 88}%`, top: `${6 + (r / lastN) * 88}%` }}
+            >
+              {s !== 0 && (
+                <span
+                  className={cn(
+                    "qi-stone",
+                    s === 1 ? "qi-stone-black" : "qi-stone-white",
+                    isLast && "qi-stone-last",
+                  )}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 随时能跟他说一句 */}
+      <form
+        className="qi-composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={sending ? "他在写…" : "跟他说点什么…"}
+          disabled={sending}
+          enterKeyHint="send"
+          className="placeholder:text-[#3b3227]/45"
+        />
+        <button type="submit" aria-label="发送" className="qi-send" disabled={!draft.trim() || sending}>
+          <ArrowUp className="size-4" strokeWidth={1.6} />
+        </button>
+      </form>
+      <span className="sr-only">{stoneCount} 手</span>
+    </div>
+  );
+}

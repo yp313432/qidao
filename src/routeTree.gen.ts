@@ -49,6 +49,8 @@ import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscrib
 import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
 import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games.gobang'
 import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
+import { Route as AppPlayGardenIndexRouteImport } from './routes/_app/play.garden.index'
+import { Route as AppPlayGardenQiRouteImport } from './routes/_app/play.garden.qi'
 import { Route as AppPlayPluginsIndexRouteImport } from './routes/_app/play.plugins.index'
 import { Route as AppPlayPluginsSlugRouteImport } from './routes/_app/play/plugins/$slug'
 import { Route as AppPlayPluginsEditRouteImport } from './routes/_app/play/plugins/edit'
@@ -262,6 +264,16 @@ const AppPlayGamesTruthRoute = AppPlayGamesTruthRouteImport.update({
   path: '/games/truth',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayGardenIndexRoute = AppPlayGardenIndexRouteImport.update({
+  id: '/garden/',
+  path: '/garden/',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayGardenQiRoute = AppPlayGardenQiRouteImport.update({
+  id: '/garden/qi',
+  path: '/garden/qi',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayPluginsIndexRoute = AppPlayPluginsIndexRouteImport.update({
   id: '/plugins/',
   path: '/plugins/',
@@ -367,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/tools/': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
   '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
@@ -378,6 +391,7 @@ export interface FileRoutesByFullPath {
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games/': typeof AppPlayGamesIndexRoute
+  '/play/garden/': typeof AppPlayGardenIndexRoute
   '/play/plugins/': typeof AppPlayPluginsIndexRoute
   '/play/space/': typeof AppPlaySpaceIndexRoute
   '/play/tools/': typeof AppPlayToolsIndexRoute
@@ -420,6 +434,7 @@ export interface FileRoutesByTo {
   '/tools': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
   '/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
@@ -431,6 +446,7 @@ export interface FileRoutesByTo {
   '/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/play/games': typeof AppPlayGamesIndexRoute
+  '/play/garden': typeof AppPlayGardenIndexRoute
   '/play/plugins': typeof AppPlayPluginsIndexRoute
   '/play/space': typeof AppPlaySpaceIndexRoute
   '/play/tools': typeof AppPlayToolsIndexRoute
@@ -476,6 +492,7 @@ export interface FileRoutesById {
   '/_app/tools/': typeof AppToolsIndexRoute
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
+  '/_app/play/garden/qi': typeof AppPlayGardenQiRoute
   '/_app/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/_app/play/plugins/edit': typeof AppPlayPluginsEditRoute
   '/_app/play/plugins/emotion': typeof AppPlayPluginsEmotionRoute
@@ -487,6 +504,7 @@ export interface FileRoutesById {
   '/_app/play/tools/alarms': typeof AppPlayToolsAlarmsRoute
   '/_app/play/tools/tasks': typeof AppPlayToolsTasksRoute
   '/_app/play/games/': typeof AppPlayGamesIndexRoute
+  '/_app/play/garden/': typeof AppPlayGardenIndexRoute
   '/_app/play/plugins/': typeof AppPlayPluginsIndexRoute
   '/_app/play/space/': typeof AppPlaySpaceIndexRoute
   '/_app/play/tools/': typeof AppPlayToolsIndexRoute
@@ -532,6 +550,7 @@ export interface FileRouteTypes {
     | '/tools/'
     | '/play/games/gobang'
     | '/play/games/truth'
+    | '/play/garden/qi'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
     | '/play/plugins/emotion'
@@ -543,6 +562,7 @@ export interface FileRouteTypes {
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games/'
+    | '/play/garden/'
     | '/play/plugins/'
     | '/play/space/'
     | '/play/tools/'
@@ -585,6 +605,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/play/games/gobang'
     | '/play/games/truth'
+    | '/play/garden/qi'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
     | '/play/plugins/emotion'
@@ -596,6 +617,7 @@ export interface FileRouteTypes {
     | '/play/tools/alarms'
     | '/play/tools/tasks'
     | '/play/games'
+    | '/play/garden'
     | '/play/plugins'
     | '/play/space'
     | '/play/tools'
@@ -640,6 +662,7 @@ export interface FileRouteTypes {
     | '/_app/tools/'
     | '/_app/play/games/gobang'
     | '/_app/play/games/truth'
+    | '/_app/play/garden/qi'
     | '/_app/play/plugins/$slug'
     | '/_app/play/plugins/edit'
     | '/_app/play/plugins/emotion'
@@ -651,6 +674,7 @@ export interface FileRouteTypes {
     | '/_app/play/tools/alarms'
     | '/_app/play/tools/tasks'
     | '/_app/play/games/'
+    | '/_app/play/garden/'
     | '/_app/play/plugins/'
     | '/_app/play/space/'
     | '/_app/play/tools/'
@@ -952,6 +976,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayGamesTruthRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/garden/': {
+      id: '/_app/play/garden/'
+      path: '/garden'
+      fullPath: '/play/garden/'
+      preLoaderRoute: typeof AppPlayGardenIndexRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/garden/qi': {
+      id: '/_app/play/garden/qi'
+      path: '/garden/qi'
+      fullPath: '/play/garden/qi'
+      preLoaderRoute: typeof AppPlayGardenQiRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/plugins/': {
       id: '/_app/play/plugins/'
       path: '/plugins'
@@ -1057,6 +1095,7 @@ interface AppPlayRouteChildren {
   AppPlayIndexRoute: typeof AppPlayIndexRoute
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
+  AppPlayGardenQiRoute: typeof AppPlayGardenQiRoute
   AppPlayPluginsSlugRoute: typeof AppPlayPluginsSlugRoute
   AppPlayPluginsEditRoute: typeof AppPlayPluginsEditRoute
   AppPlayPluginsEmotionRoute: typeof AppPlayPluginsEmotionRoute
@@ -1068,6 +1107,7 @@ interface AppPlayRouteChildren {
   AppPlayToolsAlarmsRoute: typeof AppPlayToolsAlarmsRoute
   AppPlayToolsTasksRoute: typeof AppPlayToolsTasksRoute
   AppPlayGamesIndexRoute: typeof AppPlayGamesIndexRoute
+  AppPlayGardenIndexRoute: typeof AppPlayGardenIndexRoute
   AppPlayPluginsIndexRoute: typeof AppPlayPluginsIndexRoute
   AppPlaySpaceIndexRoute: typeof AppPlaySpaceIndexRoute
   AppPlayToolsIndexRoute: typeof AppPlayToolsIndexRoute
@@ -1084,6 +1124,7 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayIndexRoute: AppPlayIndexRoute,
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
+  AppPlayGardenQiRoute: AppPlayGardenQiRoute,
   AppPlayPluginsSlugRoute: AppPlayPluginsSlugRoute,
   AppPlayPluginsEditRoute: AppPlayPluginsEditRoute,
   AppPlayPluginsEmotionRoute: AppPlayPluginsEmotionRoute,
@@ -1095,6 +1136,7 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayToolsAlarmsRoute: AppPlayToolsAlarmsRoute,
   AppPlayToolsTasksRoute: AppPlayToolsTasksRoute,
   AppPlayGamesIndexRoute: AppPlayGamesIndexRoute,
+  AppPlayGardenIndexRoute: AppPlayGardenIndexRoute,
   AppPlayPluginsIndexRoute: AppPlayPluginsIndexRoute,
   AppPlaySpaceIndexRoute: AppPlaySpaceIndexRoute,
   AppPlayToolsIndexRoute: AppPlayToolsIndexRoute,

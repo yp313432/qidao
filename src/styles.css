@@ -1503,3 +1503,454 @@ a:focus-visible,
   outline: 2px solid color-mix(in oklab, var(--aster-accent) 70%, transparent);
   outline-offset: 2px;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   花园（意式罗马浪漫风格）
+   ──────────────────────────────────────────────────────────────────
+   用户定的方向在这几行里：地名是**印在画上的题字**（象牙白 + 一道极细
+   深边），不是胶囊、不是角标；毛玻璃只留给交互层。
+   ⚠️ 这几个类只给 /play/garden 与 /play/garden/qi 用，别拿去当通用组件。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 底图：轻微压暗 + 提暖，象牙白题字才浮得起来（不压的话白字会被亮底吃掉） */
+.garden-scene {
+  filter: brightness(0.94) saturate(1.03);
+}
+
+.garden-rule {
+  flex: 1 1 0%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 253, 246, 0.55),
+    transparent
+  );
+}
+
+/* 页眉铭牌：花 园 / GIARDINO */
+.garden-plaque {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: #fffdf6;
+  -webkit-text-stroke: 0.9px rgba(50, 37, 24, 0.55);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 4px rgba(40, 28, 16, 0.45);
+}
+.garden-plaque-la {
+  margin-top: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: rgba(255, 250, 240, 0.8);
+  text-shadow: 0 1px 3px rgba(40, 28, 16, 0.5);
+}
+
+/*
+  地点题字。
+  ⚠️ 踩过的坑：`-webkit-text-stroke` 相对字号很粗，11~12px 中文超过 1px 就把字吃灰；
+  必须配 `paint-order: stroke fill`（描边画在填色**下面**），白芯才留得住。
+*/
+.garden-spot {
+  position: absolute;
+  display: block;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1.2;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #fffdf6;
+  -webkit-text-stroke: 0.9px rgba(50, 37, 24, 0.6);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.5);
+}
+.garden-spot .la {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-indent: 0;
+  color: #fcf3df;
+  -webkit-text-stroke: 0.6px rgba(50, 37, 24, 0.5);
+}
+.garden-spot-live {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.garden-spot-live:active {
+  opacity: 0.72;
+  transform: translate(-50%, -50%) scale(0.97);
+}
+
+/* 踪迹上的三个时刻 */
+.garden-trail-t {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-serif);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 250, 240, 0.55);
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.45);
+}
+
+/* 他在这儿：一个小头像 + 名字 + 一句安静的话（不是状态卡） */
+.garden-ai {
+  transform: translate(0, -50%);
+}
+.garden-avatar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 50, 39, 0.18);
+  background: rgba(253, 249, 240, 0.92);
+  box-shadow: 0 2px 8px rgba(40, 28, 16, 0.18);
+  font-family: var(--font-serif);
+  font-size: 12px;
+  color: #3b3227;
+}
+.garden-ai-name {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  color: #fffdf6;
+  -webkit-text-stroke: 0.7px rgba(50, 37, 24, 0.55);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.5);
+}
+.garden-ai-say {
+  display: block;
+  margin-top: 4px;
+  max-width: 60vw;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #fcf3df;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.45);
+}
+
+/* ───────────── 棋桌（/play/garden/qi）───────────── */
+
+.qi {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #2c2320;
+}
+.qi-bg {
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  object-fit: cover;
+  filter: brightness(0.62) saturate(0.7) blur(7px);
+}
+.qi-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(28, 20, 14, 0.42) 0%,
+    rgba(28, 20, 14, 0.18) 30%,
+    rgba(30, 22, 15, 0.42) 72%,
+    rgba(24, 17, 11, 0.62) 100%
+  );
+}
+
+/* 右下角对战记录 */
+.qi-rec {
+  position: absolute;
+  top: calc(max(12px, env(safe-area-inset-top)) + 4px);
+  right: 16px;
+  text-align: right;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  color: rgba(250, 243, 229, 0.72);
+  text-shadow: 0 1px 3px rgba(20, 14, 9, 0.7);
+}
+.qi-rec b {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-serif);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: #fbf3e1;
+}
+
+/* 顶部题词（在「对战记录」下面） */
+.qi-epi {
+  position: absolute;
+  top: 92px;
+  left: 0;
+  right: 0;
+  padding: 0 34px;
+  text-align: center;
+}
+.qi-epi .it {
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #fbf3e1;
+  text-shadow: 0 1px 3px rgba(28, 20, 12, 0.7), 0 0 18px rgba(24, 17, 10, 0.45);
+}
+.qi-epi .cn {
+  margin-top: 7px;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: rgba(250, 243, 229, 0.66);
+  text-shadow: 0 1px 3px rgba(28, 20, 12, 0.7);
+}
+
+/*
+  两列气泡：他从底部往上长，旧气泡往上走就被这道遮罩吃掉
+  （这才是"不会塞满整屏"的做法 —— 不靠限制条数，靠空间）。
+  ⚠️ mask 必须配 mask-repeat/size，否则遮罩会在框外重置成不透明。
+*/
+.qi-col {
+  position: absolute;
+  bottom: 56%;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 58%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0.18) 42px,
+    rgba(0, 0, 0, 1) 118px
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0.18) 42px,
+    rgba(0, 0, 0, 1) 118px
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+.qi-col-ai {
+  left: 16px;
+  align-items: flex-start;
+}
+.qi-col-me {
+  right: 16px;
+  align-items: flex-end;
+}
+
+.qi-bub {
+  max-width: 100%;
+  padding: 9px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(59, 50, 39, 0.14);
+  background: rgba(253, 249, 240, 0.95);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #3b3227;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 10px rgba(20, 14, 9, 0.14);
+  animation: qi-bub-in 220ms ease-out;
+}
+.qi-col-ai .qi-bub {
+  border-bottom-left-radius: 5px;
+}
+.qi-col-me .qi-bub {
+  border-bottom-right-radius: 5px;
+}
+@keyframes qi-bub-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.qi-caret {
+  display: inline-block;
+  width: 1px;
+  height: 0.95em;
+  margin-left: 1px;
+  vertical-align: -0.14em;
+  background: #3b3227;
+  animation: qi-blink 1s steps(2, start) infinite;
+}
+@keyframes qi-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 两列下面各自一个头像（是他的和我的） */
+.qi-avrow {
+  position: absolute;
+  bottom: 51%;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+.qi-av {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 50, 39, 0.2);
+  background: rgba(253, 249, 240, 0.95);
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  color: #3b3227;
+  box-shadow: 0 2px 10px rgba(20, 14, 9, 0.2);
+}
+.qi-av-name {
+  margin-left: 8px;
+  font-family: var(--font-serif);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: rgba(250, 243, 229, 0.82);
+  text-shadow: 0 1px 3px rgba(20, 14, 9, 0.7);
+}
+.qi-av-name em {
+  display: block;
+  margin-top: 2px;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(250, 243, 229, 0.6);
+}
+.qi-av-name-me {
+  margin-right: 8px;
+  margin-left: 0;
+  text-align: right;
+}
+
+/* 该谁下了 */
+.qi-status {
+  position: relative;
+  z-index: 10;
+  margin-top: auto;
+  text-align: center;
+}
+.qi-status-k {
+  font-size: 8.5px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: rgba(250, 243, 229, 0.72);
+}
+.qi-status-t {
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: #fbf3e1;
+  text-shadow: 0 1px 4px rgba(20, 14, 9, 0.6);
+}
+.qi-again {
+  margin-top: 8px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 243, 229, 0.34);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: #fbf3e1;
+}
+
+/* 棋盘：羊皮纸 + 发丝格线，尺寸跟预览一致（390 宽时 286px） */
+.qi-board {
+  position: relative;
+  z-index: 10;
+  width: min(73.3vw, 340px);
+  aspect-ratio: 1;
+  margin: 14px auto 0;
+  border-radius: 4px;
+  background: #f6eee0;
+  box-shadow: 0 10px 34px rgba(20, 14, 9, 0.35);
+  overflow: hidden;
+}
+.qi-board svg {
+  position: absolute;
+  inset: 6%;
+}
+.qi-cell {
+  position: absolute;
+  width: 7%;
+  height: 7%;
+  transform: translate(-50%, -50%);
+}
+.qi-stone {
+  position: absolute;
+  inset: 8%;
+  border-radius: 999px;
+}
+.qi-stone-black {
+  background: radial-gradient(circle at 34% 30%, #57504a, #17120e 78%);
+}
+.qi-stone-white {
+  background: radial-gradient(circle at 34% 30%, #fffdf8, #d8cec0 82%);
+}
+.qi-stone-last {
+  outline: 1px solid rgba(59, 50, 39, 0.55);
+  outline-offset: 1px;
+}
+
+/* 输入框 */
+.qi-composer {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px calc(max(12px, env(safe-area-inset-bottom)) + 8px);
+  padding: 5px 6px 5px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 50, 39, 0.2);
+  background: rgba(253, 249, 240, 0.95);
+  box-shadow: 0 6px 22px rgba(20, 14, 9, 0.28);
+}
+.qi-composer input {
+  flex: 1 1 0%;
+  min-width: 0;
+  background: transparent;
+  font-size: 12.5px;
+  color: #3b3227;
+  outline: none;
+}
+.qi-send {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 50, 39, 0.22);
+  color: #3b3227;
+}

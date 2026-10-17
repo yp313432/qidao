@@ -75,6 +75,12 @@ export const TERTIARY_PARENT: Record<string, string> = {
   "/play/games/gobang": "/play/games",
   "/play/games/truth": "/play/games",
 
+  /*
+    花园（2026-11）：`/play/garden` 是玩乐下面的二级整屏页；
+    `棋桌` 是它里面的三级页 —— 返回该回花园，不是回玩乐。
+  */
+  "/play/garden/qi": "/play/garden",
+
   // 音乐列表下面一项
   "/play/add": "/play/listen",
 
@@ -237,6 +243,7 @@ export function backLabelOf(path: string): string {
     "/system": "返回系统",
     "/play/tools": "返回小日子",
     "/play/games": "返回小游戏",
+    "/play/garden": "返回花园",
     "/play/listen": "返回音乐",
     "/play/space": "返回动态空间",
     "/play/plugins": "返回插件",
