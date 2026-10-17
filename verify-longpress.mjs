@@ -13,6 +13,13 @@ const BASE = "http://127.0.0.1:8080";
 const MINE = "长按我这一条试试看";
 const HIS = "好，我记住了。";
 
+/** 垫一些消息，让列表**真的能滚** —— 用户 m03024 第 2 条（"滑动停留不能有弹层"）
+    必须用真 scroll 事件来验，两三条消息的列表滚不动就测不出来。 */
+const FILLER = Array.from({ length: 12 }, (_, i) => [
+  { id: `fu${i}`, role: "user", content: `垫第 ${i + 1} 条（把列表撑长）`, thinking: "", thinkingDurationMs: 0, createdAt: Date.now() - 20000 - i * 1000 },
+  { id: `fa${i}`, role: "assistant", content: `收到第 ${i + 1} 条，我也回一句把列表撑长。`, thinking: "", thinkingDurationMs: 0, createdAt: Date.now() - 19000 - i * 1000 },
+]).flat();
+
 const now = Date.now();
 const snapshot = {
   state: {
@@ -23,6 +30,7 @@ const snapshot = {
         messages: [
           { id: "u1", role: "user", content: MINE, thinking: "", thinkingDurationMs: 0, createdAt: now - 60000 },
           { id: "a1", role: "assistant", content: HIS, thinking: "", thinkingDurationMs: 0, createdAt: now - 30000 },
+          ...FILLER,
         ],
         createdAt: now - 3600000,
         updatedAt: now,
@@ -51,11 +59,25 @@ await page.addInitScript((snap) => {
 }, snapshot);
 
 const errors = [];
+/**
+ * ⚠️ 页面里挂着一个**外部**品牌脚本 `https://grok.com/grok-app-builder/extensions.js`
+ * （沙箱注入，定义在 `scripts/grok-pwa-shared.mjs:203`；`verify-emotion-plugin.mjs:51` 也记过它）。
+ * 它掉线时控制台只会打印 "Failed to load resource: net::ERR_…"，**不带 URL** ——
+ * 以前这一条会把"页面报错"判红，其实是外部网络抖动，跟应用无关。
+ * 所以：外部资源失败放过，但**本地资源一个都不许失败**（单独断言，见第 5 段）。
+ */
+const NET_FLAKE = /net::ERR_(CERT|TIMED_OUT|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|CONNECTION|ADDRESS_UNREACHABLE)/;
+const failedLocal = [];
+page.on("requestfailed", (r) => {
+  if (r.url().startsWith(BASE)) failedLocal.push(r.url().replace(BASE, "").slice(0, 90));
+});
 page.on("pageerror", (e) => errors.push("PAGEERROR " + e.message.split("\n")[0].slice(0, 140)));
 page.on("console", (m) => {
-  if (m.type() === "error" && !/ERR_BLOCKED_BY_RESPONSE|NotSameOrigin/.test(m.text())) {
-    errors.push("CONSOLE " + m.text().slice(0, 140));
-  }
+  if (m.type() !== "error") return;
+  const t = m.text();
+  if (/ERR_BLOCKED_BY_RESPONSE|NotSameOrigin/.test(t)) return;
+  if (/Failed to load resource/.test(t) && NET_FLAKE.test(t)) return; // 外部脚本掉了
+  errors.push("CONSOLE " + t.slice(0, 140));
 });
 
 await page.goto(BASE + "/", { waitUntil: "commit", timeout: 30000 });
@@ -131,6 +153,31 @@ check("没弹卡片", !(await menuOpen()));
 await fire(MINE, "pointercancel");
 await page.waitForTimeout(200);
 
+console.log("=== 2b. 滑动之后停住不动 900ms：也不许弹（用户 m03024 第 2 条，跟微信一样）===");
+/*
+  真机那条路：手指一拖 → 安卓判定为滚动手势 → 发 `pointercancel`（此后**不再有 pointermove**）
+  → 手指停在原地不动。只靠位移阈值的话，那次 cancel 之后计时器还活着 → 停够 600ms 就误弹。
+  现在"列表一滚动就作废"（scroller 的 scroll 监听 → cancelPressRef）。
+  这里两种都测：真 scroll 事件 + pointercancel 之后滚动。
+*/
+const seltor = "div[class*='overflow-y-auto']";
+await fire(MINE, "pointerdown");
+await page.waitForTimeout(80);
+await fire(MINE, "pointercancel"); // 安卓的滚动接管
+await page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  if (el) el.scrollTop = Math.max(0, el.scrollTop - 80);
+}, seltor);
+await page.waitForTimeout(900);
+check("滚完停住 900ms 没弹卡片", !(await menuOpen()));
+check(
+  "列表确实滚动过（不然这条断言没意义）",
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    return !!el && el.scrollHeight > el.clientHeight + 20;
+  }, seltor),
+);
+
 console.log("=== 3. 轻点一下不该弹卡片 ===");
 await fire(MINE, "pointerdown");
 await page.waitForTimeout(90);
@@ -173,6 +220,7 @@ await closeMenu();
 
 console.log("=== 5. 控制台 / 运行时报错 ===");
 check("没有页面报错", errors.length === 0, errors.slice(0, 3).join(" | "));
+check("本地资源一个都没失败", failedLocal.length === 0, failedLocal.slice(0, 3).join(" | "));
 
 await browser.close();
 console.log("--------------------------------------------------------------------------");

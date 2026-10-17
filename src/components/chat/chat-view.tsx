@@ -93,11 +93,25 @@ export function ChatView() {
   useEffect(() => {
     const el = composerWrap.current;
     if (!el) return;
-    const sync = () => setPadBottom(Math.round(el.offsetHeight) + 14);
+    const sync = () => {
+      const h = Math.round(el.offsetHeight);
+      setPadBottom(h + 14);
+      /**
+       * 顺手把这块的高度发布成 CSS 变量：**全屏浮着的东西**（全局音频悬浮球，
+       * `audio-widget.tsx`）得知道输入框占了多高，否则球会落在输入框底下、点都点不到
+       * （用户 m03024 第 5 条："小球不能遮挡底部导航等关键按钮"）。
+       * 这个值**已经含底部导航的高度**（`pb-composer` 里加了它）。
+       */
+      document.documentElement.style.setProperty("--q-composer-h", `${h}px`);
+    };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      // 离开对话页要把变量撤掉，不然别的页面的悬浮球会被顶得老高
+      document.documentElement.style.removeProperty("--q-composer-h");
+    };
   }, []);
   const conv = conversations.find((c) => c.id === activeId) ?? null;
   const empty = !conv || conv.messages.length === 0;
@@ -147,6 +161,16 @@ export function ChatView() {
    * 由右下角「↓ 回到最新」按钮决定什么时候回来。
    */
   const stickBottom = useRef(true);
+  /**
+   * ⭐ 用户 m03024 第 2 条（"只有按住不动才能弹层，滑动停留不能有弹层，跟微信一样"）：
+   *   列表**只要滚动过**（手指拖动、惯性滑动、流式自动跟滚都算）就撤销"正按着的那次长按"。
+   *   为什么不能只靠 pointermove 的位移阈值：安卓一旦判定为滚动手势就会发 `pointercancel`，
+   *   之后再没有 pointermove；可那次 cancel **也可能是**"长按 select-none 气泡"的触感 cancel
+   *   （两件事长得一模一样，见 quotePress 上面那段），所以 pointercancel 不能无条件清零。
+   *   真正能区分的是**滚动本身** —— 它一定会发 scroll 事件。
+   *   这里用 ref 转发，避免把 quotePress 里那三个 ref 提前声明（会打乱文件顺序）。
+   */
+  const cancelPressRef = useRef<() => void>(() => {});
   useEffect(() => {
     const el = scroller.current;
     if (!el || !stickBottom.current) return;
@@ -159,6 +183,8 @@ export function ChatView() {
     const el = scroller.current;
     if (!el) return;
     const onScroll = () => {
+      /* 一滚动就不算"按住不动"了 —— 那条待发的长按卡片立刻作废 */
+      cancelPressRef.current();
       const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
       /* 离开底部就停手、回到最底（<24px）才重新跟上。
          中间那段（24~80）**不翻状态** —— 手指拖到一半时来回跨过 80 也不会抖 */
@@ -246,6 +272,9 @@ export function ChatView() {
      *     还没停留多久，立马出现弹层很影响体验" —— 以前是 380ms，太灵敏）；
      *   · `pointercancel` / `pointerleave` **不再无条件清零** —— 只有真滑动过才撤销；
      *   · `pointerup`（正常松手）照旧清零，免得"点一下"过一会儿自己弹出来；
+     *   · ⭐ 用户 m03024 第 2 条："**只有按住不动才能弹层，滑动停留不能有弹层**（跟微信一样）"：
+     *     位移阈值收到 **8px**（原来 10px），而且**列表一滚动就作废**（`cancelPressRef`，
+     *     在 scroller 的 scroll 监听里调）—— 滚完手指停在原地那 600ms 也不会再弹。
      *   · `contextmenu` **只在鼠标右键时**开卡片（用户 m02163 第 1 条：手机上"他的"气泡
      *     文字可选 → 安卓长按会提前（约 500ms）发 contextmenu → 卡片比 600ms 更早弹出来，
      *     和"我的"气泡手感不一致。现在手机上一律只认这个 600ms 计时器，两类气泡完全一样；
@@ -253,6 +282,11 @@ export function ChatView() {
      */
     const cancelIfMoved = () => {
       if (pressFrom.current === null) window.clearTimeout(pressTimer.current);
+    };
+    /** 立刻作废这次长按（滚动时由 scroller 调） */
+    cancelPressRef.current = () => {
+      pressFrom.current = null;
+      window.clearTimeout(pressTimer.current);
     };
     return {
       onPointerDown: (e: React.PointerEvent) => {
@@ -268,7 +302,8 @@ export function ChatView() {
       onPointerMove: (e: React.PointerEvent) => {
         const from = pressFrom.current;
         if (!from) return;
-        if (Math.abs(e.clientX - from.x) > 10 || Math.abs(e.clientY - from.y) > 10) {
+        /* 8px：手指稍微一挪就不再算"按住不动"（微信同款手感） */
+        if (Math.abs(e.clientX - from.x) > 8 || Math.abs(e.clientY - from.y) > 8) {
           pressFrom.current = null;
           window.clearTimeout(pressTimer.current);
         }
@@ -680,6 +715,9 @@ export function ChatView() {
                         {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
                         {(streaming || (settings.showThinking && m.thinking)) && (
+                          /* ⚠️ 胶囊上那个 `[-webkit-tap-highlight-color:transparent]` 是用户 m03024
+                             第 4 条"点开之后胶囊上留一层白底"的**就地**兜底
+                             （全局那条写在 styles.css 的 `:root` 里；这里再钉一遍，不依赖继承）。 */
                           <button
                             type="button"
                             onClick={() =>
@@ -689,7 +727,7 @@ export function ChatView() {
                                 live: Boolean(streaming && !m.content),
                               })
                             }
-                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted"
+                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted [-webkit-tap-highlight-color:transparent]"
                           >
                             {streaming && !m.content ? "正在思考…" : "已思考"}
                             {m.thinkingDurationMs && !streaming ? (

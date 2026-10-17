@@ -393,10 +393,26 @@ html[data-motion="off"] *::after {
     · 又不像 .glass-panel（52%）那样在花背景上跟背景糊成一块、字压字。
     ⚠️ 一开始按 78% + 40px 做，真机/浏览器截图看**大号深色字还是会透上来**（"第 7 句…"能认出来），
       所以把不透明度提到 82%、模糊提到 48px：还是玻璃，但背后那行字认不出来了。
+
+  ⭐⭐ 用户 m03024 第 1 条又改了一次（"对话框还能再透一点点，颜色改成小日子里的那几个组件
+    一样的彩虹渐变玻璃组件，粉青蓝渐变即可"）→ **虹彩档**：
+    · 底色降到 **72%**（更透），但**自己带一层 粉 → 青 → 蓝 的斜向渐变**——
+      那正是玩乐首页那几张卡片透出来的环境色（`--aster-blob-1/2/3`：蜜桃 / 藕荷 / 蓝），
+      所以这块浮层现在跟那些组件是"同一块玻璃"的观感；
+    · 渐变本身也吃掉了透上来的字（约 0.3 alpha 叠在底色上），所以更透但**字还是认不出来**；
+    · 模糊保持 48px（透归透，背后那一行字不能变成"能读"）。
 */
 .glass-float {
-  background-color: color-mix(in oklab, var(--aster-canvas) 82%, transparent);
-  background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 30%);
+  background-color: color-mix(in oklab, var(--aster-canvas) 72%, transparent);
+  background-image:
+    linear-gradient(
+      118deg,
+      rgba(243, 164, 197, 0.34) 0%,
+      rgba(167, 219, 228, 0.28) 46%,
+      rgba(168, 186, 240, 0.34) 100%
+    ),
+    linear-gradient(180deg, var(--aster-sheen) 0%, transparent 32%);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   backdrop-filter: blur(48px) saturate(1.6);
   box-shadow:
@@ -1420,4 +1436,56 @@ html[data-keyboard="up"] .pb-composer {
 }
 .choice-card-off {
   border-color: var(--aster-line, rgba(127, 127, 127, 0.25));
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   **音频悬浮窗**（用户 m03024 第 5 条，2026-11）
+
+   用户点名要"Q 弹"："用 cubic-bezier(0.34, 1.56, 0.64, 1)（过冲）或
+   spring(stiffness 300)，不要 ease 匀速"。
+   过冲曲线画出来的效果就是**先冲过头一点点再弹回来** —— 那个 1.56 就是过冲量。
+   （拖拽跟手、吸附贴边用的是同一条曲线，写在 `audio-widget.tsx` 的 inline style 里。）
+   ══════════════════════════════════════════════════════════════════ */
+@keyframes aster-widget-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.84);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.spring-in {
+  animation: aster-widget-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   **触屏点过的按钮不该留一层白底**（用户 m03024 第 4 条，2026-11）
+
+   用户原话："点开思考链之后，这个小气泡会在思考链页面显示出一层白色背景效果，
+   点一下才去掉"（那个小气泡 = 「已思考 N 秒　点开看」，`chat-view.tsx` 里那个
+   `<button className="… bg-chip …">`）。
+
+   根因：全仓库**一条 `-webkit-tap-highlight-color` 都没有**，于是安卓 WebView
+   用它自己的默认高亮 —— 点一下就在元素上盖一层发白的底色，而且**会一直挂着**，
+   直到你再点一下别处（正好对上"点一下才去掉"）。胶囊本身底色只有 9% 白
+   （`--aster-chip`），所以这层高亮特别显眼。
+
+   处理：① 关掉系统高亮；② 触屏点出来的焦点环也去掉 —— 但**键盘 Tab 的焦点环要留**
+   （无障碍；`:focus-visible` 就是浏览器给"键盘来的焦点"用的）。
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus,
+a:focus,
+[role="button"]:focus {
+  outline: none;
+}
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--aster-accent) 70%, transparent);
+  outline-offset: 2px;
 }

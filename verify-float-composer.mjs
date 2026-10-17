@@ -134,6 +134,14 @@ const geom = () =>
       clientH: Math.round(scroller.clientHeight),
       /* 最后一条消息的底边（视口坐标）——用来判断"能不能整条滑到输入框上面" */
       lastBottom: last ? Math.round(last.getBoundingClientRect().bottom) : 0,
+      /* ⭐ 用户 m03024 第 1 条：玻璃改成"虹彩档"（粉→青→蓝渐变 + 更透）—— 钉住它 */
+      glass: (() => {
+        const cs = getComputedStyle(card);
+        return {
+          color: cs.backgroundColor,
+          image: cs.backgroundImage,
+        };
+      })(),
     };
   });
 
@@ -161,6 +169,23 @@ check(
   g0.cardTop < g0.scrollerBottom,
 );
 check(`消息列表底部留了白（${g0.padBottom}px ≥ 卡片高 ${g0.cardH}px）`, g0.padBottom >= g0.cardH);
+
+console.log("=== 1b. 玻璃是「虹彩档」（用户 m03024 第 1 条：再透一点 + 粉青蓝渐变）===");
+check(
+  `自带一层渐变（不是纯色）`,
+  /linear-gradient/.test(g0.glass.image),
+);
+check(
+  `粉 / 青 / 蓝 三色都在（${g0.glass.image.slice(0, 60)}…）`,
+  /243,\s*164,\s*197/.test(g0.glass.image) &&
+    /167,\s*219,\s*228/.test(g0.glass.image) &&
+    /168,\s*186,\s*240/.test(g0.glass.image),
+);
+/* color-mix(… 72%, transparent) 算出来是 rgba(..., 0.72) —— 比原来 82% 更透 */
+check(
+  `底色降到 72%（现在 ${g0.glass.color}）`,
+  /0\.72\)/.test(g0.glass.color.replace(/\s/g, "")),
+);
 
 console.log("=== 2. 滚动消息：一条条从输入框**下面**过去，输入框不动 ===");
 const mid = Math.round((g0.scrollH - g0.clientH) / 3);

@@ -1,4 +1,4 @@
-import { buildManual } from "@/lib/manual";
+import { buildManual, pronounOf } from "@/lib/manual";
 import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -482,6 +482,25 @@ export function perceptionBlock(input: PromptInput): string {
   const ctx = input.context;
   if (!ctx) return "";
   const lines = [
+    /**
+     * ⭐ 用户 m03024 第 3 条："性别选择对 ai 可见吗，他说看不到"。
+     *
+     * 为什么会这样：性别其实**早就写进系统提示词第一行了**（`manual.ts` 的 `addressRule()`
+     * → "**称呼用户**：yan 是女生……"），但模型答的是它这轮收到的**"状态"** —— 也就是
+     * 这一节【此刻的情况】。这一节里只有时间/在做/天气/授权…… 没有任何"用户是谁"的条目，
+     * 所以它就老实回答"状态里没有『性别』这一项"。
+     *
+     * 现在把它也放进【此刻的情况】：**每轮都看得见**，不用猜、也不用翻记忆。
+     * （放在这里而不是系统提示词里，是因为系统提示词必须逐轮不变才能吃到前缀缓存 ——
+     *   见本函数上面那段说明。）
+     */
+    input.name || input.userGender
+      ? `用户是谁：${input.name || "（没填名字）"}${
+          input.userGender === "女" || input.userGender === "男"
+            ? `，${input.userGender === "女" ? "女生" : "男生"}（称呼一律用「${pronounOf(input.userGender)}」）`
+            : "（没填过性别 —— 别猜，用「你」或叫名字）"
+        }。`
+      : "",
     ctx.now ? `客户端时间：${ctx.now}。` : "",
     ctx.activity ? `用户此刻在做：${ctx.activity}。` : "",
     // 天气跟时间和"在做什么"并列 —— 属于"此刻"，不是资料

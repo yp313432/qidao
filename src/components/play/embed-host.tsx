@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Link2, Square } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
 import { embedHeight } from "@/lib/music-embed";
 import { useApp } from "@/lib/store";
 
@@ -15,6 +14,12 @@ import { useApp } from "@/lib/store";
  *  1. 不能用 `display: none` —— 浏览器会把里面的播放停掉，所以用 `left: -9999px`。
  *  2. **位置判断必须跟着路由走**：只靠轮询插槽的话，返回上一层时旧的位置会
  *     多留一两秒，看起来像卡在页面上。现在不在播放页就立刻不定位。
+ *
+ * ⚠️ 迷你条**不在这里画**了（2026-11 用户 m03024 第 5 条）：原来它和
+ * `player-host.tsx` 各画一条、位置还一样，两个一起响会叠在一起。
+ * 现在统一由 `components/audio-widget.tsx` 那**一个**悬浮窗负责（小球 ↔ 胶囊），
+ * 这里的 ✕（"停止外链播放"）也搬到了那个悬浮窗上 —— 它点的还是
+ * `setCurrentEmbed(null)`，下面 `if (!embed) return null` 会把 iframe 整个卸载，声音真断。
  */
 export function EmbedHost() {
   const embeds = useApp((s) => s.musicEmbeds);
@@ -24,8 +29,6 @@ export function EmbedHost() {
   const height = embed ? embedHeight(embed.service, embed.kind) : 0;
 
   const onPlayerPage = pathname === "/play/player";
-  // 玩乐的子页面是不显示底部导航的，迷你条的位置要跟着让
-  const navHidden = pathname.startsWith("/play/") && pathname !== "/play";
   const [box, setBox] = useState<{ left: number; top: number; width: number } | null>(null);
 
   // 不在播放页 → 立刻把它挪走，不等下一轮轮询
@@ -88,27 +91,6 @@ export function EmbedHost() {
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         />
       </div>
-
-      {/* 不在播放页时给它一条自己的迷你条 —— 这样不用进播放页也能停掉它。
-          位置从底部搬到**顶部**：用户反馈它挡到输入框了。 */}
-      {!onPlayerPage && (
-        <div className="pointer-events-none fixed inset-x-0 inset-chip z-30 flex justify-center">
-          <div className="glass-menu pointer-events-auto flex items-center gap-2 rounded-full border border-line py-1.5 pr-1.5 pl-4">
-            <Link2 className="size-3.5 shrink-0 text-accent" />
-            <Link to="/play/player" className="min-w-0 max-w-40 truncate text-[12px]">
-              {embed.serviceLabel} 外链播放中
-            </Link>
-            <button
-              type="button"
-              aria-label="停止外链播放"
-              onClick={() => useApp.getState().setCurrentEmbed(null)}
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
-            >
-              <Square className="size-3 fill-current" />
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }

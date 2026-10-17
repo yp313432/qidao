@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
+import { AudioWidget } from "@/components/audio-widget";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GlassHighlight } from "@/components/glass-highlight";
@@ -145,6 +146,12 @@ export function AppShell() {
       <PlayerHost />
       {/* 外链播放器的宿主：iframe 卸载就断声，所以它一直挂着，切页时挪到屏幕外 */}
       <EmbedHost />
+      {/*
+        ⭐ 全局音频悬浮窗（用户 m03024 第 5 条）：本地音乐和外链共用**一个**悬浮窗 ——
+        离开音乐页就是右下角那颗旋转小球，点开是横向胶囊播放条，✕ 真的把音频停掉。
+        原来两条各自为政的迷你条已经从这里的两处宿主里删掉了（它们位置重叠）。
+      */}
+      <AudioWidget />
       {/* 本地提醒 + Service Worker 注册 */}
       <ReminderDaemon />
       {/* 定时任务：到点让他自己开口（App 活着时；关掉时靠原生通知兜底） */}

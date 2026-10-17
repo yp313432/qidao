@@ -42,7 +42,11 @@ function encryptedFrom(name: string): string | null {
   if (!ENCRYPTED_RE.test(name)) return null;
   if (ext === "ncm") return "网易云音乐的加密格式";
   if (["kgm", "kgma", "kgg"].includes(ext)) return "酷狗的加密格式";
-  if (["qmc0", "qmc2", "qmc3", "qmcflac", "qmcogg", "mflac", "mgg", "mgg1", "tm0", "tm2"].includes(ext))
+  if (
+    ["qmc0", "qmc2", "qmc3", "qmcflac", "qmcogg", "mflac", "mgg", "mgg1", "tm0", "tm2"].includes(
+      ext,
+    )
+  )
     return "QQ音乐的加密格式";
   if (ext === "xm") return "虾米的加密格式";
   return "某个客户端的加密格式";
@@ -79,6 +83,8 @@ export type PlayerState = {
   play: (id?: string) => void;
   pause: () => void;
   toggle: () => void;
+  /** ⭐ 用户 m03024 第 5 条：关掉悬浮窗要**真的把音频停掉并销毁**（不是只藏 UI） */
+  close: () => void;
   step: (delta: number) => void;
   seek: (seconds: number) => void;
   setVolume: (v: number) => void;
@@ -253,6 +259,33 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
   pause: () => {
     wantPlay = false;
     audio?.pause();
+  },
+
+  /**
+   * ⭐ 用户 m03024 第 5 条（原话）：
+   *   "点该播放条上的关闭（✕）按钮，需**销毁悬浮窗（Destroy Widget）**并**彻底终止音频
+   *    后台播放**。……点『叉』的时候，一定要让开发确保 `audio.stop()` 和 `destroy()` 被调用，
+   *    很多新手只关掉了 UI 的 v-if，导致声音还在后台放，用户会以为是闹鬼。"
+   *
+   * 所以这里不是"藏起来"，是**把这次播放整个拆掉**：
+   *   ① `wantPlay = false` —— 不然 `syncSource()` 换源时还会自动接着播；
+   *   ② `pause()`；
+   *   ③ 清 `src` + `load()` —— 只 pause 不摘源的话，某些 WebView 仍会继续缓冲/出声，
+   *      摘掉源之后浏览器才会真的释放这次播放；
+   *   ④ 清 `el.dataset.track` —— 它是 `syncSource()` 的判重标记（见本文件下面），
+   *      不清的话下次再选同一首会被判成"源没变"而**不挂源**，点了没反应；
+   *   ⑤ 状态回到"什么都没在放"（`currentId: null`）→ 悬浮窗自己就消失了。
+   */
+  close: () => {
+    const el = audio;
+    wantPlay = false;
+    if (el) {
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+      delete el.dataset.track;
+    }
+    set({ currentId: null, playing: false, time: 0, duration: 0 });
   },
 
   toggle: () => {

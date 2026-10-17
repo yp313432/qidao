@@ -1,6 +1,4 @@
 import { useEffect, useRef } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Pause, Play, SkipForward } from "lucide-react";
 import { attachAudioElement, playerOnEnded, usePlayer } from "@/lib/player";
 
 /**
@@ -8,10 +6,14 @@ import { attachAudioElement, playerOnEnded, usePlayer } from "@/lib/player";
  *
  * 因为它挂在 AppShell 上而不是音乐页里，所以切页面音乐不会断，
  * MediaSession（锁屏 / 通知栏）也始终有效。
+ *
+ * ⚠️ 迷你条**不在这里画**了（2026-11 用户 m03024 第 5 条）：原来它和
+ * `play/embed-host.tsx` 各画一条，两条还是同一个位置，一起响时会叠在一起。
+ * 现在统一由 `components/audio-widget.tsx` 那**一个**悬浮窗负责（小球 ↔ 胶囊），
+ * 这个文件只管 `<audio>`、事件和 MediaSession。
  */
 export function PlayerHost() {
   const ref = useRef<HTMLAudioElement>(null);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const load = usePlayer((s) => s.load);
   const syncSource = usePlayer((s) => s.syncSource);
@@ -19,7 +21,6 @@ export function PlayerHost() {
   const urls = usePlayer((s) => s.urls);
   const volume = usePlayer((s) => s.volume);
   const playing = usePlayer((s) => s.playing);
-  const time = usePlayer((s) => s.time);
   const toast = usePlayer((s) => s.toast);
   const tracks = usePlayer((s) => s.tracks);
 
@@ -43,7 +44,15 @@ export function PlayerHost() {
     const onPlay = () => usePlayer.setState({ playing: true });
     const onPause = () => usePlayer.setState({ playing: false });
     const onEnded = () => playerOnEnded();
-    const onError = () => usePlayer.getState().flash("这个文件播不了（浏览器可能不支持该格式）");
+    const onError = () => {
+      /**
+       * ⚠️ 悬浮窗点 ✕ 会 `removeAttribute("src")` + `load()`（见 `player.ts` 的 `close()`）——
+       * Chrome / 安卓 WebView 为这个"空 src"**还会再发一次 error**，那不是播放失败。
+       * 判据：`close()` 里 `currentId` 已经被清成 null，所以没选中曲目时就闭嘴。
+       */
+      if (!usePlayer.getState().currentId) return;
+      usePlayer.getState().flash("这个文件播不了（浏览器可能不支持该格式）");
+    };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("play", onPlay);
@@ -99,56 +108,9 @@ export function PlayerHost() {
     }
   }, [current, playing]);
 
-  // 音乐列表和播放页都不需要迷你条：一个是选歌的地方，一个已经是全屏播放器
-  const onMusicPage = pathname === "/play/listen" || pathname === "/play/player";
-  const showMini = Boolean(current) && !onMusicPage && (playing || time > 0);
-
-  /**
-   * 迷你播放条从底部搬到**顶部**。
-   *
-   * 用户反馈："他会挡到输入框，放顶上吧，或者做成可折叠的。"
-   * 底部那块地方现在要留给输入框（还有空状态的大标题），顶上是空闲的。
-   */
-  useEffect(() => {
-    const root = document.documentElement;
-    // 不再需要给底部预留高度了（条子在顶上）
-    root.style.removeProperty("--aster-mini");
-    return () => {
-      root.style.removeProperty("--aster-mini");
-    };
-  }, [showMini]);
-
   return (
     <>
       <audio ref={ref} preload="metadata" className="hidden" />
-
-      {/* 迷你播放条：证明播放器是全局的，别的页面也能控制 */}
-      {showMini && current && (
-        <div className="pointer-events-none fixed inset-x-0 inset-chip z-30 flex justify-center px-3">
-          <div className="glass-nav pointer-events-auto flex w-full max-w-md items-center gap-1 rounded-full border border-line px-3 py-1.5">
-            <Link to="/play/listen" className="min-w-0 flex-1 truncate py-1 text-[12px]">
-              <span className="text-muted">{playing ? "♪ " : "❚❚ "}</span>
-              {current.name}
-            </Link>
-            <button
-              type="button"
-              aria-label={playing ? "暂停" : "播放"}
-              onClick={() => usePlayer.getState().toggle()}
-              className="flex size-8 items-center justify-center rounded-full bg-chip"
-            >
-              {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-            </button>
-            <button
-              type="button"
-              aria-label="下一首"
-              onClick={() => usePlayer.getState().step(1)}
-              className="flex size-8 items-center justify-center rounded-full bg-chip"
-            >
-              <SkipForward className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4">
