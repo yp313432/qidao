@@ -1718,45 +1718,63 @@ a:focus-visible,
 }
 
 /*
-  两列气泡：他从底部往上长，旧气泡往上走就被这道遮罩吃掉
-  （这才是"不会塞满整屏"的做法 —— 不靠限制条数，靠空间）。
+  气泡区：一条时间线，左右分边，**能往上翻**（用户 m01840）。
+  以前是两列、只留最新 12 条、旧的被遮罩吃掉 —— 他写得快，看不完就没了。
+  现在默认贴底、往上翻能看全程；顶部仍留一道淡出的遮罩，避免压到题词。
   ⚠️ mask 必须配 mask-repeat/size，否则遮罩会在框外重置成不透明。
 */
-.qi-col {
+.qi-scroll {
   position: absolute;
-  /* 上边界 = 题词下面那行：气泡最多长到这里就停，再往上被吃掉 */
   top: 176px;
-  bottom: 56%;
-  justify-content: flex-end;
-  overflow: hidden;
+  bottom: 56.5%;
+  left: 16px;
+  right: 16px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  width: 58%;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0.18) 42px,
-    rgba(0, 0, 0, 1) 118px
+    rgba(0, 0, 0, 0.18) 34px,
+    rgba(0, 0, 0, 1) 92px
   );
   mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0.18) 42px,
-    rgba(0, 0, 0, 1) 118px
+    rgba(0, 0, 0, 0.18) 34px,
+    rgba(0, 0, 0, 1) 92px
   );
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
 }
-.qi-col-ai {
-  left: 16px;
-  align-items: flex-start;
+.qi-scroll::-webkit-scrollbar {
+  display: none;
 }
-.qi-col-me {
-  right: 16px;
-  align-items: flex-end;
+.qi-row {
+  display: flex;
+  flex: 0 0 auto;
+  width: 100%;
+}
+.qi-row-ai {
+  justify-content: flex-start;
+  padding-right: 18%;
+}
+.qi-row-me {
+  justify-content: flex-end;
+  padding-left: 18%;
+}
+.qi-hint {
+  margin: auto;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(250, 243, 229, 0.55);
 }
 
 .qi-bub {
@@ -1772,10 +1790,10 @@ a:focus-visible,
   box-shadow: 0 2px 10px rgba(20, 14, 9, 0.14);
   animation: qi-bub-in 220ms ease-out;
 }
-.qi-col-ai .qi-bub {
+.qi-row-ai .qi-bub {
   border-bottom-left-radius: 5px;
 }
-.qi-col-me .qi-bub {
+.qi-row-me .qi-bub {
   border-bottom-right-radius: 5px;
 }
 @keyframes qi-bub-in {
@@ -2933,4 +2951,115 @@ a:focus-visible,
   font-size: 11px;
   letter-spacing: 0.05em;
   color: #5b4f3f;
+}
+
+/* ============================================================
+   池塘里活的东西（水下的鱼 / 漂的花瓣 / 水草 / 荷叶）
+   —— 用户 m01776："有点稀疏，能不能做点动态，真的有小鱼在里面游"
+   动效全在 components/play/pond-life.tsx 里驱动（鱼走 rAF，植物走 CSS），
+   这里只放结构。鱼和花瓣的上下范围由该文件的 WATER 常量决定。
+   ============================================================ */
+.pond-life {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 鱼：位置由 JS 的 transform 驱动，别加 transition（会拖尾） */
+.pl-fish {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+/* 花瓣：横着极慢漂过去，边漂边翻一点 */
+.pl-petal {
+  position: absolute;
+  left: 0;
+  border-radius: 62% 38% 58% 42%;
+  animation-name: pl-petal-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@keyframes pl-petal-drift {
+  0% {
+    transform: translate3d(-6vw, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(50vw, -1.6vh, 0) rotate(110deg);
+  }
+  100% {
+    transform: translate3d(108vw, 1vh, 0) rotate(230deg);
+  }
+}
+
+/* 荷叶：浮着轻轻起伏 */
+.pl-pad {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(
+    120% 120% at 30% 30%,
+    rgba(228, 238, 216, 0.52),
+    rgba(146, 168, 134, 0.34)
+  );
+  box-shadow: inset 0 0 6px rgba(88, 108, 80, 0.18);
+  animation: pl-pad-bob 6s ease-in-out infinite;
+}
+
+@keyframes pl-pad-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* 岸边水草：几片叶子各自摆 */
+.pl-weeds {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.pl-weeds i {
+  display: block;
+  width: 2.5px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(to top, rgba(104, 132, 96, 0.72), rgba(150, 178, 132, 0.3));
+  transform-origin: bottom center;
+  animation: pl-weed-sway 5.6s ease-in-out infinite;
+}
+
+@keyframes pl-weed-sway {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+/* 池塘专用整图（用户 m01839 选的那张，928×1664）：铺满，不再 300% 推近 */
+.pond-water-full {
+  background-position: center 46%;
+  background-size: cover;
+  filter: brightness(0.9) saturate(1.08) contrast(1.05);
+}
+
+/* 水面再压一层薄绿，别让水下白成一片（不然鱼看不清） */
+.pond-water-full::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(36, 54, 50, 0) 0%, rgba(30, 52, 48, 0.16) 46%, rgba(24, 44, 42, 0.26) 100%),
+    radial-gradient(120% 80% at 40% 62%, rgba(96, 128, 116, 0.16), transparent 70%);
 }

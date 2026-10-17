@@ -598,6 +598,14 @@ export type AppState = {
    * 写一条日记。`by` 是"谁写的"（2026-10 用户要求："日记他写吧，入口别删，
    * 我要能看到他写的"）—— 界面只给他写的那条挂「他写的」标签；默认按用户写的算。
    */
+  /**
+   * 把花园里（棋桌这种"二级空间"）的对话**并回主对话**。
+   *
+   * 用户 m01840 的原话："这些对话要在上下文里显示出来吧，不然一局下完了，
+   * 我问他，还是不知道"。所以棋桌里说的每句都要落进正在用的那条对话，
+   * 下一轮主对话拼上下文时自然就带上了（`historyForApi` 读的就是这份 messages）。
+   */
+  appendGardenTalk: (turns: Array<{ role: "user" | "assistant"; content: string }>) => void;
   addDiary: (mood: DiaryEntry["mood"], body: string, by?: "ai" | "me") => void;
   /** 改一条日记的正文（改与删的配套，见 `diary.update` 动作） */
   patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"] }) => void;
@@ -851,6 +859,47 @@ export const useApp = create<AppState>()(
             c.id === id ? { ...c, title: title.trim().slice(0, 40) || c.title, updatedAt: Date.now() } : c,
           ),
         })),
+      appendGardenTalk: (turns) => {
+        if (!turns.length) return;
+        const st = get();
+        const now = Date.now();
+        const msgs: ChatMessage[] = turns.map((t, i) => ({
+          id: uid("msg"),
+          role: t.role,
+          content: t.content,
+          thinking: "",
+          thinkingDurationMs: 0,
+          createdAt: now + i,
+        }));
+        const conversationId = st.activeId ?? st.conversations[0]?.id ?? null;
+        if (!conversationId) {
+          // 一条对话都没有（新装的 App）：给花园里这几句单独开一条，别丢
+          const id = uid("chat");
+          set((s) => ({
+            conversations: [
+              {
+                id,
+                title: "花园里说过的",
+                messages: msgs,
+                createdAt: now,
+                updatedAt: now,
+                pinned: false,
+                incognito: false,
+              },
+              ...s.conversations,
+            ],
+            activeId: id,
+          }));
+          return;
+        }
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id !== conversationId
+              ? c
+              : { ...c, updatedAt: now, messages: [...c.messages, ...msgs] },
+          ),
+        }));
+      },
       recordGame: (result) =>
         set((s) => ({
           gameStats: {

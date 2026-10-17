@@ -8,6 +8,7 @@ import { CHESS_EPIGRAPH, GARDEN_BASE } from "@/lib/garden";
 import { aiMove, BOARD, boardFull, emptyBoard, idx, lineOfFive, type Point, type Stone } from "@/lib/gobang";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
+import { stripActions } from "@/lib/use-chat";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,9 +21,15 @@ import { cn } from "@/lib/utils";
  *    显示当前该谁下了，可以留个对战记录"
  *
  * 所以：棋盘只占下半屏，上半屏全是「他和我」的对话空间；
- * 气泡往上长、旧的在遮罩里化掉（样式见 styles.css 的 .qi-col）；
- * 底部输入框随时能跟他说话 —— 走的是**跟主对话同一条上游**（lib/chat-client），
- * 但这条线程只活在棋桌里，不往主对话里塞。
+ * 气泡区能往上翻（用户 m01840：他写得快，看不完就没了）；
+ * 底部输入框随时能跟他说话 —— 走的是**跟主对话同一条上游**（lib/chat-client）。
+ *
+ * ⚠️ 2026-10 用户 m01840 的要求，别再加回来：
+ *   · **不要示例开场对话**（"坐下吧，今天不赶时间"那种）—— 他说的每句都必须是模型真的说的
+ *   · **不要中途随机台词**（每 4 手塞一句 AI_TALK）—— 同上
+ *   · 气泡里**不能出现动作参数**（`{"kind":"emotion.report",…}`、``` 围栏）——
+ *     走 `stripActions` 洗一遍再显示，跟主对话一个规矩
+ *   · 这些对话要**并回主对话**（`appendGardenTalk`），不然一局下完问他，他不知道
  */
 export const Route = createFileRoute("/_app/play/garden/qi")({
   component: ChessTable,
@@ -32,23 +39,6 @@ type Side = "ai" | "me";
 type Bubble = { id: number; side: Side; text: string; streaming?: boolean };
 type Phase = "play" | "win" | "lose" | "draw";
 
-/** 他落子之后偶尔自言自语两句（不接模型，纯粹是"人坐在对面"的感觉） */
-const AI_TALK = [
-  "嗯。",
-  "这手有点意思。",
-  "我在想。",
-  "这儿风大，棋子压得住。",
-  "你别急，我慢慢下。",
-  "我不让了。",
-  "你看那边，花开了。",
-];
-
-const REACTION: Record<Exclude<Phase, "play">, string> = {
-  win: "你赢了。最后那一下我没挡住。",
-  lose: "这局我拿下了 —— 中间有几手你下得挺紧。",
-  draw: "棋盘满了，谁也没连成五子。",
-};
-
 const STARS: Point[] = [
   { r: 3, c: 3 },
   { r: 3, c: 11 },
@@ -57,33 +47,21 @@ const STARS: Point[] = [
   { r: 7, c: 7 },
 ];
 
-/** 开场那几句（一进来就在，不用等模型） */
-const OPENING: Array<{ side: Side; text: string }> = [
-  { side: "ai", text: "坐下吧，今天不赶时间。" },
-  { side: "me", text: "我随便走走就走到这儿了。" },
-  { side: "ai", text: "你先，我执白。" },
-  { side: "me", text: "行，那我不客气了。" },
-];
-
-/** 逐字浮出来（他说的是"文字从左到右逐渐浮现"） */
-function Typed({ text, onDone }: { text: string; onDone: () => void }) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (n >= text.length) {
-      onDone();
-      return;
-    }
-    const t = window.setTimeout(() => setN((v) => v + 1), 26);
-    return () => window.clearTimeout(t);
-  }, [n, text.length, onDone]);
-  const done = n >= text.length;
-  return (
-    <>
-      {text.slice(0, n)}
-      {!done && <span className="qi-caret" />}
-    </>
-  );
+/**
+ * 一局结束该不该开口、说什么 —— 交给模型，不用写死台词。
+ * （只给一句"发生了什么"的提示，不替他编话。）
+ */
+function endingNote(phase: Exclude<Phase, "play">, aiName: string): string {
+  if (phase === "win") return `（这一局我赢了，你连成五子。不用安慰我，说一句就好。）`;
+  if (phase === "lose") return `（这一局${aiName}赢了，他连成五子。说一句就好。）`;
+  return `（棋盘满了，和棋。说一句就好。）`;
 }
+
+/*
+ * 逐字浮现交给上游的流式输出（`d.content` 一块块到）—— 以前这里还有一个
+ * `Typed` 组件做二次打字机，结果是"流完再从第一个字重打一遍"，看着像闪回。
+ * 用户 m01840 说"他写得快、看不完就没了"，所以：字随流出来即可，别再重打。
+ */
 
 function ChessTable() {
   useActivity("在花园的棋桌边下五子棋");
@@ -101,23 +79,23 @@ function ChessTable() {
   const [phase, setPhase] = useState<Phase>("play");
   const [busy, setBusy] = useState(false);
 
-  const [bubbles, setBubbles] = useState<Bubble[]>(() =>
-    OPENING.map((b, i) => ({ id: i, side: b.side, text: b.text })),
-  );
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const nextId = useRef(OPENING.length);
+  const nextId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  /** 气泡区：默认贴着底，往上翻的时候别被新消息拽回去 */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const atBottom = useRef(true);
 
   const aiNameRef = useRef(aiName);
   aiNameRef.current = aiName;
 
-  const push = (side: Side, text: string) =>
-    setBubbles((prev) => {
-      const id = nextId.current++;
-      // 只留最近 12 条：更早的已经在遮罩里化掉了，留着只是白占内存
-      return [...prev, { id, side, text }].slice(-12);
-    });
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [bubbles]);
 
   /**
    * 把棋局 + 刚才的对话同步给感知层。
@@ -182,15 +160,11 @@ function ChessTable() {
     setLast({ r, c });
     setMoves((m) => [...m, { side: "me", r, c }]);
     if (win) {
-      setPhase("win");
-      push("ai", REACTION.win);
-      useApp.getState().recordGame("win");
+      finish("win");
       return;
     }
     if (boardFull(next)) {
-      setPhase("draw");
-      push("ai", REACTION.draw);
-      useApp.getState().recordGame("draw");
+      finish("draw");
       return;
     }
     setBusy(true);
@@ -202,48 +176,71 @@ function ChessTable() {
       setBoard(after);
       setLast(mv);
       setMoves((m) => [...m, { side: "ai", r: mv.r, c: mv.c }]);
-        setBusy(false);
+      setBusy(false);
       if (aiWin) {
-        setPhase("lose");
-        push("ai", REACTION.lose);
-        useApp.getState().recordGame("loss");
+        finish("lose");
         return;
       }
       if (boardFull(after)) {
-        setPhase("draw");
-        push("ai", REACTION.draw);
-        useApp.getState().recordGame("draw");
+        finish("draw");
         return;
       }
-      const n = after.filter((x) => x !== 0).length;
-      if (n % 4 === 0) push("ai", AI_TALK[(n / 2) % AI_TALK.length]!);
     }, 240);
   }
 
-  /** 跟他说话：走主对话那条上游（人设、语气跟主对话一致），只把这一小段历史发过去 */
-  async function send() {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setDraft("");
-    push("me", text);
+  /**
+   * 一局结束：记账 + **让他说一句真的**。
+   * 以前这里写死了三句台词（REACTION），用户 m01840 明确不要那种"手写的旁白"。
+   */
+  function finish(p: Exclude<Phase, "play">) {
+    setPhase(p);
+    useApp.getState().recordGame(p === "win" ? "win" : p === "lose" ? "loss" : "draw");
+    window.setTimeout(() => {
+      void talk({ note: endingNote(p, aiNameRef.current) });
+    }, 420);
+  }
+
+  /**
+   * 跟他说一句（`text`），或者只让他对某件事开口（`note`，不显示成你的话）。
+   *
+   * 显示出去的文字先过 `stripActions`：模型爱在正文后面挂一段
+   * `{"kind":"emotion.report",…}`，主对话里早洗掉了，棋桌这边以前没洗，
+   * 用户 m01839 的截图里就漏出来一大坨参数。
+   */
+  async function talk({ text, note }: { text?: string; note?: string }) {
+    if (sending) return;
+    const said = text?.trim();
+    if (!said && !note) return;
+    if (said) setDraft("");
+    if (said) {
+      const meId = nextId.current++;
+      setBubbles((prev) => [...prev, { id: meId, side: "me" as const, text: said }].slice(-60));
+    }
 
     const st = useApp.getState();
     const setting = st.settings;
     const history = bubbles
-      .filter((b) => !b.streaming)
-      .slice(-6)
-      .map((b) => ({ role: b.side === "me" ? ("user" as const) : ("assistant" as const), content: b.text }));
+      .filter((b) => !b.streaming && b.text)
+      .slice(-14)
+      .map((b) => ({
+        role: b.side === "me" ? ("user" as const) : ("assistant" as const),
+        content: b.text,
+      }));
 
     const bubbleId = nextId.current++;
-    setBubbles((prev) => [...prev, { id: bubbleId, side: "ai" as const, text: "", streaming: true }].slice(-12));
+    setBubbles((prev) =>
+      [...prev, { id: bubbleId, side: "ai" as const, text: "", streaming: true }].slice(-60),
+    );
     setSending(true);
 
     const ac = new AbortController();
     abortRef.current = ac;
     let acc = "";
+    /** 这一轮是不是"上游没通/报错"——那种提示不该当成他说的话存进主对话 */
+    let failed = false;
     const req: ChatRequest = {
       model: st.model,
-      messages: [...history, { role: "user", content: text }],
+      messages: [...history, { role: "user", content: said || note || "" }],
       style: setting.replyStyle,
       tools: [],
       customBaseUrl: setting.customBaseUrl || undefined,
@@ -264,7 +261,11 @@ function ChessTable() {
                 .map((m) => `${m.side === "me" ? "你" : "我"}在${"ABCDEFGHIJKLMNO"[m.c] ?? "?"}${m.r + 1}落子`)
                 .join("，")}；`
             : "还没落子；") +
-          (phase === "play" ? (board.filter((x) => x !== 0).length % 2 === 0 ? "轮到你落子。" : "轮到我落子。") : "这局已经结束。"),
+          (phase === "play"
+            ? board.filter((x) => x !== 0).length % 2 === 0
+              ? "轮到你落子。"
+              : "轮到我落子。"
+            : "这局已经结束。"),
         now: new Date().toLocaleString("zh-CN"),
       },
       permissions: setting.permissions,
@@ -276,15 +277,16 @@ function ChessTable() {
         (d) => {
           if (d.error) {
             // 一句人话直接落进气泡（没接模型 / 上游报错都是这条路）
+            failed = true;
             acc = acc || d.error;
             setBubbles((prev) =>
-              prev.map((b) => (b.id === bubbleId ? { ...b, text: acc } : b)),
+              prev.map((b) => (b.id === bubbleId ? { ...b, text: stripActions(acc) } : b)),
             );
           }
           if (d.content) {
             acc += d.content;
             setBubbles((prev) =>
-              prev.map((b) => (b.id === bubbleId ? { ...b, text: acc } : b)),
+              prev.map((b) => (b.id === bubbleId ? { ...b, text: stripActions(acc) } : b)),
             );
           }
           if (d.done) {
@@ -300,15 +302,27 @@ function ChessTable() {
     } finally {
       setSending(false);
       abortRef.current = null;
-      setBubbles((prev) => prev.map((b) => (b.id === bubbleId ? { ...b, streaming: false } : b)));
+      const clean = stripActions(acc).trim();
+      setBubbles((prev) =>
+        prev
+          .map((b) => (b.id === bubbleId ? { ...b, text: clean, streaming: false } : b))
+          .filter((b) => b.side === "me" || b.text),
+      );
+      // 并回主对话：一局下完，主对话里问他"刚才那局怎么样"他要答得出来
+      // （没接模型/报错的那种提示不算他说的话，不落库）
+      if (clean && !failed) {
+        useApp.getState().appendGardenTalk([
+          ...(said ? [{ role: "user" as const, content: said }] : []),
+          { role: "assistant" as const, content: clean },
+        ]);
+      }
     }
   }
 
+  const send = () => void talk({ text: draft });
+
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const aiBubs = bubbles.filter((b) => b.side === "ai");
-  const meBubs = bubbles.filter((b) => b.side === "me");
-  const lastAi = aiBubs[aiBubs.length - 1];
   const lastN = BOARD - 1;
   const round = stats.win + stats.loss + stats.draw + 1;
 
@@ -356,29 +370,30 @@ function ChessTable() {
         <p className="cn">{CHESS_EPIGRAPH.cn}</p>
       </div>
 
-      {/* 他的气泡（左，从下往上长） */}
-      <div className="qi-col qi-col-ai" aria-live="polite">
-        {aiBubs.map((b) => (
-          <div key={b.id} className="qi-bub">
-            {b.id === lastAi?.id && !b.streaming && b.text ? (
-              <Typed text={b.text} onDone={() => undefined} />
-            ) : (
-              <>
-                {b.text}
-                {b.streaming && <span className="qi-caret" />}
-              </>
-            )}
+      {/*
+        一条时间线，左右分边；**能往上翻**（用户 m01840：他写得又快又多，
+        看不及就被顶走了）。默认贴底，翻上去之后就不再被新消息拽回底部。
+      */}
+      <div
+        className="qi-scroll"
+        aria-live="polite"
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 28;
+        }}
+      >
+        {bubbles.map((b) => (
+          <div key={b.id} className={cn("qi-row", b.side === "me" ? "qi-row-me" : "qi-row-ai")}>
+            <div className="qi-bub">
+              {b.text}
+              {b.streaming && <span className="qi-caret" />}
+            </div>
           </div>
         ))}
-      </div>
-
-      {/* 我的气泡（右） */}
-      <div className="qi-col qi-col-me">
-        {meBubs.map((b) => (
-          <div key={b.id} className="qi-bub">
-            {b.text}
-          </div>
-        ))}
+        {bubbles.length === 0 && (
+          <p className="qi-hint">棋盘摆好了。落子，或者先说句话。</p>
+        )}
       </div>
 
       {/* 两个头像 */}

@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FishArt, JunkArt } from "@/components/play/garden-art";
-import { GARDEN_BASE } from "@/lib/garden";
+import { PondLife } from "@/components/play/pond-life";
+import { GARDEN_POND } from "@/lib/garden";
 import {
   DEFAULT_MOOD,
   findSpecies,
@@ -134,8 +135,10 @@ function StagnoView() {
 
   return (
     <div className="pond fixed inset-0 z-40 overflow-hidden">
-      {/* 水面：粉图右下角那片海湾推近（换图只覆盖 public/garden/base.jpg） */}
-      <div className="pond-water" style={{ backgroundImage: `url(${GARDEN_BASE})` }} aria-hidden="true" />
+      {/* 水面：池塘专用整图（用户 m01839 选的 B 版，换图只覆盖 public/garden/pond-b.jpg） */}
+      <div className="pond-water pond-water-full" style={{ backgroundImage: `url(${GARDEN_POND})` }} aria-hidden="true" />
+      {/* 水下的鱼 / 漂的花瓣 / 水草 / 荷叶；咬钩前那条鱼会游到浮漂边上 */}
+      <PondLife curious={phase.kind === "nibble" || phase.kind === "sink" || phase.kind === "taut"} />
       <div className="pond-shimmer" aria-hidden="true" />
 
       {/* 涟漪：三层错开循环 + 点水面时的一次性圈 */}

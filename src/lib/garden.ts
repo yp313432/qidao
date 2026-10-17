@@ -17,6 +17,15 @@
 /** 底图（`public/garden/base.jpg`）。换图就是换这个文件，代码不用改。 */
 export const GARDEN_BASE = "/garden/base.jpg";
 
+/**
+ * 池塘专用的水面底图（`public/garden/pond-b.jpg`，928×1664）。
+ *
+ * 为什么单独一张：用户 m01839 看预览时选了 B（石栏爬玫瑰 + 柏树 + 木栈桥那版），
+ * 说"池塘风格单独一张"比把花园图右下角推近当水面好。
+ * 换图同样是换文件就行；水面的范围在 `components/play/pond-life.tsx` 的 `WATER` 里改。
+ */
+export const GARDEN_POND = "/garden/pond-b.jpg";
+
 export type GardenSpot = {
   id: string;
   /** 中文名（题字主行） */
