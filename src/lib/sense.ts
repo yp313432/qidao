@@ -10,7 +10,9 @@ import {
   sensePlace,
   senseScreen,
   senseTime,
+  senseUsage,
   SENSE_PLACE_SWITCH_FIX,
+  SENSE_SETTINGS_FIX,
   type DeviceFacts,
   type ForegroundFacts,
   type NotificationFacts,
@@ -18,6 +20,7 @@ import {
   type Reading,
   type SenseKind,
   type SenseOutcome,
+  type UsageFacts,
 } from "@/lib/sense-core";
 import { useApp } from "@/lib/store";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
@@ -199,6 +202,54 @@ async function readForeground(): Promise<Reading<ForegroundFacts>> {
   }
 }
 
+async function readUsage(days: number): Promise<Reading<UsageFacts>> {
+    const n = await nativeSense();
+    if (!n) {
+      return {
+        ok: false,
+        gap: "web",
+        detail: "看屏幕使用时长要装成 App（网页版读不到系统的使用情况）",
+      };
+    }
+    try {
+      /**
+       * 原生回执跟 `foreground()` 一个口径：`granted === false` 才是真的没授权，
+       * 授权了但没数据是 `gap: "error"`、**不带 fix**（不然他会去开一个已经开着的开关）。
+       */
+      const r = await n.api.usage({ days });
+      if (r.granted === false) {
+        return {
+          ok: false,
+          gap: "permission",
+          detail: (r.reason ?? "").trim() || "还没打开「使用情况访问」",
+          fix: SENSE_SETTINGS_FIX.foreground,
+        };
+      }
+      const apps = (r.apps ?? [])
+        .map((a) => ({
+          app: String(a.app ?? "").trim() || String(a.package ?? ""),
+          package: String(a.package ?? ""),
+          ms: Math.max(0, Math.round(Number(a.ms ?? 0))),
+        }))
+        .filter((a) => a.package && a.ms > 0)
+        .sort((a, b) => b.ms - a.ms);
+      const totalMs = Math.max(
+        0,
+        Math.round(Number(r.totalMs ?? 0)) || apps.reduce((sum, a) => sum + a.ms, 0),
+      );
+      if (apps.length === 0) {
+        return {
+          ok: false,
+          gap: "error",
+          detail: (r.reason ?? "").trim() || "系统这次没给出用量数据",
+        };
+      }
+      return { ok: true, value: { days, totalMs, apps } };
+    } catch (e) {
+      return { ok: false, gap: "error", detail: errText(e) };
+    }
+  }
+
 async function readScreen(): Promise<Reading<{ interactive: boolean; locked: boolean }>> {
   const n = await nativeSense();
   if (!n) {
@@ -226,7 +277,7 @@ async function readScreen(): Promise<Reading<{ interactive: boolean; locked: boo
  */
 export async function runSenseAction(
   kind: SenseKind,
-  opts: { fresh?: boolean } = {},
+  opts: { fresh?: boolean; days?: number } = {},
 ): Promise<string> {
   try {
     switch (kind) {
@@ -240,6 +291,14 @@ export async function runSenseAction(
         return renderSense(senseNotifications(await readNotifications()));
       case "sense.foreground":
         return renderSense(senseForeground(await readForeground()));
+      case "sense.usage": {
+        /**
+         * `days` 只收 1 / 7（模型可能传别的小数）—— 别的一律按今天算，
+         * 免得它传个 30 把系统 UsageStats 的 7 天窗口撑爆。
+         */
+        const days = opts.days === 7 ? 7 : 1;
+        return renderSense(senseUsage(await readUsage(days)));
+      }
       case "sense.screen":
         return renderSense(senseScreen(await readScreen()));
       default: {

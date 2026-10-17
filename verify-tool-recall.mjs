@@ -160,6 +160,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["sense.place", "感知"],
   ["sense.notifications", "感知"],
   ["sense.foreground", "感知"],
+  ["sense.usage", "感知"],
   ["sense.screen", "感知"],
 ];
 
@@ -177,8 +178,9 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * 用户定的"动态空间改仿微信朋友圈"；跟 `verify-action-registry.mjs` 的
  * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
+ * → **81**（2026-11 加 `sense.usage`：AI 主动查屏幕使用时长，不配页面）。
  */
-const EXPECTED_TOTAL = 80;
+const EXPECTED_TOTAL = 81;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */

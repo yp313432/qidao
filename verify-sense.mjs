@@ -1,5 +1,5 @@
 /**
- * 验收脚本：**主动感知那六个动作**（`sense.*`）—— 纯 node，不起浏览器、不连外网。
+ * 验收脚本：**主动感知那七个动作**（`sense.*`）—— 纯 node，不起浏览器、不连外网。
  *
  * 用户的原话（这一轮要兑现的东西）：
  *   "他现在只能感知，没有办法接到回执……所有的都是被动接收的，而不是主动去用这些权限。"
@@ -13,7 +13,7 @@
  * 那一半（真机那半边见报告里的「必须装机才能验」清单）。
  *
  * 断言分七组：
- *   【A】结构：六个 kind 齐全、跟 `action-schema.ts` 一致、注册策略（A 组常驻 / B 组按需）
+ *   【A】结构：七个 kind 齐全、跟 `action-schema.ts` 一致、注册策略（A 组常驻 / B 组按需）
  *   【B】每个动作的结果里都有 `summary`（成功、失败**都要有**），且渲染成合法的一行 JSON
  *   【C】网页版（没有原生插件）：**如实失败或如实跳过**，绝不编数据、绝不崩
  *   【D】B 组权限没给时：提示里必须有「设置」（而且要指到那一个具体页面）
@@ -42,6 +42,8 @@ const {
   sensePlace,
   senseNotifications,
   senseForeground,
+  senseUsage,
+  humanDuration,
   senseScreen,
   renderSense,
   notificationsReading,
@@ -134,21 +136,21 @@ function checkOutcome(label, outcome) {
 
 /* ══════════════════════ 【A】结构 + 注册策略 ══════════════════════ */
 
-console.log("【A】结构：六个 kind / 跟动作注册表一致 / 谁常驻谁按需");
+console.log("【A】结构：七个 kind / 跟动作注册表一致 / 谁常驻谁按需");
 check(
   "sense-core.ts 依然是**零 import**（纯 node 直接 import 的前提）",
   !/^\s*import\s/m.test(CORE_SRC),
   (CORE_SRC.match(/^\s*import\s.*$/m) ?? [""])[0].trim(),
 );
 check(
-  `SENSE_KINDS 恰好六个、无重复：${SENSE_KINDS.length} 个`,
-  Array.isArray(SENSE_KINDS) && SENSE_KINDS.length === 6 && new Set(SENSE_KINDS).size === 6,
+  `SENSE_KINDS 恰好七个、无重复：${SENSE_KINDS.length} 个`,
+  Array.isArray(SENSE_KINDS) && SENSE_KINDS.length === 7 && new Set(SENSE_KINDS).size === 7,
   j(SENSE_KINDS),
 );
 check(
-  "A 组（零权限）= time/device/place；B 组（要系统权限）= notifications/foreground/screen",
+  "A 组（零权限）= time/device/place；B 组（要系统权限）= notifications/foreground/usage/screen",
   SENSE_KINDS_CHEAP.length === 3 &&
-    SENSE_KINDS_SYSTEM.length === 3 &&
+    SENSE_KINDS_SYSTEM.length === 4 &&
     SENSE_KINDS_CHEAP.every((k) => !SENSE_KINDS_SYSTEM.includes(k)) &&
     [...SENSE_KINDS_CHEAP, ...SENSE_KINDS_SYSTEM].join("|") === [...SENSE_KINDS].join("|"),
   j({ cheap: SENSE_KINDS_CHEAP, system: SENSE_KINDS_SYSTEM }),
@@ -162,7 +164,7 @@ check(
   `源码 ${j(schemaSense)} vs core ${j([...SENSE_KINDS])}`,
 );
 check(
-  "六个都注册进了三边（types.ts / action-meta.ts 的权限表 / actions.ts 的 case）",
+  "七个都注册进了三边（types.ts / action-meta.ts 的权限表 / actions.ts 的 case）",
   [...SENSE_KINDS].every(
     (k) =>
       TYPES_SRC.includes(`kind: "${k}"`) &&
@@ -366,13 +368,14 @@ check(
   badSummaries.slice(0, 3).join(" ｜ "),
 );
 check(
-  "六个 kind 每一个都有自己的 result 函数（没有漏写）",
+  "七个 kind 每一个都有自己的 result 函数（没有漏写）",
   [
     "senseTime",
     "senseDevice",
     "sensePlace",
     "senseNotifications",
     "senseForeground",
+    "senseUsage",
     "senseScreen",
   ].every((f) => typeof core[f] === "function"),
 );
@@ -383,6 +386,46 @@ checkOutcome("sense.place(成功)", sensePlace({ ok: true, value: { label: "北�
 checkOutcome("sense.notifications(权限缺失)", senseNotifications({ ok: false, gap: "permission", detail: "还没打开「通知使用权」" }));
 checkOutcome("sense.screen(成功)", senseScreen({ ok: true, value: { interactive: false, locked: true } }));
 checkOutcome("sense.time(成功)", senseTime({ now: NOW, lastUserAt: NOW - 3 * 3600_000 }));
+
+/* ── 屏幕使用时长（用户 2026-11：「想知道我一天每个 app 用了多久」）── */
+const USAGE_OK = {
+  ok: true,
+  value: {
+    days: 1,
+    totalMs: 3 * 3600_000 + 12 * 60_000,
+    apps: [
+      { app: "微信", package: "com.tencent.mm", ms: 52 * 60_000 },
+      { app: "栖岛", package: "com.yanping.qidao", ms: 47 * 60_000 },
+    ],
+  },
+};
+checkOutcome("sense.usage(成功)", senseUsage(USAGE_OK));
+checkOutcome("sense.usage(网页版失败)", senseUsage({ ok: false, gap: "web", detail: "网页版读不到" }));
+checkOutcome(
+  "sense.usage(没授权)",
+  senseUsage({ ok: false, gap: "permission", detail: "还没打开「使用情况访问」" }),
+);
+checkOutcome("sense.usage(空数据)", senseUsage({ ok: true, value: { days: 1, totalMs: 0, apps: [] } }));
+check(
+  "sense.usage：成功时 summary 说清「今天一共亮了多久」和最费时的 App",
+  /今天/.test(senseUsage(USAGE_OK).summary) &&
+    /3 小时 12 分钟/.test(senseUsage(USAGE_OK).summary) &&
+    /微信 52 分钟/.test(senseUsage(USAGE_OK).summary),
+  senseUsage(USAGE_OK).summary,
+);
+check(
+  "sense.usage：没授权时**必须**给出设置页路径（绝不静默）",
+  /使用情况访问/.test(senseUsage({ ok: false, gap: "permission", detail: "x" }).fix ?? ""),
+  j(senseUsage({ ok: false, gap: "permission", detail: "x" }).fix),
+);
+check(
+  "humanDuration 说人话（不到 1 分钟 / 52 分钟 / 1 小时 / 3 小时 12 分钟）",
+  humanDuration(20_000) === "不到 1 分钟" &&
+    humanDuration(52 * 60_000) === "52 分钟" &&
+    humanDuration(3600_000) === "1 小时" &&
+    humanDuration(3 * 3600_000 + 12 * 60_000) === "3 小时 12 分钟",
+  [humanDuration(20_000), humanDuration(52 * 60_000), humanDuration(3600_000), humanDuration(3 * 3600_000 + 12 * 60_000)].join(" / "),
+);
 
 /* ═══════════════ 【C】网页版（没有原生插件）：如实失败/跳过 ═══════════════ */
 
@@ -399,7 +442,9 @@ for (const kind of SENSE_KINDS_SYSTEM) {
       ? senseNotifications(reading)
       : kind === "sense.foreground"
         ? senseForeground(reading)
-        : senseScreen(reading);
+        : kind === "sense.usage"
+          ? senseUsage(reading)
+          : senseScreen(reading);
   check(
     `${kind}：网页版 → ok:false + 明说网页版没有这个能力`,
     outcome.ok === false && outcome.reason === "web" && outcome.summary.includes("网页版"),
@@ -923,7 +968,7 @@ note(
 );
 note(
   "网页版降级策略（用户给的两条路里选了哪条）",
-  "照旧注册这六个；调用时 B 组返回 ok:false + 网页版没有这个能力，A 组的 device 只报网页真知道的那半（电量绝不编）",
+  "照旧注册这七个；调用时 B 组返回 ok:false + 网页版没有这个能力，A 组的 device 只报网页真知道的那半（电量绝不编）",
 );
 
 console.log(`\n${"─".repeat(72)}`);

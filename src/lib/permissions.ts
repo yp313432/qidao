@@ -105,7 +105,14 @@ export const PERMISSIONS: PermissionDef[] = [
    */
   { id: "read_screen", title: "屏幕状态", hint: "屏幕亮不亮、锁没锁（装了 App 才有）", risk: "L0", status: "system", group: "sense" },
   { id: "read_notifications", title: "读系统通知", hint: "最近几条通知是谁发的（要系统「通知使用权」）", risk: "L2", status: "system", group: "sense" },
-  { id: "read_usage", title: "看你在用哪个 App", hint: "当前前台是哪个应用（要系统「使用情况访问」）", risk: "L2", status: "system", group: "sense" },
+  {
+    id: "read_usage",
+    title: "看你在用哪个 App",
+    hint: "当前前台是哪个应用 / 今天每个 App 用了多久（要系统「使用情况访问」）",
+    risk: "L2",
+    status: "system",
+    group: "sense",
+  },
 
   // ---------------- 界面与外观（L1） ----------------
   { id: "navigate", title: "切换页面", hint: "它可以带你跳到某个页面", risk: "L1", status: "ready", group: "ui" },

@@ -23,13 +23,14 @@
  * 跟 `tool-select.ts` 同一个套路：**纯函数 + 注入事实**（这里注入的是 `Reading`）。
  */
 
-/** 六个感知动作的 kind（跟 `action-schema.ts` 的注册保持一致）。 */
+/** 七个感知动作的 kind（跟 `action-schema.ts` 的注册保持一致）。 */
 export type SenseKind =
   | "sense.time"
   | "sense.device"
   | "sense.place"
   | "sense.notifications"
   | "sense.foreground"
+  | "sense.usage"
   | "sense.screen";
 
 /** A 组：零权限（网页版也有，或至少能如实说清少了什么）。 */
@@ -39,6 +40,8 @@ export const SENSE_KINDS_CHEAP: SenseKind[] = ["sense.time", "sense.device", "se
 export const SENSE_KINDS_SYSTEM: SenseKind[] = [
   "sense.notifications",
   "sense.foreground",
+  /** 屏幕使用时长跟"前台是哪个 App"同源（UsageStats），同一项权限 `read_usage` */
+  "sense.usage",
   "sense.screen",
 ];
 
@@ -419,7 +422,66 @@ export function foregroundReading(r: {
   };
 }
 
-/* ─────────────────────────── 6. 屏幕亮着没 ─────────────────────────── */
+/* ─────────────────── 6. 今天每个 App 用了多久（屏幕时长）─────────────────── */
+
+export type UsageAppFact = { app: string; package: string; ms: number };
+
+export type UsageFacts = {
+  /** 统计窗口：1 = 今天、7 = 最近 7 天 */
+  days: number;
+  /** 窗口内所有 App 的前台时长之和（≈ 屏幕亮着的时长） */
+  totalMs: number;
+  /** 按时长降序；接线层已经排好，这里不再排 */
+  apps: UsageAppFact[];
+};
+
+/** 毫秒 → 人话（`3 小时 12 分钟` / `52 分钟` / `不到 1 分钟`） */
+export function humanDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms));
+  const mins = Math.round(total / 60000);
+  if (mins < 1) return "不到 1 分钟";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m} 分钟`;
+  if (m === 0) return `${h} 小时`;
+  return `${h} 小时 ${m} 分钟`;
+}
+
+/**
+ * 屏幕使用时长 → 一句话 + 结构化字段。
+ *
+ * 用户 2026-11 的原话："我还加个功能，就是能看到屏幕使用时长，
+ * 就是知道我一天每个app用了多久那个"；后来补一句"不必直接搬到栖岛上，
+ * 我自己完全可以在手机上看" —— 所以这个能力只做成**他能主动查**的动作，
+ * 不配页面。结果里给 `apps` 数组（他后面还能追问"微信用了多久"）。
+ */
+export function senseUsage(r: Reading<UsageFacts>): SenseOutcome {
+  if (!r.ok) return gapOutcome(r.gap, r.detail, r.fix ?? SENSE_SETTINGS_FIX.foreground);
+  const { days, totalMs, apps } = r.value;
+  const when = days > 1 ? `最近 ${days} 天` : "今天";
+  const top = apps
+    .slice(0, 5)
+    .map((a) => `${a.app} ${humanDuration(a.ms)}`)
+    .join("、");
+  if (apps.length === 0 || totalMs <= 0) {
+    return {
+      ok: true,
+      days,
+      totalMs: 0,
+      apps: [],
+      summary: `${when}还没记录到任何 App 的前台时长（可能刚过零点，或者「使用情况访问」刚打开）`,
+    };
+  }
+  return {
+    ok: true,
+    days,
+    totalMs,
+    apps: apps.slice(0, 12),
+    summary: `${when}手机一共亮了 ${humanDuration(totalMs)}${top ? `；用得最多的是：${top}` : ""}`,
+  };
+}
+
+/* ─────────────────────── 7. 屏幕亮着没 ─────────────────────── */
 
 export type ScreenFacts = { interactive: boolean; locked: boolean };
 

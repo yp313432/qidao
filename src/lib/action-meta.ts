@@ -126,6 +126,8 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
    *   · 屏幕亮没亮        → `read_screen`（L0；网页版拿不到，装了 App 才有）
    *   · 最近的通知        → `read_notifications`（L2 + 系统「通知使用权」）
    *   · 前台是哪个 App    → `read_usage`（L2 + 系统「使用情况访问」）
+   *   · 屏幕用了多久      → 同 `read_usage`（跟"前台是哪个 App"同一个系统数据源，
+   *     不单开一项权限：能读到前台，就一定读得到时长）
    */
   "sense.time": "read_device",
   "sense.device": "read_device",
@@ -133,6 +135,7 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "sense.screen": "read_screen",
   "sense.notifications": "read_notifications",
   "sense.foreground": "read_usage",
+  "sense.usage": "read_usage",
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
@@ -313,6 +316,8 @@ export function actionTitle(action: AppAction): string {
       return "看一眼最近的通知";
     case "sense.foreground":
       return "看一眼前台在用什么 App";
+    case "sense.usage":
+      return "看一眼今天每个 App 用了多久";
     case "sense.screen":
       return "看一眼屏幕状态";
   }

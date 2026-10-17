@@ -994,6 +994,12 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return await runSenseAction("sense.notifications");
     case "sense.foreground":
       return await runSenseAction("sense.foreground");
+    case "sense.usage":
+      /**
+       * 屏幕使用时长（`verify-action-registry.mjs` 对账：这里**必须真的读** `action.days`，
+       * 否则 schema 里那个字段就成了摆设）。1 = 今天、7 = 最近 7 天，别的值当今天。
+       */
+      return await runSenseAction("sense.usage", { days: action.days });
     case "sense.screen":
       return await runSenseAction("sense.screen");
 

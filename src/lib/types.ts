@@ -1160,6 +1160,16 @@ export type FeatureId =
   | { kind: "sense.place"; /** true = 现在就真查一次（跳过缓存）；给用户说"刷新/实时"时用 */ fresh?: boolean }
   | { kind: "sense.notifications" }
   | { kind: "sense.foreground" }
+  | {
+      kind: "sense.usage";
+      /**
+       * 统计窗口：1 = 今天（默认，从本地 0 点起算）、7 = 最近 7 天。
+       * 用户原话（2026-11）："我还加个功能，就是能看到屏幕使用时长，
+       * 就是知道我一天每个app用了多久那个" —— 后来确认他要的是**他自己能查到**，
+       * 不一定要在 App 里做一页界面，所以这里是 AI 主动查的入口。
+       */
+      days?: number;
+    }
   | { kind: "sense.screen" };
 
 /** 一条「用户在干什么」的记录。 */

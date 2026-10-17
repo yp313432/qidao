@@ -736,6 +736,19 @@ export const ACTION_SCHEMA = [
     fields: [],
   },
   {
+    kind: "sense.usage",
+    group: "感知",
+    summary: "看一眼今天每个 App 用了多久",
+    fields: [
+      {
+        name: "days",
+        type: "number",
+        required: false,
+        note: "填 1 是今天（默认，从 0 点起算）、填 7 是最近 7 天；他说「这一周」「最近几天」才填 7，平时别填。",
+      },
+    ],
+  },
+  {
     kind: "sense.screen",
     group: "感知",
     summary: "看一眼屏幕亮着没、锁没锁",
