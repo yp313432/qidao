@@ -31,7 +31,12 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * **「看一眼系统状态」的原生入口** —— 跟 `src/lib/sense-bridge.ts`（JS 侧）
@@ -44,6 +49,7 @@ import java.util.List;
  *   screen()        屏幕亮不亮、锁没锁          ← sense.screen（不需要权限）
  *   notifications() 最近几条通知                ← sense.notifications（要「通知使用权」）
  *   foreground()    当前前台是哪个 App          ← sense.foreground（要「使用情况访问」）
+ *   usage()         今天每个 App 用了多久        ← 屏幕时间页（同一项权限，不额外要）
  *   diag()          上面那些权限的**原始事实**  ← 「环境自检」页（用户能截图发回来）
  *   openSettings()  一键跳到那个特殊权限页      ← 同上（那两级菜单各家 ROM 还不一样）
  *   （`sense.time` 和 `sense.place` 不走这里：一个纯 JS 就能算，
@@ -393,6 +399,107 @@ public class SenseBridgePlugin extends Plugin {
     if (type == UsageEvents.Event.MOVE_TO_FOREGROUND) return true;
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         && type == UsageEvents.Event.ACTIVITY_RESUMED;
+  }
+
+  /* ──────────────────── 4b. 今天每个 App 用了多久 ──────────────────── */
+
+  /**
+   * 屏幕使用时长：今天（或最近 N 天）每个 App 在前台待了多久。
+   *
+   * 用户原话（2026-11）："我还加个功能，就是能看到屏幕使用时长，就是知道我一天
+   * 每个 app 用了多久那个"。
+   *
+   * 数据源就是「使用情况访问」那份 UsageStats —— 跟 `foreground()` **同一项权限**，
+   * 不需要再多要任何权限（他当年开这项权限想看的其实就是这些）。
+   *
+   * ⚠️ 三个坑（都是这份数据本身的形状决定的）：
+   *   1. `queryUsageStats(INTERVAL_DAILY, …)` 是**按天分桶**的，桶从本地 0 点开始。
+   *      所以「今天」直接传 [今天 0 点, 现在]，**不要**用「现在往前推 24 小时」——
+   *      那会把昨天的桶也算进来（用户要的是"一天"）。
+   *   2. 同一个包可能回多个桶（跨天、跨配置变更），必须**按包名合并**
+   *      `getTotalTimeInForeground()`，不能直接一条一条上（会看到同一个 App 出现两次）。
+   *   3. 没权限**不许 reject**：返回 `granted:false` + 一句人话，跟 `foreground()` 一致 ——
+   *      reject 到模型那边就变成"我做不到"，而用户需要知道的是去开哪个开关。
+   */
+  @PluginMethod
+  public void usage(PluginCall call) {
+    JSObject ret = new JSObject();
+    if (!usageAccessGranted()) {
+      ret.put("granted", false);
+      ret.put("reason", "还没打开「使用情况访问」");
+      call.resolve(ret);
+      return;
+    }
+    ret.put("granted", true);
+
+    Integer daysArg = call.getInt("days", 1);
+    int days = daysArg == null ? 1 : daysArg;
+    if (days < 1) days = 1;
+    if (days > 30) days = 30;
+
+    long now = System.currentTimeMillis();
+    long from = startOfDaysAgo(days);
+    ret.put("from", from);
+    ret.put("to", now);
+
+    Map<String, Long> byPkg = new HashMap<>();
+    long total = 0;
+    try {
+      UsageStatsManager usm =
+          (UsageStatsManager) getContext().getSystemService(Context.USAGE_STATS_SERVICE);
+      List<UsageStats> stats =
+          usm == null ? null : usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, from, now);
+      if (stats != null) {
+        for (UsageStats s : stats) {
+          if (s == null) continue;
+          String pkg = s.getPackageName();
+          long ms = s.getTotalTimeInForeground();
+          if (pkg == null || ms <= 0) continue;
+          Long prev = byPkg.get(pkg);
+          byPkg.put(pkg, (prev == null ? 0L : prev) + ms);
+          total += ms;
+        }
+      }
+    } catch (Exception e) {
+      // 读失败也要把已拿到的那部分给他（不要因为一条坏数据整页空掉）
+      ret.put("reason", "有一部分读不到：" + e.getMessage());
+    }
+
+    List<Map.Entry<String, Long>> sorted = new ArrayList<>(byPkg.entrySet());
+    Collections.sort(
+        sorted,
+        new java.util.Comparator<Map.Entry<String, Long>>() {
+          @Override
+          public int compare(Map.Entry<String, Long> a, Map.Entry<String, Long> b) {
+            return Long.compare(b.getValue(), a.getValue());
+          }
+        });
+
+    JSArray apps = new JSArray();
+    int limit = Math.min(sorted.size(), 40);
+    for (int i = 0; i < limit; i++) {
+      Map.Entry<String, Long> e = sorted.get(i);
+      JSObject item = new JSObject();
+      item.put("package", e.getKey());
+      item.put("app", appLabel(e.getKey()));
+      item.put("ms", e.getValue());
+      apps.put(item);
+    }
+    ret.put("apps", apps);
+    ret.put("appCount", sorted.size());
+    ret.put("totalMs", total);
+    call.resolve(ret);
+  }
+
+  /** N 天前那一天的 0 点（`days=1` 就是今天 0 点）—— 按天分桶的起点必须落在 0 点 */
+  private static long startOfDaysAgo(int days) {
+    Calendar cal = Calendar.getInstance();
+    cal.set(Calendar.HOUR_OF_DAY, 0);
+    cal.set(Calendar.MINUTE, 0);
+    cal.set(Calendar.SECOND, 0);
+    cal.set(Calendar.MILLISECOND, 0);
+    cal.add(Calendar.DAY_OF_YEAR, -(days - 1));
+    return cal.getTimeInMillis();
   }
 
   /* ──────────────── 5. 自检：这两项特殊权限的原始事实 ──────────────── */

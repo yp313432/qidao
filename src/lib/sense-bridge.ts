@@ -51,6 +51,23 @@ export type SenseBridgeApi = {
     reason?: string;
   }>;
   /**
+   * 屏幕使用时长：每个 App 在前台待了多久（要「使用情况访问」——跟 `foreground()` 同一项）。
+   *
+   * 用户原话（2026-11）："我还加个功能，就是能看到屏幕使用时长，
+   * 就是知道我一天每个app用了多久那个"。
+   *
+   * `days`：1 = 今天（从本地 0 点起算），7 = 最近 7 天。原生那边按包名合并好、
+   * 按毫秒降序排好、最多 40 条；这里只负责如实转达（不重排、不再加口径）。
+   */
+  usage: (o?: { days?: number }) => Promise<{
+    granted?: boolean;
+    reason?: string;
+    from?: number;
+    to?: number;
+    totalMs?: number;
+    apps?: { package?: string; app?: string; ms?: number }[];
+  }>;
+  /**
    * 自检：那两项**特殊权限**的原始事实（老包没这个方法 → 调用会 reject，被下面兜住）。
    * 加它的原因：用户 2026-11 真机实测"权限都打开了还是不行" —— 靠猜没用，要原始数据。
    */

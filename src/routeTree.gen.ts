@@ -38,6 +38,7 @@ import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
 import { Route as AppPlayLearnRouteImport } from './routes/_app/play.learn'
 import { Route as AppPlayListenRouteImport } from './routes/_app/play.listen'
 import { Route as AppPlayPlayerRouteImport } from './routes/_app/play.player'
+import { Route as AppPlayScreenTimeRouteImport } from './routes/_app/play.screen-time'
 import { Route as AppPlayShiganRouteImport } from './routes/_app/play.shigan'
 import { Route as AppPlayTodoRouteImport } from './routes/_app/play.todo'
 import { Route as AppToolsIndexRouteImport } from './routes/_app/tools/index'
@@ -207,6 +208,11 @@ const AppPlayPlayerRoute = AppPlayPlayerRouteImport.update({
   path: '/player',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayScreenTimeRoute = AppPlayScreenTimeRouteImport.update({
+  id: '/screen-time',
+  path: '/screen-time',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayShiganRoute = AppPlayShiganRouteImport.update({
   id: '/shigan',
   path: '/shigan',
@@ -356,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/play/learn': typeof AppPlayLearnRoute
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
+  '/play/screen-time': typeof AppPlayScreenTimeRoute
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/todo': typeof AppPlayTodoRoute
   '/tools/docs': typeof AppToolsDocsRoute
@@ -409,6 +416,7 @@ export interface FileRoutesByTo {
   '/play/learn': typeof AppPlayLearnRoute
   '/play/listen': typeof AppPlayListenRoute
   '/play/player': typeof AppPlayPlayerRoute
+  '/play/screen-time': typeof AppPlayScreenTimeRoute
   '/play/shigan': typeof AppPlayShiganRoute
   '/play/todo': typeof AppPlayTodoRoute
   '/tools/docs': typeof AppToolsDocsRoute
@@ -465,6 +473,7 @@ export interface FileRoutesById {
   '/_app/play/learn': typeof AppPlayLearnRoute
   '/_app/play/listen': typeof AppPlayListenRoute
   '/_app/play/player': typeof AppPlayPlayerRoute
+  '/_app/play/screen-time': typeof AppPlayScreenTimeRoute
   '/_app/play/shigan': typeof AppPlayShiganRoute
   '/_app/play/todo': typeof AppPlayTodoRoute
   '/_app/tools/docs': typeof AppToolsDocsRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/play/learn'
     | '/play/listen'
     | '/play/player'
+    | '/play/screen-time'
     | '/play/shigan'
     | '/play/todo'
     | '/tools/docs'
@@ -574,6 +584,7 @@ export interface FileRouteTypes {
     | '/play/learn'
     | '/play/listen'
     | '/play/player'
+    | '/play/screen-time'
     | '/play/shigan'
     | '/play/todo'
     | '/tools/docs'
@@ -629,6 +640,7 @@ export interface FileRouteTypes {
     | '/_app/play/learn'
     | '/_app/play/listen'
     | '/_app/play/player'
+    | '/_app/play/screen-time'
     | '/_app/play/shigan'
     | '/_app/play/todo'
     | '/_app/tools/docs'
@@ -875,6 +887,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayPlayerRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/screen-time': {
+      id: '/_app/play/screen-time'
+      path: '/screen-time'
+      fullPath: '/play/screen-time'
+      preLoaderRoute: typeof AppPlayScreenTimeRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/shigan': {
       id: '/_app/play/shigan'
       path: '/shigan'
@@ -1052,6 +1071,7 @@ interface AppPlayRouteChildren {
   AppPlayLearnRoute: typeof AppPlayLearnRoute
   AppPlayListenRoute: typeof AppPlayListenRoute
   AppPlayPlayerRoute: typeof AppPlayPlayerRoute
+  AppPlayScreenTimeRoute: typeof AppPlayScreenTimeRoute
   AppPlayShiganRoute: typeof AppPlayShiganRoute
   AppPlayTodoRoute: typeof AppPlayTodoRoute
   AppPlayIndexRoute: typeof AppPlayIndexRoute
@@ -1079,6 +1099,7 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayLearnRoute: AppPlayLearnRoute,
   AppPlayListenRoute: AppPlayListenRoute,
   AppPlayPlayerRoute: AppPlayPlayerRoute,
+  AppPlayScreenTimeRoute: AppPlayScreenTimeRoute,
   AppPlayShiganRoute: AppPlayShiganRoute,
   AppPlayTodoRoute: AppPlayTodoRoute,
   AppPlayIndexRoute: AppPlayIndexRoute,

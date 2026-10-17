@@ -7,6 +7,7 @@ import {
   Disc3,
   Gamepad2,
   GraduationCap,
+  Hourglass,
   ImagePlus,
   Puzzle,
   Sparkles,
@@ -263,6 +264,12 @@ const CASES: { to: string; label: string; icon: typeof Disc3 }[] = [
     时感没丢，只是从这一格**挪进了插件里面**（跟"真心话挪进小游戏"同一套做法）。
   */
   { to: "/play/plugins", label: "插件", icon: Puzzle },
+  /*
+    屏幕时间（2026-11）：用户"我还加个功能，就是能看到屏幕使用时长，
+    就是知道我一天每个app用了多久那个"。放这一排是因为它跟其它「小东西」一样
+    是点进去就能看的一页，不是设置项。
+  */
+  { to: "/play/screen-time", label: "屏幕时间", icon: Hourglass },
 ];
 
 function ShowcaseGrid() {
