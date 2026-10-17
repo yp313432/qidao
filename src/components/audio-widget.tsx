@@ -23,6 +23,20 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
+ * 悬浮球的**下边界**：拖到底也不许压住底部导航。
+ *
+ * 用户原话（m03024 第 5 条）："小球不能遮挡底部导航等关键按钮" —— 允许拖拽贴边（Edge Docking），
+ * 但导航是被保护的。导航高度**现场量**（量 `<nav>` 自己的高度，量不到按 56px 兜底），
+ * "这页有没有导航"交给 `hidesNav()`（`nav-tree.ts` 的注释专门批评过"页面里自己写路径判断"）。
+ */
+function bottomLimit(pathname: string): number {
+  const navH = hidesNav(pathname)
+    ? 0
+    : (document.querySelector("nav")?.getBoundingClientRect().height ?? 56);
+  return window.innerHeight - ORB - EDGE - navH;
+}
+
+/**
  * ⭐ 全局音频悬浮窗（用户 m03024 第 5 条，2026-11）
  *
  * 用户原话：
@@ -90,6 +104,22 @@ export function AudioWidget() {
     setExpanded(false);
   }, [pathname]);
 
+  /** 转屏 / 键盘弹出 / 换页（导航出现或消失）后，把已经拖出去、现在会压住导航的球拉回安全区
+   *  （必须在下面那个 `if (!show || !via) return null` **之前**，钩子不能有条件地调用） */
+  useEffect(() => {
+    const onResize = () =>
+      setPos((p) =>
+        p
+          ? {
+              x: clamp(p.x, EDGE, window.innerWidth - ORB - EDGE),
+              y: clamp(p.y, EDGE + 8, bottomLimit(pathname)),
+            }
+          : p,
+      );
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [pathname]);
+
   if (!show || !via) return null;
 
   const title =
@@ -145,7 +175,7 @@ export function AudioWidget() {
     if (Math.abs(dx) > 6 || Math.abs(dy) > 6) d.moved = true;
     setPos({
       x: clamp(d.ox + dx, EDGE, window.innerWidth - ORB - EDGE),
-      y: clamp(d.oy + dy, EDGE + 8, window.innerHeight - ORB - EDGE),
+      y: clamp(d.oy + dy, EDGE + 8, bottomLimit(pathname)),
     });
   };
 
@@ -164,7 +194,7 @@ export function AudioWidget() {
       const x = p?.x ?? d.ox;
       return {
         x: x + ORB / 2 < window.innerWidth / 2 ? EDGE : window.innerWidth - ORB - EDGE,
-        y: p?.y ?? d.oy,
+        y: clamp(p?.y ?? d.oy, EDGE + 8, bottomLimit(pathname)),
       };
     });
   };

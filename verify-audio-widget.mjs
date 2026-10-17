@@ -324,6 +324,26 @@ check(
 );
 check("拖完还是最小化的球（没被误当成点击展开）", !(await geom()).close);
 
+/* ── 6b. 往下拖：不许压住底部导航（用户 m03024："小球不能遮挡底部导航等关键按钮"）── */
+console.log("=== 6b. 使劲往下拖，也不许压住底部导航 ===");
+const orbNow = (await geom()).orb;
+if (orbNow) {
+  await page.mouse.move(orbNow.left + orbNow.width / 2, orbNow.top + orbNow.height / 2);
+  await page.mouse.down();
+  /* 拖到比导航顶还靠下（840 ≈ 屏幕底部）——球必须被 bottomLimit() 挡住 */
+  await page.mouse.move(195, 840, { steps: 16 });
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+}
+const dropped = await geom();
+check(
+  "球被挡在底部导航上面（拖到底也不压导航）",
+  Boolean(dropped.orb && dropped.nav && dropped.orb.bottom <= dropped.nav.top + 1),
+  dropped.orb && dropped.nav
+    ? `球底 ${Math.round(dropped.orb.bottom)} ≤ 导航顶 ${Math.round(dropped.nav.top)}`
+    : "",
+);
+
 /* ═══════════════ 7. 运行时报错 ═══════════════ */
 console.log("=== 7. 控制台 / 运行时报错 ===");
 check("没有页面报错", errors.length === 0, errors.slice(0, 3).join(" | "));
