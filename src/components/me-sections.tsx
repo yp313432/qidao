@@ -50,6 +50,7 @@ import { DEFAULT_AI_NAME, BUILD_TAG, resolveAiName } from "@/lib/branding";
 import { permissionSummary } from "@/lib/permissions";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory, CHAT_FONT_SIZES } from "@/lib/ux";
+import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
 
 /**
  * 「我的」的四组内容 —— 首页只放入口卡，细节在第二层。
@@ -700,6 +701,68 @@ function MeSections({ tab }: { tab: MeTab }) {
             </button>
           ))}
         </div>
+
+        <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
+        <p className="mb-2 text-[11px] text-subtle">
+          换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
+        </p>
+        {/* 现成的几套：点一下整套换掉 */}
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {TINT_PRESETS.map((p) => {
+            const active = normalizeTint(settings.composerTint).join() === p.colors.join();
+            return (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => patch({ composerTint: [...p.colors] })}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
+                  active ? "border-accent text-fg" : "border-line text-muted",
+                )}
+              >
+                <span
+                  className="size-3 rounded-full"
+                  style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
+                />
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
+        <div className="flex items-center gap-2">
+          {normalizeTint(settings.composerTint).map((c, i) => (
+            <label
+              key={i}
+              className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
+            >
+              <input
+                type="color"
+                value={c}
+                aria-label={`第 ${i + 1} 段颜色`}
+                onChange={(e) => {
+                  const next = normalizeTint(settings.composerTint);
+                  next[i] = e.target.value;
+                  patch({ composerTint: next });
+                }}
+                className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
+              />
+              <span className="font-mono text-[10px] text-subtle">{c}</span>
+            </label>
+          ))}
+        </div>
+        {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
+        <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
+          对话框就是这个样子
+        </div>
+        <button
+          type="button"
+          onClick={() => patch({ composerTint: undefined })}
+          className="mt-1.5 text-[11px] text-subtle underline"
+        >
+          恢复默认（粉青蓝）
+        </button>
 
         <p className="mt-4 mb-2 text-[12px] text-muted">正文字体</p>
         <div className="grid grid-cols-2 gap-2">

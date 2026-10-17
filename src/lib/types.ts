@@ -420,6 +420,17 @@ export type Settings = {
   userAvatar: string;
   theme: ThemeId;
   font: FontId;
+  /**
+   * **对话框（玻璃输入框）自选的渐变色**（2026-11 用户要的）。
+   *
+   * 用户原话："能不能把对话框的彩色渐变效果改成可选择的啊，就是我任选几种颜色组成渐变，
+   * 这样我换背景时，他能搭起来。"
+   *
+   * 存 2~3 个 hex（如 `["#f3a4c5", "#a7dbe4", "#a8baf0"]`）；空/缺省 = 默认那套粉青蓝。
+   * 只影响 `.glass-float` 那层渐变（背景色、模糊不变），由 `ComposerTint` 写成
+   * `--q-tint-1..3` 三个 CSS 变量 —— 换主题/换背景时它会跟着用户挑的色走。
+   */
+  composerTint?: string[];
   textTone: TextTone;
   textColor: string;
   /**

@@ -324,6 +324,18 @@ html[data-motion="off"] *::after {
   backdrop-filter: blur(14px) saturate(1.6);
 }
 
+/*
+  **小控件专用**的同族玻璃：没有 `.bg-chip` 那道白色高光带。
+  `.bg-chip` 的 background-image 里有一条 `rgba(255,255,255,0.6)` 的高光（为大片玻璃设计的），
+  在「已思考（3 秒）点开看」这种小胶囊上只剩**一小块白斑** —— 用户连着两次反馈
+  （m03024 第 4 条、m03996「点开还是有一小块白色高光」）。标签、小按钮改用这个类。
+*/
+.bg-chip-flat {
+  background-color: color-mix(in oklab, var(--aster-fg) 7%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+}
+
 .aster-card {
   background-color: var(--aster-elevated);
   background-image:
@@ -404,12 +416,14 @@ html[data-motion="off"] *::after {
 */
 .glass-float {
   background-color: color-mix(in oklab, var(--aster-canvas) 72%, transparent);
+  /* ⭐ 用户可以自己挑这三段颜色（2026-11："我任选几种颜色组成渐变，这样我换背景时他能搭起来"）：
+     `ComposerTint` 把设置里的 hex 写成 --q-tint-1/2/3；没设置就用下面这套默认的粉青蓝。 */
   background-image:
     linear-gradient(
       118deg,
-      rgba(243, 164, 197, 0.34) 0%,
-      rgba(167, 219, 228, 0.28) 46%,
-      rgba(168, 186, 240, 0.34) 100%
+      var(--q-tint-1, rgba(243, 164, 197, 0.34)) 0%,
+      var(--q-tint-2, rgba(167, 219, 228, 0.28)) 46%,
+      var(--q-tint-3, rgba(168, 186, 240, 0.34)) 100%
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 32%);
   background-repeat: no-repeat;

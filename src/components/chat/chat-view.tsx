@@ -707,7 +707,7 @@ export function ChatView() {
                           就是让他**在同一轮里**看得见。
                         */}
                         {streaming && step && (
-                          <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted">
+                          <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted">
                             <span className="size-1.5 animate-pulse rounded-full bg-accent" />
                             {step.label}
                           </p>
@@ -727,7 +727,7 @@ export function ChatView() {
                                 live: Boolean(streaming && !m.content),
                               })
                             }
-                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted [-webkit-tap-highlight-color:transparent]"
+                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted [-webkit-tap-highlight-color:transparent]"
                           >
                             {streaming && !m.content ? "正在思考…" : "已思考"}
                             {m.thinkingDurationMs && !streaming ? (

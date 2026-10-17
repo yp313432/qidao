@@ -37,7 +37,7 @@ export function ToolProcess({ rounds }: { rounds: { round: number; calls: ToolCa
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-full bg-chip px-3 py-1 text-[11px] text-muted"
+        className="flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted"
       >
         {failed === 0 ? (
           <Check className="size-3 text-accent" strokeWidth={2} aria-hidden="true" />
@@ -72,10 +72,22 @@ export function ToolProcess({ rounds }: { rounds: { round: number; calls: ToolCa
                 c.kind ? c.kind : `没有叫 ${c.name} 的动作（是不是名字写错了？）`
               }${c.ok ? "" : c.result ? ` · ${c.result}` : ""}`;
             return (
-              <div key={`${c.name}-${i}`} className="text-[11px] leading-4">
-                <p className={cn("font-medium", c.ok ? "text-muted" : "text-warn")}>{notice}</p>
+              <div key={`${c.name}-${i}`} className="min-w-0 text-[11px] leading-4">
+                {/*
+                  ⚠️ `[overflow-wrap:anywhere]` 是**必须**的：`notice` 里常常是一整段 JSON
+                  （`{"ok":true,"interactive":true,"locked":false,…}`），中间没有可断行的空格，
+                  默认换行只会从空格处断 → 整行直接顶出屏幕（用户 m04097 的截图就是这条）。
+                */}
+                <p
+                  className={cn(
+                    "font-medium [overflow-wrap:anywhere]",
+                    c.ok ? "text-muted" : "text-warn",
+                  )}
+                >
+                  {notice}
+                </p>
                 {/* 人话标题 + 上游给的原始工具名（排查"他瞎编了个名字"时看这个） */}
-                <p className="mt-0.5 text-subtle">
+                <p className="mt-0.5 [overflow-wrap:anywhere] text-subtle">
                   {title}
                   <span className="ml-1 font-mono text-[10px]">{c.name}</span>
                 </p>
@@ -89,7 +101,9 @@ export function ToolProcess({ rounds }: { rounds: { round: number; calls: ToolCa
                   （老存档没有 notice 时才补这一行 —— 有回话是第一要求）。
                 */}
                 {c.result && !c.notice && (
-                  <p className="mt-0.5 whitespace-pre-wrap text-subtle">{c.result}</p>
+                  <p className="mt-0.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-subtle">
+                    {c.result}
+                  </p>
                 )}
               </div>
             );

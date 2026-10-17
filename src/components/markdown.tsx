@@ -18,7 +18,7 @@ function inline(text: string, key: string) {
       );
     } else {
       parts.push(
-        <code key={`${key}-c${i}`} className="rounded-xl bg-chip px-1 py-0.5 font-mono text-[0.85em]">
+        <code key={`${key}-c${i}`} className="rounded-xl bg-chip-flat px-1 py-0.5 font-mono text-[0.85em]">
           {token.slice(1, -1)}
         </code>,
       );
@@ -45,7 +45,14 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
   return (
     // 用 1em / 相对行高，跟着聊天页的字号设置走 ——
     // 早先这里写死 15px，所以只有用户那条气泡会变、AI 的回复不变（实测踩到）
-    <div className={cn("space-y-3 text-[1em] leading-[1.75] text-fg", className)}>
+    <div
+      className={cn(
+        // `[overflow-wrap:anywhere]`：长 URL / 超长英文单词 / base64 串也得在气泡里断行，
+        // 否则会整段顶出屏幕（用户 m04097："动手这个字体超出屏幕外了，看看还有哪里会出现这种情况"）
+        "space-y-3 text-[1em] leading-[1.75] [overflow-wrap:anywhere] text-fg",
+        className,
+      )}
+    >
       {blocks.map((block, i) => {
         if (i % 2 === 1) {
           const nl = block.indexOf("\n");

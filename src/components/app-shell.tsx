@@ -3,6 +3,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
 import { AudioWidget } from "@/components/audio-widget";
+import { ComposerTint } from "@/components/composer-tint";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GlassHighlight } from "@/components/glass-highlight";
@@ -152,6 +153,8 @@ export function AppShell() {
         原来两条各自为政的迷你条已经从这里的两处宿主里删掉了（它们位置重叠）。
       */}
       <AudioWidget />
+      {/* 用户自选的对话框渐变色 → 写成 --q-tint-1/2/3（`.glass-float` 读这几个变量） */}
+      <ComposerTint />
       {/* 本地提醒 + Service Worker 注册 */}
       <ReminderDaemon />
       {/* 定时任务：到点让他自己开口（App 活着时；关掉时靠原生通知兜底） */}

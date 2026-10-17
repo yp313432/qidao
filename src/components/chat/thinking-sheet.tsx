@@ -138,7 +138,7 @@ export function ThinkingSheet({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="flex size-8 items-center justify-center rounded-full bg-chip text-muted"
+            className="flex size-8 items-center justify-center rounded-full bg-chip-flat text-muted"
           >
             <X className="size-4" />
           </button>
