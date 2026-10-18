@@ -3277,3 +3277,612 @@ html[data-keyboard="up"] .qi-board {
     linear-gradient(to bottom, rgba(36, 54, 50, 0) 0%, rgba(30, 52, 48, 0.16) 46%, rgba(24, 44, 42, 0.26) 100%),
     radial-gradient(120% 80% at 40% 62%, rgba(96, 128, 116, 0.16), transparent 70%);
 }
+/* ───────────────────────── 花圃（Fiori） ─────────────────────────
+   2026-10 重做：底图换成用户给的那张花园画，整页就是"站在花圃前"。
+   花名照花园主页 `.garden-spot` 那套（白字 + 深描边 + 意大利语斜体），
+   只是多一行状态；页面本身除了标题和背包，没有别的字。 */
+
+.fiori {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #f2ead9;
+  color: #40342a;
+}
+
+.fiori-bg {
+  position: absolute;
+  inset: 0;
+  background: url(/garden/fiori.jpg) 50% 50% / cover no-repeat;
+  transform: scale(1.02);
+}
+
+/* 上下各压一点暖光，让题字和白边更好读 */
+.fiori-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(255, 250, 240, 0.26) 0%, rgba(255, 250, 240, 0) 16%),
+    radial-gradient(120% 80% at 50% 48%, rgba(255, 248, 236, 0) 54%, rgba(250, 236, 214, 0.2) 100%);
+}
+
+.fiori-head {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  padding: 20px 16px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.fiori-back {
+  position: absolute;
+  left: 10px;
+  top: 16px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  opacity: 0.92;
+}
+
+.fiori-back:active {
+  opacity: 0.6;
+}
+
+.fiori-title {
+  text-align: center;
+}
+
+.fiori-title h1 {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #fffdf6;
+  -webkit-text-stroke: 0.9px rgba(50, 37, 24, 0.55);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 8px rgba(40, 30, 20, 0.35);
+}
+
+.fiori-title span {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #fcf3df;
+  -webkit-text-stroke: 0.5px rgba(50, 37, 24, 0.42);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 6px rgba(40, 30, 20, 0.3);
+}
+
+.fiori-spots {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+
+/* 花名：跟花园主页一模一样的那套字 */
+.fiori-spot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1.2;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #fffdf6;
+  -webkit-text-stroke: 0.9px rgba(50, 37, 24, 0.6);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.5);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.fiori-spot:active {
+  opacity: 0.72;
+  transform: translate(-50%, -50%) scale(0.97);
+}
+
+.fiori-spot .la {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-indent: 0;
+  color: #fcf3df;
+  -webkit-text-stroke: 0.6px rgba(50, 37, 24, 0.5);
+  paint-order: stroke fill;
+}
+
+/* 状态那一行用深墨色 + 浅色晕开：白字压在亮花上会糊成一团 */
+.fiori-spot .st {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  color: rgba(58, 44, 30, 0.78);
+  -webkit-text-stroke: 0;
+  text-shadow:
+    0 0 3px rgba(255, 250, 240, 0.85),
+    0 1px 3px rgba(255, 248, 234, 0.7);
+}
+
+/* 开着的花，名字下面垫一小圈暖光，像被太阳照着 */
+.fiori-spot.bloom::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 74px;
+  height: 74px;
+  transform: translate(-50%, -52%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 243, 214, 0.38) 0%, rgba(255, 243, 214, 0) 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.fiori-bag {
+  position: absolute;
+  right: 18px;
+  bottom: 24px;
+  z-index: 6;
+  width: 54px;
+  height: 54px;
+  border-radius: 17px;
+  background: rgba(255, 251, 242, 0.72);
+  border: 1px solid rgba(176, 138, 62, 0.34);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 24px rgba(120, 92, 60, 0.22);
+  display: grid;
+  place-items: center;
+}
+
+.fiori-bag:active {
+  transform: scale(0.96);
+}
+
+.fiori-bag .n {
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #b0893c;
+  color: #fffaf0;
+  font-family: var(--font-script);
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+}
+
+/* 介绍卡 / 背包：同一层遮罩 */
+.fiori-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: flex-end;
+  background: radial-gradient(90% 70% at 50% 40%, rgba(255, 250, 240, 0.16) 0%, rgba(252, 242, 226, 0.52) 100%);
+  backdrop-filter: blur(2px) saturate(0.98);
+  animation: fiori-fade 180ms ease;
+}
+
+@keyframes fiori-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fiori-card {
+  position: relative;
+  width: 100%;
+  margin: 0 16px 22px;
+  padding: 16px 16px 14px;
+  border-radius: 22px;
+  background: rgba(255, 251, 242, 0.94);
+  border: 1px solid rgba(176, 138, 62, 0.26);
+  box-shadow: 0 22px 46px rgba(110, 84, 58, 0.24);
+  animation: fiori-rise 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes fiori-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.fiori-card-top {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+
+.fiori-thumb {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  overflow: hidden;
+  border: 1px solid rgba(176, 138, 62, 0.2);
+  background: #f5ecd9;
+}
+
+.fiori-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.94);
+}
+
+.fiori-card h3 {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: #3d3226;
+}
+
+.fiori-card h3 i {
+  margin-left: 8px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #b0893c;
+}
+
+.fiori-stars {
+  margin-top: 7px;
+  display: flex;
+  gap: 4px;
+}
+
+.fiori-stars span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(176, 138, 62, 0.22);
+}
+
+.fiori-stars span.on {
+  background: #b08a3e;
+}
+
+.fiori-word {
+  margin-top: 13px;
+  font-size: 11.5px;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  color: #5c4b39;
+}
+
+.fiori-lore {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(246, 236, 218, 0.7);
+  font-size: 11px;
+  line-height: 1.85;
+  letter-spacing: 0.02em;
+  color: #6a5946;
+}
+
+.fiori-state {
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #a8987f;
+}
+
+.fiori-tip {
+  margin-top: 10px;
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: #b3a48c;
+}
+
+.fiori-close {
+  margin-top: 12px;
+  width: 100%;
+  height: 38px;
+  border-radius: 19px;
+  border: 1px solid rgba(176, 138, 62, 0.34);
+  background: rgba(255, 252, 246, 0.9);
+  font-family: var(--font-serif);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  color: #6a5946;
+}
+
+.fiori-close:active {
+  background: rgba(246, 236, 218, 0.9);
+}
+
+/* 背包 sheet */
+.fiori-sheet {
+  width: 100%;
+  max-height: 76%;
+  overflow-y: auto;
+  margin: 0 0 0;
+  padding: 10px 18px 22px;
+  border-radius: 24px 24px 0 0;
+  background: rgba(253, 248, 238, 0.97);
+  border-top: 1px solid rgba(176, 138, 62, 0.22);
+  box-shadow: 0 -16px 40px rgba(110, 84, 58, 0.2);
+  animation: fiori-slide 240ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes fiori-slide {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.fiori-sheet .grab {
+  width: 36px;
+  height: 4px;
+  margin: 4px auto 10px;
+  border-radius: 2px;
+  background: rgba(176, 138, 62, 0.26);
+}
+
+.fiori-sheet .h3 {
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+  color: #3d3226;
+}
+
+.fiori-sheet .h3 i {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-indent: 0;
+  color: #b0893c;
+}
+
+.fiori-tabs {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 26px;
+}
+
+.fiori-tabs button {
+  padding-bottom: 5px;
+  font-family: var(--font-serif);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  color: rgba(74, 63, 49, 0.5);
+  border-bottom: 1px solid transparent;
+}
+
+.fiori-tabs button.on {
+  color: #3d3226;
+  border-bottom-color: #b0893c;
+}
+
+.fiori-seedlist,
+.fiori-picked {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fiori-seedlist li,
+.fiori-picked li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 252, 246, 0.86);
+  border: 1px solid rgba(176, 138, 62, 0.16);
+}
+
+.fiori-seedlist img,
+.fiori-picked img {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  filter: saturate(0.94);
+}
+
+.fiori-seedlist div,
+.fiori-picked div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fiori-seedlist b,
+.fiori-picked b {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: #3d3226;
+}
+
+.fiori-seedlist i,
+.fiori-picked i {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 10px;
+  color: rgba(74, 63, 49, 0.45);
+}
+
+.fiori-seedlist span {
+  font-family: var(--font-script);
+  font-size: 13px;
+  color: #b0893c;
+}
+
+.fiori-picked p {
+  margin-top: 5px;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: #6a5946;
+}
+
+.fiori-seedlist .empty,
+.fiori-picked .empty {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #a8987f;
+  background: none;
+  border: 1px dashed rgba(176, 138, 62, 0.24);
+}
+
+/* ───────────────────────── 收花动画（GiftAlert） ─────────────────────────
+   跟信一个待遇：app 级 overlay，一进前端就弹。
+   两拍：纸包落在石阶上（1.1s）→ 拆开，花和他那句话一起浮出来。 */
+
+.gift-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(80% 60% at 50% 42%, rgba(255, 250, 240, 0.34) 0%, rgba(58, 44, 32, 0.42) 100%);
+  backdrop-filter: blur(3px) saturate(0.96);
+  animation: gift-in 320ms ease;
+}
+
+@keyframes gift-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.gift-scene {
+  width: min(78vw, 320px);
+  padding: 22px 20px 18px;
+  border-radius: 22px;
+  background: rgba(255, 251, 242, 0.95);
+  border: 1px solid rgba(176, 138, 62, 0.28);
+  box-shadow: 0 28px 60px rgba(50, 36, 24, 0.34);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  animation: gift-rise 380ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes gift-rise {
+  from { transform: translateY(18px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.gift-wrap {
+  animation: gift-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes gift-breathe {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-3px) rotate(1deg); }
+}
+
+.gift-cap {
+  font-family: var(--font-serif);
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  color: rgba(74, 63, 49, 0.66);
+}
+
+.gift-flower {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(176, 138, 62, 0.26);
+  box-shadow: 0 10px 26px rgba(120, 92, 60, 0.22);
+  animation: gift-bloom 620ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.gift-flower img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@keyframes gift-bloom {
+  from { transform: scale(0.62) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(1.04) rotate(1deg); opacity: 1; }
+  to { transform: scale(1) rotate(0); }
+}
+
+.gift-name {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  color: #3d3226;
+}
+
+.gift-name i {
+  margin-left: 7px;
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-indent: 0;
+  color: #b0893c;
+}
+
+.gift-note {
+  font-size: 12px;
+  line-height: 1.95;
+  letter-spacing: 0.03em;
+  color: #5c4b39;
+  text-align: center;
+}
+
+.gift-accept {
+  margin-top: 2px;
+  width: 100%;
+  height: 40px;
+  border-radius: 20px;
+  background: #b0893c;
+  color: #fffaf0;
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+}
+
+.gift-accept:active {
+  opacity: 0.86;
+}
+
+/* 踪跡里"花事"那一行的小图标：一片花瓣 */
+.vestigia-petal {
+  width: 9px;
+  height: 9px;
+  border-radius: 50% 0 50% 50%;
+  background: linear-gradient(140deg, #f0c9cf, #dcae86);
+  transform: rotate(-24deg);
+  display: inline-block;
+}

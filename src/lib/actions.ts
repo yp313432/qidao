@@ -24,6 +24,16 @@ import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { runSenseAction } from "@/lib/sense";
 import { speakTextAsync } from "@/lib/tts";
+import {
+  feedFlower,
+  filterFlowerByHint,
+  FLOWER_SPECIES,
+  giftFlower,
+  pickFlower,
+  plantFlower,
+  readBasket,
+  waterFlower,
+} from "@/lib/garden-flowers";
 import { runWebAction } from "@/lib/web-actions";
 import type { AppAction, FeatureId, McpOAuth, Memory, Moment, ScheduledTask, Settings } from "@/lib/types";
 
@@ -360,6 +370,47 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
         .join("；");
       ctx.navigate("/play/garden/tarot");
       return `牌洗好了，按顺序抽到 —— ${lines}。去塔罗那页一张张翻开吧。`;
+    }
+
+    /* ---------------- 花圃：他真去种 / 浇 / 施肥 / 剪 / 送 ----------------
+     * 用户 m04036："动作你要有知道吧，就是 ai 真的能种，能浇水施肥"。
+     * 所以这几个不是"嘴上说说"：动的是 `lib/garden-flowers` 里的地、背包和踪跡，
+     * 回执把"现在长成什么样"告诉他，他下一句才有得说。
+     */
+    case "garden.flower.plant": {
+      const sp = filterFlowerByHint(action.species);
+      if (!sp) return `花圃里能种的是：${FLOWER_SPECIES.map((f) => `${f.zh}（${f.id}）`).join("、")}`;
+      const r = plantFlower(sp.id);
+      if (!r.ok) return r.why ?? "没种下去";
+      return `${sp.zh}种下去了（种子 -1）。浇两次水或施一次肥就会开`;
+    }
+    case "garden.flower.water": {
+      const sp = filterFlowerByHint(action.species);
+      if (!sp) return "要浇哪一株？说花名就行";
+      const r = waterFlower(sp.id);
+      if (!r.ok) return r.why ?? "没浇成";
+      return r.bloomed ? `${sp.zh}开了，就在花圃里` : `给${sp.zh}浇了水，还差一次照料`;
+    }
+    case "garden.flower.feed": {
+      const sp = filterFlowerByHint(action.species);
+      if (!sp) return "要给哪一株施肥？";
+      const r = feedFlower(sp.id);
+      if (!r.ok) return r.why ?? "没施成";
+      return r.bloomed ? `${sp.zh}开了，就在花圃里` : `给${sp.zh}施了肥，还差一次照料`;
+    }
+    case "garden.flower.pick": {
+      const sp = filterFlowerByHint(action.species);
+      if (!sp) return "要剪哪一株？";
+      const r = pickFlower(sp.id, str(action.note));
+      if (!r.ok) return r.why ?? "没剪成";
+      return `${sp.zh}剪下来了，收进背包（${readBasket().length} 枝）${r.item?.note ? `，你说的那句也一起存了` : ""}`;
+    }
+    case "garden.flower.gift": {
+      const sp = filterFlowerByHint(action.species);
+      if (!sp) return "要送哪一种花？";
+      const r = giftFlower(sp.id, str(action.note));
+      if (!r.ok) return r.why ?? "没送成";
+      return `把一枝${sp.zh}放在她门口了，一打开 app 就会看见`;
     }
 
     case "garden.walk": {

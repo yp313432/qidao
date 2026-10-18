@@ -37,6 +37,7 @@ const TERTIARY_PARENT = {
   "/play/garden/stagno": "/play/garden",
   "/play/garden/cesta": "/play/garden/stagno",
   "/play/garden/vestigia": "/play/garden",
+  "/play/garden/fiori": "/play/garden",
   // 棋桌 → 转盘（二级）→ 塔罗（三级）：塔罗是从转盘里进去的
   "/play/garden/tavolo": "/play/garden",
   "/play/garden/tarot": "/play/garden/tavolo",
@@ -108,6 +109,7 @@ const PAGES = [
   "/play/garden/stagno",
   "/play/garden/cesta",
   "/play/garden/vestigia",
+  "/play/garden/fiori",
   "/play/garden/tavolo",
   "/play/garden/tarot",
 ];

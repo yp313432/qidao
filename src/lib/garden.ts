@@ -36,7 +36,7 @@ export type GardenSpot = {
   x: number;
   y: number;
   /** 有 to 才是能点的房间；留着空 = 地图上的装饰 */
-  to?: "/play/garden/qi" | "/play/garden/stagno" | "/play/garden/tavolo";
+  to?: "/play/garden/qi" | "/play/garden/stagno" | "/play/garden/tavolo" | "/play/garden/fiori";
 };
 
 /**
@@ -50,7 +50,7 @@ export type GardenSpot = {
 export const GARDEN_SPOTS: GardenSpot[] = [
   { id: "casa", zh: "小屋", la: "Casa", x: 32.8, y: 20.4 },
   { id: "portico", zh: "拱廊", la: "Portico", x: 80, y: 38.2 },
-  { id: "fiori", zh: "花圃", la: "Fiori", x: 22.6, y: 58.5 },
+  { id: "fiori", zh: "花圃", la: "Fiori", x: 22.6, y: 58.5, to: "/play/garden/fiori" },
   { id: "stagno", zh: "池塘", la: "Stagno", x: 84.6, y: 65.4, to: "/play/garden/stagno" },
   { id: "tavolo", zh: "棋桌", la: "Tavolo", x: 13.3, y: 75.4, to: "/play/garden/tavolo" },
 ];

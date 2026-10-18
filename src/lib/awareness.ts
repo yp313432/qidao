@@ -2,6 +2,7 @@ import { ACTION_PERMISSION } from "@/lib/action-meta";
 import type { ChatContext } from "@/lib/chat-client";
 import { emotionModeLabel, moodDisplay } from "@/lib/emotion-lexicon";
 import { findSpecies, gardenStats } from "@/lib/garden-catch";
+import { flowerStats } from "@/lib/garden-flowers";
 import { recentTrace } from "@/lib/garden-trace";
 import { READINGS } from "@/lib/learn-data";
 import { MODELS } from "@/lib/models";
@@ -251,7 +252,8 @@ export function buildAwarenessItems(): AwarenessItem[] {
   // 花园：他今天在池塘钓到什么（竹篮和踪迹读的是同一份记录，见 lib/garden-catch）
   if (canRead("read_garden")) {
     const g = gardenStats();
-    if (g.fish + g.junk > 0) {
+    const fl = flowerStats();
+    if (g.fish + g.junk > 0 || fl.planted > 0 || fl.basket > 0) {
       const recent = recentTrace(3);
       const latestName =
         g.latest?.kind === "fish"
@@ -263,6 +265,9 @@ export function buildAwarenessItems(): AwarenessItem[] {
         text:
           `池塘里一共 ${g.fish} 条鱼、${g.junk} 样别的东西，钓到过 ${g.species} 个种类；今天钓到 ${g.todayFish} 条` +
           (latestName ? `；最近一条是${latestName}` : "") +
+          (fl.planted
+            ? `。花圃：种着 ${fl.planted} 株、开着 ${fl.bloomed} 朵，背包里收着 ${fl.basket} 枝，今天照料了 ${fl.todayWatered} 次`
+            : "。花圃还空着") +
           (recent.length ? `；最近：${recent.map((r) => `${r.time} ${r.text}`).join("、")}` : ""),
       });
     }

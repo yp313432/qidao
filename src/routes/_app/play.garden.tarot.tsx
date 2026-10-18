@@ -72,6 +72,25 @@ function TarotView() {
     const positions = spreadOf(current.spread).positions;
     const lines = describeDraw(positions, current.cards);
 
+    /**
+     * ⭐ 这一局"问的是什么"要留在**当前这局**里（用户 m03533："看不到我填的问题"）。
+     *
+     * 原来只有解读的提示词里带了一句问题，解读一结束就丢了 —— 下一轮聊天他手里
+     * 只有那段解读文字，没有"我到底问的啥"，于是回一句"如果你是在牌桌上自己填的，
+     * 那个字不会回到我这边"。`gameContext` 是聊天上下文读的那份（见 lib/awareness），
+     * 放这儿他随时都看得到。
+     */
+    useApp.getState().setGameContext({
+      game: "塔罗",
+      detail:
+        `${spreadOf(current.spread).zh} · ` +
+        (current.question ? `我问的是「${current.question}」` : "我没写具体问题，他看着牌说") +
+        " · " +
+        current.cards
+          .map((c, i) => `${positions[i] ?? ""}${c.card.zh}${c.reversed ? "（逆位）" : ""}`)
+          .join(" / "),
+    });
+
     const instruction =
       `（花园的棋桌，塔罗这一角。我刚洗完牌，按顺序抽好了，正一张张翻开。）\n` +
       (current.question ? `我问的是：「${current.question}」\n` : "我没写具体问题，你看着这牌说话。\n") +
@@ -116,7 +135,19 @@ function TarotView() {
         setFailed(clean || "他没接上（模型那边没通），牌留着，等下再让他讲一次。");
       } else if (clean) {
         setTarotReading(clean);
-        useApp.getState().appendGardenTalk([{ role: "assistant", content: clean }]);
+        /**
+         * 落回会话时**连问题一起落**：只写他这段解读的话，下一轮聊天的历史里
+         * 就只有"他说了什么"、没有"我问了什么"（用户 m03533 报的那条）。
+         */
+        useApp.getState().appendGardenTalk([
+          {
+            role: "user",
+            content: current.question
+              ? `（在棋桌摆塔罗）我问的是：「${current.question}」`
+              : "（在棋桌摆塔罗，我没写具体问题，让他看着牌说）",
+          },
+          { role: "assistant", content: clean },
+        ]);
       }
     } catch {
       setFailed("这次没讲成，牌还在桌上，再试一次。");

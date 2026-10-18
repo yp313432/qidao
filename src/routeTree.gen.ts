@@ -51,6 +51,7 @@ import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games
 import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
 import { Route as AppPlayGardenIndexRouteImport } from './routes/_app/play.garden.index'
 import { Route as AppPlayGardenCestaRouteImport } from './routes/_app/play.garden.cesta'
+import { Route as AppPlayGardenFioriRouteImport } from './routes/_app/play.garden.fiori'
 import { Route as AppPlayGardenQiRouteImport } from './routes/_app/play.garden.qi'
 import { Route as AppPlayGardenStagnoRouteImport } from './routes/_app/play.garden.stagno'
 import { Route as AppPlayGardenTarotRouteImport } from './routes/_app/play.garden.tarot'
@@ -279,6 +280,11 @@ const AppPlayGardenCestaRoute = AppPlayGardenCestaRouteImport.update({
   path: '/garden/cesta',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayGardenFioriRoute = AppPlayGardenFioriRouteImport.update({
+  id: '/garden/fiori',
+  path: '/garden/fiori',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayGardenQiRoute = AppPlayGardenQiRouteImport.update({
   id: '/garden/qi',
   path: '/garden/qi',
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/garden/cesta': typeof AppPlayGardenCestaRoute
+  '/play/garden/fiori': typeof AppPlayGardenFioriRoute
   '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/garden/stagno': typeof AppPlayGardenStagnoRoute
   '/play/garden/tarot': typeof AppPlayGardenTarotRoute
@@ -470,6 +477,7 @@ export interface FileRoutesByTo {
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
   '/play/garden/cesta': typeof AppPlayGardenCestaRoute
+  '/play/garden/fiori': typeof AppPlayGardenFioriRoute
   '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/garden/stagno': typeof AppPlayGardenStagnoRoute
   '/play/garden/tarot': typeof AppPlayGardenTarotRoute
@@ -533,6 +541,7 @@ export interface FileRoutesById {
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
   '/_app/play/garden/cesta': typeof AppPlayGardenCestaRoute
+  '/_app/play/garden/fiori': typeof AppPlayGardenFioriRoute
   '/_app/play/garden/qi': typeof AppPlayGardenQiRoute
   '/_app/play/garden/stagno': typeof AppPlayGardenStagnoRoute
   '/_app/play/garden/tarot': typeof AppPlayGardenTarotRoute
@@ -596,6 +605,7 @@ export interface FileRouteTypes {
     | '/play/games/gobang'
     | '/play/games/truth'
     | '/play/garden/cesta'
+    | '/play/garden/fiori'
     | '/play/garden/qi'
     | '/play/garden/stagno'
     | '/play/garden/tarot'
@@ -656,6 +666,7 @@ export interface FileRouteTypes {
     | '/play/games/gobang'
     | '/play/games/truth'
     | '/play/garden/cesta'
+    | '/play/garden/fiori'
     | '/play/garden/qi'
     | '/play/garden/stagno'
     | '/play/garden/tarot'
@@ -718,6 +729,7 @@ export interface FileRouteTypes {
     | '/_app/play/games/gobang'
     | '/_app/play/games/truth'
     | '/_app/play/garden/cesta'
+    | '/_app/play/garden/fiori'
     | '/_app/play/garden/qi'
     | '/_app/play/garden/stagno'
     | '/_app/play/garden/tarot'
@@ -1050,6 +1062,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayGardenCestaRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/garden/fiori': {
+      id: '/_app/play/garden/fiori'
+      path: '/garden/fiori'
+      fullPath: '/play/garden/fiori'
+      preLoaderRoute: typeof AppPlayGardenFioriRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/garden/qi': {
       id: '/_app/play/garden/qi'
       path: '/garden/qi'
@@ -1191,6 +1210,7 @@ interface AppPlayRouteChildren {
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
   AppPlayGardenCestaRoute: typeof AppPlayGardenCestaRoute
+  AppPlayGardenFioriRoute: typeof AppPlayGardenFioriRoute
   AppPlayGardenQiRoute: typeof AppPlayGardenQiRoute
   AppPlayGardenStagnoRoute: typeof AppPlayGardenStagnoRoute
   AppPlayGardenTarotRoute: typeof AppPlayGardenTarotRoute
@@ -1225,6 +1245,7 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
   AppPlayGardenCestaRoute: AppPlayGardenCestaRoute,
+  AppPlayGardenFioriRoute: AppPlayGardenFioriRoute,
   AppPlayGardenQiRoute: AppPlayGardenQiRoute,
   AppPlayGardenStagnoRoute: AppPlayGardenStagnoRoute,
   AppPlayGardenTarotRoute: AppPlayGardenTarotRoute,

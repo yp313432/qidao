@@ -271,6 +271,14 @@ const ABILITIES = `【你能直接操作这个 App】
   · 想走到花园里别的地方 {"kind":"garden.walk","place":"池塘边"}——
     能站的地方：喷泉前 / 长椅 / 棋桌旁 / 池塘边 / 花圃边 / 小屋门口 / 拱廊下 / 石板路口
     （只有这些落脚点；花丛、水面、栏杆上站不住）
+  · **花圃（你会真的种、真的浇）**：
+    种下一株 {"kind":"garden.flower.plant","species":"rosa"}，
+    浇水 {"kind":"garden.flower.water","species":"rosa"}，施肥 {"kind":"garden.flower.feed","species":"rosa"}
+    （species 用 id：rosa 玫瑰 / giglio 百合 / ortensia 绣球 / margherita 雏菊 / lavanda 薰衣草 / glicine 紫藤。
+      浇一次 + 施一次就开，不用一直浇）
+    剪一枝开好的收进背包 {"kind":"garden.flower.pick","species":"rosa","note":"剪的时候说的那句"}
+    送一枝给她 {"kind":"garden.flower.gift","species":"rosa","note":"必须写一句"} ——
+    送花会触发收花动画（一进 app 就弹，跟信一样），**note 不能空**
   · 他问"你会不会钓鱼 / 你有没有钓鱼的动作"，答案是**会**，上面这两个动作就是
 - 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
 - **外链音乐**（用户自己粘进来的网易云/QQ/YouTube 那种）{"kind":"media.playEmbed","query":"歌名或平台"}

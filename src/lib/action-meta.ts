@@ -1,4 +1,5 @@
 import type { AppAction, PermissionId } from "@/lib/types";
+import { findFlower } from "@/lib/garden-flowers";
 
 /**
  * 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。
@@ -68,6 +69,11 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "garden.fish.cast": "pond_play",
   "garden.fish.reel": "pond_play",
   "garden.tarot.draw": "tarot_draw",
+  "garden.flower.plant": "flower_tend",
+  "garden.flower.water": "flower_tend",
+  "garden.flower.feed": "flower_tend",
+  "garden.flower.pick": "flower_tend",
+  "garden.flower.gift": "flower_tend",
   "learn.openReading": "pick_reading",
   "learn.speak": "read_aloud",
   "learn.removeCard": "wordbook",
@@ -146,6 +152,11 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
+
+/** 花 id → 中文名（回执和审批弹窗都读得懂） */
+function speciesZh(id: string): string {
+  return findFlower(id)?.zh ?? "花";
+}
 
 /** 把一个动作翻译成给人看的一句话（审批弹窗 / 日志都用它）。 */
 export function actionTitle(action: AppAction): string {
@@ -247,6 +258,16 @@ export function actionTitle(action: AppAction): string {
       return action.spot ? `在池塘抛一竿（${action.spot}）` : "在池塘抛一竿";
     case "garden.fish.reel":
       return "收线";
+    case "garden.flower.plant":
+      return `在花圃种下${speciesZh(action.species)}`;
+    case "garden.flower.water":
+      return `给${speciesZh(action.species)}浇水`;
+    case "garden.flower.feed":
+      return `给${speciesZh(action.species)}施肥`;
+    case "garden.flower.pick":
+      return `剪下一枝${speciesZh(action.species)}`;
+    case "garden.flower.gift":
+      return `把一枝${speciesZh(action.species)}放在你门口`;
     case "garden.tarot.draw": {
       const n = action.spread === "one" ? 1 : 3;
       return action.question

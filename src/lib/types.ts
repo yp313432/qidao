@@ -1058,6 +1058,19 @@ export type FeatureId =
    * 抽完会跳 `/play/garden/tarot`，那一页把牌一张张翻开、写解读。
    */
   | { kind: "garden.tarot.draw"; question?: string; spread?: "one" | "three" }
+  /**
+   * 花圃里的活（2026-10 用户 m04036："动作你要有知道吧，就是 ai 真的能种，能浇水施肥"）。
+   * 这几个是**真动作**：改了花圃状态、写进踪跡，还会把"长成什么样了"回给他。
+   *   · plant 种下（要有种子）
+   *   · water / feed 浇水 / 施肥（两次照料就开花）
+   *   · pick 剪下来收进背包（没开的花剪不得）
+   *   · gift 送一枝过来（必须带一句话，会触发 app 级收花动画）
+   */
+  | { kind: "garden.flower.plant"; species: string }
+  | { kind: "garden.flower.water"; species: string }
+  | { kind: "garden.flower.feed"; species: string }
+  | { kind: "garden.flower.pick"; species: string; note?: string }
+  | { kind: "garden.flower.gift"; species: string; note: string }
   | { kind: "learn.openReading"; index?: number }
   | { kind: "learn.speak"; text: string }
   | { kind: "learn.removeCard"; word: string }

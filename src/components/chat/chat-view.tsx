@@ -546,6 +546,28 @@ export function ChatView() {
             {conv!.messages.map((m) => {
               const mine = m.role === "user";
               const streaming = liveId === m.id;
+              /**
+               * ⭐ 空壳消息（用户 m03533："定时回复的气泡会这样"——截图里是一个
+               * 只有头像、没有说话内容的圆）。
+               *
+               * 定时任务 / 主动唤醒是**先建一条空消息、再把内容填进去**的
+               * （`store.beginScheduledReply` → 模型流式 → `finalizeAssistant`）。
+               * 中间那几秒 `content` 是空串，而且这类消息不走 `liveId`
+               * （`liveId` 只跟聊天页自己发的请求走），于是 `streaming` 是 false，
+               * 正文那段就渲染成 null —— 只剩头像 + 徽章，看着像"卡住了"。
+               *
+               * 兜法：内容为空的他的消息分两种 ——
+               *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
+               *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
+               */
+              const noBody =
+                !mine &&
+                !m.content.trim() &&
+                !(m.parts && m.parts.length) &&
+                !(m.attachments && m.attachments.length);
+              const pendingPlaceholder =
+                noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
+              if (noBody && !pendingPlaceholder) return null;
               return (
                 <li
                   key={m.id}
@@ -797,7 +819,7 @@ export function ChatView() {
                                 <Markdown text={liveText} />
                               )}
                             </div>
-                          ) : streaming ? (
+                          ) : pendingPlaceholder ? (
                             <p className="thinking-shimmer text-sm">正在写回复…</p>
                           ) : null;
                         })()}

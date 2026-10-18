@@ -175,7 +175,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "media_import", title: "导入音乐到库里", hint: "从 http(s) 直链下载一首歌", risk: "L2", status: "ready", group: "media" },
 
   // ---------------- 玩乐与陪伴 ----------------
-  { id: "gobang_read", title: "读棋局状态", hint: "第几手、谁占优", risk: "L0", status: "ready", group: "play" },
+  { id: "gobang_read", title: "读棋局与牌局", hint: "第几手、谁占优 / 这局塔罗问的是什么", risk: "L0", status: "ready", group: "play" },
   { id: "gobang_play", title: "陪你下五子棋", hint: "他来执子，可以随时开新局", risk: "L1", status: "ready", group: "play" },
   /**
    * 花园里的两件"他自己玩"的事：下棋与钓鱼。
@@ -185,6 +185,14 @@ export const PERMISSIONS: PermissionDef[] = [
    */
   { id: "pond_play", title: "在池塘钓鱼", hint: "他自己抛竿、收线（收早了空手，拖久了鱼跑）", risk: "L1", status: "ready", group: "play" },
   { id: "tarot_draw", title: "陪你摆塔罗", hint: "他洗牌、按顺序抽牌，再一张张给你讲", risk: "L1", status: "ready", group: "play" },
+  {
+    id: "flower_tend",
+    title: "打理花圃",
+    hint: "他真去种、浇水、施肥、剪花，也会把花放在你门口（都会记进踪跡）",
+    risk: "L2",
+    status: "ready",
+    group: "play",
+  },
   { id: "truth_pick", title: "出真心话题目", hint: "替你抽一张", risk: "L1", status: "ready", group: "play" },
   { id: "play_banter", title: "陪玩时实时反应", hint: "边玩边吐槽、给提示（要在对话里聊）", risk: "L1", status: "needs_ai", group: "play" },
   { id: "score", title: "记分 / 战绩", hint: "帮你记一笔输赢", risk: "L2", status: "ready", group: "play" },

@@ -71,7 +71,10 @@ function VestigiaView() {
                         ) : (
                           <JunkArt id={it.ref} className="size-full" />
                         )
-                      ) : null}
+                      ) : (
+                        /* 花圃那一路：一朵小花瓣当图标（种/浇/施肥/开/剪/送都是花事） */
+                        <span className="vestigia-petal" aria-hidden="true" />
+                      )}
                     </span>
                     <span className="txt">{it.text}</span>
                   </li>

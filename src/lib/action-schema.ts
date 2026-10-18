@@ -432,6 +432,42 @@ export const ACTION_SCHEMA = [
     ],
   },
   {
+    kind: "garden.flower.plant",
+    group: "玩",
+    summary: "在花圃种下一株花",
+    fields: [{ name: "species", type: "string", required: true, note: "rosa / giglio / ortensia / margherita / lavanda / glicine" }],
+  },
+  {
+    kind: "garden.flower.water",
+    group: "玩",
+    summary: "给花圃里的花浇水",
+    fields: [{ name: "species", type: "string", required: true, note: "要浇的那一株，用上面的花名 id" }],
+  },
+  {
+    kind: "garden.flower.feed",
+    group: "玩",
+    summary: "给花施肥",
+    fields: [{ name: "species", type: "string", required: true, note: "要施肥的那一株" }],
+  },
+  {
+    kind: "garden.flower.pick",
+    group: "玩",
+    summary: "剪一枝开好的花，收进背包",
+    fields: [
+      { name: "species", type: "string", required: true, note: "要剪的那一株（必须是开着的）" },
+      { name: "note", type: "string", required: false, note: "剪的时候说的那句话，会跟着这枝花存进背包" },
+    ],
+  },
+  {
+    kind: "garden.flower.gift",
+    group: "玩",
+    summary: "送一枝花给她（会弹收花动画）",
+    fields: [
+      { name: "species", type: "string", required: true, note: "送哪一种花" },
+      { name: "note", type: "string", required: true, note: "附的一句话，必填 —— 送花不能光送花" },
+    ],
+  },
+  {
     kind: "garden.walk",
     group: "玩",
     summary: "在花园里走到某个地方",

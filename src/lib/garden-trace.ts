@@ -6,13 +6,19 @@
  *   · 同一条记录要同时喂：踪迹页（一行）、感知层（"他刚才干了什么"）、以后动态的素材。
  *     三处用同一句措辞，才不会出现"聊天里说的和踪迹上写的对不上"。
  *
- * 现在只有池塘的记录（钓鱼/杂物）。等花圃、长椅、棋桌也记到这里时，
- * 只在 `traceOf` 里加一路来源就行 —— 页面不用改。
+ * 现在两路：池塘（钓鱼/杂物）和花圃（种/浇/施肥/开花/剪/送）。
+ * 再加来源只在 `traceOf` 里加一路 —— 页面不用改。
  */
 
 import { findSpecies, JUNK_ITEMS, readCatches } from "@/lib/garden-catch";
+import { findFlower, readLog } from "@/lib/garden-flowers";
 
-export type TraceKind = "fish" | "junk";
+/**
+ * 记录的种类。
+ * 两路来源：池塘（fish / junk）和花圃（plant 种下 / water 浇水 / feed 施肥 / bloom 开花 / pick 剪下 / gift 送出）。
+ * 再加来源只动这里和 `traceOf`，踪迹页不用改。
+ */
+export type TraceKind = "fish" | "junk" | "plant" | "water" | "feed" | "bloom" | "pick" | "gift";
 
 export type TraceItem = {
   id: string;
@@ -41,19 +47,50 @@ export function describeCatch(ref: string, kind: TraceKind, weight?: number, len
   return `钓上来${j}`;
 }
 
-/** 全部踪迹（新的在前） */
+/** 花圃那一路：种下 / 浇水 / 施肥 / 开花 / 剪下 / 送出，都落成踪跡里的一行 */
+function flowerTrace(): TraceItem[] {
+  return readLog().map((l) => {
+    const zh = findFlower(l.species)?.zh ?? "花";
+    const text = (() => {
+      switch (l.kind) {
+        case "plant":
+          return `在花圃种下${zh}`;
+        case "water":
+          return `给${zh}浇了水`;
+        case "feed":
+          return `给${zh}施了肥`;
+        case "bloom":
+          return `${zh}开了`;
+        case "pick":
+          return l.note ? `剪下${zh}：「${l.note}」` : `把${zh}剪下来了`;
+        case "gift":
+          return l.note ? `把一枝${zh}放在你门口：「${l.note}」` : `把一枝${zh}放在你门口`;
+        default:
+          return `花圃：${zh}`;
+      }
+    })();
+    return {
+      id: l.id,
+      at: l.at,
+      time: hhmm(l.at),
+      kind: l.kind,
+      ref: l.species,
+      text,
+    } satisfies TraceItem;
+  });
+}
+
+/** 全部踪跡（新的在前） */
 export function traceOf(): TraceItem[] {
-  return readCatches()
-    .slice()
-    .sort((a, b) => b.at - a.at)
-    .map((r) => ({
-      id: r.id,
-      at: r.at,
-      time: hhmm(r.at),
-      kind: r.kind,
-      ref: r.ref,
-      text: describeCatch(r.ref, r.kind, r.weight, r.length),
-    }));
+  const catches: TraceItem[] = readCatches().map((r) => ({
+    id: r.id,
+    at: r.at,
+    time: hhmm(r.at),
+    kind: r.kind,
+    ref: r.ref,
+    text: describeCatch(r.ref, r.kind, r.weight, r.length),
+  }));
+  return [...catches, ...flowerTrace()].sort((a, b) => b.at - a.at);
 }
 
 /** 最近 N 条（给感知层用） */

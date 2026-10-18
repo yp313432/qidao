@@ -89,6 +89,7 @@ export const TERTIARY_PARENT: Record<string, string> = {
   "/play/garden/stagno": "/play/garden",
   "/play/garden/cesta": "/play/garden/stagno",
   "/play/garden/vestigia": "/play/garden",
+  "/play/garden/fiori": "/play/garden",
   /*
     棋桌的转盘（2026-11）：花园 → 棋桌（转盘）→ 具体某一盘。
     塔罗挂在转盘下面，返回该回转盘，不是直接跳回花园。
