@@ -23,9 +23,13 @@ export const WALKER_IMAGE: string | null = "/garden/walker.png";
 
 /**
  * 立绘在画面里的显示尺寸（px）。
- * 图片实际比例 254:600 ≈ 1:2.36，这里给 63×150 保持同比例（高 ≈ 屏高的 18%）。
+ * 图片实际比例 254:600 ≈ 1:2.36，这里给 49×116 保持同比例。
+ *
+ * 高度是调过的（用户 m05850："小人比喷泉还高，要缩小些"）：
+ *   150px（第一版）站在喷泉前比喷泉中层还高 → 132 → 116。
+ * 再改只动这个数，宽按 254/600 跟着算。
  */
-export const WALKER_SIZE = { w: 63, h: 150 };
+export const WALKER_SIZE = { w: 49, h: 116 };
 
 export type WalkPlace = {
   id: string;
@@ -87,8 +91,16 @@ export function nearestPlace(x: number, y: number): WalkPlace {
   return best;
 }
 
-/** 两个位置之间要走多久（毫秒）——按画面距离算，远的走得久 */
+/**
+ * 两个位置之间要走多久（毫秒）——按画面距离算，远的走得久。
+ *
+ * 用户 m05850："移动的太太快了，慢一点，模拟真实走路那个感觉"（看到 56 那版还说快）：
+ *   34 → 56 → 82（现在）：长椅走到石板路口约 5.3 秒，横穿整个花园约 5.4 秒。
+ *   换算成真人步速：立绘 116px 当 1.7m 高 → 画面 1px ≈ 1.5cm，
+ *   这段 4 米左右走 5.3 秒 ≈ 0.75m/s，是慢慢散步的节奏，不是赶路。
+ * 以后要快/慢只动这三个数。
+ */
 export function walkMs(from: { x: number; y: number }, to: { x: number; y: number }) {
   const d = Math.hypot(to.x - from.x, (to.y - from.y) * 2);
-  return Math.max(420, Math.min(2200, Math.round(d * 34)));
+  return Math.max(1200, Math.min(5400, Math.round(d * 82)));
 }

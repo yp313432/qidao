@@ -1744,7 +1744,7 @@ a:focus-visible,
  * 腿摆不了，就用「上下颠 + 一点点前后倾」凑出走路的感觉，幅度比占位小人更小，
  * 不然这张 Q 版大立绘会晃得像不倒翁。 */
 .gw-photo.gw-walking .gw-art {
-  animation: gw-trot 0.52s ease-in-out infinite;
+  animation: gw-trot 0.62s ease-in-out infinite;
 }
 .gw-photo .gw-art {
   filter: drop-shadow(0 3px 4px rgba(52, 34, 24, 0.26));
