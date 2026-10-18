@@ -44,9 +44,12 @@ const R_PLATE = 174;
 const R_IN = 92;
 const STEP = 360 / GAMES.length;
 
+/** 圆上取点。坐标**统一四舍五入到两位**：服务端 Node 和浏览器 V8 的
+ *  Math.sin/cos 末位会差一个 ulp，不取整就会在 hydration 时判成"属性不一致"。 */
 function pt(r: number, deg: number): [number, number] {
   const a = (deg * Math.PI) / 180;
-  return [C + r * Math.sin(a), C - r * Math.cos(a)];
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return [round(C + r * Math.sin(a)), round(C - r * Math.cos(a))];
 }
 
 function sectorPath(i: number): string {
