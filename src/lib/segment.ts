@@ -171,3 +171,14 @@ export function partsFor(
   const parts = splitSegments(raw, opts);
   return parts.length > 1 ? parts : undefined;
 }
+
+/**
+ * 把**看不见的字符**剥掉（零宽空格、方向标记、BOM、词连接符）。
+ *
+ * 起因：用户 m04513 截图里的「定时回复空气泡」——模型偶尔会在句尾吐 `\u200b`，
+ * 正文看起来是空的，但 `trim()` 判它非空，气泡就画成一个空的圆角框。
+ * 收尾写进消息之前先过这一层，历史里就不会再留这种东西。
+ */
+export function stripInvisible(s: string): string {
+  return (s ?? "").replace(/[\u200b-\u200f\u2060\ufeff]/g, "");
+}

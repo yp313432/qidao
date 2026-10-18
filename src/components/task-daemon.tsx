@@ -5,7 +5,7 @@ import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
-import { partsFor } from "@/lib/segment";
+import { partsFor, stripInvisible } from "@/lib/segment";
 import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
 
@@ -283,7 +283,8 @@ export function TaskDaemon() {
         }
       }
       const shown =
-        draftRest.trim() || (draftActions.length ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
+        stripInvisible(draftRest).trim() ||
+        (draftActions.length ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
       /**
        * **分段回复**：定时任务这条路以前整段塞一个气泡，用户 m02156 报"定时唤醒发的消息不能分段"。
        * 跟主对话同一个规则（`lib/segment`）：一条一个气泡，`content` 仍是完整原文。

@@ -193,6 +193,13 @@ export type ChatMessage = {
    * 只有真的切成 2 条以上才会写这一格；老消息没有它 → 按一条显示（向后兼容）。
    */
   parts?: string[];
+  /**
+   * 他说这句话的时候**在干什么**（"钓鱼中" / "浇花" / "空闲"）。
+   *
+   * 由收尾那一刻的 `aiStatus` 抄进来（见 `lib/ai-status.ts`）：状态是**按条**留痕的，
+   * 所以回头看历史时能知道他当时在花园还是在棋桌，而不是全都显示"现在"的状态。
+   */
+  status?: string;
 };
 
 /**
@@ -1032,8 +1039,8 @@ export type FeatureId =
     }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
-  | { kind: "garden.cesta.look" }
-  | { kind: "garden.walk"; place?: string }
+  | { kind: "garden.cesta.look"; mood?: string; say?: string }
+  | { kind: "garden.walk"; place?: string; mood?: string; say?: string }
   | { kind: "play.truth" }
   | { kind: "play.recordResult"; result: "win" | "loss" | "draw" }
   /**
@@ -1044,20 +1051,20 @@ export type FeatureId =
    * `x` = 第几列（1~15，A~O），`y` = 第几行（1~15，从上往下数）。
    * 他不想下/要让手，就别调这个，调 `garden.gomoku.pass`。
    */
-  | { kind: "garden.gomoku.play"; x: number; y: number }
-  | { kind: "garden.gomoku.pass" }
-  | { kind: "garden.gomoku.new" }
+  | { kind: "garden.gomoku.play"; x: number; y: number; mood?: string; say?: string }
+  | { kind: "garden.gomoku.pass"; mood?: string; say?: string }
+  | { kind: "garden.gomoku.new"; mood?: string; say?: string }
   /** 在池塘抛一竿（`spot` 是他自己说的位置，只用于记述，不影响概率） */
-  | { kind: "garden.fish.cast"; spot?: string }
+  | { kind: "garden.fish.cast"; spot?: string; mood?: string; say?: string }
   /** 收线。收早了空手，拖太久鱼跑 —— 时机由他挑 */
-  | { kind: "garden.fish.reel" }
+  | { kind: "garden.fish.reel"; mood?: string; say?: string }
   /**
    * 棋桌上摆一副塔罗（洗牌 + 按顺序抽牌）。
    *
    * 抽牌是程序按真规则随机的，**不是他编的牌**；他负责的是"翻开来怎么讲"。
    * 抽完会跳 `/play/garden/tarot`，那一页把牌一张张翻开、写解读。
    */
-  | { kind: "garden.tarot.draw"; question?: string; spread?: "one" | "three" }
+  | { kind: "garden.tarot.draw"; question?: string; spread?: "one" | "three"; mood?: string; say?: string }
   /**
    * 花圃里的活（2026-10 用户 m04036："动作你要有知道吧，就是 ai 真的能种，能浇水施肥"）。
    * 这几个是**真动作**：改了花圃状态、写进踪跡，还会把"长成什么样了"回给他。
@@ -1066,11 +1073,11 @@ export type FeatureId =
    *   · pick 剪下来收进背包（没开的花剪不得）
    *   · gift 送一枝过来（必须带一句话，会触发 app 级收花动画）
    */
-  | { kind: "garden.flower.plant"; species: string }
-  | { kind: "garden.flower.water"; species: string }
-  | { kind: "garden.flower.feed"; species: string }
-  | { kind: "garden.flower.pick"; species: string; note?: string }
-  | { kind: "garden.flower.gift"; species: string; note: string }
+  | { kind: "garden.flower.plant"; species: string; mood?: string; say?: string }
+  | { kind: "garden.flower.water"; species: string; mood?: string; say?: string }
+  | { kind: "garden.flower.feed"; species: string; mood?: string; say?: string }
+  | { kind: "garden.flower.pick"; species: string; note?: string; mood?: string; say?: string }
+  | { kind: "garden.flower.gift"; species: string; note: string; mood?: string; say?: string }
   | { kind: "learn.openReading"; index?: number }
   | { kind: "learn.speak"; text: string }
   | { kind: "learn.removeCard"; word: string }

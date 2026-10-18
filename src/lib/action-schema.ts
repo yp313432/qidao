@@ -30,6 +30,26 @@ export type ActionFieldDef = {
   readonly note?: string;
 };
 
+/**
+ * 踪跡要用的两个可选项 —— **所有花园动作都收**。
+ * 用户 m04355："有动作的都要记录，然后附上心情和想说的话，简单概括就行"
+ * 所以不另开一个"写踪跡"的动作，就在动作里捎上，避免他说一套、页面记另一套。
+ */
+const MOOD_FIELD = {
+  name: "mood",
+  type: "string",
+  required: false,
+  note: "当时的心情，两三个字（例：平静、有点得意、想你）",
+} as const;
+
+const SAY_FIELD = {
+  name: "say",
+  type: "string",
+  required: false,
+  note: "顺着这件事想说的一句短话，会写进踪跡（别长）",
+} as const;
+
+
 /** 分组顺序就是渲染顺序（`renderActionCatalog()` 按它排）。 */
 export const ACTION_GROUPS = [
   "界面",
@@ -386,31 +406,45 @@ export const ACTION_SCHEMA = [
     fields: [
       { name: "x", type: "number", required: true, note: "第几列，1~15（A~O）" },
       { name: "y", type: "number", required: true, note: "第几行，1~15，从上往下" },
+      MOOD_FIELD,
+      SAY_FIELD,
     ],
   },
   {
     kind: "garden.gomoku.pass",
     group: "玩",
     summary: "这一手让给他（你自己不下）",
-    fields: [],
+    fields: [
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.gomoku.new",
     group: "玩",
     summary: "把棋收起来，开新的一局",
-    fields: [],
+    fields: [
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.fish.cast",
     group: "玩",
     summary: "在池塘抛一竿",
-    fields: [{ name: "spot", type: "string", required: false, note: "抛到哪儿，随口说一句" }],
+    fields: [{ name: "spot", type: "string", required: false, note: "抛到哪儿，随口说一句" },
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.fish.reel",
     group: "玩",
     summary: "收线（收早了空手，拖太久鱼跑）",
-    fields: [],
+    fields: [
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.tarot.draw",
@@ -429,25 +463,36 @@ export const ACTION_SCHEMA = [
         required: false,
         note: "one = 单张；three = 三张（过去/现在/未来，默认）",
       },
+      MOOD_FIELD,
+      SAY_FIELD,
     ],
   },
   {
     kind: "garden.flower.plant",
     group: "玩",
     summary: "在花圃种下一株花",
-    fields: [{ name: "species", type: "string", required: true, note: "rosa / giglio / ortensia / margherita / lavanda / glicine" }],
+    fields: [{ name: "species", type: "string", required: true, note: "rosa / giglio / ortensia / margherita / lavanda / glicine" },
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.flower.water",
     group: "玩",
     summary: "给花圃里的花浇水",
-    fields: [{ name: "species", type: "string", required: true, note: "要浇的那一株，用上面的花名 id" }],
+    fields: [{ name: "species", type: "string", required: true, note: "要浇的那一株，用上面的花名 id" },
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.flower.feed",
     group: "玩",
     summary: "给花施肥",
-    fields: [{ name: "species", type: "string", required: true, note: "要施肥的那一株" }],
+    fields: [{ name: "species", type: "string", required: true, note: "要施肥的那一株" },
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "garden.flower.pick",
@@ -456,6 +501,8 @@ export const ACTION_SCHEMA = [
     fields: [
       { name: "species", type: "string", required: true, note: "要剪的那一株（必须是开着的）" },
       { name: "note", type: "string", required: false, note: "剪的时候说的那句话，会跟着这枝花存进背包" },
+      MOOD_FIELD,
+      SAY_FIELD,
     ],
   },
   {
@@ -465,6 +512,8 @@ export const ACTION_SCHEMA = [
     fields: [
       { name: "species", type: "string", required: true, note: "送哪一种花" },
       { name: "note", type: "string", required: true, note: "附的一句话，必填 —— 送花不能光送花" },
+      MOOD_FIELD,
+      SAY_FIELD,
     ],
   },
   {
@@ -478,13 +527,18 @@ export const ACTION_SCHEMA = [
         required: false,
         note: "喷泉前 / 长椅 / 棋桌旁 / 池塘边 / 花圃边 / 小屋门口 / 拱廊下 / 石板路口",
       },
+      MOOD_FIELD,
+      SAY_FIELD,
     ],
   },
   {
     kind: "garden.cesta.look",
     group: "玩",
     summary: "看看竹篮里有什么（池塘边带回来的）",
-    fields: [],
+    fields: [
+      MOOD_FIELD,
+      SAY_FIELD,
+    ],
   },
   {
     kind: "learn.openReading",

@@ -316,12 +316,25 @@ const schemaEntries = topLevelObjects(schemaMasked, schemaArrOpen).map((entry) =
   const fields = [];
   if (fieldsAt >= 0) {
     const arrAt = entry.indexOf("[", fieldsAt);
+    const entryFieldsText = entry.slice(arrAt);
     for (const obj of topLevelObjects(entry, arrAt)) {
       fields.push({
         name: (/name:\s*"([^"]+)"/.exec(obj) ?? [])[1] ?? null,
         type: (/type:\s*"([^"]+)"/.exec(obj) ?? [])[1] ?? null,
         required: (/required:\s*(true|false)/.exec(obj) ?? [])[1] === "true",
       });
+    }
+    /*
+      共用字段是常量（`MOOD_FIELD` / `SAY_FIELD`），源码里扫不到 `name: "…"`，
+      这里按常量名补回来 —— 否则会误报"tools 多了 mood, say"。
+    */
+    for (const [token, name, type] of [
+      ["MOOD_FIELD", "mood", "string"],
+      ["SAY_FIELD", "say", "string"],
+    ]) {
+      if (entryFieldsText.includes(token) && !fields.some((f) => f.name === name)) {
+        fields.push({ name, type, required: false });
+      }
     }
   }
   return { kind, group, summary, fields };

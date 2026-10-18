@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+import { currentStatusText } from "@/lib/ai-status";
 import { kvSetRaw } from "@/lib/data/local-kv";
 import { pushActionLog, pushRequestLog } from "@/lib/data/retention";
 import { createQidaoPersistStorage } from "@/lib/idb-storage";
@@ -1566,6 +1568,9 @@ export const useApp = create<AppState>()(
                             // 思考过程**留在这一条消息里**（折叠块要靠它才展得开），
                             // 但不再另存一份档案 —— 省掉的就是那份重复的。
                             thinking: patch.thinking ?? m.thinking,
+                            // 「他说这句时在干什么」：收尾那一刻的状态，按条留痕；
+                            // 已经写过就不覆盖（后续 patchMessage 不该冲掉它）
+                            status: patch.status ?? m.status ?? currentStatusText(),
                           }
                         : m,
                     ),

@@ -22,6 +22,7 @@ import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { guessKind } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
+import { appendVestigium } from "@/lib/garden-trace";
 import { runSenseAction } from "@/lib/sense";
 import { speakTextAsync } from "@/lib/tts";
 import {
@@ -29,6 +30,7 @@ import {
   filterFlowerByHint,
   FLOWER_SPECIES,
   giftFlower,
+  findFlower,
   pickFlower,
   plantFlower,
   readBasket,
@@ -60,8 +62,8 @@ function player() {
   return { p, error: "" };
 }
 
-/** 执行一个动作，返回一句给人看的结果说明。 */
-export async function runAction(action: AppAction, ctx: ActionContext): Promise<string> {
+/** 真正干活的那个（下面 `runAction` 负责包一层记踪跡）。 */
+async function runActionInner(action: AppAction, ctx: ActionContext): Promise<string> {
   /**
    * 模型偶尔会把字段漏写、写错名（比如给「写信」用了「动态」的 text 字段）。
    * 直接 .trim() 会当场抛错，把整条动作链弄崩 —— 所以统一从这里取值。
@@ -1209,4 +1211,88 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       }
     }
   }
+}
+
+/**
+ * 执行一个动作，返回一句给人看的结果说明。
+ *
+ * 花园里的动作**顺手**落一条踪跡（用户 m04355："有动作的都要记录，然后附上心情和想说的话"）：
+ * 一条记录 = 动作回执 + 可选的 mood（心情）+ say（想说的话），
+ * 页面只读 `garden-trace`，不再让第二个人重复写一遍。
+ */
+/** 没真做成的事别写进纸上（回执里带这些字眼就当没发生） */
+const VESTIGIA_REFUSAL = /还没|不能|不够|失败|得先|需要一个/;
+
+const VESTIGIA_PLACES: Record<string, string> = {
+  casa: "小屋前",
+  portico: "拱廊下",
+  fiori: "花圃",
+  stagno: "池塘边",
+  tavolo: "棋桌边",
+};
+
+/**
+ * 把动作写成**纸上的那一句话**。
+ *
+ * 踪跡不是工具回执：回执是"玫瑰种下去了（种子 -1）"，纸上要的是"在花圃种下玫瑰"。
+ * 所以这里按 kind 重写一遍，回执只在没有更好说法时兜底。
+ */
+function traceText(action: AppAction, receipt: string): string {
+  const a = action as unknown as Record<string, unknown>;
+  const fid = typeof a.species === "string" ? a.species : "";
+  const name = fid ? (findFlower(fid)?.zh ?? "花") : "花";
+  const q = typeof a.question === "string" ? a.question.trim() : "";
+  switch (action.kind) {
+    case "garden.flower.plant":
+      return `在花圃种下${name}`;
+    case "garden.flower.water":
+      return `给${name}浇了水`;
+    case "garden.flower.feed":
+      return `给${name}施了肥`;
+    case "garden.flower.pick":
+      return `剪下一枝${name}，收进背包`;
+    case "garden.flower.gift":
+      return `把一枝${name}放在你门口`;
+    case "garden.fish.cast":
+      return "在池塘边抛了一竿";
+    case "garden.fish.reel":
+      return /钓|捞|挂|钩/.test(receipt) ? receipt.replace(/^在池塘/, "") : "收了竿，什么都没上钩";
+    case "garden.gomoku.play":
+      return "在棋桌前落了一子";
+    case "garden.gomoku.pass":
+      return "在棋桌让了一手";
+    case "garden.gomoku.new":
+      return "在棋桌新开了一局";
+    case "garden.tarot.draw":
+      return `在棋桌摆了${a.spread === "one" ? "一张" : "三张"}塔罗${q ? `，问的是「${q}」` : ""}`;
+    case "garden.walk": {
+      const label = typeof a.place === "string" ? VESTIGIA_PLACES[a.place] : "";
+      return label ? `走到${label}` : "在花园里走了走";
+    }
+    case "garden.cesta.look":
+      return "在池塘边看了看竹篮";
+    default:
+      return receipt;
+  }
+}
+
+export async function runAction(action: AppAction, ctx: ActionContext): Promise<string> {
+  const receipt = await runActionInner(action, ctx);
+  if (action.kind.startsWith("garden.") && !VESTIGIA_REFUSAL.test(receipt)) {
+    const extra = action as { mood?: unknown; say?: unknown; species?: unknown };
+    const mood = typeof extra.mood === "string" ? extra.mood.trim() : "";
+    const say = typeof extra.say === "string" ? extra.say.trim() : "";
+    appendVestigium({
+      kind: action.kind,
+      ref: typeof extra.species === "string" ? extra.species : undefined,
+      text: traceText(action, receipt),
+      mood: mood || undefined,
+      line: say || undefined,
+    });
+    /*
+      「他此时的状态」不在这里写：它由**踪跡**推出来（`currentStatusText()` 读最近一条花园动作），
+      所以上面那条 `appendVestigium` 一落，状态自然就变了 —— 不用再存第二份。
+    */
+  }
+  return receipt;
 }

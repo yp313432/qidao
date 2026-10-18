@@ -1,7 +1,7 @@
 import { resolveAiName } from "@/lib/branding";
 import { wakeConfigPayload } from "@/lib/data/wake-config";
 import { isNativeApp } from "@/lib/platform";
-import { partsFor } from "@/lib/segment";
+import { partsFor, stripInvisible } from "@/lib/segment";
 import { useApp } from "@/lib/store";
 import { waitHydrated } from "@/lib/store-ready";
 import { stripActions } from "@/lib/use-chat";
@@ -463,7 +463,7 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
      * 而且他在后台可能一次写了好几段（用户："不能分段回复"）——
      * 跟主对话同一个规则：先洗正文，再算分段。
      */
-    const shown = stripActions(text).trim() || text.trim();
+    const shown = stripInvisible(stripActions(text)).trim() || stripInvisible(text).trim();
     const setting = useApp.getState().settings;
     const parts = partsFor(shown, {
       enabled: setting.segmentReply !== false,
@@ -581,7 +581,7 @@ export async function flushWakeLedger(): Promise<WakeLedgerResult> {
       }
 
       /** 就是"他说了一句" */
-      const shown = stripActions(entry.text).trim() || entry.text.trim();
+      const shown = stripInvisible(stripActions(entry.text)).trim() || stripInvisible(entry.text).trim();
       if (!shown) {
         acked.push(entry.id);
         continue;

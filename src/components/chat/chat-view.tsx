@@ -17,6 +17,19 @@ import {
 import { prettySize } from "@/lib/attachments";
 import { firstSegment } from "@/lib/segment";
 import { Avatar } from "@/components/avatar";
+
+/**
+ * 这段文字里**有没有看得见的东西**。
+ *
+ * 为什么不用 `.trim()`：用户 m04513 报的「定时回复空气泡」里，那一条的正文是
+ * 零宽字符 / 看不见的空白（模型偶尔会吐 `\u200b`、BOM 之类），`trim()` 判它"非空"，
+ * 于是气泡照常画出来、里面一个字都没有 —— 看着就是一个空的圆角框。
+ * 这里把零宽字符一起剥掉再判。
+ */
+function hasVisibleText(s: string | undefined | null): boolean {
+  if (!s) return false;
+  return /[^\s\u200b-\u200f\u2060\ufeff]/.test(s);
+}
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
@@ -560,10 +573,11 @@ export function ChatView() {
                *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
                *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
                */
+              const visibleParts = (m.parts ?? []).filter((p) => hasVisibleText(p));
               const noBody =
                 !mine &&
-                !m.content.trim() &&
-                !(m.parts && m.parts.length) &&
+                !hasVisibleText(m.content) &&
+                visibleParts.length === 0 &&
                 !(m.attachments && m.attachments.length);
               const pendingPlaceholder =
                 noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
@@ -622,6 +636,17 @@ export function ChatView() {
                         <>
                           <Avatar role="ai" size={26} />
                           <span className="text-[13px] font-medium text-fg">{aiName}</span>
+                          {/*
+                            「他这会儿在干什么」（用户 m04513 选的方案 B）：
+                            名字后面一枚小胶囊 —— 钓鱼中 / 落子 / 浇花 / 空闲。
+                            状态是**按条**存的（`finalizeAssistant` 收尾时抄进去），
+                            所以翻历史看到的是"当时"，不是"现在"。
+                          */}
+                          {m.status && (
+                            <span className="rounded-full border border-line bg-chip px-1.5 py-0.5 text-[10px] leading-none text-muted">
+                              {m.status}
+                            </span>
+                          )}
                           {/*
                             来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
                             所以要看 `origin` 分开说（用户要求）：
@@ -776,7 +801,7 @@ export function ChatView() {
                         */}
                         {(() => {
                           const parts =
-                            !streaming && m.parts && m.parts.length > 1 ? m.parts : null;
+                            !streaming && visibleParts.length > 1 ? visibleParts : null;
                           const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
                           const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
 
@@ -801,7 +826,7 @@ export function ChatView() {
                           }
 
                           const liveText = streaming ? firstSegment(m.content) : m.content;
-                          return liveText ? (
+                          return hasVisibleText(liveText) ? (
                             <div
                               {...quotePress(m.id, liveText)}
                               className="w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
