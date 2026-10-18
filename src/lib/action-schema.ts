@@ -368,12 +368,6 @@ export const ACTION_SCHEMA = [
     ],
   },
   {
-    kind: "play.gobang",
-    group: "玩",
-    summary: "陪你下一局五子棋",
-    fields: [],
-  },
-  {
     kind: "play.truth",
     group: "玩",
     summary: "抽一个真心话问题",
@@ -416,6 +410,12 @@ export const ACTION_SCHEMA = [
     kind: "garden.fish.reel",
     group: "玩",
     summary: "收线（收早了空手，拖太久鱼跑）",
+    fields: [],
+  },
+  {
+    kind: "garden.cesta.look",
+    group: "玩",
+    summary: "看看竹篮里有什么（池塘边带回来的）",
     fields: [],
   },
   {

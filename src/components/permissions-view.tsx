@@ -337,10 +337,10 @@ export function PermissionsView() {
             </button>
             <button
               type="button"
-              onClick={() => useApp.getState().requestAction({ kind: "play.gobang" }, "试一试")}
+              onClick={() => useApp.getState().requestAction({ kind: "garden.cesta.look" }, "试一试")}
               className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
             >
-              试一试：陪你下一局五子棋
+              试一试：看看竹篮里有什么
             </button>
             <button
               type="button"

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, ArrowUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
 import type { ChatRequest } from "@/lib/chat-client";
 import { CHESS_EPIGRAPH, GARDEN_BASE } from "@/lib/garden";
@@ -87,6 +88,14 @@ function ChessTable() {
   const askedFor = useRef(-1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
+  /**
+   * 他上一手动作的执行回执。
+   *
+   * 用户 m04654 第 2 条："下棋落子后没有执行结果，他知不知道到底落没落子"。
+   * 回执本来就有（`gardenTurn` 的 results），但以前只丢掉了 —— 下一轮他只能靠
+   * 棋盘自己猜，猜错就说"我看不到执行结果"。现在把回执带进下一轮的说明里。
+   */
+  const lastReceipt = useRef("");
 
   const aiNameRef = useRef(aiName);
   aiNameRef.current = aiName;
@@ -167,6 +176,7 @@ function ChessTable() {
       `（花园的棋桌。这一局你执白（○），我执黑（●）。已落 ${mine + his} 手。\n` +
       `当前棋盘（行号在左，列 A~O）：\n${boardLines(rows)}\n` +
       (cur.moves.length ? `我最后落在 ${coord(cur.moves[cur.moves.length - 1]!.r, cur.moves[cur.moves.length - 1]!.c)}。\n` : "") +
+      (lastReceipt.current ? `你上一手动完的回执：${lastReceipt.current}\n` : "") +
       `轮到你了。要落子就在回复末尾写一个动作块：\n` +
       "```qidao\n" +
       `{"kind":"garden.gomoku.play","x":8,"y":8}\n` +
@@ -192,12 +202,17 @@ function ChessTable() {
           "在花园的棋桌边和我下五子棋（这一局是你执白，我执黑）。当前局面：" +
           `${boardLines(rows).split("\n").join(" / ")}`,
         now: new Date().toLocaleString("zh-CN"),
+        // 没有这一行，模型会以为"用户还没有授权你操作 App"，
+        // 于是连"切回聊天"都不敢做（用户 m04654 第 3 条就是这么来的）
+        granted: buildContext().granted,
       },
       permissions: setting.permissions,
     };
 
     const ac = new AbortController();
     abortRef.current = ac;
+    // 这一手开始前棋盘上有几颗子 —— 之后用它判断"到底落没落成"
+    const beforeMoves = useApp.getState().gardenChess.moves.length;
     try {
       const r = await gardenTurn({
         req,
@@ -224,11 +239,14 @@ function ChessTable() {
       );
 
       /**
-       * 他没落子（模型没写动作块 / 上游断了）——**不替他下**（用户 m02176 定的 B）。
-       * 给一次重试，再不行就如实说，把棋子留在"轮到他"那里等着。
+       * 他没落子（模型没写动作块 / 上游断了 / 动作没执行成）——**不替他下**（用户 m02176 定的 B）。
+       * 判据看"棋盘动没动"，而不是"有没有写动作"：写了 play 但坐标非法时
+       * `r.acted` 是 true、棋子却没落下，这时候也该重问一次，并把回执告诉他。
        */
       const after = useApp.getState().gardenChess;
-      if (!r.acted && !after.result && after.turn === "ai") {
+      const landed = after.moves.length > beforeMoves;
+      if (r.results.length) lastReceipt.current = r.results.join("；");
+      if (!landed && !after.result && after.turn === "ai") {
         await new Promise((res) => window.setTimeout(res, 600));
         const again = await gardenTurn({
           req: {
@@ -236,14 +254,20 @@ function ChessTable() {
             messages: [
               ...history,
               { role: "user", content: instruction },
-              { role: "user", content: "（只写动作块：你要落子就用 garden.gomoku.play，不下就 pass。）" },
+              {
+                role: "user",
+                content: r.acted
+                  ? `（你上一手没落成：${r.results.join("；") || "动作没执行"}。换一个空着的交叉点再写一次 garden.gomoku.play，或者写 {"kind":"garden.gomoku.pass"}。）`
+                  : "（只写动作块：你要落子就用 garden.gomoku.play，不下就 pass。）",
+              },
             ],
           },
           allow,
           signal: ac.signal,
         });
+        if (again.results.length) lastReceipt.current = again.results.join("；");
         const still = useApp.getState().gardenChess;
-        if (!again.acted && !still.result && still.turn === "ai") {
+        if (still.moves.length <= beforeMoves && !still.result && still.turn === "ai") {
           setBubbles((prev) =>
             [
               ...prev,
@@ -285,6 +309,12 @@ function ChessTable() {
     const said = text.trim();
     if (!said || sending) return;
     setDraft("");
+    /**
+     * 用户 m04654 第 4 条："发消息时我需要手动往下才能看到我刚发的消息"。
+     * 发消息就是"我要看最新那条"，所以先把 atBottom 拉回 true，
+     * 滚动 effect 自然会跟着到最底。
+     */
+    atBottom.current = true;
     setBubbles((prev) => [...prev, { id: nextId.current++, side: "me" as const, text: said }].slice(-60));
 
     const st = useApp.getState();
@@ -320,6 +350,7 @@ function ChessTable() {
           `${boardLines(rows).split("\n").join(" / ")}` +
           (cur.result ? "（这局已经下完了）" : ""),
         now: new Date().toLocaleString("zh-CN"),
+        granted: buildContext().granted,
       },
       permissions: setting.permissions,
     };

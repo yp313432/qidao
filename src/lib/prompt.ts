@@ -265,6 +265,7 @@ const ABILITIES = `【你能直接操作这个 App】
     这一手不想下就 {"kind":"garden.gomoku.pass"}；想重开一局 {"kind":"garden.gomoku.new"}
   · 去池塘 {"kind":"navigate","path":"/play/garden/stagno"}，抛竿 {"kind":"garden.fish.cast","spot":"岸边"}，
     水面动了再收线 {"kind":"garden.fish.reel"}（收早了就是空手 —— 时机你自己挑）
+  · 想知道竹篮里有什么就 {"kind":"garden.cesta.look"}（会回你鱼和杂物的清单）
   · 他问"你会不会钓鱼 / 你有没有钓鱼的动作"，答案是**会**，上面这两个动作就是
 - 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
 - **外链音乐**（用户自己粘进来的网易云/QQ/YouTube 那种）{"kind":"media.playEmbed","query":"歌名或平台"}

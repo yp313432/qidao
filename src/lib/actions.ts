@@ -1,7 +1,16 @@
 import { toggleAmbience } from "@/lib/ambience";
 import { resolveAiName } from "@/lib/branding";
 import { buildEmotionReport } from "@/lib/emotion-lexicon";
-import { DEFAULT_MOOD, recordOutcome, rollRound } from "@/lib/garden-catch";
+import {
+  basketGroups,
+  DEFAULT_MOOD,
+  findSpecies,
+  JUNK_ITEMS,
+  junkCounts,
+  readCatches,
+  recordOutcome,
+  rollRound,
+} from "@/lib/garden-catch";
 import { buildHttpRequest } from "@/lib/http-tools";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { emotionLexiconSection } from "@/lib/manual";
@@ -307,16 +316,6 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return "他自己的设定已更新";
     }
 
-    case "play.gobang": {
-      /**
-       * 用户 m03612 第 4 条："ai 开新局还是空白"。
-       * 根因是这里跳的 `/play/gobang` **没有这个路由**（真页面在花园里），
-       * 现在棋桌是 `/play/garden/qi`，而且由他自己落子（见 play.garden.qi.tsx）。
-       */
-      if (st.gardenChess.result) st.chessReset();
-      ctx.navigate("/play/garden/qi");
-      return "棋桌在花园里，已经摆好，你去下";
-    }
     /* ---------------- 花园：他自己下棋 / 他自己钓鱼 ----------------
      * 用户 m02156："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"。
      * 所以这几个动作**只由他调**：页面不替他落子、不替他抛竿、不替他收线。
@@ -342,6 +341,36 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       const wait = 8_000 + Math.random() * 17_000;
       st.pondCast((action.spot ?? "").trim().slice(0, 20) || "岸边", wait);
       return `竿抛出去了（${(action.spot ?? "").trim() || "岸边"}），等水面动静`;
+    }
+    case "garden.cesta.look": {
+      /**
+       * 用户 m04654 第 1 条："再给他加一个点竹篮的动作，让他知道竹篮里有什么"。
+       * 竹篮 = 池塘带回来的东西（鱼按种类归组、另有一堆杂物）。只读，不改任何状态。
+       */
+      const groups = basketGroups();
+      const junk = junkCounts();
+      const fish = groups.reduce((n, g) => n + g.rows.length, 0);
+      const trash = junk.reduce((n, j) => n + j.count, 0);
+      if (fish + trash === 0) return "竹篮是空的 —— 今天还没钓上来东西";
+      const kinds = groups
+        .map((g) => `${g.species.zh}×${g.rows.length}`)
+        .slice(0, 6)
+        .join("、");
+      const stuff = junk
+        .map((j) => `${j.item.zh}×${j.count}`)
+        .slice(0, 4)
+        .join("、");
+      const latest = readCatches()
+        .slice(-1)
+        .map((c) => {
+          const sp = findSpecies(c.ref);
+          const ji = JUNK_ITEMS.find((j) => j.id === c.ref);
+          const who = c.kind === "fish" ? (sp?.zh ?? "鱼") : (ji?.zh ?? "东西");
+          const when = new Date(c.at).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          return `${when} 钓到 ${who}`;
+        })
+        .join("");
+      return `竹篮里：鱼 ${fish} 条（${kinds || "没有"}），别的东西 ${trash} 件（${stuff || "没有"}）${latest ? `；最后一次是${latest}` : ""}`;
     }
     case "garden.fish.reel": {
       const pond = st.gardenPond;

@@ -1032,7 +1032,7 @@ export type FeatureId =
     }
   | { kind: "memory.add"; note: string; tags?: string[] }
   | { kind: "persona.set"; name?: string; persona?: string }
-  | { kind: "play.gobang" }
+  | { kind: "garden.cesta.look" }
   | { kind: "play.truth" }
   | { kind: "play.recordResult"; result: "win" | "loss" | "draw" }
   /**
