@@ -413,6 +413,25 @@ export const ACTION_SCHEMA = [
     fields: [],
   },
   {
+    kind: "garden.tarot.draw",
+    group: "玩",
+    summary: "在棋桌摆塔罗，洗完牌跳去牌桌",
+    fields: [
+      {
+        name: "question",
+        type: "string",
+        required: false,
+        note: "用户想问的那句话（照抄他自己说的，别改写成模板句）",
+      },
+      {
+        name: "spread",
+        type: "string",
+        required: false,
+        note: "one = 单张；three = 三张（过去/现在/未来，默认）",
+      },
+    ],
+  },
+  {
     kind: "garden.walk",
     group: "玩",
     summary: "在花园里走到某个地方",

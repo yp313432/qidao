@@ -1051,6 +1051,13 @@ export type FeatureId =
   | { kind: "garden.fish.cast"; spot?: string }
   /** 收线。收早了空手，拖太久鱼跑 —— 时机由他挑 */
   | { kind: "garden.fish.reel" }
+  /**
+   * 棋桌上摆一副塔罗（洗牌 + 按顺序抽牌）。
+   *
+   * 抽牌是程序按真规则随机的，**不是他编的牌**；他负责的是"翻开来怎么讲"。
+   * 抽完会跳 `/play/garden/tarot`，那一页把牌一张张翻开、写解读。
+   */
+  | { kind: "garden.tarot.draw"; question?: string; spread?: "one" | "three" }
   | { kind: "learn.openReading"; index?: number }
   | { kind: "learn.speak"; text: string }
   | { kind: "learn.removeCard"; word: string }

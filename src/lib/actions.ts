@@ -343,6 +343,25 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       st.pondCast((action.spot ?? "").trim().slice(0, 20) || "岸边", wait);
       return `竿抛出去了（${(action.spot ?? "").trim() || "岸边"}），等水面动静`;
     }
+    case "garden.tarot.draw": {
+      /**
+       * 摆一副塔罗：洗牌 + 抽牌走 `lib/tarot.ts`（78 张、不放回、逆位约 1/3），
+       * 然后跳去三级页 —— 翻牌和解读在那一页里发生（他一边翻一边讲）。
+       */
+      const spread = action.spread === "one" ? "one" : "three";
+      st.startTarot({ question: str(action.question), spread });
+      const t = useApp.getState().gardenTarot;
+      if (!t) return "牌没洗成（塔罗状态没建起来）";
+      const lines = t.cards
+        .map((d, i) => {
+          const pos = t.spread === "three" ? ["过去", "现在", "未来"][i] ?? `第 ${i + 1} 张` : "此刻";
+          return `${pos}：${d.card.zh}${d.reversed ? "（逆位）" : ""}`;
+        })
+        .join("；");
+      ctx.navigate("/play/garden/tarot");
+      return `牌洗好了，按顺序抽到 —— ${lines}。去塔罗那页一张张翻开吧。`;
+    }
+
     case "garden.walk": {
       /**
        * 用户 m05335 定的方案 A："花园自由走动"——他可以在花园里走到某个地方，

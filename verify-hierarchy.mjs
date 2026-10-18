@@ -37,6 +37,9 @@ const TERTIARY_PARENT = {
   "/play/garden/stagno": "/play/garden",
   "/play/garden/cesta": "/play/garden/stagno",
   "/play/garden/vestigia": "/play/garden",
+  // 棋桌 → 转盘（二级）→ 塔罗（三级）：塔罗是从转盘里进去的
+  "/play/garden/tavolo": "/play/garden",
+  "/play/garden/tarot": "/play/garden/tavolo",
   "/play/add": "/play/listen",
   // 动态空间拆成三页（2026-10）：上一级都是动态空间目录
   "/play/space/moments": "/play/space",
@@ -105,6 +108,8 @@ const PAGES = [
   "/play/garden/stagno",
   "/play/garden/cesta",
   "/play/garden/vestigia",
+  "/play/garden/tavolo",
+  "/play/garden/tarot",
 ];
 
 const browser = await chromium.launch({ channel: "msedge" });

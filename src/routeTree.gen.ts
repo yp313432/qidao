@@ -53,6 +53,8 @@ import { Route as AppPlayGardenIndexRouteImport } from './routes/_app/play.garde
 import { Route as AppPlayGardenCestaRouteImport } from './routes/_app/play.garden.cesta'
 import { Route as AppPlayGardenQiRouteImport } from './routes/_app/play.garden.qi'
 import { Route as AppPlayGardenStagnoRouteImport } from './routes/_app/play.garden.stagno'
+import { Route as AppPlayGardenTarotRouteImport } from './routes/_app/play.garden.tarot'
+import { Route as AppPlayGardenTavoloRouteImport } from './routes/_app/play.garden.tavolo'
 import { Route as AppPlayGardenVestigiaRouteImport } from './routes/_app/play.garden.vestigia'
 import { Route as AppPlayPluginsIndexRouteImport } from './routes/_app/play.plugins.index'
 import { Route as AppPlayPluginsSlugRouteImport } from './routes/_app/play/plugins/$slug'
@@ -287,6 +289,16 @@ const AppPlayGardenStagnoRoute = AppPlayGardenStagnoRouteImport.update({
   path: '/garden/stagno',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppPlayGardenTarotRoute = AppPlayGardenTarotRouteImport.update({
+  id: '/garden/tarot',
+  path: '/garden/tarot',
+  getParentRoute: () => AppPlayRoute,
+} as any)
+const AppPlayGardenTavoloRoute = AppPlayGardenTavoloRouteImport.update({
+  id: '/garden/tavolo',
+  path: '/garden/tavolo',
+  getParentRoute: () => AppPlayRoute,
+} as any)
 const AppPlayGardenVestigiaRoute = AppPlayGardenVestigiaRouteImport.update({
   id: '/garden/vestigia',
   path: '/garden/vestigia',
@@ -400,6 +412,8 @@ export interface FileRoutesByFullPath {
   '/play/garden/cesta': typeof AppPlayGardenCestaRoute
   '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/garden/stagno': typeof AppPlayGardenStagnoRoute
+  '/play/garden/tarot': typeof AppPlayGardenTarotRoute
+  '/play/garden/tavolo': typeof AppPlayGardenTavoloRoute
   '/play/garden/vestigia': typeof AppPlayGardenVestigiaRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
@@ -458,6 +472,8 @@ export interface FileRoutesByTo {
   '/play/garden/cesta': typeof AppPlayGardenCestaRoute
   '/play/garden/qi': typeof AppPlayGardenQiRoute
   '/play/garden/stagno': typeof AppPlayGardenStagnoRoute
+  '/play/garden/tarot': typeof AppPlayGardenTarotRoute
+  '/play/garden/tavolo': typeof AppPlayGardenTavoloRoute
   '/play/garden/vestigia': typeof AppPlayGardenVestigiaRoute
   '/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/play/plugins/edit': typeof AppPlayPluginsEditRoute
@@ -519,6 +535,8 @@ export interface FileRoutesById {
   '/_app/play/garden/cesta': typeof AppPlayGardenCestaRoute
   '/_app/play/garden/qi': typeof AppPlayGardenQiRoute
   '/_app/play/garden/stagno': typeof AppPlayGardenStagnoRoute
+  '/_app/play/garden/tarot': typeof AppPlayGardenTarotRoute
+  '/_app/play/garden/tavolo': typeof AppPlayGardenTavoloRoute
   '/_app/play/garden/vestigia': typeof AppPlayGardenVestigiaRoute
   '/_app/play/plugins/$slug': typeof AppPlayPluginsSlugRoute
   '/_app/play/plugins/edit': typeof AppPlayPluginsEditRoute
@@ -580,6 +598,8 @@ export interface FileRouteTypes {
     | '/play/garden/cesta'
     | '/play/garden/qi'
     | '/play/garden/stagno'
+    | '/play/garden/tarot'
+    | '/play/garden/tavolo'
     | '/play/garden/vestigia'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
@@ -638,6 +658,8 @@ export interface FileRouteTypes {
     | '/play/garden/cesta'
     | '/play/garden/qi'
     | '/play/garden/stagno'
+    | '/play/garden/tarot'
+    | '/play/garden/tavolo'
     | '/play/garden/vestigia'
     | '/play/plugins/$slug'
     | '/play/plugins/edit'
@@ -698,6 +720,8 @@ export interface FileRouteTypes {
     | '/_app/play/garden/cesta'
     | '/_app/play/garden/qi'
     | '/_app/play/garden/stagno'
+    | '/_app/play/garden/tarot'
+    | '/_app/play/garden/tavolo'
     | '/_app/play/garden/vestigia'
     | '/_app/play/plugins/$slug'
     | '/_app/play/plugins/edit'
@@ -1040,6 +1064,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayGardenStagnoRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/play/garden/tarot': {
+      id: '/_app/play/garden/tarot'
+      path: '/garden/tarot'
+      fullPath: '/play/garden/tarot'
+      preLoaderRoute: typeof AppPlayGardenTarotRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
+    '/_app/play/garden/tavolo': {
+      id: '/_app/play/garden/tavolo'
+      path: '/garden/tavolo'
+      fullPath: '/play/garden/tavolo'
+      preLoaderRoute: typeof AppPlayGardenTavoloRouteImport
+      parentRoute: typeof AppPlayRoute
+    }
     '/_app/play/garden/vestigia': {
       id: '/_app/play/garden/vestigia'
       path: '/garden/vestigia'
@@ -1155,6 +1193,8 @@ interface AppPlayRouteChildren {
   AppPlayGardenCestaRoute: typeof AppPlayGardenCestaRoute
   AppPlayGardenQiRoute: typeof AppPlayGardenQiRoute
   AppPlayGardenStagnoRoute: typeof AppPlayGardenStagnoRoute
+  AppPlayGardenTarotRoute: typeof AppPlayGardenTarotRoute
+  AppPlayGardenTavoloRoute: typeof AppPlayGardenTavoloRoute
   AppPlayGardenVestigiaRoute: typeof AppPlayGardenVestigiaRoute
   AppPlayPluginsSlugRoute: typeof AppPlayPluginsSlugRoute
   AppPlayPluginsEditRoute: typeof AppPlayPluginsEditRoute
@@ -1187,6 +1227,8 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayGardenCestaRoute: AppPlayGardenCestaRoute,
   AppPlayGardenQiRoute: AppPlayGardenQiRoute,
   AppPlayGardenStagnoRoute: AppPlayGardenStagnoRoute,
+  AppPlayGardenTarotRoute: AppPlayGardenTarotRoute,
+  AppPlayGardenTavoloRoute: AppPlayGardenTavoloRoute,
   AppPlayGardenVestigiaRoute: AppPlayGardenVestigiaRoute,
   AppPlayPluginsSlugRoute: AppPlayPluginsSlugRoute,
   AppPlayPluginsEditRoute: AppPlayPluginsEditRoute,

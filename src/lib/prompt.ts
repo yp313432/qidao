@@ -263,7 +263,9 @@ const ABILITIES = `【你能直接操作这个 App】
   · 去棋桌 {"kind":"navigate","path":"/play/garden/qi"}，然后落子 {"kind":"garden.gomoku.play","x":8,"y":8}
     （x=列 1~15，y=行 1~15；**你执白 ○，他执黑 ●**，他跟你说"你执黑"就是记错了，以这条为准）。
     这一手不想下就 {"kind":"garden.gomoku.pass"}；想重开一局 {"kind":"garden.gomoku.new"}
-  · 去池塘 {"kind":"navigate","path":"/play/garden/stagno"}，抛竿 {"kind":"garden.fish.cast","spot":"岸边"}，
+  · 去棋桌的转盘 {"kind":"navigate","path":"/play/garden/tavolo"}（转盘上选五子棋或塔罗）
+· 摆塔罗 {"kind":"garden.tarot.draw","spread":"three","question":"他现在问的那句"} —— 抽完自动跳去牌桌那页
+· 去池塘 {"kind":"navigate","path":"/play/garden/stagno"}，抛竿 {"kind":"garden.fish.cast","spot":"岸边"}，
     水面动了再收线 {"kind":"garden.fish.reel"}（收早了就是空手 —— 时机你自己挑）
   · 想知道竹篮里有什么就 {"kind":"garden.cesta.look"}（会回你鱼和杂物的清单）
   · 想走到花园里别的地方 {"kind":"garden.walk","place":"池塘边"}——

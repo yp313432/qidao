@@ -38,6 +38,7 @@ import { worldPresets } from "@/lib/world-presets";
 import { DEFAULT_STICKER_GROUP, type Sticker } from "@/lib/stickers";
 import type { WordCard } from "./learn-data";
 import { thinkingToPrune } from "./tokens";
+import { drawCards, type DrawnCard } from "@/lib/tarot";
 import type {
   ActionLogEntry,
   ActivityEntry,
@@ -384,6 +385,24 @@ export type GardenPond = {
   at: number;
 };
 
+/**
+ * 棋桌上摆的一副塔罗。
+ *
+ * 为什么放 store 而不是页面里：牌是**他**洗、**他**抽的（`garden.tarot.draw` 动作），
+ * 抽完跳页/刷新还得在，解读也得跟着牌走。页面只是把这一副牌演出来。
+ */
+export type GardenTarot = {
+  question: string;
+  spread: "one" | "three";
+  /** 按抽牌顺序（= 牌阵位置顺序） */
+  cards: DrawnCard[];
+  /** 已经翻开几张（页面一张一张翻） */
+  revealed: number;
+  /** 他的解读（写完存下，来回切页不用重问） */
+  reading: string;
+  at: number;
+};
+
 /** 把 store 里的手数还原成一张棋盘（1 = 你执黑，2 = 他执白） */
 export function boardOf(moves: GardenChessMove[]): ReturnType<typeof emptyBoard> {
   const board = emptyBoard();
@@ -652,6 +671,15 @@ export type AppState = {
   /** 开新局 */
   chessReset: () => void;
   /**
+   * 棋桌的塔罗：他洗牌、按顺序抽，页面只负责翻和显示。
+   * 抽牌规则在 `lib/tarot.ts`（78 张、不放回、逆位约 1/3）。
+   */
+  gardenTarot: GardenTarot | null;
+  startTarot: (q: { question: string; spread: "one" | "three" }) => void;
+  revealTarot: () => void;
+  setTarotReading: (text: string) => void;
+  clearTarot: () => void;
+  /**
    * 花园池塘的当前一局 —— 同样是**他**抛竿、**他**收线。
    * 页面只负责把状态演出来（抛出去的水花、咬钩、鱼翻出水）。
    */
@@ -715,6 +743,7 @@ export const useApp = create<AppState>()(
       actionLog: [],
       gameStats: { gobang: { win: 0, loss: 0, draw: 0, lastAt: 0 } },
       gardenChess: { moves: [], turn: "you", result: null, gameNo: 1, at: Date.now() },
+  gardenTarot: null,
       gardenPond: { phase: "idle", spot: "", castAt: 0, biteAt: 0, at: Date.now() },
       gardenWalk: { x: 20, y: 44.8, place: "长椅" },
       learnStats: { seen: 0, recent: [], lastAt: 0 },
@@ -1047,6 +1076,35 @@ export const useApp = create<AppState>()(
           },
         });
       },
+      startTarot: ({ question, spread }) => {
+        /**
+         * 洗牌 + 抽牌**一次做完**（不是页面抽）：这样聊天里调动作、页面点按钮，
+         * 走的是同一段规则，不会两套结果。
+         */
+        const count = spread === "three" ? 3 : 1;
+        set({
+          gardenTarot: {
+            question: question.trim().slice(0, 200),
+            spread,
+            cards: drawCards(count),
+            revealed: 0,
+            reading: "",
+            at: Date.now(),
+          },
+        });
+      },
+      revealTarot: () => {
+        const t = get().gardenTarot;
+        if (!t) return;
+        if (t.revealed >= t.cards.length) return;
+        set({ gardenTarot: { ...t, revealed: t.revealed + 1 } });
+      },
+      setTarotReading: (text) => {
+        const t = get().gardenTarot;
+        if (!t) return;
+        set({ gardenTarot: { ...t, reading: text } });
+      },
+      clearTarot: () => set({ gardenTarot: null }),
       walkTo: (p) => set({ gardenWalk: p }),
   pondCast: (spot, biteInMs) => {
         const now = Date.now();
@@ -1859,6 +1917,7 @@ export const useApp = create<AppState>()(
         gameStats: s.gameStats,
         gardenChess: s.gardenChess,
         gardenPond: s.gardenPond,
+        gardenTarot: s.gardenTarot,
         learnStats: s.learnStats,
         customWords: s.customWords,
         reminders: s.reminders,

@@ -34,6 +34,8 @@ const EXACT = [
   "/play/garden/cesta",
   "/play/garden/qi",
   "/play/garden/stagno",
+  "/play/garden/tavolo",
+  "/play/garden/tarot",
   "/play/garden/vestigia",
   "/play/learn",
   "/play/listen",

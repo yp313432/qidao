@@ -67,6 +67,7 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "garden.gomoku.new": "gobang_play",
   "garden.fish.cast": "pond_play",
   "garden.fish.reel": "pond_play",
+  "garden.tarot.draw": "tarot_draw",
   "learn.openReading": "pick_reading",
   "learn.speak": "read_aloud",
   "learn.removeCard": "wordbook",
@@ -246,6 +247,12 @@ export function actionTitle(action: AppAction): string {
       return action.spot ? `在池塘抛一竿（${action.spot}）` : "在池塘抛一竿";
     case "garden.fish.reel":
       return "收线";
+    case "garden.tarot.draw": {
+      const n = action.spread === "one" ? 1 : 3;
+      return action.question
+        ? `就「${action.question.slice(0, 16)}」摆 ${n} 张塔罗`
+        : `摆 ${n} 张塔罗`;
+    }
     case "learn.openReading":
       return "打开一篇阅读材料";
     case "learn.speak":
