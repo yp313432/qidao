@@ -35,17 +35,24 @@ export const Route = createFileRoute("/_app/play/garden/fiori")({
 function FioriPage() {
   useActivity("在花圃");
   const [, bump] = useReducer((x: number) => x + 1, 0);
-  useEffect(() => subscribeFlowers(bump), []);
+  /* 花圃的数据在 localStorage 里，**不能**在首帧就读：
+     服务端渲染出来是"野生的"，客户端一上来读到"开着"就会 hydration 不匹配。
+     所以先渲染空园子，挂载后再把真数据填进来（一帧的事，看不出来）。 */
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+    return subscribeFlowers(bump);
+  }, []);
 
   const [card, setCard] = useState<string | null>(null);
   const [bag, setBag] = useState<"seeds" | "flowers" | null>(null);
 
-  const stats = flowerStats();
-  const picked = readBasket();
-  const gifts = readGifts();
-  const seeds = readSeeds();
+  const stats = ready ? flowerStats() : { basket: 0 };
+  const picked = ready ? readBasket() : [];
+  const gifts = ready ? readGifts() : [];
+  const seeds = ready ? readSeeds() : {};
   const open = card ? findFlower(card) : null;
-  const bed = card ? bedOf(card) : undefined;
+  const bed = card && ready ? bedOf(card) : undefined;
 
   return (
     <div className="fiori">
@@ -67,7 +74,7 @@ function FioriPage() {
       <div className="fiori-spots" data-anchor="fiori-bed">
         {FLOWER_SPECIES.filter((f) => FLOWER_SPOTS[f.id]).map((f) => {
           const spot = FLOWER_SPOTS[f.id];
-          const b = bedOf(f.id);
+          const b = ready ? bedOf(f.id) : undefined;
           const state = b ? (b.bloomedAt ? "开着" : "长着，还没开") : "野生的";
           return (
             <button
