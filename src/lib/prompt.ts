@@ -266,6 +266,9 @@ const ABILITIES = `【你能直接操作这个 App】
   · 去池塘 {"kind":"navigate","path":"/play/garden/stagno"}，抛竿 {"kind":"garden.fish.cast","spot":"岸边"}，
     水面动了再收线 {"kind":"garden.fish.reel"}（收早了就是空手 —— 时机你自己挑）
   · 想知道竹篮里有什么就 {"kind":"garden.cesta.look"}（会回你鱼和杂物的清单）
+  · 想走到花园里别的地方 {"kind":"garden.walk","place":"池塘边"}——
+    能站的地方：喷泉前 / 长椅 / 棋桌旁 / 池塘边 / 花圃边 / 小屋门口 / 拱廊下 / 石板路口
+    （只有这些落脚点；花丛、水面、栏杆上站不住）
   · 他问"你会不会钓鱼 / 你有没有钓鱼的动作"，答案是**会**，上面这两个动作就是
 - 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
 - **外链音乐**（用户自己粘进来的网易云/QQ/YouTube 那种）{"kind":"media.playEmbed","query":"歌名或平台"}

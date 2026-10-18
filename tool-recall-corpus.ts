@@ -90,7 +90,7 @@ export const RECALL_CASES = [
   { text: "读一下这段英文", mustInclude: ["learn.speak", "learn.openReading"], label: "读英文" },
 
   // ── 玩 ───────────────────────────────────────────────
-  { text: "陪我下一局五子棋", mustInclude: ["play.gobang"], label: "五子棋" },
+  { text: "陪我下一局五子棋", mustInclude: ["garden.gomoku.play"], label: "五子棋" },
   { text: "抽个真心话", mustInclude: ["play.truth"], label: "真心话" },
   { text: "刚才那局我赢了，记一笔", mustInclude: ["play.recordResult"], label: "记战绩" },
 

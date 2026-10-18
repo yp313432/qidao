@@ -413,6 +413,19 @@ export const ACTION_SCHEMA = [
     fields: [],
   },
   {
+    kind: "garden.walk",
+    group: "玩",
+    summary: "在花园里走到某个地方",
+    fields: [
+      {
+        name: "place",
+        type: "string",
+        required: false,
+        note: "喷泉前 / 长椅 / 棋桌旁 / 池塘边 / 花圃边 / 小屋门口 / 拱廊下 / 石板路口",
+      },
+    ],
+  },
+  {
     kind: "garden.cesta.look",
     group: "玩",
     summary: "看看竹篮里有什么（池塘边带回来的）",

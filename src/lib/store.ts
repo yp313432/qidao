@@ -659,6 +659,9 @@ export type AppState = {
   pondCast: (spot: string, biteInMs: number) => void;
   pondBite: () => void;
   pondSettle: (result: "caught" | "empty" | "lost") => void;
+  /** 他在花园里站/走到哪儿（画面百分比，见 lib/garden-walk.ts） */
+  gardenWalk: { x: number; y: number; place: string };
+  walkTo: (p: { x: number; y: number; place: string }) => void;
   pondReset: () => void;
   recordWord: (word: string) => void;
   saveDoc: (doc: Omit<SavedDoc, "id" | "createdAt">) => void;
@@ -713,6 +716,7 @@ export const useApp = create<AppState>()(
       gameStats: { gobang: { win: 0, loss: 0, draw: 0, lastAt: 0 } },
       gardenChess: { moves: [], turn: "you", result: null, gameNo: 1, at: Date.now() },
       gardenPond: { phase: "idle", spot: "", castAt: 0, biteAt: 0, at: Date.now() },
+      gardenWalk: { x: 20, y: 44.8, place: "长椅" },
       learnStats: { seen: 0, recent: [], lastAt: 0 },
       customWords: [],
       reminders: [],
@@ -1043,7 +1047,8 @@ export const useApp = create<AppState>()(
           },
         });
       },
-      pondCast: (spot, biteInMs) => {
+      walkTo: (p) => set({ gardenWalk: p }),
+  pondCast: (spot, biteInMs) => {
         const now = Date.now();
         set({
           gardenPond: {

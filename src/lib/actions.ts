@@ -12,6 +12,7 @@ import {
   rollRound,
 } from "@/lib/garden-catch";
 import { buildHttpRequest } from "@/lib/http-tools";
+import { WALK_PLACES, placeByZh } from "@/lib/garden-walk";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
@@ -341,6 +342,27 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       const wait = 8_000 + Math.random() * 17_000;
       st.pondCast((action.spot ?? "").trim().slice(0, 20) || "岸边", wait);
       return `竿抛出去了（${(action.spot ?? "").trim() || "岸边"}），等水面动静`;
+    }
+    case "garden.walk": {
+      /**
+       * 用户 m05335 定的方案 A："花园自由走动"——他可以在花园里走到某个地方，
+       * 页面上的小人跟着走过去（位置存在 store 的 gardenWalk 里，换页面也记得）。
+       *
+       * 只接受落脚点（`WALK_PLACES`）：花丛、水面、栏杆这些地方没有落脚点，
+       * 认不出来就回一句"没那儿"，别硬塞一个坐标进状态里。
+       */
+      const want = action.place?.trim() ?? "";
+      const place = want ? placeByZh(want) : null;
+      if (!place) {
+        const list = WALK_PLACES.map((p) => p.zh).join(" / ");
+        return `花园里能站的地方：${list}。你要去哪一处？`;
+      }
+      const from = st.gardenWalk;
+      if (Math.hypot(from.x - place.x, from.y - place.y) < 1.2) return `我就在${place.zh}这儿站着`;
+      st.walkTo({ x: place.x, y: place.y, place: place.zh });
+      /* 人不在花园就跳过去（在花园里就只动小人，别把页面重挂一遍） */
+      ctx.navigate("/play/garden");
+      return `我走到${place.zh}了`;
     }
     case "garden.cesta.look": {
       /**

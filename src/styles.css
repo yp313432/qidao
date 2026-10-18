@@ -1655,6 +1655,148 @@ a:focus-visible,
   text-shadow: 0 1px 3px rgba(30, 22, 14, 0.45);
 }
 
+/* ───────────── 花园里走动的小人（/play/garden）─────────────
+ * 位置由组件给（left/top 百分比 + CSS transition），这里只管
+ * "站着微微呼吸 / 走路时颠 + 迈腿" 和名字、台词的墨色排版。
+ * 换立绘只改 lib/garden-walk.ts 的 WALKER_IMAGE，这些规则不用动。
+ */
+.gw-bob {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+}
+.gw-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 2px 3px rgba(60, 40, 30, 0.2));
+}
+/* 站着的时候只有一点点呼吸，别像在飘 */
+.gw-bob {
+  animation: gw-breathe 5.2s ease-in-out infinite;
+}
+.gw-walking {
+  animation: gw-bob 0.54s ease-in-out infinite;
+}
+@keyframes gw-breathe {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.008);
+  }
+}
+@keyframes gw-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+/* 迈腿：绕大腿根摆一点点，幅度大了像在跑步 */
+.gw-walking .gw-leg-l,
+.gw-walking .gw-leg-r,
+.gw-walking .gw-arm-l,
+.gw-walking .gw-arm-r {
+  transform-box: fill-box;
+}
+.gw-walking .gw-leg-l {
+  transform-origin: 50% 4%;
+  animation: gw-step-a 0.54s ease-in-out infinite;
+}
+.gw-walking .gw-leg-r {
+  transform-origin: 50% 4%;
+  animation: gw-step-b 0.54s ease-in-out infinite;
+}
+.gw-walking .gw-arm-l {
+  transform-origin: 50% 6%;
+  animation: gw-step-b 0.54s ease-in-out infinite;
+}
+.gw-walking .gw-arm-r {
+  transform-origin: 50% 6%;
+  animation: gw-step-a 0.54s ease-in-out infinite;
+}
+@keyframes gw-step-a {
+  0%,
+  100% {
+    transform: rotate(3.2deg);
+  }
+  50% {
+    transform: rotate(-3.2deg);
+  }
+}
+@keyframes gw-step-b {
+  0%,
+  100% {
+    transform: rotate(-3.2deg);
+  }
+  50% {
+    transform: rotate(3.2deg);
+  }
+}
+/* 立绘版（`public/garden/walker.png`，一张图一个人）：
+ * 腿摆不了，就用「上下颠 + 一点点前后倾」凑出走路的感觉，幅度比占位小人更小，
+ * 不然这张 Q 版大立绘会晃得像不倒翁。 */
+.gw-photo.gw-walking .gw-art {
+  animation: gw-trot 0.52s ease-in-out infinite;
+}
+.gw-photo .gw-art {
+  filter: drop-shadow(0 3px 4px rgba(52, 34, 24, 0.26));
+}
+@keyframes gw-trot {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.9deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(0.9deg);
+  }
+}
+.gw-name,
+.gw-say {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-script);
+  color: #fcf3df;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.5);
+}
+.gw-say {
+  bottom: calc(100% + 2px);
+  /* 宽度跟着文字走：容器只有 60 来像素宽，直接 max-width 会让句子被挤成三行 */
+  width: max-content;
+  max-width: 56vw;
+  white-space: normal;
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+}
+.gw-name {
+  top: calc(100% + 2px);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-bob,
+  .gw-walking,
+  .gw-photo.gw-walking .gw-art,
+  .gw-walking .gw-leg-l,
+  .gw-walking .gw-leg-r,
+  .gw-walking .gw-arm-l,
+  .gw-walking .gw-arm-r {
+    animation: none;
+  }
+}
+
 /* ───────────── 棋桌（/play/garden/qi）───────────── */
 
 .qi {

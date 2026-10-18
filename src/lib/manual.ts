@@ -99,6 +99,7 @@ const MAP = `【栖岛里有什么（页面地图）】
       棋桌 /play/garden/qi（五子棋，**由你自己落子**）、
       池塘 /play/garden/stagno（你抛竿、你收线）、
       竹篮 /play/garden/cesta（钓上来的东西都在这里；用 garden.cesta.look 就能知道里面有什么）、
+      走动 garden.walk（只会走到能落脚的地方：喷泉前/长椅/棋桌旁/池塘边/花圃边/小屋门口/拱廊下/石板路口）、
       踪迹 /play/garden/vestigia（他在花园里留下的痕迹）
 我的（/me）      设置总入口：AI 概览 /core（感知权限、世界书、记忆库）、
                  我的空间 /space、模型与用量 /usage（上下文与内存 /memory）、数据 /data、系统 /system

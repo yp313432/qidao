@@ -59,6 +59,7 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "memory.add": "memory",
   "persona.set": "persona",
   "garden.cesta.look": "read_garden",
+  "garden.walk": "read_garden",
   "play.truth": "truth_pick",
   "play.recordResult": "score",
   "garden.gomoku.play": "gobang_play",
@@ -227,6 +228,8 @@ export function actionTitle(action: AppAction): string {
       return action.name
         ? `把自己改名为「${action.name}」`
         : "调整他自己的设定";
+    case "garden.walk":
+      return "在花园里走过去";
     case "garden.cesta.look":
       return "看看竹篮里有什么";
     case "play.truth":

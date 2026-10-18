@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveAiName } from "@/lib/branding";
 import {
-  GARDEN_AI,
   GARDEN_AI_LINES,
   GARDEN_BASE,
   GARDEN_SPOTS,
   GARDEN_TRAIL,
 } from "@/lib/garden";
+import { GardenWalker } from "@/components/play/garden-walker";
+import { WALK_HOME, nearestPlace, placeOf, walkMs } from "@/lib/garden-walk";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 
@@ -37,11 +38,56 @@ function lineOfToday() {
 function GardenView() {
   useActivity("在花园里");
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
-  const aiAvatar = useApp((s) => s.settings.aiAvatar);
   const line = useMemo(() => lineOfToday(), []);
 
+  // 他站/走到哪儿：位置存 store（跨页面、跨重启都记得）
+  const walk = useApp((s) => s.gardenWalk);
+  const walkTo = useApp((s) => s.walkTo);
+  const stage = useRef<HTMLDivElement | null>(null);
+  const [walking, setWalking] = useState(false);
+  const [ms, setMs] = useState(900);
+  const timer = useRef<number | null>(null);
+
+  const go = useCallback(
+    (target: { x: number; y: number; place: string }) => {
+      const from = walk;
+      if (Math.hypot(from.x - target.x, from.y - target.y) < 1.2) return;
+      const d = walkMs(from, target);
+      setMs(d);
+      setWalking(true);
+      walkTo(target);
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => setWalking(false), d + 60);
+    },
+    [walk, walkTo],
+  );
+
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+  }, []);
+
+  // 点画面：落到最近的落脚点（花丛/水面/栏杆上没有落脚点，会被拉回最近的）
+  const onStageClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = stage.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * 100;
+      const y = ((e.clientY - r.top) / r.height) * 100;
+      const p = nearestPlace(x, y);
+      go({ x: p.x, y: p.y, place: p.zh });
+    },
+    [go],
+  );
+
+  const place = placeOf(walk.place) ?? WALK_HOME;
+
   return (
-    <div className="fixed inset-0 z-40 overflow-hidden bg-[#f6dfe6]">
+    <div
+      ref={stage}
+      onClick={onStageClick}
+      className="fixed inset-0 z-40 overflow-hidden bg-[#f6dfe6]"
+    >
       {/* 底图：换图只覆盖 public/garden/base.jpg，见 lib/garden 顶部注释 */}
       <img
         src={GARDEN_BASE}
@@ -139,21 +185,18 @@ function GardenView() {
         );
       })}
 
-      {/* 他在这儿：头像 + 名字 + 一句安静的话（不是"状态卡"，就是画上的一处） */}
-      <div
-        className="garden-ai absolute z-20 flex items-center gap-2.5"
-        style={{ left: `${GARDEN_AI.x}%`, top: `${GARDEN_AI.y}%` }}
-      >
-        <span className="garden-avatar">
-          {aiAvatar ? <img src={aiAvatar} alt="" className="size-full rounded-full object-cover" /> : aiName.slice(0, 1)}
-        </span>
-        <span className="min-w-0">
-          <span className="garden-ai-name">
-            {aiName} · {GARDEN_AI.place}
-          </span>
-          <span className="garden-ai-say">{line}</span>
-        </span>
-      </div>
+      {/* 他在这儿：会走的小人 + 名字 + 一句安静的话（不是"状态卡"，就是画上的一处） */}
+      <GardenWalker
+        x={walk.x}
+        y={walk.y}
+        face={place.face}
+        walking={walking}
+        ms={ms}
+        name={`${aiName} · ${walk.place}`}
+        say={line}
+      />
+      {/* 水印遮罩：让点击落到舞台上，同时不挡底部返回区 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#f6dfe6]/45 to-transparent" />
     </div>
   );
 }
