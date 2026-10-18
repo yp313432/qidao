@@ -1,8 +1,10 @@
 import { resolveAiName } from "@/lib/branding";
 import { wakeConfigPayload } from "@/lib/data/wake-config";
 import { isNativeApp } from "@/lib/platform";
+import { partsFor } from "@/lib/segment";
 import { useApp } from "@/lib/store";
 import { waitHydrated } from "@/lib/store-ready";
+import { stripActions } from "@/lib/use-chat";
 import {
   WAKE_KEYS,
   clearWakeConfig,
@@ -444,8 +446,21 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
     const started = useApp.getState().beginScheduledReply(text);
     /** 会话还没准备好（理论上不会）：**交接键留着**，下一次进前台再试 —— 不丢他这句话 */
     if (!started) return { ok: false, landed: false, message: "会话还没准备好，这句话先留在抽屉里" };
+    /**
+     * 后台草稿里的**动作块不能漏进气泡**（用户 m02156 报过唤醒消息里摊着参数），
+     * 而且他在后台可能一次写了好几段（用户："不能分段回复"）——
+     * 跟主对话同一个规则：先洗正文，再算分段。
+     */
+    const shown = stripActions(text).trim() || text.trim();
+    const setting = useApp.getState().settings;
+    const parts = partsFor(shown, {
+      enabled: setting.segmentReply !== false,
+      maxParts: setting.segmentMaxParts ?? 3,
+      maxSentences: setting.segmentMaxSentences ?? 2,
+    });
     useApp.getState().finalizeAssistant(started.conversationId, started.messageId, {
-      content: text,
+      content: shown,
+      parts,
       thinking: "",
       thinkingDurationMs: 0,
       /**

@@ -108,6 +108,11 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["play.gobang", "玩"],
   ["play.truth", "玩"],
   ["play.recordResult", "玩"],
+  ["garden.gomoku.play", "玩"],
+  ["garden.gomoku.pass", "玩"],
+  ["garden.gomoku.new", "玩"],
+  ["garden.fish.cast", "玩"],
+  ["garden.fish.reel", "玩"],
   ["learn.openReading", "学习"],
   ["learn.speak", "学习"],
   ["learn.removeCard", "学习"],
@@ -179,8 +184,10 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  * → **81**（2026-11 加 `sense.usage`：AI 主动查屏幕使用时长，不配页面）。
+ * → **86**（2026-11 加花园五个：`garden.gomoku.play/pass/new` + `garden.fish.cast/reel` ——
+ * 用户 m02156："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"，棋桌/池塘改由他调动作）。
  */
-const EXPECTED_TOTAL = 81;
+const EXPECTED_TOTAL = 86;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */

@@ -44,9 +44,12 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * → **81**（2026-11 加 `sense.usage`：他主动查「今天每个 App 用了多久」——
  * 用户原话："我还加个功能，就是能看到屏幕使用时长，就是知道我一天每个app用了多久那个"，
  * 后来补"不必直接搬到栖岛上，我自己完全可以在手机上看" → 只做成 AI 能查的动作、不配页面）。
+ * → **86**（2026-11 加花园的五个：`garden.gomoku.play/pass/new` + `garden.fish.cast/reel` ——
+ * 用户 m02156 点破了根子："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"，
+ * 所以棋桌/池塘不再由页面替他落子、抛竿，改成他调动作、页面演）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 81;
+const EXPECTED_KIND_COUNT = 86;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。

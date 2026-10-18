@@ -5,6 +5,7 @@ import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
+import { partsFor } from "@/lib/segment";
 import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
 
@@ -44,13 +45,17 @@ const DRAFT_ACTION_WHITELIST = new Set([
  * ⚠️ 2026-10 真机踩到的（用户："唤醒说要写日记，实际没写"）：
  * 定时任务这条路（`task-daemon`）原来**既不执行动作、也不把动作块藏起来** ——
  * 于是对话里摊着一串 `{"kind":"diary.add","body":"…"}`，而日记页是空的。
- * 抠不出来就 `action: null` + 原文返回，**绝不编、绝不动数据**。
+ * 抠不出来就 `actions: []` + 原文返回，**绝不编、绝不动数据**。
+ *
+ * ⚠️ 2026-11 用户 m02156 报的第 3 条：一条唤醒里同时写了日记 + 报了情绪（两个动作），
+ * 而旧版只抠**第一个**，剩下的 `{"kind":"emotion.report",…}` 就摊在气泡里。
+ * 所以改成：**把正文里所有能解析的白名单动作都抠出来**（数组元素也算），并逐个从正文里删掉。
  */
-function splitAction(text: string): { action: Record<string, unknown> | null; rest: string } {
+function splitActions(text: string): { actions: Record<string, unknown>[]; rest: string } {
   const s = String(text ?? "");
-  const tries: string[] = [];
+  const tried: string[] = [];
   const arr = /\[[\s\S]*\]/.exec(s);
-  if (arr) tries.push(arr[0]);
+  if (arr) tried.push(arr[0]);
   let depth = 0;
   let start = -1;
   for (let i = 0; i < s.length; i++) {
@@ -61,28 +66,53 @@ function splitAction(text: string): { action: Record<string, unknown> | null; re
     } else if (ch === "}") {
       depth--;
       if (depth === 0 && start >= 0) {
-        tries.push(s.slice(start, i + 1));
+        tried.push(s.slice(start, i + 1));
         start = -1;
       }
     }
   }
-  for (const raw of tries) {
+
+  const actions: Record<string, unknown>[] = [];
+  const spans: { at: number; len: number }[] = [];
+  const seen = new Set<string>();
+  for (const raw of tried) {
+    let parsed: unknown;
     try {
-      let v = JSON.parse(raw) as unknown;
-      if (Array.isArray(v)) v = v[0];
-      const o = v as { kind?: unknown };
-      if (o && typeof o.kind === "string" && DRAFT_ACTION_WHITELIST.has(o.kind)) {
-        const at = s.indexOf(raw);
-        return {
-          action: o as Record<string, unknown>,
-          rest: at >= 0 ? (s.slice(0, at) + s.slice(at + raw.length)) : s,
-        };
-      }
+      parsed = JSON.parse(raw);
     } catch {
-      /* 试下一个 */
+      continue;
     }
+    const items = Array.isArray(parsed) ? parsed : [parsed];
+    let hit = false;
+    for (const item of items) {
+      const o = item as { kind?: unknown };
+      if (o && typeof o.kind === "string" && DRAFT_ACTION_WHITELIST.has(o.kind)) {
+        actions.push(o as Record<string, unknown>);
+        hit = true;
+      }
+    }
+    if (!hit) continue;
+    /**
+     * 从正文里删掉这段 JSON。`seen` 挡住同一段被反复匹配
+     * （数组那段会把它里面的对象也匹配一遍 —— 那一段只删一次）。
+     */
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    const at = s.indexOf(raw);
+    if (at >= 0) spans.push({ at, len: raw.length });
   }
-  return { action: null, rest: s };
+
+  if (spans.length === 0) return { actions, rest: s };
+  spans.sort((a, b) => a.at - b.at);
+  let rest = "";
+  let cursor = 0;
+  for (const sp of spans) {
+    if (sp.at < cursor) continue; // 被更大的那段包住了
+    rest += s.slice(cursor, sp.at);
+    cursor = sp.at + sp.len;
+  }
+  rest += s.slice(cursor);
+  return { actions, rest };
 }
 export function TaskDaemon() {
   const busy = useRef(false);
@@ -193,6 +223,14 @@ export function TaskDaemon() {
             model: s.model,
             messages,
             style: settings.replyStyle,
+            /** 分段规矩也要给到 —— 不然他不知道可以分几条说，用户 m02156 报过"不能分段回复" */
+            segment:
+              settings.segmentReply === false
+                ? undefined
+                : {
+                    maxParts: settings.segmentMaxParts ?? 3,
+                    maxSentences: settings.segmentMaxSentences ?? 2,
+                  },
             /*
               定时任务也要拿到工具清单 —— 不然提示词里会写"暂时没有外部工具"，
               那是假话（用户可能明明配了 MCP / HTTP），模型就会说"你没配工具"。
@@ -234,19 +272,30 @@ export function TaskDaemon() {
       /**
        * **他自己的时间 → 回复里那串动作要真的执行**（用户真机："说要写日记实际没写"）：
        * 先抠出来按白名单执行，再把动作块从**看得见的正文**里去掉。
+       * ⚠️ 一条唤醒里可能有**多个**动作（写日记 + 报情绪），所以要循环执行、全部抠干净。
        */
-      const { action: draftAction, rest: draftRest } = splitAction(content);
-      if (draftAction) {
+      const { actions: draftActions, rest: draftRest } = splitActions(content);
+      for (const a of draftActions) {
         try {
-          await runAction(draftAction as never, { navigate: () => {} });
+          await runAction(a as never, { navigate: () => {} });
         } catch {
           /* 动作没执行成功也不该让这条消息本身消失 */
         }
       }
       const shown =
-        draftRest.trim() || (draftAction ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
+        draftRest.trim() || (draftActions.length ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
+      /**
+       * **分段回复**：定时任务这条路以前整段塞一个气泡，用户 m02156 报"定时唤醒发的消息不能分段"。
+       * 跟主对话同一个规则（`lib/segment`）：一条一个气泡，`content` 仍是完整原文。
+       */
+      const parts = partsFor(shown, {
+        enabled: settings.segmentReply !== false,
+        maxParts: settings.segmentMaxParts ?? 3,
+        maxSentences: settings.segmentMaxSentences ?? 2,
+      });
       useApp.getState().finalizeAssistant(conversationId, messageId, {
         content: shown,
+        parts,
         thinking,
         thinkingDurationMs: 0,
         /** 来源标记：这条是**定时任务**（跟主动唤醒共用一个 `scheduled`，界面靠它区分） */

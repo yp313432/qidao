@@ -61,6 +61,11 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "play.gobang": "gobang_play",
   "play.truth": "truth_pick",
   "play.recordResult": "score",
+  "garden.gomoku.play": "gobang_play",
+  "garden.gomoku.pass": "gobang_play",
+  "garden.gomoku.new": "gobang_play",
+  "garden.fish.cast": "pond_play",
+  "garden.fish.reel": "pond_play",
   "learn.openReading": "pick_reading",
   "learn.speak": "read_aloud",
   "learn.removeCard": "wordbook",
@@ -228,6 +233,16 @@ export function actionTitle(action: AppAction): string {
       return "抽一个真心话问题";
     case "play.recordResult":
       return `记一笔战绩（${action.result}）`;
+    case "garden.gomoku.play":
+      return `在棋桌上落一子（${"ABCDEFGHIJKLMNO"[action.x - 1] ?? "?"}${action.y}）`;
+    case "garden.gomoku.pass":
+      return "这一手他选择不下（让手）";
+    case "garden.gomoku.new":
+      return "把棋收起来，开新的一局";
+    case "garden.fish.cast":
+      return action.spot ? `在池塘抛一竿（${action.spot}）` : "在池塘抛一竿";
+    case "garden.fish.reel":
+      return "收线";
     case "learn.openReading":
       return "打开一篇阅读材料";
     case "learn.speak":

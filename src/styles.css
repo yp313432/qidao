@@ -1650,6 +1650,15 @@ a:focus-visible,
   flex-direction: column;
   overflow: hidden;
   background: #2c2320;
+  /**
+   * 键盘弹起来时整页往上让。
+   *
+   * 用户 m02156 报的 bug2："五子棋打字对话框不顶起来，看不见字"——
+   * 根因是 `.qi` 是 `position:fixed;inset:0`，它是**自己**定位的，
+   * 不吃 app-shell 那层 `paddingBottom`（那是给 `<Outlet/>` 容器加的）。
+   * 所以这里必须自己吃一次键盘高度变量。
+   */
+  padding-bottom: max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px));
 }
 .qi-bg {
   position: absolute;
@@ -1923,13 +1932,18 @@ a:focus-visible,
 }
 .qi-cell {
   position: absolute;
-  width: 7%;
-  height: 7%;
+  /*
+   * 必须略小于格距（88% / 14 ≈ 6.29%）：早先写 7%，相邻格子的可点区域互相压住，
+   * 点到交叉点附近会落到隔壁那一格 —— 用户 m02156 说的「棋盘锚点定位不准」就是它。
+   */
+  width: 6.2%;
+  height: 6.2%;
   transform: translate(-50%, -50%);
 }
 .qi-stone {
+  /* 棋子贴在格距上（格子缩了，这里得跟着放大回来，不然子变小） */
   position: absolute;
-  inset: 8%;
+  inset: 3%;
   border-radius: 999px;
 }
 .qi-stone-black {
@@ -2454,6 +2468,13 @@ a:focus-visible,
   position: absolute;
   left: 8px;
   top: max(16px, env(safe-area-inset-top));
+  /*
+   * z-index 必须有：`.cesta-header > * { position: relative }` 那条规则让
+   * 中间那块题字（块级、整行宽）在后、盖住了左边的返回键 ——
+   * 用户 m02740 的原话就是「竹篮返回键不能用」，实际点到的永远是题字。
+   * 池塘/踪迹页共用这套 header，所以修在这里一处就都好了。
+   */
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;

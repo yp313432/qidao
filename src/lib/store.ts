@@ -71,6 +71,7 @@ import type {
   ThemeId,
 } from "./types";
 import { uid } from "./utils";
+import { BOARD as GOBANG_BOARD, boardFull, emptyBoard, idx, inb, lineOfFive } from "./gobang";
 
 const defaultSettings: Settings = {
   displayName: "yan",
@@ -349,6 +350,47 @@ function normalizeWorldBook(raw: unknown): WorldEntry[] {
     .slice(0, 60);
 }
 
+/** 棋盘上的一手（`side` 是"谁下的"） */
+export type GardenChessMove = { r: number; c: number; side: "you" | "ai" };
+
+/**
+ * 花园棋局。持久化 —— 跳出棋桌再回来，棋还在，他也记得。
+ *
+ * `turn` 是"该谁了"；`result` 从**你**的角度记（跟他打，所以"我赢了"=你的 loss）。
+ */
+export type GardenChess = {
+  moves: GardenChessMove[];
+  turn: "you" | "ai";
+  result: "win" | "loss" | "draw" | null;
+  /** 第几局（按战绩算，见 `finishChess`） */
+  gameNo: number;
+  at: number;
+};
+
+/**
+ * 池塘的一局。`phase`：
+ *   idle    → 还没抛（他在岸边看水）
+ *   waiting → 抛出去了，等咬钩（`biteAt` 到点变 bite）
+ *   bite    → 咬钩了，等他决定收不收
+ *   caught / empty / lost → 收上来了 / 空手 / 拖太久鱼跑了（页面演完回 idle）
+ */
+export type GardenPond = {
+  phase: "idle" | "waiting" | "bite" | "caught" | "empty" | "lost";
+  /** 抛到哪儿（"柳树下水深处"这种，只用来给他自己/别人描述） */
+  spot: string;
+  castAt: number;
+  /** 到点咬钩（毫秒时间戳） */
+  biteAt: number;
+  at: number;
+};
+
+/** 把 store 里的手数还原成一张棋盘（1 = 你执黑，2 = 他执白） */
+export function boardOf(moves: GardenChessMove[]): ReturnType<typeof emptyBoard> {
+  const board = emptyBoard();
+  for (const m of moves) board[idx(m.r, m.c)] = m.side === "you" ? 1 : 2;
+  return board;
+}
+
 export type AppState = {
   hydrated: boolean;
   settings: Settings;
@@ -591,6 +633,33 @@ export type AppState = {
   patchPlugin: (id: string, patch: Partial<CustomPlugin>) => void;
   removePlugin: (id: string) => void;
   recordGame: (result: "win" | "loss" | "draw") => void;
+  /**
+   * 花园里的棋局 —— **AI 自己下**。
+   *
+   * 用户 m02156 的原话：「ai 不能控制棋局，是程序在下，我要的是 ai 自己下，
+   * 他能控制下哪里，比如我要他让我两手，他就不下子」。
+   * 所以棋盘状态放在 store 里（跨页面、跨后台都读得到），落子只认
+   * `garden.gomoku.play` 这个动作（`actions.ts`）+ 你点棋盘（`chessYou`）。
+   * 本地 `aiMove()` 不再代他下 —— 只在"没接模型"的提示里说明他没动。
+   */
+  gardenChess: GardenChess;
+  /** 你落一子（页面点棋盘走这条） */
+  chessYou: (r: number, c: number) => boolean;
+  /** 他落一子（只由 `garden.gomoku.play` 动作调用） */
+  chessAi: (r: number, c: number) => { ok: true; result: GardenChess["result"] } | { ok: false; why: string };
+  /** 他选择不下（让手）。用户要的"让他让两手"就靠这个 */
+  chessPass: () => void;
+  /** 开新局 */
+  chessReset: () => void;
+  /**
+   * 花园池塘的当前一局 —— 同样是**他**抛竿、**他**收线。
+   * 页面只负责把状态演出来（抛出去的水花、咬钩、鱼翻出水）。
+   */
+  gardenPond: GardenPond;
+  pondCast: (spot: string, biteInMs: number) => void;
+  pondBite: () => void;
+  pondSettle: (result: "caught" | "empty" | "lost") => void;
+  pondReset: () => void;
   recordWord: (word: string) => void;
   saveDoc: (doc: Omit<SavedDoc, "id" | "createdAt">) => void;
   deleteDoc: (id: string) => void;
@@ -642,6 +711,8 @@ export const useApp = create<AppState>()(
       pendingActions: [],
       actionLog: [],
       gameStats: { gobang: { win: 0, loss: 0, draw: 0, lastAt: 0 } },
+      gardenChess: { moves: [], turn: "you", result: null, gameNo: 1, at: Date.now() },
+      gardenPond: { phase: "idle", spot: "", castAt: 0, biteAt: 0, at: Date.now() },
       learnStats: { seen: 0, recent: [], lastAt: 0 },
       customWords: [],
       reminders: [],
@@ -910,6 +981,102 @@ export const useApp = create<AppState>()(
             },
           },
         })),
+      chessYou: (r, c) => {
+        const s = get().gardenChess;
+        if (s.result || s.turn !== "you") return false;
+        if (!inb(r, c)) return false;
+        const board = boardOf(s.moves);
+        if (board[idx(r, c)] !== 0) return false;
+        board[idx(r, c)] = 1;
+        const win = lineOfFive(board, r, c);
+        const full = !win && boardFull(board);
+        set({
+          gardenChess: {
+            ...s,
+            moves: [...s.moves, { r, c, side: "you" }],
+            result: win ? "win" : full ? "draw" : null,
+            turn: win || full ? s.turn : "ai",
+            at: Date.now(),
+          },
+        });
+        if (win) get().recordGame("win");
+        if (full) get().recordGame("draw");
+        return true;
+      },
+      chessAi: (r, c) => {
+        const s = get().gardenChess;
+        if (s.result) return { ok: false, why: "这局已经结束了，开新局才能接着下" };
+        if (s.turn !== "ai") return { ok: false, why: "现在还没轮到你" };
+        if (!inb(r, c)) return { ok: false, why: `坐标超出棋盘（1~${GOBANG_BOARD}）` };
+        const board = boardOf(s.moves);
+        if (board[idx(r, c)] !== 0) return { ok: false, why: "那里已经有子了，换一个点" };
+        board[idx(r, c)] = 2;
+        const win = lineOfFive(board, r, c);
+        const full = !win && boardFull(board);
+        set({
+          gardenChess: {
+            ...s,
+            moves: [...s.moves, { r, c, side: "ai" }],
+            result: win ? "loss" : full ? "draw" : null,
+            turn: win || full ? s.turn : "you",
+            at: Date.now(),
+          },
+        });
+        if (win) get().recordGame("loss");
+        if (full) get().recordGame("draw");
+        return { ok: true, result: win ? "loss" : full ? "draw" : null };
+      },
+      chessPass: () => {
+        const s = get().gardenChess;
+        if (s.result || s.turn !== "ai") return;
+        set({ gardenChess: { ...s, turn: "you", at: Date.now() } });
+      },
+      chessReset: () => {
+        const s = get().gardenChess;
+        set({
+          gardenChess: {
+            moves: [],
+            turn: "you",
+            result: null,
+            gameNo: s.gameNo + 1,
+            at: Date.now(),
+          },
+        });
+      },
+      pondCast: (spot, biteInMs) => {
+        const now = Date.now();
+        set({
+          gardenPond: {
+            phase: "waiting",
+            spot,
+            castAt: now,
+            biteAt: now + Math.max(1_500, biteInMs),
+            at: now,
+          },
+        });
+      },
+      pondBite: () => {
+        const s = get().gardenPond;
+        if (s.phase !== "waiting") return;
+        set({ gardenPond: { ...s, phase: "bite", at: Date.now() } });
+      },
+      pondSettle: (result) => {
+        const s = get().gardenPond;
+        /**
+         * 允许从 `waiting` 结算（= "收早了，空手"）：
+         * 用户 m02156 要的是"他自己挑时机收线"，那早收就是一种结果，不能被静默丢掉。
+         * 但**没咬钩不可能上鱼** —— waiting 时只接受 empty / lost。
+         */
+        if (s.phase !== "bite" && s.phase !== "waiting") return;
+        if (s.phase === "waiting" && result === "caught") return;
+        set({ gardenPond: { ...s, phase: result, at: Date.now() } });
+      },
+      pondReset: () => {
+        const s = get().gardenPond;
+        set({
+          gardenPond: { ...s, phase: "idle", spot: "", castAt: 0, biteAt: 0, at: Date.now() },
+        });
+      },
       recordWord: (word) =>
         set((s) => ({
           learnStats: {
@@ -1685,6 +1852,8 @@ export const useApp = create<AppState>()(
         httpTools: s.httpTools,
         actionLog: s.actionLog,
         gameStats: s.gameStats,
+        gardenChess: s.gardenChess,
+        gardenPond: s.gardenPond,
         learnStats: s.learnStats,
         customWords: s.customWords,
         reminders: s.reminders,

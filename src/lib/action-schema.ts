@@ -386,6 +386,39 @@ export const ACTION_SCHEMA = [
     fields: [{ name: "result", type: "string", required: true, note: "只能 win / loss / draw" }],
   },
   {
+    kind: "garden.gomoku.play",
+    group: "玩",
+    summary: "在花园棋桌上落一子（你自己下）",
+    fields: [
+      { name: "x", type: "number", required: true, note: "第几列，1~15（A~O）" },
+      { name: "y", type: "number", required: true, note: "第几行，1~15，从上往下" },
+    ],
+  },
+  {
+    kind: "garden.gomoku.pass",
+    group: "玩",
+    summary: "这一手让给他（你自己不下）",
+    fields: [],
+  },
+  {
+    kind: "garden.gomoku.new",
+    group: "玩",
+    summary: "把棋收起来，开新的一局",
+    fields: [],
+  },
+  {
+    kind: "garden.fish.cast",
+    group: "玩",
+    summary: "在池塘抛一竿",
+    fields: [{ name: "spot", type: "string", required: false, note: "抛到哪儿，随口说一句" }],
+  },
+  {
+    kind: "garden.fish.reel",
+    group: "玩",
+    summary: "收线（收早了空手，拖太久鱼跑）",
+    fields: [],
+  },
+  {
     kind: "learn.openReading",
     group: "学习",
     summary: "打开一篇阅读材料",

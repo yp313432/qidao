@@ -1035,6 +1035,21 @@ export type FeatureId =
   | { kind: "play.gobang" }
   | { kind: "play.truth" }
   | { kind: "play.recordResult"; result: "win" | "loss" | "draw" }
+  /**
+   * 花园里的棋 —— **他自己下**。
+   *
+   * 用户 m02156：「ai 不能控制棋局，是程序在下，我要的是 ai 自己下，
+   * 他能控制下哪里，比如我要他让我两手，他就不下子」。
+   * `x` = 第几列（1~15，A~O），`y` = 第几行（1~15，从上往下数）。
+   * 他不想下/要让手，就别调这个，调 `garden.gomoku.pass`。
+   */
+  | { kind: "garden.gomoku.play"; x: number; y: number }
+  | { kind: "garden.gomoku.pass" }
+  | { kind: "garden.gomoku.new" }
+  /** 在池塘抛一竿（`spot` 是他自己说的位置，只用于记述，不影响概率） */
+  | { kind: "garden.fish.cast"; spot?: string }
+  /** 收线。收早了空手，拖太久鱼跑 —— 时机由他挑 */
+  | { kind: "garden.fish.reel" }
   | { kind: "learn.openReading"; index?: number }
   | { kind: "learn.speak"; text: string }
   | { kind: "learn.removeCard"; word: string }

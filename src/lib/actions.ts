@@ -1,6 +1,7 @@
 import { toggleAmbience } from "@/lib/ambience";
 import { resolveAiName } from "@/lib/branding";
 import { buildEmotionReport } from "@/lib/emotion-lexicon";
+import { DEFAULT_MOOD, recordOutcome, rollRound } from "@/lib/garden-catch";
 import { buildHttpRequest } from "@/lib/http-tools";
 import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
@@ -300,6 +301,57 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       ctx.navigate("/play/gobang");
       st.setPanel("gobang_new");
       return "来下五子棋，棋局已经摆好";
+    /* ---------------- 花园：他自己下棋 / 他自己钓鱼 ----------------
+     * 用户 m02156："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"。
+     * 所以这几个动作**只由他调**：页面不替他落子、不替他抛竿、不替他收线。
+     * 动作执行完把一句"发生了什么"还给他（会作为 tool 结果/动作回执回到模型那边）。
+     */
+    case "garden.gomoku.play": {
+      const r = st.chessAi(action.x - 1, action.y - 1);
+      if (!r.ok) return r.why;
+      if (r.result === "win") return "我赢了（你执白，连成五子）。这局结束。";
+      if (r.result === "draw") return "棋盘满了，和棋。这局结束。";
+      return "落子了，轮到你";
+    }
+    case "garden.gomoku.pass":
+      st.chessPass();
+      return "这一手没下（让手），轮到你";
+    case "garden.gomoku.new":
+      st.chessReset();
+      return "棋收起来了，新的一局摆好";
+    case "garden.fish.cast": {
+      const pond = st.gardenPond;
+      if (pond.phase === "waiting" || pond.phase === "bite") return "竿还支着，等这一竿收了再说";
+      // 咬钩时间 8~25 秒：太短像抢、太长像死水（他收线的时机才有意义）
+      const wait = 8_000 + Math.random() * 17_000;
+      st.pondCast((action.spot ?? "").trim().slice(0, 20) || "岸边", wait);
+      return `竿抛出去了（${(action.spot ?? "").trim() || "岸边"}），等水面动静`;
+    }
+    case "garden.fish.reel": {
+      const pond = st.gardenPond;
+      if (pond.phase !== "waiting" && pond.phase !== "bite") return "现在没在钓，先抛一竿";
+      if (pond.phase === "waiting") {
+        // 收早了：水面还没动 → 空手（这就是"时机由他挑"的代价）
+        st.pondSettle("empty");
+        return "收早了，线上什么都没有，空手";
+      }
+      const outcome = rollRound();
+      const mood = st.emotionEvents[0]?.primaryEmotion ?? DEFAULT_MOOD;
+      recordOutcome(outcome, mood);
+      if (outcome.kind === "fish") {
+        st.pondSettle("caught");
+        const how = outcome.firstTime ? "（第一次钓到这种）" : outcome.record ? "（破了之前的重量）" : "";
+        return `钓上来一条${outcome.species.zh}，${outcome.weight}g、${outcome.length}cm${how}`;
+      }
+      if (outcome.kind === "junk") {
+        st.pondSettle("caught");
+        return `钓上来一样别的东西：${outcome.item.zh}`;
+      }
+      // none / nibble / escape 都算这一次没上来
+      st.pondSettle(outcome.kind === "escape" ? "lost" : "empty");
+      if (outcome.kind === "escape") return "有鱼咬实了，收线的时候跑了";
+      return "水体一晃，什么都没挂上";
+    }
     case "play.truth":
       ctx.navigate("/play/truth");
       st.setPanel("truth_card");

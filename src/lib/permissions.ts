@@ -177,6 +177,13 @@ export const PERMISSIONS: PermissionDef[] = [
   // ---------------- 玩乐与陪伴 ----------------
   { id: "gobang_read", title: "读棋局状态", hint: "第几手、谁占优", risk: "L0", status: "ready", group: "play" },
   { id: "gobang_play", title: "陪你下五子棋", hint: "他来执子，可以随时开新局", risk: "L1", status: "ready", group: "play" },
+  /**
+   * 花园里的两件"他自己玩"的事：下棋与钓鱼。
+   *
+   * 用户 m02156 的原话：不是程序替他下、替他钓，是**他调动作、他自己决定**。
+   * 所以这两项权限放行之后，他可以在后台唤醒时也真的下一手、抛一竿。
+   */
+  { id: "pond_play", title: "在池塘钓鱼", hint: "他自己抛竿、收线（收早了空手，拖久了鱼跑）", risk: "L1", status: "ready", group: "play" },
   { id: "truth_pick", title: "出真心话题目", hint: "替你抽一张", risk: "L1", status: "ready", group: "play" },
   { id: "play_banter", title: "陪玩时实时反应", hint: "边玩边吐槽、给提示（要在对话里聊）", risk: "L1", status: "needs_ai", group: "play" },
   { id: "score", title: "记分 / 战绩", hint: "帮你记一笔输赢", risk: "L2", status: "ready", group: "play" },

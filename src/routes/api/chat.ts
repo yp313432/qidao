@@ -9,6 +9,8 @@ type Body = {
   model: ModelId;
   messages: { role: "user" | "assistant" | "system"; content: string | unknown[] }[];
   style: ReplyStyle;
+  /** 分段回复的旋钮 —— 跟客户端 `assembleMessages` 共用一份 prompt 规则 */
+  segment?: { maxParts: number; maxSentences: number };
   tools: PromptTool[];
   /**
    * **原生 `tools`（function calling）**：61 个内部动作的定义。
