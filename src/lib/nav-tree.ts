@@ -31,7 +31,8 @@
  *     /core    ├ /permissions /worldbook /memories
  *     /usage   ├ /memory
  *     /system  ├ /alarms /tasks /env
- *     /play/tools ├ /play/gobang /play/days /play/todo
+ *     /play/tools ├ /play/days /play/todo /play/tools/alarms /play/tools/tasks
+ *     /play/games ├ /play/games/gobang /play/games/truth
  *     /play/space ├ /play/space/moments（朋友圈） /play/space/diary /play/space/letters
  *     /play/listen ├ /play/add
  *     /tools   ├ /tools/http /tools/mcp /tools/docs（三个编辑器页）

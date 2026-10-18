@@ -26,6 +26,8 @@
  * 它**自带纠错**：某台机器真把窗口缩了 → 两个高度一起变小 → 算出 0，不重复让位。
  */
 
+import { pullInsets } from "./shell";
+
 export type ViewportMetrics = {
   /** 布局视口高度（`window.innerHeight`） */
   innerHeight: number;
@@ -114,11 +116,44 @@ export function installKeyboardInset(): () => void {
    */
   const mo = new MutationObserver(sync);
   mo.observe(root, { attributes: true, attributeFilter: ["style"] });
+
+  /**
+   * **焦点兜底**：输入框一拿到焦点，就主动去问一次原生 insets。
+   *
+   * 用户 m03612 第 2 条（第二次报）："打字对话框还是没浮起"。
+   * 原生的 insets 回调在个别机型/时机上会滞后或不来，网页这边就一直是 0 ——
+   * 所以不指望"推送"，焦点一落就自己拉一次，键盘动画期间连拉 4 次。
+   * 只在原生里跑；浏览器有 `--q-ime-bottom-web` 那条路（`sync` 已经带上了）。
+   */
+  const timers: number[] = [];
+  const pullNative = () => {
+    void pullInsets();
+    for (const d of [120, 320, 620, 950]) {
+      timers.push(window.setTimeout(() => void pullInsets(), d));
+    }
+  };
+  const onFocus = (e: Event) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    const tag = t.tagName;
+    if (tag !== "INPUT" && tag !== "TEXTAREA") return;
+    pullNative();
+  };
+  const onBlur = () => {
+    /* 收起键盘时原生会推一次 0；这里再拉一次，防那次也丢 */
+    timers.push(window.setTimeout(() => void pullInsets(), 260));
+  };
+  document.addEventListener("focusin", onFocus);
+  document.addEventListener("focusout", onBlur);
+
   return () => {
     mo.disconnect();
     vv?.removeEventListener("resize", sync);
     vv?.removeEventListener("scroll", sync);
     window.removeEventListener("resize", sync);
+    document.removeEventListener("focusin", onFocus);
+    document.removeEventListener("focusout", onBlur);
+    for (const t of timers) window.clearTimeout(t);
     root.style.removeProperty(WEB_IME_VAR);
     delete root.dataset.keyboard;
   };

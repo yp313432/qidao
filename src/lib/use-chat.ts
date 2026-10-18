@@ -383,9 +383,17 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const selection = native
         ? (() => {
             const ctx = historyText(history);
+            /**
+             * 把"他现在待在哪"也并进判断依据（用户 m03612 第 5 条）：
+             * 人在花园的池塘边问"你有钓鱼的动作吗"，光看聊天记录命不中「玩」组，
+             * 于是那几个动作压根没发出去 —— 他就回"我一个动作都没有"。
+             * `activity.label` 是页面自己报的（「在花园的池塘边…」），关键词都在里面。
+             */
+            const here = st.activity;
+            const hereText = here ? [here.label, here.detail, here.path].filter(Boolean).join(" ") : "";
             return selectActionKinds({
               text: ctx.last,
-              recent: ctx.recent,
+              recent: hereText ? [ctx.last, ...ctx.recent, hereText] : ctx.recent,
               allKinds: ACTION_SCHEMA.map((a) => a.kind),
               groupOf: ACTION_GROUP_OF,
               // 用户明确拒绝过的动作**根本没资格进请求**（发了也是白花 token、还让他白忙一场）

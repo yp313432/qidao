@@ -95,6 +95,11 @@ const MAP = `【栖岛里有什么（页面地图）】
   · 小日子 /play/tools —— 小游戏 /play/games、重要日子 /play/days、待办 /play/todo、闹钟、定时任务
   · 英语学习 /play/learn —— 单词卡、阅读
   · 插件 /play/plugins —— 装进栖岛的小页面（时感 /play/plugins/shigan、记忆宇宙、星屿）
+  · **花园 /play/garden** —— 一整块可以待着的地方：
+      棋桌 /play/garden/qi（五子棋，**由你自己落子**）、
+      池塘 /play/garden/stagno（你抛竿、你收线）、
+      竹篮 /play/garden/cesta（钓上来的东西都在这里）、
+      踪迹 /play/garden/vestigia（他在花园里留下的痕迹）
 我的（/me）      设置总入口：AI 概览 /core（感知权限、世界书、记忆库）、
                  我的空间 /space、模型与用量 /usage（上下文与内存 /memory）、数据 /data、系统 /system
 语音             /voice —— 打电话那种语音模式（在「我的 → 系统」里进）`;

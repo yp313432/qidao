@@ -30,7 +30,7 @@ const backChecks = [
   ["/permissions", "/core"],
   ["/worldbook", "/core"],
   ["/memories", "/core"],
-  ["/play/gobang", "/play/tools"],
+  ["/play/games/gobang", "/play/games"],
   ["/play/days", "/play/tools"],
   ["/play/todo", "/play/tools"],
   ["/play/add", "/play/listen"],

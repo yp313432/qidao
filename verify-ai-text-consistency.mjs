@@ -581,8 +581,18 @@ const AP = metaMod.ACTION_PERMISSION;
  * **不挂权限**的动作（白名单，理由写在 `action-meta.ts` 那一段）。
  * ⚠️ 没有权限 = 闸门**直接执行、不弹卡片**，所以这份名单必须短且明确：
  * 多出任何一个都意味着"某个动作悄悄变成了免确认直接执行"。
+ *
+ * `view.list`：只读，"把九类东西列出来"（`f891d16` 加的那批）。它不改任何
+ * 数据、也不带副作用，跟 `sticker.groups` 同类 —— 列出来的内容本身由
+ * `read_*` 那几条感知权限决定要不要给，所以动作层不再单挂一条权限。
  */
-const NO_PERMISSION_KINDS = ["emotion.report", "emotion.lexicon", "sticker.send", "sticker.groups"];
+const NO_PERMISSION_KINDS = [
+  "view.list",
+  "emotion.report",
+  "emotion.lexicon",
+  "sticker.send",
+  "sticker.groups",
+];
 const boundCount = Object.keys(AP).length;
 const expectedBound = KINDS.length - NO_PERMISSION_KINDS.length;
 check(

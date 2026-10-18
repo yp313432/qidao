@@ -58,7 +58,7 @@ function boardLines(flat: readonly number[]): string {
   const out: string[] = [];
   for (let r = 0; r < BOARD; r += 1) {
     const row = flat.slice(r * BOARD, r * BOARD + BOARD);
-    out.push(`${String(r + 1).padStart(2, " ")} ${row.map((v) => (v === 1 ? "○" : v === 2 ? "●" : "·")).join("")}`);
+    out.push(`${String(r + 1).padStart(2, " ")} ${row.map((v) => (v === 1 ? "●" : v === 2 ? "○" : "·")).join("")}`);
   }
   return out.join("\n");
 }
@@ -164,7 +164,7 @@ function ChessTable() {
     const allow = ["garden.gomoku.play", "garden.gomoku.pass"] as const;
 
     const instruction =
-      `（花园的棋桌。这一局你执白（●），我执黑（○）。已落 ${mine + his} 手。\n` +
+      `（花园的棋桌。这一局你执白（○），我执黑（●）。已落 ${mine + his} 手。\n` +
       `当前棋盘（行号在左，列 A~O）：\n${boardLines(rows)}\n` +
       (cur.moves.length ? `我最后落在 ${coord(cur.moves[cur.moves.length - 1]!.r, cur.moves[cur.moves.length - 1]!.c)}。\n` : "") +
       `轮到你了。要落子就在回复末尾写一个动作块：\n` +
@@ -371,11 +371,23 @@ function ChessTable() {
       <img src={GARDEN_BASE} alt="" aria-hidden="true" className="qi-bg" />
       <div className="qi-veil" aria-hidden="true" />
 
-      <header className="absolute left-0 top-0 z-20" style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}>
+      {/*
+        返回键：**必须活在安全区下面**。
+        用户 m03612 第 1 条："五子棋界面没办法切其他界面" —— 真机箭头贴在 y≈12px，
+        一大半落在状态栏那一条里，点下去被系统吃掉（安卓 WebView 里
+        `env(safe-area-inset-top)` 恒为 0，安全区只能靠原生推的 `--q-inset-top`）。
+        所以这里用 `--q-inset-top` + 24px 偏移，热区也放大到 44px。
+      */}
+      <header
+        className="absolute left-0 top-0 z-30"
+        style={{
+          paddingTop: "calc(max(12px, var(--q-inset-top, env(safe-area-inset-top, 0px))) + 8px)",
+        }}
+      >
         <Link
           to="/play/garden"
           aria-label="返回花园"
-          className="flex size-10 items-center justify-center text-[#F7F0E2]/85"
+          className="ml-1 flex size-11 items-center justify-center text-[#F7F0E2]/85"
         >
           <ChevronLeft className="size-6" strokeWidth={1.4} />
         </Link>

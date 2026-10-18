@@ -257,7 +257,15 @@ const ABILITIES = `【你能直接操作这个 App】
 \`\`\`
 
 要几个就放几个块（也可以一个块里放数组）。常用动作：
-- 切页面 {"kind":"navigate","path":"/play/listen"}（路径形如 /play、/play/tools、/play/space、/play/learn、/me）
+- 切页面 {"kind":"navigate","path":"/play/listen"}（路径形如 /play、/play/tools、/play/space、/play/learn、/play/garden、/me；
+  **别自己编路径** —— 不存在的路径会被拒绝，页面地图里有的才是真的）
+- **花园（2026-11 起）：棋他自己下、鱼他自己钓**（用户 m02156 明确要求，别再说"这个我只能看着"）：
+  · 去棋桌 {"kind":"navigate","path":"/play/garden/qi"}，然后落子 {"kind":"garden.gomoku.play","x":8,"y":8}
+    （x=列 1~15，y=行 1~15；**你执白 ○，他执黑 ●**，他跟你说"你执黑"就是记错了，以这条为准）。
+    这一手不想下就 {"kind":"garden.gomoku.pass"}；想重开一局 {"kind":"garden.gomoku.new"}
+  · 去池塘 {"kind":"navigate","path":"/play/garden/stagno"}，抛竿 {"kind":"garden.fish.cast","spot":"岸边"}，
+    水面动了再收线 {"kind":"garden.fish.reel"}（收早了就是空手 —— 时机你自己挑）
+  · 他问"你会不会钓鱼 / 你有没有钓鱼的动作"，答案是**会**，上面这两个动作就是
 - 放歌 {"kind":"media.playTrack","query":"歌名"}；暂停/继续/下一首/上一首：{"kind":"media.pause"}、{"kind":"media.play"}、{"kind":"media.next"}、{"kind":"media.prev"}
 - **外链音乐**（用户自己粘进来的网易云/QQ/YouTube 那种）{"kind":"media.playEmbed","query":"歌名或平台"}
   ⚠️ 说清边界：外链是**别人网站里的小窗口**，我们**碰不到它内部** ——

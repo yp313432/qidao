@@ -1683,7 +1683,8 @@ a:focus-visible,
 /* 右下角对战记录 */
 .qi-rec {
   position: absolute;
-  top: calc(max(12px, env(safe-area-inset-top)) + 4px);
+  /* 安全区用原生推的 `--q-inset-top`（安卓 WebView 里 env() 恒为 0，见 :1391 那段） */
+  top: calc(max(12px, var(--q-inset-top, env(safe-area-inset-top, 0px))) + 4px);
   right: 16px;
   text-align: right;
   font-size: 9.5px;
@@ -1964,7 +1965,7 @@ a:focus-visible,
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 16px calc(max(12px, env(safe-area-inset-bottom)) + 8px);
+  margin: 0 16px calc(max(12px, var(--q-inset-bottom, env(safe-area-inset-bottom, 0px))) + 8px);
   padding: 5px 6px 5px 16px;
   border-radius: 999px;
   border: 1px solid rgba(59, 50, 39, 0.2);
@@ -1990,6 +1991,41 @@ a:focus-visible,
   border: 1px solid rgba(59, 50, 39, 0.22);
   color: #3b3227;
 }
+
+/*
+  键盘弹起时（`html[data-keyboard="up"]`，由 `lib/keyboard.ts` 两个来源一起判断）：
+  **整页改成一条能滚的时间线**，棋盘缩到还能看见、题词和头像先让开。
+
+  为什么不能只靠 `.qi` 那个 padding-bottom（用户 m03612 第 2 条："打字对话框
+  还是没浮起"）：那一条只把输入框往上顶，棋盘/状态是绝对定位的、不会跟着让，
+  320px 的键盘一弹就压在一起 —— 实测棋盘 y=163 直接盖住状态行（y=113）。
+  所以键盘上来的这一档把绝对定位那几块收回正常流，按 flex 重新排：
+  气泡占满剩下的高度 → 状态一行 → 小棋盘 → 输入框。
+*/
+html[data-keyboard="up"] .qi {
+  justify-content: flex-end;
+}
+html[data-keyboard="up"] .qi-epi,
+html[data-keyboard="up"] .qi-avrow,
+html[data-keyboard="up"] .qi-rec {
+  display: none;
+}
+html[data-keyboard="up"] .qi-scroll {
+  position: static;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 顶上给返回键留出位置（题词被收起来了，但箭头还在） */
+  margin: calc(max(12px, var(--q-inset-top, env(safe-area-inset-top, 0px))) + 40px) 16px 0;
+}
+html[data-keyboard="up"] .qi-status {
+  position: static;
+  margin: 6px 16px 2px;
+}
+html[data-keyboard="up"] .qi-board {
+  width: min(42vw, 186px);
+  margin: 4px auto 8px;
+}
+
 
 /* ══════════════════════════════════════════════════════════════════════
    池塘 · 竹篮 · 踪迹（2026-11）
@@ -2344,7 +2380,7 @@ a:focus-visible,
 .pond-tally {
   position: absolute;
   right: 18px;
-  bottom: calc(env(safe-area-inset-bottom) + 30px);
+  bottom: calc(var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)) + 30px);
   z-index: 20;
   text-align: right;
   font-size: 9px;
@@ -2358,7 +2394,7 @@ a:focus-visible,
 .pond-cesta {
   position: absolute;
   left: 18px;
-  bottom: calc(env(safe-area-inset-bottom) + 26px);
+  bottom: calc(var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)) + 26px);
   z-index: 30;
   padding: 6px 2px;
   font-family: var(--font-serif);
@@ -2460,14 +2496,14 @@ a:focus-visible,
   right: 0;
   top: 0;
   z-index: 20;
-  padding-top: max(16px, env(safe-area-inset-top));
+  padding-top: max(16px, var(--q-inset-top, env(safe-area-inset-top, 0px)));
   text-align: center;
 }
 
 .cesta-back {
   position: absolute;
   left: 8px;
-  top: max(16px, env(safe-area-inset-top));
+  top: max(16px, var(--q-inset-top, env(safe-area-inset-top, 0px)));
   /*
    * z-index 必须有：`.cesta-header > * { position: relative }` 那条规则让
    * 中间那块题字（块级、整行宽）在后、盖住了左边的返回键 ——
@@ -2489,7 +2525,7 @@ a:focus-visible,
   right: 0;
   top: 132px;
   bottom: 0;
-  padding: 0 20px calc(env(safe-area-inset-bottom) + 14px);
+  padding: 0 20px calc(var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)) + 14px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -2708,7 +2744,7 @@ a:focus-visible,
   width: 100%;
   max-height: 82dvh;
   overflow-y: auto;
-  padding: 16px 22px calc(env(safe-area-inset-bottom) + 26px);
+  padding: 16px 22px calc(var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)) + 26px);
   border-radius: 22px 22px 0 0;
   background: #f8f2e5;
   color: #3b3227;
@@ -2886,7 +2922,7 @@ a:focus-visible,
   right: 0;
   top: 132px;
   bottom: 0;
-  padding: 0 22px calc(env(safe-area-inset-bottom) + 16px);
+  padding: 0 22px calc(var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)) + 16px);
   overflow-y: auto;
 }
 

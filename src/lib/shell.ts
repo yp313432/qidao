@@ -134,6 +134,24 @@ export async function syncBarIcons(): Promise<void> {
  */
 export async function initShell(): Promise<void> {
   if (!isNative()) return;
+  await pullInsets();
+  await syncBarIcons();
+}
+
+/**
+ * **主动问一次原生 insets，并把三个变量写回 `<html>`**。
+ *
+ * 为什么需要"主动问"（用户 m03612 第 2 条又报了一次"对话框没浮起"）：
+ *   正常情况下原生在 insets 变化时会自己推 `--q-ime-bottom-native`
+ *   （`ShellBridgePlugin.pushImeInset`）。但键盘弹起这条路上，
+ *   真机上总有"那次回调没来/来晚了"的情况 —— 网页侧就一直是 0，输入框被盖住。
+ *   所以输入框拿到焦点时，网页**自己再去问一遍**（`getInsets()` 直接读
+ *   `getRootWindowInsets()`，读的是当前真值），连问几次把键盘动画盖过去。
+ *
+ * 非原生（浏览器）下是空操作：那边有 `--q-ime-bottom-web` 兜底。
+ */
+export async function pullInsets(): Promise<void> {
+  if (!isNative()) return;
   try {
     const r = await ShellBridge.getInsets();
     const top = Math.max(0, Math.round(Number(r?.top ?? 0)));
@@ -150,5 +168,4 @@ export async function initShell(): Promise<void> {
   } catch {
     /* 插件不在（老包/网页版）→ 退回 env()，CSS 那边已经写了兜底 */
   }
-  await syncBarIcons();
 }

@@ -3,6 +3,7 @@ import { resolveAiName } from "@/lib/branding";
 import { buildEmotionReport } from "@/lib/emotion-lexicon";
 import { DEFAULT_MOOD, recordOutcome, rollRound } from "@/lib/garden-catch";
 import { buildHttpRequest } from "@/lib/http-tools";
+import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
@@ -115,9 +116,18 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
 
   const st = useApp.getState();
   switch (action.kind) {
-    case "navigate":
-      ctx.navigate(action.path);
-      return `已切换到 ${action.path}`;
+    case "navigate": {
+      /**
+       * 校验一次再跳（用户 m03612 第 4 条：跳错路径 = 一页空白 "Not Found"，
+       * 见 `known-routes.ts` 顶部的说明）。
+       */
+      const target = normalizePath(action.path);
+      if (!isKnownPath(target)) {
+        return `没有「${action.path}」这个页面，我没跳。要带他去哪，先看页面地图里的路径（比如 ${knownPathExamples()}）。`;
+      }
+      ctx.navigate(target);
+      return `已切换到 ${target}`;
+    }
 
     case "media.play": {
       const { p, error } = player();
@@ -297,10 +307,16 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return "他自己的设定已更新";
     }
 
-    case "play.gobang":
-      ctx.navigate("/play/gobang");
-      st.setPanel("gobang_new");
-      return "来下五子棋，棋局已经摆好";
+    case "play.gobang": {
+      /**
+       * 用户 m03612 第 4 条："ai 开新局还是空白"。
+       * 根因是这里跳的 `/play/gobang` **没有这个路由**（真页面在花园里），
+       * 现在棋桌是 `/play/garden/qi`，而且由他自己落子（见 play.garden.qi.tsx）。
+       */
+      if (st.gardenChess.result) st.chessReset();
+      ctx.navigate("/play/garden/qi");
+      return "棋桌在花园里，已经摆好，你去下";
+    }
     /* ---------------- 花园：他自己下棋 / 他自己钓鱼 ----------------
      * 用户 m02156："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"。
      * 所以这几个动作**只由他调**：页面不替他落子、不替他抛竿、不替他收线。
@@ -353,8 +369,8 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
       return "水体一晃，什么都没挂上";
     }
     case "play.truth":
-      ctx.navigate("/play/truth");
-      st.setPanel("truth_card");
+      /* 同上：`/play/truth` 不存在，真页面是 `/play/games/truth` */
+      ctx.navigate("/play/games/truth");
       return "替你抽了一个问题";
     case "play.recordResult":
       st.recordGame(action.result);
