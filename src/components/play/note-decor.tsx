@@ -19,20 +19,19 @@ import { cn } from "@/lib/utils";
 
 
 /**
- * 玩乐区卡片角上那只蝴蝶 —— **立体的、真的在振翅**。
+ * 玩乐区卡片角上那只蝴蝶 —— **2D，一张平铺的 SVG**。
  *
- * 用户第 N 版的要求："不是合拢扇动，是上下振翅，蝴蝶得靠这个飞起来"。
- * SVG 内部元素做不了 3D 变换（rotateX/Y 对 SVG 子元素无效），所以换成
- * 四个 `<div>` 各装一片翅膀，外面套一层 perspective —— 翅根固定、翅膀绕
- * 身体轴在三维里上下翻，抬起来时被透视压窄，落下去时摊平。
+ * 用户 m05129（真机）"3D 显示不出来，还会卡重叠，还是用 2D 的吧"。
+ * 上一版是 div + perspective + 容器查询单位（cqw/cqh）+ @property：
+ * 老一点的安卓 WebView 不认这些，四片翅膀尺寸全塌成 0，叠在翅根就是一团白斑。
+ * 这个位置不值得冒兼容风险 —— 回到平铺 SVG：没有 3D、没有容器单位，
+ * 只有一条极慢的呼吸（见 styles.css 的 .bw-svg）。
  *
- * 约束（沿用这个文件开头那段原则）：
- *   · 仍然 `pointer-events-none`、细、透、低对比，颜色全走 `var(--decor)`
- *   · 不弹跳，只有缓慢漂浮 + 振翅；`prefers-reduced-motion` 时停在第 1 帧
- *   · 细线只在下翼，跟着那片翅膀一起动
+ * 形状沿用被确认过的那一版：前翅细长带尖、后翅短而圆、后翅拖两条飘丝，
+ * 白玻璃渐变 + 极轻墨边（浅色卡片上才看得清形状）。
  */
 
-/** 用确定性采样生成一片翅膀的轮廓（铰链在 viewBox 底边中点） */
+/** 用确定性采样生成一片翅膀的轮廓（铰链在原点，翅膀朝上长） */
 function wingPath({
   len,
   wid,
@@ -42,8 +41,6 @@ function wingPath({
   skew,
   sharp,
   asym,
-  cx,
-  cy,
 }: {
   len: number;
   wid: number;
@@ -53,8 +50,6 @@ function wingPath({
   skew: number;
   sharp: number;
   asym: number;
-  cx: number;
-  cy: number;
 }): string {
   const N = 24;
   const pts: [number, number][] = [];
@@ -74,139 +69,137 @@ function wingPath({
   }
   const n = pts.length;
   const f = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : "0");
-  let d = `M ${f(cx + pts[0][0])} ${f(cy + pts[0][1])}`;
+  let d = `M ${f(pts[0][0])} ${f(pts[0][1])}`;
   for (let i = 0; i < n; i += 1) {
     const p0 = pts[(i - 1 + n) % n];
     const p1 = pts[i];
     const p2 = pts[(i + 1) % n];
     const p3 = pts[(i + 2) % n];
-    const c1x = cx + p1[0] + (p2[0] - p0[0]) / 6;
-    const c1y = cy + p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = cx + p2[0] - (p3[0] - p1[0]) / 6;
-    const c2y = cy + p2[1] - (p3[1] - p1[1]) / 6;
-    d += ` C ${f(c1x)} ${f(c1y)}, ${f(c2x)} ${f(c2y)}, ${f(cx + p2[0])} ${f(cy + p2[1])}`;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${f(c1x)} ${f(c1y)}, ${f(c2x)} ${f(c2y)}, ${f(p2[0])} ${f(p2[1])}`;
   }
   return `${d} Z`;
 }
 
 const FORE_WING = wingPath({
-  len: 126,
-  wid: 18,
+  len: 132,
+  wid: 16,
   waves: 3,
   amp: 2.4,
   phase: 0.4,
   skew: 6,
   sharp: 0.74,
   asym: 1.08,
-  cx: 50,
-  cy: 150,
 });
 const HIND_WING = wingPath({
-  len: 56,
-  wid: 18,
+  len: 58,
+  wid: 20,
   waves: 2.1,
   amp: 5.2,
   phase: 1.1,
   skew: 7,
   sharp: 1.16,
   asym: 1.14,
-  cx: 50,
-  cy: 150,
 });
 
-function Wing({
-  d,
-  id,
-  mirror,
-  silk,
-  box,
-}: {
-  d: string;
-  id: string;
-  mirror: boolean;
-  silk: boolean;
-  box: { w: number; h: number; top: number };
-}) {
+/** 翅根在画布上的位置 */
+const HINGE = { x: 100, y: 158 };
+
+function WingArt({ d, silk }: { d: string; silk?: boolean }) {
   return (
-    <svg
-      viewBox={`0 ${box.top} ${box.w} ${box.h}`}
-      aria-hidden="true"
-      style={{ display: "block", width: "100%", height: "100%", overflow: "visible" }}
-    >
-      <defs>
-        {/* 填充走**白玻璃**，不用 --decor —— 这个变量在卡片上是近黑的深棕
-            （#1c1917 78% + #c17b5a 22%），铺上去整只蝴蝶发灰发脏。
-            --decor 只留给描边/翅脉，浓度压到 .3 以下。 */}
-        <linearGradient id={`bwG-${id}`} x1="0%" y1="100%" x2="6%" y2="0%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-          <stop offset="22%" stopColor="#fdfbff" stopOpacity="0.66" />
-          <stop offset="62%" stopColor="#efe7f4" stopOpacity="0.42" />
-          <stop offset="100%" stopColor="#e2d6ea" stopOpacity="0.26" />
-        </linearGradient>
-        <radialGradient id={`bwR-${id}`} cx="34%" cy="86%" r="66%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.62" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <g transform={mirror ? "translate(100 0) scale(-1 1)" : undefined}>
-        <path d={d} fill={`url(#bwG-${id})`} />
-        <path d={d} fill={`url(#bwR-${id})`} />
-        {/* 轮廓：浅色卡片上用一点点墨色勾边才看得清形状；
-            线要够粗（1.1）不然 0.7 在缩小的 SVG 里会断成虚线（抗锯齿假象）。 */}
-        <path d={d} fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.1" />
-        <path d={d} fill="none" stroke="#ffffff" strokeWidth="0.7" opacity="0.55" />
-        {silk ? (
-          <g fill="none" stroke="#ffffff" strokeLinecap="round">
-            <path
-              d="M 56 62 C 66 42, 80 30, 94 28 C 100 27, 101 34, 95 34"
-              strokeWidth="0.8"
-              opacity="0.5"
-            />
-            <path d="M 50 74 C 60 58, 72 46, 84 42" strokeWidth="0.45" opacity="0.32" />
-          </g>
-        ) : null}
-      </g>
-    </svg>
+    <>
+      <path d={d} fill="url(#bwG)" />
+      <path d={d} fill="url(#bwR)" />
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.08" />
+      <path d={d} fill="none" stroke="#ffffff" strokeWidth="0.7" opacity="0.55" />
+      {silk ? (
+        <g fill="none" stroke="#ffffff" strokeLinecap="round">
+          <path
+            d="M 7 -50 C 16 -66, 30 -76, 42 -77 C 48 -77, 48 -69, 42 -70"
+            strokeWidth="0.8"
+            opacity="0.5"
+          />
+          <path d="M 4 -40 C 12 -54, 24 -64, 35 -67" strokeWidth="0.45" opacity="0.32" />
+        </g>
+      ) : null}
+    </>
   );
 }
 
-const FORE_BOX = { w: 100, h: 160, top: -10 };
-const HIND_BOX = { w: 100, h: 100, top: -6 };
-
 export function ButterflyWings({ className }: { className?: string }) {
   return (
-    <div aria-hidden="true" className={cn("bw3d pointer-events-none absolute", className)}>
-      <div className="bw3d-scene">
-        <div className="bw3d-fly">
-          <div className="bw3d-wing bw3d-hr">
-            <div className="bw3d-wing-in">
-              <Wing d={HIND_WING} id="hr" mirror={false} silk box={HIND_BOX} />
-              <span className="bw3d-veil" />
-            </div>
-          </div>
-          <div className="bw3d-wing bw3d-hl">
-            <div className="bw3d-wing-in">
-              <Wing d={HIND_WING} id="hl" mirror silk box={HIND_BOX} />
-              <span className="bw3d-veil" />
-            </div>
-          </div>
-          <div className="bw3d-wing bw3d-fr">
-            <div className="bw3d-wing-in">
-              <Wing d={FORE_WING} id="fr" mirror={false} silk={false} box={FORE_BOX} />
-              <span className="bw3d-veil" />
-            </div>
-          </div>
-          <div className="bw3d-wing bw3d-fl">
-            <div className="bw3d-wing-in">
-              <Wing d={FORE_WING} id="fl" mirror silk={false} box={FORE_BOX} />
-              <span className="bw3d-veil" />
-            </div>
-          </div>
-          <span className="bw3d-core" />
-          <span className="bw3d-body" />
-        </div>
-      </div>
-    </div>
+    <svg
+      viewBox="0 0 200 200"
+      aria-hidden="true"
+      className={cn("bw-svg pointer-events-none absolute text-[color:var(--decor)]", className)}
+    >
+      <defs>
+        {/* 填充走**白玻璃**：--decor 在卡片上是近黑的深棕，铺上去整只发灰发脏。
+            它只留给描边/翅脉，浓度压到 .1 以下。 */}
+        <linearGradient id="bwG" x1="0%" y1="100%" x2="10%" y2="0%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="22%" stopColor="#fdfbff" stopOpacity="0.66" />
+          <stop offset="62%" stopColor="#efe7f4" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#e2d6ea" stopOpacity="0.24" />
+        </linearGradient>
+        <radialGradient id="bwR" cx="34%" cy="86%" r="66%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="bwCore" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="42%" stopColor="#fffaf6" stopOpacity="0.6" />
+          <stop offset="78%" stopColor="#fff6f0" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* 后翅先画（在下层），左右各一；左翼用 scale(-1 1) 镜像 */}
+      <g transform={`translate(${HINGE.x} ${HINGE.y}) rotate(116)`}>
+        <WingArt d={HIND_WING} silk />
+      </g>
+      <g transform={`translate(${HINGE.x} ${HINGE.y}) scale(-1 1) rotate(116)`}>
+        <WingArt d={HIND_WING} silk />
+      </g>
+
+      {/* 前翅后画（压在上面）。左右角度差 3°，不对称才活 */}
+      <g transform={`translate(${HINGE.x} ${HINGE.y}) rotate(34)`}>
+        <WingArt d={FORE_WING} />
+      </g>
+      <g transform={`translate(${HINGE.x} ${HINGE.y}) scale(-1 1) rotate(37)`}>
+        <WingArt d={FORE_WING} />
+      </g>
+
+      {/* 身体：一根很淡的白线，从翅根往上 */}
+      <path
+        d={`M ${HINGE.x} ${HINGE.y - 2} L ${HINGE.x} ${HINGE.y - 36}`}
+        stroke="#ffffff"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        opacity="0.55"
+      />
+      {/* 触角：两根很淡的细线从身体顶端往外挑 —— 有没有它，一眼认不认得出是蝴蝶差很多 */}
+      <path
+        d={`M ${HINGE.x} ${HINGE.y - 34} C ${HINGE.x - 4} ${HINGE.y - 46}, ${HINGE.x - 12} ${HINGE.y - 54}, ${HINGE.x - 17} ${HINGE.y - 57}`}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        opacity="0.5"
+      />
+      <path
+        d={`M ${HINGE.x} ${HINGE.y - 34} C ${HINGE.x + 4} ${HINGE.y - 47}, ${HINGE.x + 12} ${HINGE.y - 56}, ${HINGE.x + 18} ${HINGE.y - 59}`}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        opacity="0.5"
+      />
+      {/* 胸口那点光 */}
+      <circle cx={HINGE.x} cy={HINGE.y} r="10" fill="url(#bwCore)" opacity="0.85" />
+    </svg>
   );
 }
 

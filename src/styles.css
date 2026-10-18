@@ -642,212 +642,32 @@ html[data-drawer-open] .glass-nav-bar {
  * 慢悠悠地飘，不会让人分神。全部只动 transform 和 opacity。
  * ------------------------------------------------------------------ */
 
-/* 蝴蝶振翅（3D 版）。
+/* 玩乐区卡片角上那只蝴蝶 —— **2D 平铺一张 SVG**。
  *
- * 用户："不是合拢扇动，是上下振翅，蝴蝶得靠这个飞起来"。
- * 每片翅膀是一个 div，铰链在翅根，绕身体轴在三维里翻；外层 scene 给 perspective，
- * 抬起来时被透视压窄、落下去时摊平。SVG 子元素做不了这个，所以是 div + 内嵌 SVG。
+ * 用户真机反馈（m05129）："3D 显示不出来，还会卡重叠"。上一版是
+ * div + perspective + 容器查询单位（cqw/cqh）+ @property，老一点的安卓
+ * WebView 不认这些，四片翅膀的尺寸全塌成 0，叠在翅根处就是一团白斑。
  *
- * 幅度/节奏：2.4s 一次，抬起 62°，后翅略滞后 —— 跟预览页 `preview-butterfly-3d.html` 一致。
+ * 结论：这个位置不值得冒兼容风险 —— 退回**一张平铺的 SVG**：
+ * 没有 3D 变换、没有容器单位、没有 @property，只有一条极慢的呼吸。
  */
-@property --bw-flap {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
+.bw-svg {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6))
+    drop-shadow(0 1px 1px rgba(28, 25, 23, 0.05));
+  animation: bw-breathe 6s ease-in-out infinite;
+  transform-origin: 42% 62%;
 }
-@property --bw-shade {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0;
-}
-
-.bw3d {
-  container-type: size;
-  perspective: 320px;
-  perspective-origin: 50% 62%;
-}
-.bw3d-scene {
-  position: absolute;
-  inset: 0;
-  perspective: inherit;
-  perspective-origin: inherit;
-}
-/* 蝴蝶的"原点"就是翅根：位置在盒子 52% / 64% 处，尺寸 0，翅膀都用 cq 单位围着它摆 */
-.bw3d-fly {
-  position: absolute;
-  left: 52%;
-  top: 64%;
-  width: 0;
-  height: 0;
-  transform-style: preserve-3d;
-  transform: rotateX(12deg) rotateZ(-6deg);
-  animation: bw-bob 4.2s ease-in-out infinite;
-}
-@keyframes bw-bob {
+@keyframes bw-breathe {
   0%,
   100% {
-    transform: translateY(0) rotateX(12deg) rotateZ(-6deg);
-  }
-  48% {
-    transform: translateY(-2px) rotateX(9deg) rotateZ(-5deg);
-  }
-}
-
-/* 发光走白光；深色投影会把白玻璃压成灰 */
-.bw3d-wing {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  transform-style: preserve-3d;
-  transform-origin: 50% 100%;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7))
-    drop-shadow(0 1px 1px rgba(28, 25, 23, 0.06));
-}
-/* 两段变换：外层只管绕身体轴翻转（rotateY，屏幕上看是宽度被压窄），
-   内层只管把翅膀摆到角度上（rotateZ）。混在一个 transform 里的话，
-   rotateY 会作用在已经斜着的长轴上，翅膀会整片塌掉。 */
-.bw3d-wing-in {
-  position: absolute;
-  inset: 0;
-  transform-origin: 50% 100%;
-  transform-style: preserve-3d;
-}
-/* 前翅：窄而高。宽高必须跟 SVG viewBox 同比例（100:160），
-   否则 preserveAspectRatio 会留白、翅根也不再落在底边中点。 */
-.bw3d-fr,
-.bw3d-fl {
-  width: calc(74cqh * 0.625);
-  height: 74cqh;
-  margin-left: calc(74cqh * -0.3125);
-  transform: rotateY(calc(var(--bw-flap) * -1));
-  animation: bw-flap-f 2.4s cubic-bezier(0.42, 0, 0.58, 1) infinite;
-}
-.bw3d-fl {
-  transform: rotateY(var(--bw-flap));
-}
-.bw3d-fr .bw3d-wing-in {
-  transform: rotateZ(46deg);
-}
-.bw3d-fl .bw3d-wing-in {
-  transform: rotateZ(-46deg);
-}
-/* 后翅的 viewBox 是 100:100，所以宽高相等 */
-.bw3d-hr,
-.bw3d-hl {
-  width: 46cqh;
-  height: 46cqh;
-  margin-left: -23cqh;
-  transform: rotateY(calc(var(--bw-flap) * -1));
-  animation: bw-flap-b 2.4s cubic-bezier(0.42, 0, 0.58, 1) infinite;
-}
-.bw3d-hl {
-  transform: rotateY(var(--bw-flap));
-}
-.bw3d-hr .bw3d-wing-in {
-  transform: rotateZ(132deg);
-}
-.bw3d-hl .bw3d-wing-in {
-  transform: rotateZ(-132deg);
-}
-
-@keyframes bw-flap-f {
-  0%,
-  100% {
-    --bw-flap: 0deg;
-    --bw-shade: 0;
-  }
-  30% {
-    --bw-flap: -18deg;
-    --bw-shade: 0.18;
-  }
-  46% {
-    --bw-flap: -40deg;
-    --bw-shade: 0.5;
-  }
-  64% {
-    --bw-flap: -28deg;
-    --bw-shade: 0.26;
-  }
-}
-@keyframes bw-flap-b {
-  0%,
-  100% {
-    --bw-flap: 0deg;
-    --bw-shade: 0;
-  }
-  30% {
-    --bw-flap: -14deg;
-    --bw-shade: 0.14;
+    transform: scale(1);
   }
   50% {
-    --bw-flap: -34deg;
-    --bw-shade: 0.44;
-  }
-  68% {
-    --bw-flap: -24deg;
-    --bw-shade: 0.2;
+    transform: scale(1.025);
   }
 }
-
-/* 抬起来的那一下提一点亮（翅膀转向光）。压暗在浅色卡片上会发脏，所以用白光 */
-.bw3d-veil {
-  position: absolute;
-  inset: 0;
-  border-radius: 44% 44% 50% 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, transparent 70%);
-  opacity: calc(var(--bw-shade) * 0.4);
-  pointer-events: none;
-}
-
-/* 胸口那点光：中间最白，往外散成暖调再消失 ——
-   别用 --decor 混色，那个色太深，混出来是一圈灰环。 */
-.bw3d-core {
-  position: absolute;
-  left: -9cqw;
-  top: -9cqh;
-  width: 18cqw;
-  height: 18cqh;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    #fff 0%,
-    rgba(255, 250, 246, 0.72) 38%,
-    rgba(255, 246, 240, 0.26) 62%,
-    transparent 78%
-  );
-  opacity: 0.75;
-  filter: blur(0.5px);
-  animation: bw-pulse 1.2s ease-in-out infinite;
-}
-@keyframes bw-pulse {
-  0%,
-  100% {
-    transform: scale(0.94);
-    opacity: 0.66;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 0.85;
-  }
-}
-.bw3d-body {
-  position: absolute;
-  left: -0.7cqw;
-  top: -30cqh;
-  width: 1.4cqw;
-  height: 30cqh;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--decor) 55%, #fff));
-  opacity: 0.72;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .bw3d-fly,
-  .bw3d-fr,
-  .bw3d-fl,
-  .bw3d-hr,
-  .bw3d-hl,
-  .bw3d-core {
+  .bw-svg {
     animation: none;
   }
 }

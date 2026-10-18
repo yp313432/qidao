@@ -273,7 +273,7 @@ function ShowcaseGrid() {
         左上角**只留翅膀**的蝴蝶。
         用户："把他的身子，也就是那三条线给去了，飘带也去了，就留翅膀"。
       */}
-      <ButterflyWings className="-top-4 -left-5 h-[6.4rem] w-[8.2rem] opacity-90" />
+      <ButterflyWings className="-top-3 left-0 z-10 h-[6.2rem] w-[6.2rem] opacity-90" />
       <p className="relative mb-3 text-center text-[10px] tracking-[0.3em] text-subtle uppercase">
         our little things
       </p>
