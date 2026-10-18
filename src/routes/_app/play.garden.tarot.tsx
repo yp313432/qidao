@@ -129,7 +129,7 @@ function TarotView() {
   const shown = tarot?.reading || streaming;
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#191209] text-[#f6ead3]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#191209] text-[#f6ead3]">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -139,7 +139,7 @@ function TarotView() {
       />
 
       <header
-        className="relative z-20 px-4"
+        className="relative z-20 shrink-0 px-4"
         style={{ paddingTop: "max(14px, env(safe-area-inset-top))" }}
       >
         <div className="relative flex h-11 items-center justify-center">
@@ -159,7 +159,8 @@ function TarotView() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-[440px] flex-col px-5 pb-12">
+      {/* 正文自己滚：AppShell 是 h-dvh + overflow-hidden，页面里不给滚动容器就翻不动 */}
+      <main className="relative z-10 mx-auto block min-h-0 w-full max-w-[440px] flex-1 overflow-y-auto overscroll-contain px-5 pb-12">
         {/* ── 还没摆牌：写问题 + 选牌阵 ── */}
         {!tarot && (
           <section data-anchor="tarot-question" className="mt-4">

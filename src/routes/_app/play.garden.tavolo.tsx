@@ -214,7 +214,7 @@ function TavoloView() {
   const current = GAMES[selected]!;
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#17110c] text-[#f6ead3]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#17110c] text-[#f6ead3]">
       {/* 底：一团暖褐的雾，跟花园同色系 */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -232,7 +232,7 @@ function TavoloView() {
       />
 
       <header
-        className="relative z-20 px-4"
+        className="relative z-20 shrink-0 px-4"
         style={{ paddingTop: "max(14px, env(safe-area-inset-top))" }}
       >
         <div className="relative flex h-11 items-center justify-center">
@@ -252,7 +252,7 @@ function TavoloView() {
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-col items-center px-4 pb-10">
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain px-4 pb-10 [&>*]:shrink-0">
         <div
           ref={box}
           data-anchor="tavolo-wheel"
