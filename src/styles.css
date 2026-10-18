@@ -1755,7 +1755,7 @@ a:focus-visible,
     transform: translateY(0) rotate(-0.9deg);
   }
   50% {
-    transform: translateY(-3px) rotate(0.9deg);
+    transform: translateY(-2px) rotate(0.9deg);
   }
 }
 .gw-name,
