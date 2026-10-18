@@ -22,6 +22,19 @@ type WakeBridgeApi = {
   put: (o: { data: Record<string, string> }) => Promise<{ ok?: boolean }>;
   get: () => Promise<Record<string, string>>;
   clear: () => Promise<{ ok?: boolean }>;
+  /** 原生小本子：他在后台做过的事（JSON 字符串，见 `WakeLedger.java`） */
+  ledger: () => Promise<{ entries?: string; lastWakeMs?: number }>;
+  ackLedger: (o: { ids: number[] }) => Promise<{ ok?: boolean; entries?: string }>;
+  /** 指定下一次醒来的时刻（0 / 不传 = 交回原生自己排班） */
+  schedule: (o: { atMs?: number }) => Promise<{ ok?: boolean; nextAtMs?: number }>;
+  runNow: () => Promise<{ ok?: boolean }>;
+  status: () => Promise<{
+    nextAtMs?: number;
+    lastWakeMs?: number;
+    wakeCount?: number;
+    hasConfig?: boolean;
+    ledgerSize?: boolean;
+  }>;
 };
 
 const WakeBridge = registerPlugin<WakeBridgeApi>("WakeBridge");
@@ -130,6 +143,114 @@ export async function readWakeConfig(): Promise<Record<string, string> | null> {
   if (!isNativeApp()) return null;
   try {
     return await WakeBridge.get();
+  } catch {
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * **原生小本子**（这一批新加）
+ *
+ * 他在后台做过的事由原生记在抽屉旁边（`WakeLedger.java`）：
+ *   · 说了一句话 → `{kind:"say", text}`
+ *   · 写了日记/发了动态 → `{kind:"action", text:"<动作 JSON>"}`
+ *
+ * 为什么不让原生直接写库：动态/日记都在 WebView 的 IndexedDB 里，原生碰不到
+ * （用户 m02828 对齐过这条边界）。所以原生只记，App 打开时这里读回来"补落库"。
+ * ───────────────────────────────────────────────────────────── */
+
+/** 小本子上的一条 */
+export type WakeLedgerEntry = {
+  id: number;
+  at: string;
+  atMs: number;
+  kind: "say" | "action";
+  text: string;
+};
+
+/** 读小本子（网页版/老包里没有这个插件方法 → 返回空数组，不报错） */
+export async function readWakeLedger(): Promise<WakeLedgerEntry[]> {
+  if (!isNativeApp()) return [];
+  try {
+    const res = await WakeBridge.ledger();
+    const raw = String(res?.entries ?? "[]");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const out: WakeLedgerEntry[] = [];
+    for (const item of parsed) {
+      const o = item as Record<string, unknown>;
+      const id = Number(o.id ?? 0);
+      const text = String(o.text ?? "");
+      if (!id || !text.trim()) continue;
+      out.push({
+        id,
+        at: String(o.at ?? ""),
+        atMs: Number(o.atMs ?? id),
+        kind: o.kind === "action" ? "action" : "say",
+        text,
+      });
+    }
+    /** 老的在前：这样聊天气泡的顺序跟他做事的时间一致 */
+    return out.sort((a, b) => a.id - b.id);
+  } catch {
+    return [];
+  }
+}
+
+/** 这几条已经落进库里了 → 从本子上划掉 */
+export async function ackWakeLedger(ids: number[]): Promise<boolean> {
+  if (!isNativeApp() || ids.length === 0) return false;
+  try {
+    await WakeBridge.ackLedger({ ids });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 让原生重排下一次闹钟。
+ *
+ * `atMs` 不给 = 原生按自己的规则算（日记保底 / 45~75 分钟随机 / 避开安静时段）。
+ * 返回真正定下的时刻（0 = 排不上，通常是没给"闹钟和提醒"权限）。
+ */
+export async function scheduleNativeWake(atMs?: number): Promise<number> {
+  if (!isNativeApp()) return 0;
+  try {
+    const res = await WakeBridge.schedule(atMs && atMs > 0 ? { atMs } : {});
+    return Number(res?.nextAtMs ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 立刻醒一次（设置页"现在就叫醒他看看"；真机上才有意义） */
+export async function runWakeNow(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    await WakeBridge.runNow();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 排班状态（设置页展示："下次几点醒""上次什么时候醒的"） */
+export async function readWakeStatus(): Promise<{
+  nextAtMs: number;
+  lastWakeMs: number;
+  wakeCount: number;
+  hasConfig: boolean;
+} | null> {
+  if (!isNativeApp()) return null;
+  try {
+    const res = await WakeBridge.status();
+    return {
+      nextAtMs: Number(res?.nextAtMs ?? 0) || 0,
+      lastWakeMs: Number(res?.lastWakeMs ?? 0) || 0,
+      wakeCount: Number(res?.wakeCount ?? 0) || 0,
+      hasConfig: Boolean(res?.hasConfig),
+    };
   } catch {
     return null;
   }

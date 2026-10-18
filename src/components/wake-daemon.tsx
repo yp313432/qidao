@@ -4,6 +4,7 @@ import { useApp } from "@/lib/store";
 import {
   WAKE_NOTIFY_ACTION,
   flushPendingWake,
+  flushWakeLedger,
   syncWakeContext,
   watchWakeNotificationTap,
   type WakeFlushResult,
@@ -87,18 +88,36 @@ export function WakeDaemon() {
     }, 100);
   }, []);
 
+  /**
+   * **补落库**：先补小本子（原生在后台可能醒过好几次），再补交接键（最新那一条）。
+   *
+   * 顺序有讲究：小本子里也有最新那条，所以小本子落完会把交接键清掉
+   * （`flushWakeLedger` 里做的），后面这次 `flushPendingWake` 就自然什么都不做，
+   * 不会出现同一个气泡插两条。
+   */
+  const drain = useCallback(
+    async (jump: boolean) => {
+      await flushWakeLedger();
+      const r = await flushPendingWake();
+      focusLanded(r, jump);
+    },
+    [focusLanded],
+  );
+
   /** ①-a 打开 App：同步一次 + 把后台说过的话落进会话（不跳页） */
   useEffect(() => {
     void syncWakeContext();
-    void flushPendingWake().then((r) => focusLanded(r, false));
+    void drain(false);
     // 只在挂载时跑一次；后面的变化由下面几个 effect 负责
-  }, [focusLanded]);
+  }, [drain]);
 
   /** ①-b 点通知进来：先落库，再**跳到那条**（③ 点通知直达） */
   useEffect(
     () =>
       watchWakeNotificationTap((tap) => {
-        void flushPendingWake().then((r) => {
+        void (async () => {
+          await flushWakeLedger();
+          const r = await flushPendingWake();
           /**
            * 只有**后台那条**通知（`source === "wake"`）才跳页；
            * `actionTypeId` 是"他说了一句"的标记（老包可能没有 → 那就按"是他说的一句"处理）。
@@ -108,20 +127,20 @@ export function WakeDaemon() {
           const wakeSaid =
             tap.source === "wake" && (!tap.actionTypeId || tap.actionTypeId === WAKE_NOTIFY_ACTION);
           focusLanded(r, wakeSaid && r.landed);
-        });
+        })();
       }),
     [focusLanded],
   );
 
-  /** ①-c 从后台回到前台：落库（App 被冻住那段时间里，后台说过的话都在抽屉里等着） */
+  /** ①-c 从后台回到前台：落库（App 被冻住那段时间里，后台做过的事都在小本子里等着） */
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
-      void flushPendingWake().then((r) => focusLanded(r, false));
+      void drain(false);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [focusLanded]);
+  }, [drain]);
 
   /** ② 聊天多了 / 规矩改了 → 节流同步 */
   useEffect(() => {

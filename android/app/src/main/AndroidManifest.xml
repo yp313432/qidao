@@ -19,6 +19,16 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      ——— 原生后台唤醒（2026-10）———
+      · FOREGROUND_SERVICE / FOREGROUND_SERVICE_DATA_SYNC：`WakeService` 要以前台服务身份
+        跑那次请求，安卓 14 起少了这两个权限 startForeground 直接抛 SecurityException
+      · RECEIVE_BOOT_COMPLETED：重启后把闹钟重新排上（系统重启会清掉所有 alarm）
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!--
       往系统时钟里写闹钟需要的权限。
       用户实测（荣耀/Honor）报错：
@@ -165,6 +175,37 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!--
+          ───── 原生后台唤醒（这一批新加）─────
+
+          链路：AlarmManager 精确闹钟 → WakeReceiver → WakeService（前台服务，跑几秒）
+               → WakeEngine（问上游 / 记账 / 弹通知）→ 排下一次
+
+          为什么是前台服务：安卓 8 以后普通后台进程会被很快冻结，网络请求跑到一半就被掐；
+          前台服务保证这次请求跑完。跑完立刻 stopSelf，通知栏只留一条"在想事情"的低优先级提示。
+
+          ⚠️ `foregroundServiceType="dataSync"` 必须写，并且要配下面的权限：
+            · FOREGROUND_SERVICE
+            · FOREGROUND_SERVICE_DATA_SYNC
+          少了任何一个，安卓 14 上 startForeground 会直接抛 SecurityException。
+        -->
+        <service
+            android:name=".WakeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 闹钟响 + 开机/升级后重排（RECEIVE_BOOT_COMPLETED 见上面权限） -->
+        <receiver
+            android:name=".WakeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.yanping.qidao.WAKE_TICK" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

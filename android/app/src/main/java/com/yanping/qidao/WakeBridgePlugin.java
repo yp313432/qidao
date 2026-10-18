@@ -3,11 +3,14 @@ package com.yanping.qidao;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import org.json.JSONArray;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -62,6 +65,23 @@ public class WakeBridgePlugin extends Plugin {
     }
     editor.apply();
 
+    /**
+     * 配置一到就**重排一次闹钟** —— 用户改完设置（开/关、日记时间、安静时段）不用再等
+     * 下一次整点才生效。上游不齐时不排（排了也只会白醒一次）。
+     */
+    try {
+      boolean enabled = "1".equals(WakePrefs.str(getContext(), WakePrefs.ENABLED));
+      boolean hasUpstream = !WakePrefs.str(getContext(), WakePrefs.BASE_URL).trim().isEmpty()
+          && !WakePrefs.str(getContext(), WakePrefs.API_KEY).trim().isEmpty();
+      if (enabled && hasUpstream) {
+        WakeAlarm.schedule(getContext());
+      } else {
+        WakeAlarm.cancel(getContext());
+      }
+    } catch (Exception ignored) {
+      /* 排不上不该让"写配置"失败 */
+    }
+
     JSObject ret = new JSObject();
     ret.put("ok", true);
     call.resolve(ret);
@@ -88,8 +108,95 @@ public class WakeBridgePlugin extends Plugin {
   @PluginMethod
   public void clear(PluginCall call) {
     getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply();
+    WakeAlarm.cancel(getContext());
     JSObject ret = new JSObject();
     ret.put("ok", true);
+    call.resolve(ret);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+   * 从这一批开始，**唤醒本体也搬到了原生**（`WakeService` + `WakeEngine`）。
+   * 下面几个方法就是网页那一层需要的口子：
+   *   · `ledger` / `ackLedger` —— 小本子（他在后台做过的事，等 App 打开补落库）
+   *   · `schedule`             —— 网页指定下一次几点醒（不写就走原生自己的排班）
+   *   · `status`               —— 设置页看一眼：排上了没有、上次什么时候醒的
+   * ───────────────────────────────────────────────────────────── */
+
+  /** 读小本子（返回 JSON 字符串，网页自己解析） */
+  @PluginMethod
+  public void ledger(PluginCall call) {
+    JSObject ret = new JSObject();
+    ret.put("entries", WakeLedger.dump(getContext()));
+    ret.put("lastWakeMs", WakePrefs.numLong(getContext(), WakePrefs.LAST_WAKE_MS, 0));
+    call.resolve(ret);
+  }
+
+  /** 网页说"这几条已经落进库了" → 从本子上划掉（传空数组 = 全清） */
+  @PluginMethod
+  public void ackLedger(PluginCall call) {
+    JSONArray ids = new JSONArray();
+    JSArray arr = call.getArray("ids");
+    if (arr != null) {
+      for (int i = 0; i < arr.length(); i++) {
+        try {
+          ids.put(arr.getLong(i));
+        } catch (Exception ignored) {
+          /* 单条坏的跳过 */
+        }
+      }
+    }
+    WakeLedger.ack(getContext(), ids);
+    JSObject ret = new JSObject();
+    ret.put("ok", true);
+    ret.put("entries", WakeLedger.dump(getContext()));
+    call.resolve(ret);
+  }
+
+  /** 网页指定下一次醒来的时刻（毫秒时间戳；0 = 交回原生自己排） */
+  @PluginMethod
+  public void schedule(PluginCall call) {
+    Double at = call.getDouble("atMs");
+    boolean ok;
+    if (at == null || at <= 0) {
+      ok = WakeAlarm.schedule(getContext()) > 0;
+    } else {
+      ok = WakeAlarm.scheduleAt(getContext(), at.longValue());
+    }
+    JSObject ret = new JSObject();
+    ret.put("ok", ok);
+    ret.put("nextAtMs", WakePrefs.numLong(getContext(), WakePrefs.NEXT_AT_MS, 0));
+    call.resolve(ret);
+  }
+
+  /** 立刻醒一次（设置页那个"现在就叫醒他看看"） */
+  @PluginMethod
+  public void runNow(PluginCall call) {
+    try {
+      android.content.Intent svc = new android.content.Intent(getContext(), WakeService.class);
+      svc.setAction(WakeService.ACTION_TICK);
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        getContext().startForegroundService(svc);
+      } else {
+        getContext().startService(svc);
+      }
+      JSObject ret = new JSObject();
+      ret.put("ok", true);
+      call.resolve(ret);
+    } catch (Exception e) {
+      call.reject("起不来：" + e.getMessage());
+    }
+  }
+
+  /** 排班状态（设置页展示 + 真机排查） */
+  @PluginMethod
+  public void status(PluginCall call) {
+    JSObject ret = new JSObject();
+    ret.put("nextAtMs", WakePrefs.numLong(getContext(), WakePrefs.NEXT_AT_MS, 0));
+    ret.put("lastWakeMs", WakePrefs.numLong(getContext(), WakePrefs.LAST_WAKE_MS, 0));
+    ret.put("wakeCount", WakePrefs.num(getContext(), WakePrefs.WAKE_COUNT, 0));
+    ret.put("hasConfig", !WakePrefs.str(getContext(), WakePrefs.BASE_URL).trim().isEmpty()
+        && !WakePrefs.str(getContext(), WakePrefs.API_KEY).trim().isEmpty());
+    ret.put("ledgerSize", WakeLedger.dump(getContext()).length() > 2);
     call.resolve(ret);
   }
 }

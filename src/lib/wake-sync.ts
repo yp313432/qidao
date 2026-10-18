@@ -7,10 +7,13 @@ import { waitHydrated } from "@/lib/store-ready";
 import { stripActions } from "@/lib/use-chat";
 import {
   WAKE_KEYS,
+  ackWakeLedger,
   clearWakeConfig,
   clearWakePending,
   pushWakeConfig,
   readWakeConfig,
+  readWakeLedger,
+  scheduleNativeWake,
 } from "@/lib/wake-bridge";
 import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
 
@@ -144,6 +147,15 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
     });
 
     const pushed = await pushWakeConfig(data);
+    /**
+     * 配置推完就**让原生把闹钟重排一次**（这一批唤醒本体搬到了 Kotlin）。
+     * 不传时刻 = 原生按自己的排班算（日记保底 20:30 / 45~75 分钟随机 / 避开安静时段）。
+     * 网页版/老包没有这个方法 → 静默返回 0。
+     */
+    const nextAt = pushed ? await scheduleNativeWake() : 0;
+    if (nextAt > 0) {
+      notes.push(`原生已经排好下一次醒来：${new Date(nextAt).toLocaleString("zh-CN")}`);
+    }
     if (!baseUrl || !apiKey) {
       notes.push(
         pushed
@@ -492,6 +504,125 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
     /** 落库失败**不能吞**：交接键留着，下一次进前台再试一遍 */
     return { ok: false, landed: false, message: `落进会话时出错：${(err as Error).message}` };
   }
+}
+
+/**
+ * ── **原生小本子补落库**（这一批新加）─────────────────────────────
+ *
+ * 背景：唤醒本体已经搬到 Kotlin（`WakeEngine` + `WakeService`），App 关着也能醒。
+ * 但动态/日记这些数据在 WebView 的 IndexedDB 里，原生写不进去 —— 所以原生只把
+ * "他说了什么 / 做了什么"记进小本子（`WakeLedger.java`），这里在 App 打开时补落库。
+ *
+ * 跟 `flushPendingWake` 的关系：那条路是**一条**交接键（最新那条，点通知时用），
+ * 这里是小本子里的**多条**（App 关了一整晚，醒来好几次都能补上）。
+ * 两边会把同一条落两次 —— 所以补完之后顺手把交接键清掉（带上判重 key）。
+ *
+ * 幂等：落成一条就往 `ackWakeLedger` 里记 id；失败的不 ack，下次再试。
+ */
+export type WakeLedgerResult = { landed: number; failed: number; message: string };
+
+export async function flushWakeLedger(): Promise<WakeLedgerResult> {
+  const entries = await readWakeLedger();
+  if (entries.length === 0) return { landed: 0, failed: 0, message: "" };
+
+  /** 跟 pending 那条同一个纪律：store 还没恢复完就**不能写**（写进去会被旧快照覆盖） */
+  await waitHydrated();
+  if (!useApp.getState().hydrated) {
+    return { landed: 0, failed: entries.length, message: "会话还在恢复，小本子留着下次再落" };
+  }
+
+  const setting = useApp.getState().settings;
+  let landed = 0;
+  const acked: number[] = [];
+
+  for (const entry of entries) {
+    try {
+      if (entry.kind === "action") {
+        let parsed: { kind?: unknown } | null = null;
+        try {
+          parsed = JSON.parse(entry.text) as { kind?: unknown };
+        } catch {
+          parsed = null;
+        }
+        const actionKind = parsed && typeof parsed.kind === "string" ? parsed.kind : "";
+        if (!parsed || !PENDING_ACTION_WHITELIST.has(actionKind)) {
+          /** 白名单外的动作：不执行，但也要划掉，否则会永远卡在小本子上 */
+          acked.push(entry.id);
+          continue;
+        }
+        const { runAction } = await import("@/lib/actions");
+        await runAction(parsed as never, { navigate: () => {} });
+
+        /** 顺手在对话里留一句（跟 pending 那条路一致：同一句话，不另编） */
+        const obj = parsed as { text?: unknown; body?: unknown };
+        const say =
+          typeof obj.text === "string"
+            ? obj.text
+            : typeof obj.body === "string"
+              ? obj.body
+              : actionKind === "moment.like"
+                ? "（给你点了个赞）"
+                : "";
+        if (say) {
+          const startedSay = useApp.getState().beginScheduledReply(say);
+          if (startedSay) {
+            useApp.getState().finalizeAssistant(startedSay.conversationId, startedSay.messageId, {
+              content: say,
+              thinking: "",
+              thinkingDurationMs: 0,
+              origin: "wake",
+              createdAt: entry.atMs || Date.now(),
+            });
+          }
+        }
+        acked.push(entry.id);
+        landed += 1;
+        continue;
+      }
+
+      /** 就是"他说了一句" */
+      const shown = stripActions(entry.text).trim() || entry.text.trim();
+      if (!shown) {
+        acked.push(entry.id);
+        continue;
+      }
+      const parts = partsFor(shown, {
+        enabled: setting.segmentReply !== false,
+        maxParts: setting.segmentMaxParts ?? 3,
+        maxSentences: setting.segmentMaxSentences ?? 2,
+      });
+      const started = useApp.getState().beginScheduledReply(shown);
+      /** 会话没准备好：这条不 ack，等下一次进前台 */
+      if (!started) continue;
+      useApp.getState().finalizeAssistant(started.conversationId, started.messageId, {
+        content: shown,
+        parts,
+        thinking: "",
+        thinkingDurationMs: 0,
+        origin: "wake",
+        createdAt: entry.atMs || Date.now(),
+      });
+      acked.push(entry.id);
+      landed += 1;
+    } catch {
+      /* 这一条失败：不 ack，下一次再试；不影响后面几条 */
+    }
+  }
+
+  await ackWakeLedger(acked);
+
+  /**
+   * 交接键里躺着的是**最新那条**，小本子已经把它落过一遍了 —— 顺手清掉，
+   * 免得 `flushPendingWake` 再插一条一模一样的气泡。
+   */
+  const newest = entries[entries.length - 1];
+  if (newest) await clearWakePending(newest.at, `${newest.atMs}|${newest.text}`);
+
+  return {
+    landed,
+    failed: entries.length - landed,
+    message: landed > 0 ? `补上了 ${landed} 条他在后台做的事` : "",
+  };
 }
 
 /**
