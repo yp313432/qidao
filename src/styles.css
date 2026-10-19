@@ -4089,3 +4089,85 @@ html[data-keyboard="up"] .qi-board {
   box-shadow: inset 0 0 0 1px #c4553f;
   opacity: 0.7;
 }
+
+/* ── 表情面板 · 管理态（多选 + 分组）──────────────────────────
+   用户 m07859："欧克，补吧，不然不方便" —— 长按进去以后多选，
+   底部一条操作栏：移到分组 / 新建分组 / 删除。
+   注意：这一段**只在文件末尾追加**，别再整段替换（b32 的教训）。 */
+.sticker-manage {
+  border-style: dashed;
+}
+.sticker-cell-on {
+  border-color: var(--accent, #b8863b);
+  box-shadow: inset 0 0 0 2px var(--accent, #b8863b);
+  background: rgba(255, 243, 217, 0.9);
+  position: relative;
+}
+.sticker-tick {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--accent, #b8863b);
+  color: #fff6e9;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+}
+.sticker-ops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 2px 1px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sticker-ops::-webkit-scrollbar {
+  display: none;
+}
+.sticker-op {
+  flex: 1 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--line, rgba(120, 96, 70, 0.16));
+  background: var(--chip, rgba(255, 255, 255, 0.75));
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--ink, #3a2b20);
+  white-space: nowrap;
+}
+.sticker-op:disabled {
+  opacity: 0.4;
+}
+.sticker-op-del {
+  color: #c4553f;
+  border-color: rgba(196, 85, 63, 0.34);
+}
+.sticker-op-done {
+  background: var(--ink, #3a2b20);
+  border-color: var(--ink, #3a2b20);
+  color: var(--ink-fg, #fff6e9);
+}
+.sticker-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 2px 2px;
+}
+.sticker-group-item {
+  border-radius: 999px;
+  border: 1px solid var(--line, rgba(120, 96, 70, 0.16));
+  background: rgba(255, 255, 255, 0.78);
+  padding: 5px 11px;
+  font-size: 11.5px;
+  color: var(--ink, #3a2b20);
+}
+.sticker-newgroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px 1px;
+  border-top: 1px dashed var(--line, rgba(120, 96, 70, 0.16));
+  margin-top: 4px;
+}

@@ -141,6 +141,21 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   /** 长按进来后的"管理态"：这时点一张 = 删掉它 */
   const [stickerManage, setStickerManage] = useState(false);
   /*
+    管理态的**多选**（用户 m07859："欧克，补吧，不然不方便"）：
+    长按进去以后，点一张是"勾上"，不再是原来的"点一张删一张"。
+    攒一批再统一移到某组 / 新建组 / 删除 —— 这样从相册导入的一堆
+    没名字的图（IMG_2041…）可以一次性整理完，不用改文件名重导。
+  */
+  const [stickerPick, setStickerPick] = useState<string[]>([]);
+  const [stickerGroupMenu, setStickerGroupMenu] = useState(false);
+  const [stickerNewGroup, setStickerNewGroup] = useState(false);
+  const [stickerNewGroupName, setStickerNewGroupName] = useState("");
+  /*
+    长按抬起时浏览器还会补一个 click —— 如果不吞掉，刚被长按选中的那张
+    会立刻被 toggle 成"取消选中"（真机上表现为"长按之后一张都没选上"）。
+  */
+  const longPressedRef = useRef(false);
+  /*
     「今天 N 次 · 输入/输出 · 缓存命中率」那条**已删除**（用户要求：
     "到时候直接上设置里看，这地方就不留了"）。
     所以这里不再订阅 requestLog —— 完整用量在「我的 → 模型与用量」。
@@ -525,37 +540,56 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                       stickerTab === "全部" ||
                       (x.group || DEFAULT_STICKER_GROUP) === stickerTab,
                   )
-                  .map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-label={stickerManage ? "删除这张表情" : "发送这张表情"}
-                      onClick={() => {
-                        if (stickerManage) {
-                          useApp.getState().removeSticker(s.id);
-                          return;
+                  .map((s) => {
+                    const picked = stickerPick.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        aria-label={
+                          stickerManage
+                            ? picked
+                              ? "取消选中"
+                              : "选中这张"
+                            : "发送这张表情"
                         }
-                        sendSticker(s.url);
-                      }}
-                      onPointerDown={() => {
-                        const timer = window.setTimeout(
-                          () => setStickerManage(true),
-                          550,
-                        );
-                        window.addEventListener(
-                          "pointerup",
-                          () => window.clearTimeout(timer),
-                          { once: true },
-                        );
-                      }}
-                      className={cn(
-                        "sticker-cell",
-                        stickerManage && "sticker-cell-remove",
-                      )}
-                    >
-                      <img src={s.url} alt="" className="size-full object-contain" />
-                    </button>
-                  ))}
+                        onClick={() => {
+                          if (stickerManage) {
+                            if (longPressedRef.current) {
+                              longPressedRef.current = false;
+                              return;
+                            }
+                            setStickerPick((p) =>
+                              p.includes(s.id) ? p.filter((x) => x !== s.id) : [...p, s.id],
+                            );
+                            return;
+                          }
+                          sendSticker(s.url);
+                        }}
+                        onPointerDown={() => {
+                          if (stickerManage) return;
+                          const timer = window.setTimeout(() => {
+                            longPressedRef.current = true;
+                            setStickerManage(true);
+                            setStickerPick([s.id]);
+                          }, 550);
+                          window.addEventListener(
+                            "pointerup",
+                            () => window.clearTimeout(timer),
+                            { once: true },
+                          );
+                        }}
+                        className={cn(
+                          "sticker-cell",
+                          stickerManage && "sticker-manage",
+                          picked && "sticker-cell-on",
+                        )}
+                      >
+                        <img src={s.url} alt="" className="size-full object-contain" />
+                        {picked && <span className="sticker-tick">✓</span>}
+                      </button>
+                    );
+                  })}
 
               {customStickers.length === 0 && (
                 <p className="col-span-5 px-2 py-6 text-center text-[11px] leading-5 text-muted">
@@ -566,14 +600,136 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               )}
             </div>
 
-            <p className="flex items-center justify-between px-1 pt-1 text-[10px] text-subtle">
-              <span>
-                导进来的图会按文件名自动分组
-              </span>
-              <span>
-                {stickerManage ? "点一张就删掉 · 再点空白处退出" : "点一下直接发 · 长按管理"}
-              </span>
-            </p>
+            {/*
+              「移到分组」的组名选择（管理态下点「移到分组」才出现）
+            */}
+            {stickerManage && stickerGroupMenu && (
+              <div className="sticker-groups">
+                {[DEFAULT_STICKER_GROUP, ...stickerGroupList(customStickers, stickerGroups)]
+                  .filter((g, i, a) => a.indexOf(g) === i)
+                  .map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className="sticker-group-item"
+                      onClick={() => {
+                        for (const id of stickerPick) useApp.getState().moveSticker(id, g);
+                        setStickerPick([]);
+                        setStickerGroupMenu(false);
+                        setStickerManage(false);
+                      }}
+                    >
+                      {g}
+                      <span className="ml-1 text-[9px] opacity-60">
+                        {
+                          customStickers.filter(
+                            (x) => (x.group || DEFAULT_STICKER_GROUP) === g,
+                          ).length
+                        }
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+
+            {/*
+              「新建分组」：输入名字，选中的这些图直接归进去
+            */}
+            {stickerManage && stickerNewGroup && (
+              <div className="sticker-newgroup">
+                <input
+                  value={stickerNewGroupName}
+                  onChange={(e) => setStickerNewGroupName(e.target.value)}
+                  placeholder="分组名，比如 猫"
+                  className="min-w-0 flex-1 bg-transparent text-[12px] outline-none"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="shrink-0 rounded-full bg-ink px-3 py-1 text-[11px] text-ink-fg"
+                  onClick={() => {
+                    const g = stickerNewGroupName.trim();
+                    if (!g) return;
+                    useApp.getState().addStickerGroup(g);
+                    for (const id of stickerPick) useApp.getState().moveSticker(id, g);
+                    setStickerNewGroupName("");
+                    setStickerNewGroup(false);
+                    setStickerPick([]);
+                    setStickerManage(false);
+                  }}
+                >
+                  确定
+                </button>
+                <button
+                  type="button"
+                  className="shrink-0 text-[11px] text-muted"
+                  onClick={() => {
+                    setStickerNewGroup(false);
+                    setStickerNewGroupName("");
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+
+            {stickerManage ? (
+              <div className="sticker-ops">
+                <span className="shrink-0 text-[10.5px] text-subtle">
+                  已选 {stickerPick.length} 张
+                </span>
+                <button
+                  type="button"
+                  className="sticker-op"
+                  disabled={stickerPick.length === 0}
+                  onClick={() => {
+                    setStickerGroupMenu((v) => !v);
+                    setStickerNewGroup(false);
+                  }}
+                >
+                  移到分组
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op"
+                  disabled={stickerPick.length === 0}
+                  onClick={() => {
+                    setStickerNewGroup(true);
+                    setStickerGroupMenu(false);
+                  }}
+                >
+                  新建分组
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op sticker-op-del"
+                  disabled={stickerPick.length === 0}
+                  onClick={() => {
+                    for (const id of stickerPick) useApp.getState().removeSticker(id);
+                    setStickerPick([]);
+                  }}
+                >
+                  删除
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op sticker-op-done"
+                  onClick={() => {
+                    setStickerManage(false);
+                    setStickerPick([]);
+                    setStickerGroupMenu(false);
+                    setStickerNewGroup(false);
+                  }}
+                >
+                  完成
+                </button>
+              </div>
+            ) : (
+              <p className="flex items-center justify-between px-1 pt-1 text-[10px] text-subtle">
+                <span>导进来的图会按文件名自动分组</span>
+                <span>点一下直接发 · 长按管理</span>
+              </p>
+            )}
           </div>
         )}
 

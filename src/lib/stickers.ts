@@ -65,11 +65,17 @@ export const DEFAULT_STICKER_GROUP = "未分组";
 export function guessGroupFromName(name: string): string {
   const base = (name ?? "").replace(/\.[^.]+$/, "");
   if (!base) return DEFAULT_STICKER_GROUP;
-  // 按常见分隔符切开，取头一段
-  const head = base.split(/[\s_\-—－·.()（）[\]【】]+/).filter(Boolean)[0] ?? "";
-  // 只留汉字/日文假名（英文编号一律不认）
-  const g = head.replace(/[^\u4e00-\u9fa5\u3040-\u30ff]/g, "").slice(0, 6);
-  return g || DEFAULT_STICKER_GROUP;
+  /*
+    按常见分隔符切段，取**第一个含汉字/假名的段**——不是字面的头一段。
+    因为导出/保存出来的文件名常常带前缀：`IMG_无语.png`、`seed_猫_贴贴.png`、
+    `mmexport1700000_抱抱.gif`；只认头段的话这些全落进「未分组」。
+  */
+  const parts = base.split(/[\s_\-—－·.()（）[\]【】]+/).filter(Boolean);
+  for (const part of parts) {
+    const g = part.replace(/[^\u4e00-\u9fa5\u3040-\u30ff]/g, "").slice(0, 6);
+    if (g) return g;
+  }
+  return DEFAULT_STICKER_GROUP;
 }
 
 /**
