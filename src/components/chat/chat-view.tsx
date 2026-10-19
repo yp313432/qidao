@@ -26,10 +26,7 @@ import { Avatar } from "@/components/avatar";
  * 于是气泡照常画出来、里面一个字都没有 —— 看着就是一个空的圆角框。
  * 这里把零宽字符一起剥掉再判。
  */
-function hasVisibleText(s: string | undefined | null): boolean {
-  if (!s) return false;
-  return /[^\s\u200b-\u200f\u2060\ufeff]/.test(s);
-}
+
 
 /**
  * 去掉 **Markdown 记号**之后再判一次空。
@@ -44,6 +41,18 @@ function hasRenderedText(s: string | undefined | null): boolean {
     .replace(/[*_~#>`!|()[\]]/g, "")
     .replace(/[\s\u200b-\u200f\u2060\ufeff]/g, "");
   return bare.length > 0;
+}
+
+/**
+ * 只剩标点/符号（`·`、`。`、`-`、`…`、`——`、`)）`）也算"没内容"。
+ *
+ * 为什么还要这一层：模型偶尔会把分隔符单独输出成一个 part（真机截图里那个
+ * "一个小圆点的气泡"），剥掉 Markdown 记号后它还剩一个 `·`，`hasRenderedText`
+ * 判它有字，于是画一个 `min-w-[4em]` 的小框，看起来就是空气泡。
+ */
+function isPunctOnly(s: string | undefined | null): boolean {
+  if (!s) return true;
+  return /^[\s\p{P}\p{S}]*$/u.test(s);
 }
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
@@ -588,7 +597,9 @@ export function ChatView() {
                *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
                *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
                */
-              const visibleParts = (m.parts ?? []).filter((p) => hasRenderedText(p));
+              const visibleParts = (m.parts ?? []).filter(
+                (p) => hasRenderedText(p) && !isPunctOnly(p),
+              );
               /*
                 ⚠️ 这里原来用 `hasVisibleText`（只认"有没有字"），于是正文只剩 `**`、
                 `>`、`[]()` 这类 Markdown 记号的空壳仍算"有内容"，渲染出来就是一个
@@ -734,7 +745,7 @@ export function ChatView() {
                               <div
                                 {...quotePress(m.id, body)}
                                 className={cn(
-                                  "w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                  "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                   pics.length > 0 && "mt-1",
                                 )}
                               >
@@ -834,7 +845,7 @@ export function ChatView() {
                                     key={i}
                                     {...quotePress(m.id, p)}
                                     className={cn(
-                                      "w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
@@ -847,10 +858,10 @@ export function ChatView() {
                           }
 
                           const liveText = streaming ? firstSegment(m.content) : m.content;
-                          return hasVisibleText(liveText) ? (
+                          return hasRenderedText(liveText) && !isPunctOnly(liveText) ? (
                             <div
                               {...quotePress(m.id, liveText)}
-                              className="w-max min-w-[4em] max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className="w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
