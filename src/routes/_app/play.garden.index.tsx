@@ -122,9 +122,14 @@ function GardenView() {
             {m.t}
           </span>
         ))}
+        {/*
+          ⚠️ 这个 Link 外面那层是 `pointer-events-none`（虚线路径与时刻都不该吃点击），
+          Link 自己必须显式 `pointer-events-auto`，否则画上有"踪迹"两个字但**点不动**
+          （用户 m07120："踪迹点不开没反应"）。别把这一行删掉。
+        */}
         <Link
           to={GARDEN_TRAIL.label.to}
-          className="garden-spot garden-spot-live"
+          className="garden-spot garden-spot-live pointer-events-auto"
           aria-label={`看${GARDEN_TRAIL.label.zh}`}
           style={{ left: `${GARDEN_TRAIL.label.x}%`, top: `${GARDEN_TRAIL.label.y}%` }}
         >

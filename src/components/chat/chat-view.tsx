@@ -30,6 +30,21 @@ function hasVisibleText(s: string | undefined | null): boolean {
   if (!s) return false;
   return /[^\s\u200b-\u200f\u2060\ufeff]/.test(s);
 }
+
+/**
+ * 去掉 **Markdown 记号**之后再判一次空。
+ *
+ * 为什么还得多这一层：`**`、`>`、`-`、`` ` ``、`[]()` 这些符号在正文里"看得见"，
+ * 但 Markdown 渲染出来是空的 —— 用户 m07120 截图里那个**空气泡**就是这种：
+ * 分段里有一段只剩记号/空白，气泡照画（还带 min-w），里面什么都没有。
+ */
+function hasRenderedText(s: string | undefined | null): boolean {
+  if (!s) return false;
+  const bare = s
+    .replace(/[*_~#>`!|()[\]]/g, "")
+    .replace(/[\s\u200b-\u200f\u2060\ufeff]/g, "");
+  return bare.length > 0;
+}
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
@@ -573,10 +588,16 @@ export function ChatView() {
                *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
                *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
                */
-              const visibleParts = (m.parts ?? []).filter((p) => hasVisibleText(p));
+              const visibleParts = (m.parts ?? []).filter((p) => hasRenderedText(p));
+              /*
+                ⚠️ 这里原来用 `hasVisibleText`（只认"有没有字"），于是正文只剩 `**`、
+                `>`、`[]()` 这类 Markdown 记号的空壳仍算"有内容"，渲染出来就是一个
+                只有两三个符号的小气泡（用户 m07120："定时唤醒多余气泡"）。
+                改用 `hasRenderedText`：把记号剥掉之后没字，就按空壳处理。
+              */
               const noBody =
                 !mine &&
-                !hasVisibleText(m.content) &&
+                !hasRenderedText(m.content) &&
                 visibleParts.length === 0 &&
                 !(m.attachments && m.attachments.length);
               const pendingPlaceholder =

@@ -223,9 +223,17 @@ function notify(id, title, body, actionTypeId) {
       body: maskSecrets(body),
     };
     if (actionTypeId) n.actionTypeId = actionTypeId;
+    /*
+      ⚠️ `scheduleAt` 在 Background Runner 的 `NotificationScheduleOptions` 里是**必填**
+      （见 @capacitor/background-runner 的 apis.d.ts）。原来没传 —— 插件解析参数时
+      可能直接不弹，而下面 catch 又把异常吞掉，于是"他说了、抽屉里有、就是没通知"，
+      用户只能点开 App 才补到那一条（m07120）。补一个 1 秒后的时间即可立即弹。
+    */
+    n.scheduleAt = new Date(Date.now() + 1000);
     CapacitorNotifications.schedule([n]);
   } catch (e) {
-    /* 弹不出来就算了 */
+    /* 弹不出来要留痕，否则"没收到通知"永远查不出来 */
+    logLine("通知没弹出来：" + String(e && e.message ? e.message : e).slice(0, 120));
   }
 }
 
@@ -637,14 +645,33 @@ addEventListener("qidaoWake", function (resolve, reject) {
               看才是真的读对话、调 AI（花钱的那一步）。
       */
       var lookAcc = kvNum("look_acc");
-      var look = lookAcc === 1 || Math.random() < 0.5;
+      /*
+        ⚠️ 2026-10 真机事故："一天都没通知"，后台记录里却连着 6 次"这次没看他"。
+        设计上"没看 → 下次必定看"最多隔一次，出现连续 6 次说明**`look_acc` 没生效**
+        （抽屉被清过 / 写没落盘 / 前台重推配置把键冲掉了）。掷骰子本身别动（用户定的 50%），
+        但要有一条**不依赖那个键的兜底**：距上次真的看他超过 3 小时，这次一定看。
+        否则一旦那个键失效，他就可能整天空转 —— 这是"没通知"最坏的一种。
+      */
+      var lastLook = kvNum("last_look_at");
+      var lookOverdue = lastLook > 0 && now - lastLook > 3 * 60 * 60 * 1000;
+      var look = lookAcc === 1 || lookOverdue || Math.random() < 0.5;
       if (!look) {
         kvSet("look_acc", 1);
-        logLine("#" + count + " " + stamp + " 这次没看他（50% 那半）→ 下次必定看");
+        logLine(
+          "#" + count + " " + stamp + " 这次没看他（50% 那半，look_acc=" + lookAcc + "）→ 下次必定看",
+        );
         resolve();
         return;
       }
+      if (lookAcc !== 1 && !lookOverdue) {
+        logLine("#" + count + " " + stamp + " 这次看他（50% 命中）");
+      } else {
+        logLine(
+          "#" + count + " " + stamp + " 这次看他（" + (lookAcc === 1 ? "上次没看→必定看" : "已 3 小时没看→兜底") + "）",
+        );
+      }
       kvSet("look_acc", 0);
+      kvSet("last_look_at", now);
 
       /*
         ④ **他醒了：这次要不要说** —— 也是 50%。
@@ -657,6 +684,13 @@ addEventListener("qidaoWake", function (resolve, reject) {
 
       var lastSpoke = kvNum("last_spoke_at");
       var elapsed = lastSpoke > 0 ? (now - lastSpoke) / 60000 : null;
+      /*
+        同一条兜底：`speak_acc` 万一失效，也别让他"看了却不开口"一整天。
+        距上次说话超过 5 小时 → 这次必定说（下面的闸门仍然照常拦：忙/最短间隔/每天上限）。
+      */
+      if (!mustSpeak && (lastSpoke <= 0 || now - lastSpoke > 5 * 60 * 60 * 1000)) {
+        mustSpeak = true;
+      }
 
       /*
         ④.5 **三道闸门**（2026-11 用户要的"别烦人"）：
