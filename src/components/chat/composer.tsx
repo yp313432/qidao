@@ -5,6 +5,7 @@ import {
   AudioLines,
   Check,
   ChevronDown,
+  ChevronRight,
   Mic,
   Paperclip,
   Plus,
@@ -16,6 +17,11 @@ import { FileButton } from "@/components/file-button";
 import { filesToAttachments, prettySize, stickerFromFile } from "@/lib/attachments";
 import { stripWhiteBackground } from "@/lib/white-removal";
 import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
+import {
+  DEFAULT_STICKER_GROUP,
+  guessGroupFromName,
+  stickerGroupList,
+} from "@/lib/stickers";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { startListening } from "@/lib/voice";
 import { IS_APP } from "@/lib/platform";
@@ -26,13 +32,6 @@ import type { Attachment } from "@/lib/types";
 import { useDismissOutside } from "@/lib/ux";
 import { cn, uid } from "@/lib/utils";
 import { useApp } from "@/lib/store";
-
-/** 常用表情（本地常量，不依赖任何接口） */
-const EMOJI = [
-  "😀", "🙂", "😌", "😴", "🤔", "😮", "🥹", "😭",
-  "😂", "🙌", "👍", "👀", "✨", "🌙", "☁️", "🍃",
-  "🔥", "💧", "🌸", "🫧", "🐈", "🐟", "🍵", "📎",
-];
 
 type Props = {
   onSend: (text: string, attachments?: Attachment[]) => void;
@@ -115,7 +114,9 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   }, [draftKey]);
 
   const [modelOpen, setModelOpen] = useState(false);
-  /** 第二行「推理」的选择弹层（用户："模型和推理，点哪个弹出下一级选择"） */
+  /** 第二层：具体模型列表（第一层点「模型」才展开） */
+  const [modelPickOpen, setModelPickOpen] = useState(false);
+  /** 第二层：三档推理力度（第一层点「推理等级」才展开） */
   const [reasonOpen, setReasonOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
@@ -134,6 +135,11 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
   const customStickers = useApp((s) => s.stickerLib);
+  const stickerGroups = useApp((s) => s.stickerGroups);
+  /** 表情面板当前分组（"全部" = 不分组的整库） */
+  const [stickerTab, setStickerTab] = useState<string>("全部");
+  /** 长按进来后的"管理态"：这时点一张 = 删掉它 */
+  const [stickerManage, setStickerManage] = useState(false);
   /*
     「今天 N 次 · 输入/输出 · 缓存命中率」那条**已删除**（用户要求：
     "到时候直接上设置里看，这地方就不留了"）。
@@ -210,8 +216,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         const transparent = await stripWhiteBackground(url);
         if (transparent) url = transparent;
       }
-      // 从聊天框加的表情一律进「未分组」；要分类就去「工具 → 表情」那个库页面分
-      useApp.getState().addSticker(url);
+      /*
+        自动分组（用户 m07420）：文件名带汉字前缀就按它分组
+        （`无语_翻了.gif` → 无语），纯编号的（IMG_2041、mmexport…）还是「未分组」。
+      */
+      useApp.getState().addSticker(url, guessGroupFromName(f.name));
+      setStickerTab("全部");
     }
   }
 
@@ -338,23 +348,20 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     };
   }, []);
 
-  function attachNote() {
-    setPlusOpen(false);
-    const name = window.prompt("给这条上下文起个标题", "附注");
-    const body = window.prompt("要附在下一条消息前的内容");
-    if (!body?.trim()) return;
-    setValue((v) => `${v}${v ? "\n\n" : ""}【${name || "附注"}】\n${body.trim()}`);
-  }
-
   // 点弹层外面就收起（不用等抬手，手机上更顺手）
   const cardRef = useRef<HTMLDivElement>(null);
   const closeAll = useCallback(() => {
     setPlusOpen(false);
     setModelOpen(false);
+    setModelPickOpen(false);
     setReasonOpen(false);
     setStickerOpen(false);
   }, []);
-  useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || reasonOpen || stickerOpen);
+  useDismissOutside(
+    cardRef,
+    closeAll,
+    plusOpen || modelOpen || modelPickOpen || reasonOpen || stickerOpen,
+  );
 
   return (
     <div className="px-1.5 pb-composer">
@@ -461,63 +468,112 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           </div>
         )}
 
+        {/*
+          表情面板（用户 m07420："跟微信一样，在对话框加一个表情键，点开就是表情包，
+          点击就发"）。
+
+          ⚠️ 面板只可能从输入框**上方**展开：下面是常驻的底部导航，没有它的位置。
+          所以这里是"输入框上方升起的一块面板"，不是微信那种压住输入法的高度。
+        */}
         {stickerOpen && (
-          <div className="glass-menu mb-1.5 rounded-2xl border border-line p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[11px] text-muted">表情</span>
-              <div className="flex items-center gap-1">
-                <FileButton
-                  ariaLabel="上传表情图"
-                  accept="image/*"
-                  multiple
-                  className="text-[11px] text-muted"
-                  onPick={(files) => void addStickers(files)}
-                >
-                  ＋ 上传表情图
-                </FileButton>
-                <button
-                  type="button"
-                  aria-label="收起表情"
-                  onClick={() => setStickerOpen(false)}
-                  className="flex size-7 items-center justify-center rounded-full bg-chip text-muted"
-                >
-                  <X className="size-3.5" />
-                </button>
+          <div className="sticker-sheet mb-1.5">
+            <div className="flex items-center gap-1.5 px-1 pb-1.5">
+              <div className="sticker-tabs min-w-0 flex-1">
+                {["全部", ...stickerGroupList(customStickers, stickerGroups)].map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setStickerTab(g)}
+                    className={cn("sticker-tab", stickerTab === g && "sticker-tab-on")}
+                  >
+                    {g}
+                    <span className="ml-1 text-[9px] opacity-60">
+                      {g === "全部"
+                        ? customStickers.length
+                        : customStickers.filter((x) => (x.group || DEFAULT_STICKER_GROUP) === g)
+                            .length}
+                    </span>
+                  </button>
+                ))}
               </div>
+              <FileButton
+                ariaLabel="导入表情"
+                accept="image/*"
+                multiple
+                className="sticker-import shrink-0"
+                onPick={(files) => void addStickers(files)}
+              >
+                ＋ 导入
+              </FileButton>
+              <button
+                type="button"
+                aria-label="收起表情"
+                onClick={() => {
+                  setStickerOpen(false);
+                  setStickerManage(false);
+                }}
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-            <div className="grid max-h-44 grid-cols-8 gap-1 overflow-y-auto">
-              {EMOJI.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  aria-label={`插入 ${e}`}
-                  onClick={() => setValue((v) => v + e)}
-                  className="rounded-xl py-1 text-xl leading-none"
-                >
-                  {e}
-                </button>
-              ))}
-              {customStickers.map((s) => (
-                <span key={s.id} className="relative">
-                  <button
-                    type="button"
-                    aria-label="发送表情"
-                    onClick={() => sendSticker(s.url)}
-                    className="block"
-                  >
-                    <img src={s.url} alt="自定义表情" className="size-8 rounded-lg object-cover" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="删除这个表情"
-                    onClick={() => useApp.getState().removeSticker(s.id)}
-                    className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-ink text-[9px] text-ink-fg"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
+
+            <div className="sticker-grid">
+              {customStickers
+                  .filter(
+                    (x) =>
+                      stickerTab === "全部" ||
+                      (x.group || DEFAULT_STICKER_GROUP) === stickerTab,
+                  )
+                  .map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-label={stickerManage ? "删除这张表情" : "发送这张表情"}
+                      onClick={() => {
+                        if (stickerManage) {
+                          useApp.getState().removeSticker(s.id);
+                          return;
+                        }
+                        sendSticker(s.url);
+                      }}
+                      onPointerDown={() => {
+                        const timer = window.setTimeout(
+                          () => setStickerManage(true),
+                          550,
+                        );
+                        window.addEventListener(
+                          "pointerup",
+                          () => window.clearTimeout(timer),
+                          { once: true },
+                        );
+                      }}
+                      className={cn(
+                        "sticker-cell",
+                        stickerManage && "sticker-cell-remove",
+                      )}
+                    >
+                      <img src={s.url} alt="" className="size-full object-contain" />
+                    </button>
+                  ))}
+
+              {customStickers.length === 0 && (
+                <p className="col-span-5 px-2 py-6 text-center text-[11px] leading-5 text-muted">
+                  还没有表情包。点右上「＋ 导入」选几张图；
+                  <br />
+                  文件名里带中文的（比如「无语_气死了.gif」）会自动分到「无语」那组。
+                </p>
+              )}
             </div>
+
+            <p className="flex items-center justify-between px-1 pt-1 text-[10px] text-subtle">
+              <span>
+                导进来的图会按文件名自动分组
+              </span>
+              <span>
+                {stickerManage ? "点一张就删掉 · 再点空白处退出" : "点一下直接发 · 长按管理"}
+              </span>
+            </p>
           </div>
         )}
 
@@ -612,104 +668,87 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 >
                   文件
                 </FileButton>
-                <button
-                  type="button"
-                  aria-label="录一段语音"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
-                  onClick={() => void startRec()}
-                >
-                  <Mic className="size-3.5" />
-                  录音
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
-                  onClick={() => {
-                    setPlusOpen(false);
-                    setModelOpen(false);
-                    setStickerOpen((v) => !v);
-                  }}
-                >
-                  <Smile className="size-3.5" />
-                  表情
-                </button>
-                <button type="button" className="block w-full px-3 py-2.5 text-left text-sm" onClick={attachNote}>
-                  附加说明
-                </button>
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2.5 text-left text-sm"
-                  onClick={() => {
-                    setPlusOpen(false);
-                    void navigate({ to: "/tools" });
-                  }}
-                >
-                  插件与 MCP
-                </button>
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2.5 text-left text-sm"
-                  onClick={() => {
-                    setPlusOpen(false);
-                    void navigate({ to: "/tools" });
-                  }}
-                >
-                  已保存文档
-                </button>
+                {/*
+                  用户 m07644："这个加号里塞了这么多没用的，把录音、表情、附加说明、
+                  插件和 MCP、已保存文档都删了" —— 所以这里只剩图片和文件两件，
+                  别再加回去（录音在右边的语音键、表情在自己的键、文档在工具区）。
+                */}
               </div>
             )}
           </div>
           <div className="relative min-w-0 flex-1">
             {/*
-              两行选择器（用户："思考深度放在模型选择列成两行，模型和推理，
-              点哪个弹出下一级选择"）。
+              用户 m07473（原话）：
+                "对话框高度长度都不变，里面有四个组件，一个加号，一个模型，
+                 强度和他合并，还有一个表情包按键和一个语音，所有的位置都不变"
 
-              ⚠️ 这两行是**同一行 flex 里的两列**，不是上下堆叠 ——
-                 因为输入框本身只有一行高（h-11）。上下堆叠会让它变高、
-                 把消息区挤掉；并排放正好跟输入框齐平。
-              窄屏（390px）下自动换行，所以加了 flex-wrap。
+              所以这里**只占一格**：原来"模型"和"推理"两颗胶囊合成一颗，
+              分成上下两行（上行模型名、下行推理档），空出来的那一格给表情键。
+              点这颗胶囊才弹出第一层菜单（模型 / 推理等级），再点才是具体选项。
 
-              两个弹层**共用同一个容器 relative + 同一套定位**，
-              一次只会开一个（打开一个就把另一个关掉）。
+              ⚠️ 别把它拆回两颗、也别挪到输入框上方 —— 位置必须还是原来那格。
             */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {/* 第一行：模型（上游真实模型名） */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModelOpen((v) => !v);
-                  setReasonOpen(false);
-                  setPlusOpen(false);
-                  setStickerOpen(false);
-                }}
-                aria-label="选择模型"
-                className="flex h-8 min-w-0 flex-1 items-center justify-between gap-1 rounded-full bg-chip px-2.5 text-[11px] font-medium"
-              >
-                <span className="truncate font-mono">
+            <button
+              type="button"
+              onClick={() => {
+                setModelOpen((v) => !v);
+                setReasonOpen(false);
+                setPlusOpen(false);
+                setStickerOpen(false);
+              }}
+              aria-label="模型与推理等级"
+              className="flex h-9 w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip px-3 text-left"
+            >
+              <span className="flex w-full items-center gap-1">
+                <span className="truncate font-mono text-[10.5px] leading-none text-fg">
                   {settings.upstreamModel || "未选模型"}
                 </span>
-                <ChevronDown className="size-3 shrink-0 text-muted" />
-              </button>
+                <ChevronDown className="ml-auto size-3 shrink-0 text-muted" />
+              </span>
+              <span className="truncate text-[9px] leading-none text-muted">
+                推理 · {getModel(model).label}
+              </span>
+            </button>
 
-              {/* 第二行：推理（三档推理力度） */}
-              <button
-                type="button"
-                onClick={() => {
-                  setReasonOpen((v) => !v);
-                  setModelOpen(false);
-                  setPlusOpen(false);
-                  setStickerOpen(false);
-                }}
-                aria-label="选择推理力度"
-                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-chip px-2.5 text-[11px] font-medium"
-              >
-                <span>{getModel(model).label}</span>
-                <ChevronDown className="size-3 text-muted" />
-              </button>
-            </div>
-
-            {/* 模型弹层 */}
+            {/*
+              第一层（用户 m07473 的"三级弹层"）：只列两件事 ——
+              模型 / 推理等级，各自右侧一个 ›。点哪一项才展开第二层。
+            */}
             {modelOpen && (
+              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelOpen(false);
+                    setModelPickOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+                >
+                  <span className="w-14 shrink-0 text-[12px] text-muted">模型</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[12.5px]">
+                    {settings.upstreamModel || "未选模型"}
+                  </span>
+                  <ChevronRight className="size-3.5 shrink-0 text-muted" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelOpen(false);
+                    setReasonOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 border-t border-line px-3 py-2.5 text-left"
+                >
+                  <span className="w-14 shrink-0 text-[12px] text-muted">推理等级</span>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                    {getModel(model).label}
+                  </span>
+                  <ChevronRight className="size-3.5 shrink-0 text-muted" />
+                </button>
+              </div>
+            )}
+
+            {/* 第二层：模型列表 */}
+            {modelPickOpen && (
               <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
                 {settings.upstreamModels.length > 0 ? (
                   settings.upstreamModels.map((m) => (
@@ -718,7 +757,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                       type="button"
                       onClick={() => {
                         patch({ upstreamModel: m });
-                        setModelOpen(false);
+                        setModelPickOpen(false);
                       }}
                       className={cn(
                         "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left",
@@ -737,7 +776,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     <button
                       type="button"
                       onClick={() => {
-                        setModelOpen(false);
+                        setModelPickOpen(false);
                         void navigate({ to: "/me" });
                       }}
                       className="mt-2 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium"
@@ -752,7 +791,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               </div>
             )}
 
-            {/* 推理弹层 */}
+            {/* 第二层：推理等级 */}
             {reasonOpen && (
               <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
                 {MODELS.map((m) => (
@@ -781,6 +820,23 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               </div>
             )}
           </div>
+          {/* 第四格左边这一格：表情（用户 m07473："一个表情包按键"） */}
+          <button
+            type="button"
+            aria-label="表情"
+            onClick={() => {
+              setStickerOpen((v) => !v);
+              setPlusOpen(false);
+              setModelOpen(false);
+              setReasonOpen(false);
+            }}
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-full",
+              stickerOpen ? "bg-accent-soft text-accent" : "bg-chip text-accent",
+            )}
+          >
+            <Smile className="size-5" strokeWidth={1.7} />
+          </button>
           <button
             type="button"
             aria-label={

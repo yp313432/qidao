@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FileText, Plus, Puzzle, Smile, Trash2, Zap } from "lucide-react";
+import { FileText, Plus, Puzzle, Trash2, Zap } from "lucide-react";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
-import { StickerLibrary } from "@/components/tools/sticker-library";
 import { SummaryList } from "@/components/tools/summary-list";
 import { useApp } from "@/lib/store";
 import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
@@ -15,11 +14,13 @@ const TABS = [
   { id: "mcp", label: "MCP", icon: Puzzle },
   { id: "summary", label: "摘要", icon: FileText },
   /**
-   * **表情库**（2026-11 用户要的）："表情包能不能做成一个库，我传到库里，
-   * 他从我传的库里挑，并且库里带分组，我自己分，然后他就可以用了。"
-   * 放在工具区、跟 HTTP / MCP / 文档 并排（用户原话："把库放文档那里吧"）。
+   * **文档**（2026-11 用户 m07602）："工具区的表情包做好之后也可以删了，把文档换过去吧"。
+   *
+   * 表情管理已经并进对话里的表情面板（`composer.tsx` 的 `.sticker-sheet`，
+   * 带分组页签/导入/长按删除），工具区这一格就腾出来给文档用 ——
+   * 之前文档是藏在「摘要」下面的折叠区里，几乎没人点开。
    */
-  { id: "stickers", label: "表情", icon: Smile },
+  { id: "docs", label: "文档", icon: FileText },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -85,72 +86,55 @@ export function ToolsView() {
 
         {tab === "mcp" && <McpServers />}
 
-        {tab === "stickers" && <StickerLibrary />}
-
         {/*
           ── 摘要（2026-11）──────────────────────────────────────
           用户原话："这个摘要总结完在哪，没看到啊" → 然后："你把摘要后的直接写到工具区的
-          那个文档里面，就把那个文档改做摘要总结吧。因为那个文档我看一直没用上……
-          但是聊天页面也要里保留，因为他不是要当做 AI 能知道的上下文吗？"
-
-          所以：**这个 tab 从「文档」改成「摘要」**（摘要终于有个看得见的地方）；
-          **文档没被删** —— 收进下面的折叠区（AI 那边 `docs.write` / `docs.archive`
-          也照旧能用），想用随时展开。
+          那个文档里面……" 后来 m07602 又改成："把文档换过去吧" ——
+          文档拿回一个**自己的标签**（就是原来表情那格），不再折叠在摘要下面。
         */}
-        {tab === "summary" && (
-          <div className="space-y-4">
-            <SummaryList />
-            <details className="rounded-2xl border border-line bg-surface px-4 py-3">
-              <summary className="cursor-pointer text-[12px] text-muted">
-                文档（{docs.length} 篇 · 点开看）
-              </summary>
-              <div className="mt-3 space-y-2">
-                {/*
-                  原来是 window.prompt 弹两次原生输入框（标题一次、正文一次）——
-                  同一个「新建」动作，HTTP / MCP 是自绘表单，文档是浏览器弹窗，
-                  就是用户说的"换一个组件又是另一套写法"。现在跳同一个编辑器页面。
-                */}
-                <Link
-                  to="/tools/docs"
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
-                >
-                  <Plus className="size-4" />
-                  新建文档
-                </Link>
-                {docs.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted">还没有文档</p>
+        {tab === "summary" && <SummaryList />}
+
+        {tab === "docs" && (
+          <div className="space-y-2">
+            <Link
+              to="/tools/docs"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
+            >
+              <Plus className="size-4" />
+              新建文档
+            </Link>
+            {docs.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted">还没有文档</p>
+            )}
+            {docs.map((d) => (
+              <article key={d.id} className="rounded-2xl border border-line bg-surface px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    className="text-left"
+                    onClick={() => setOpenDoc(openDoc === d.id ? null : d.id)}
+                  >
+                    <p className="font-medium">{d.title}</p>
+                    <p className="text-[12px] text-muted">
+                      {d.source === "chat" ? "来自对话" : "手写"} · {formatDay(d.createdAt)}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="删除文档"
+                    onClick={() => useApp.getState().deleteDoc(d.id)}
+                    className="size-9 text-muted"
+                  >
+                    <Trash2 className="mx-auto size-4" />
+                  </button>
+                </div>
+                {openDoc === d.id && (
+                  <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] leading-6 text-muted">
+                    {d.content}
+                  </pre>
                 )}
-                {docs.map((d) => (
-                  <article key={d.id} className="rounded-2xl border border-line bg-surface px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <button
-                        type="button"
-                        className="text-left"
-                        onClick={() => setOpenDoc(openDoc === d.id ? null : d.id)}
-                      >
-                        <p className="font-medium">{d.title}</p>
-                        <p className="text-[12px] text-muted">
-                          {d.source === "chat" ? "来自对话" : "手写"} · {formatDay(d.createdAt)}
-                        </p>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="删除文档"
-                        onClick={() => useApp.getState().deleteDoc(d.id)}
-                        className="size-9 text-muted"
-                      >
-                        <Trash2 className="mx-auto size-4" />
-                      </button>
-                    </div>
-                    {openDoc === d.id && (
-                      <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] leading-6 text-muted">
-                        {d.content}
-                      </pre>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </details>
+              </article>
+            ))}
           </div>
         )}
       </div>

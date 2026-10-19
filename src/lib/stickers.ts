@@ -48,6 +48,31 @@ export type Sticker = { id: string; url: string; group: string };
 export const DEFAULT_STICKER_GROUP = "未分组";
 
 /**
+ * 从**文件名**猜分组（用户 m07420："可以来个自动分组"）。
+ *
+ * 微信那套表情包文件名大多带前缀，比如 `无语_翻了.gif`、`猫-无语.jpg`、
+ * `抱抱1.png` —— 取扩展名前的第一段当分组名就够了，不用他一张张去分。
+ *
+ *   `无语_翻了.gif`   → 无语
+ *   `猫-无语.jpg`     → 猫
+ *   `抱抱1.png`       → 抱抱
+ *   `IMG_2041.jpg`    → 未分组（只是一串编号/英文，猜不出意思就别乱猜）
+ *   `screenshot.png`  → 未分组（同上：纯英文且不像标记，宁可留给手动）
+ *
+ * 中文优先：文件名里**带汉字**的那一段才算数；纯英文那些（IMG、mmexport、
+ * wx_camera 之类）是相机/微信导出的编号，当分组会把库搅乱。
+ */
+export function guessGroupFromName(name: string): string {
+  const base = (name ?? "").replace(/\.[^.]+$/, "");
+  if (!base) return DEFAULT_STICKER_GROUP;
+  // 按常见分隔符切开，取头一段
+  const head = base.split(/[\s_\-—－·.()（）[\]【】]+/).filter(Boolean)[0] ?? "";
+  // 只留汉字/日文假名（英文编号一律不认）
+  const g = head.replace(/[^\u4e00-\u9fa5\u3040-\u30ff]/g, "").slice(0, 6);
+  return g || DEFAULT_STICKER_GROUP;
+}
+
+/**
  * 把他说的话对上某一组。
  *
  * 容忍三种说法：**完全相同** / **包含**（"发个抱抱的表情" → 命中"抱抱"）/
