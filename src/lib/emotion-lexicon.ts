@@ -1,17 +1,18 @@
 /**
- * 「新情绪词表」的**唯一运行时入口**（13 组 · 约 217 词）。
+ * 「情绪分组」的**唯一运行时入口**（2026-10 起：**10 组互斥** · 每组一组参考说法）。
  *
- * 用户的话："做好适配，不然 AI 不知道怎么用新的情绪词。"
+ * 用户 m08526 / m08557 定的方案：上报不再要求"词表里的原词"，主情绪改成
+ * **自由概括 1~5 个字**（超 5 字截断不驳回）；`group` 改成**必填**（10 组 id 之一）。
  *
  * 三件事都收在这一个文件里，别在别处再抄一份：
  *   ① **词表本身**：直接 import 插件的 `lib/emotion/lexicon.ts`
  *      —— 同一份数组，改词表不用改两处（手册、动作校验、插件界面读的都是它）。
- *   ② **校验 / 截断**：主情绪必须在表里、quote ≤ 40 字、summary ≤ 20 字。
- *   ③ **给 AI 看的那一节**：`emotionLexiconSection()`（手册里那一节 + 按需取用的动作）。
+ *   ② **校验 / 截断**：主情绪 1~5 字（超了截断）、group 必须合法、quote ≤ 40 字。
+ *   ③ **给 AI 看的那一节**：`emotionLexiconSection()`（手册里那 10 组 + 参考说法）。
  *
  * ⚠️ 两条纪律（都是用户明说的）：
- *   · **绝不把词表塞进每轮系统提示词** —— 用户按 token 付费。`manual.ts` 的
- *     `buildManual()` 里**只有一句指引**（见那里的注释），词表靠 `emotion.lexicon` 现取。
+ *   · **绝不把 10 组参考词塞进每轮系统提示词** —— 用户按 token 付费。
+ *     `manual.ts` 里只给组 id 清单（很短），参考说法留在本文件。
  *   · **不许硬编码副本** —— 这里 import 的是插件那一份，没有第二个词表。
  *
  * 为什么用**相对 .ts 路径** import（仓库里 `src/lib/app-data/*` 也这么写）：
@@ -26,21 +27,25 @@ import type {
   EmotionMemoryQuery,
 } from "@/lib/types";
 
-/** 词表分组（A~M 共 13 组）—— 就是插件那一份。 */
+/** 10 组互斥的情绪分组 —— 就是插件那一份。 */
 export const EMOTION_GROUPS: readonly LexiconGroup[] = LEXICON;
 
-/** 全部合法词（扁平成一个集合，校验用）。 */
+/** 全部参考说法（扁平成一个集合，只用于"旧存档里的词属于哪组"和界面配色）。 */
 export const EMOTION_TERMS: ReadonlySet<string> = new Set(
   LEXICON.flatMap((group) => group.terms),
 );
 
 export const EMOTION_GROUP_COUNT = LEXICON.length;
+/** 10 组的 id（`emotion.report.group` 的合法值）。 */
+export const EMOTION_GROUP_IDS: readonly string[] = LEXICON.map((group) => group.id);
+/** 给 AI / 回执用的短清单：`bright（明亮）、calm（平静）…` */
+export const EMOTION_GROUP_HINT = LEXICON.map(
+  (group) => `${group.id}（${group.title.replace(/^[A-Z]\.\s*/, "")}）`,
+).join("、");
 /**
- * 词条**条目数**（13 组加起来的原始条数 = 217，用户说的"约 217 词"就是这个）。
+ * 参考说法的**条目数**（10 组加起来的原始条数）。
  *
- * ⚠️ 跟 `EMOTION_TERMS.size`（**不重复**的词 = 209）不是一回事：
- * 有 8 个词同时出现在两组里（不甘 / 忍耐 / 害怕失去 / 意犹未尽 / 试探 / 欲言又止 /
- * 逗弄 / 克制）—— 校验用去重集合，给 AI 报数用条目数（跟他说的那个数对上）。
+ * ⚠️ 这些词**不再是白名单** —— 上报是自由词（1~5 字），本数字只用于文档/自检。
  */
 export const EMOTION_TERM_ENTRIES = LEXICON.reduce((sum, group) => sum + group.terms.length, 0);
 export const EMOTION_TERM_COUNT = EMOTION_TERMS.size;
@@ -77,6 +82,56 @@ export const QUOTE_MAX = 40;
 export const SUMMARY_MAX = 20;
 /** 次情绪最多两个。 */
 export const SECONDARY_MAX = 2;
+/** 主情绪 / 次情绪的字数上限（用户 m08526："1~5 字"，超了截断、不驳回）。 */
+export const PRIMARY_MAX = 5;
+/** group id → 组（找不到返回 null）。 */
+export function emotionGroupById(id: unknown): LexiconGroup | null {
+  if (typeof id !== "string") return null;
+  const key = id.trim().toLowerCase();
+  return LEXICON.find((group) => group.id === key) ?? null;
+}
+
+/**
+ * 旧数据补 group（2026-10 用户 m09312 第 6 条："6做吧"）。
+ *
+ * 词表从"13 组 · 217 词"换成"10 组 · 自由词"之前，每条情绪记录只有
+ * `category`（base / intimacy / tension / cognition / expression），没有 `group`。
+ * 星屿那边按组上色，缺 group 的历史点会全落到默认灰蓝 —— 这里给一个确定的兜底：
+ *   ① 已经有合法 group → 原样用
+ *   ② 主情绪能在 10 组的参考说法里查到 → 用那一组
+ *   ③ 否则按旧大类映射：base→calm、intimacy→close、tension→uneasy、
+ *      cognition / expression→curious
+ */
+const LEGACY_CATEGORY_GROUP: Record<string, string> = {
+  base: "calm",
+  intimacy: "close",
+  tension: "uneasy",
+  cognition: "curious",
+  expression: "curious",
+};
+
+export function inferGroupId(record: {
+  group?: unknown;
+  primaryEmotion?: unknown;
+  category?: unknown;
+}): string {
+  const known = emotionGroupById(record.group);
+  if (known) return known.id;
+
+  // 老存档里 category 被误塞进 group 字段的情况
+  const groupAsCategory = LEGACY_CATEGORY_GROUP[String(record.group ?? "").trim().toLowerCase()];
+  if (groupAsCategory) return groupAsCategory;
+
+  // 主情绪能在参考说法里查到 —— 比大类更精确，优先
+  const word = normalizeEmotionTerm(String(record.primaryEmotion ?? ""));
+  if (word) {
+    const byWord = LEXICON.find((group) => group.terms.includes(word));
+    if (byWord) return byWord.id;
+  }
+
+  return LEGACY_CATEGORY_GROUP[String(record.category ?? "").trim().toLowerCase()] ?? "calm";
+}
+
 
 const MODE_LABEL: Record<EmotionMode, string> = {
   daily: "日常",
@@ -90,7 +145,7 @@ export function emotionModeLabel(mode: string): string {
   return MODE_LABEL[mode as EmotionMode] ?? mode;
 }
 
-/** 主情绪所在的那一组（找不到返回 null）。 */
+/** 这个词（参考说法里有的）属于哪一组 —— 旧存档 / 配色用；自由词不在里面就返回 null。 */
 export function emotionGroupOf(term: string): LexiconGroup | null {
   const word = normalizeEmotionTerm(term);
   return LEXICON.find((group) => group.terms.includes(word)) ?? null;
@@ -111,7 +166,7 @@ export function normalizeEmotionTerm(raw: unknown): string {
     .trim();
 }
 
-/** 这个词是不是词表里的（词表外一律无效）。 */
+/** 这个词是不是某组的参考说法（**不再用于校验**，只给旧数据/配色兜底）。 */
 export function isEmotionTerm(raw: unknown): boolean {
   const word = normalizeEmotionTerm(raw);
   return word.length > 0 && EMOTION_TERMS.has(word);
@@ -151,38 +206,35 @@ export function isEmotionDimension(raw: unknown): raw is EmotionDimension {
  *
  * 2026-10：旧的 11 维词表（`lib/state-dims.ts`）连同动作 `state.report` 一起退场，
  * 用户原话："原来的那个情绪一项……就是那 11 个就不用了。" —— 所以
- * **心情、花瓣、上报、提示词现在全部只认这一份词表**（13 组 / 217 词）。
+ * **心情、花瓣、上报、提示词现在全部只认这一份词库**（2026-10 起：10 组互斥 + 自由词）。
  *
- * 为什么界面这里只给**13 个代表词**（每组取第一个），而不是把 217 个词都铺成按钮：
- *   · 日记 / 动态那个心情选择器原来只有 11 个按钮；换成 217 个就不是"改词表"，
+ * 为什么界面这里只给**每组一个代表词**（取 `terms[0]`），而不是把几百个参考说法都铺成按钮：
+ *   · 日记 / 动态那个心情选择器原来只有 11 个按钮；铺开就不是"改词表"，
  *     是把界面重做一遍 —— 用户明说"不要新做界面"。
- *   · 报告侧不受影响：AI 用 `emotion.report` 报的是**完整的 217 词**，
- *     只有人手动挑心情时用这 13 个"每组一个"的代表（分组见 `LEXICON`）。
+ *   · 报告侧不受影响：AI 用 `emotion.report` 报的 primaryEmotion 是**自由词**（1~5 字），
+ *     只有人手动挑心情时用这些"每组一个"的代表（分组见 `LEXICON`）。
  */
 export const MOOD_TERMS: readonly string[] = LEXICON.map((group) => group.terms[0]!).filter(
   (term): term is string => Boolean(term),
 );
 
 /**
- * 每一组一个颜色 —— 顺序跟 A~M 一一对应。
+ * 每一组一个颜色 —— 顺序跟 10 组一一对应。
  *
  * 这些值就是旧 11 维那套颜色（`state-dims.ts` 的 `DIMS[].color`）**原样搬过来**：
  * 用户说了不许动美术，所以只是把"哪个颜色给哪个词"重新按新词表的分组分配一次。
  */
 const GROUP_COLORS: readonly string[] = [
-  "rgb(251,113,133)", // A 基础积极
-  "rgb(96,165,250)", // B 平静与安全
-  "rgb(129,140,248)", // C 悲伤与低落
-  "rgb(248,113,113)", // D 愤怒与冲突
-  "rgb(161,161,170)", // E 焦虑与不确定
-  "rgb(251,146,60)", // F 亲密与依恋
-  "rgb(244,114,182)", // G 心动与浪漫
-  "rgb(45,212,191)", // H 吃醋与占有
-  "rgb(168,85,247)", // I 暧昧与撩拨
-  "rgb(139,92,246)", // J 欲望与亲密
-  "rgb(148,163,184)", // K 克制与拉扯
-  "rgb(52,211,153)", // L 认知与探索
-  "rgb(217,119,6)", // M 互动与表达
+  "rgb(251,113,133)", // bright 明亮
+  "rgb(96,165,250)", // calm 平静
+  "rgb(129,140,248)", // low 低落
+  "rgb(248,113,113)", // angry 生气
+  "rgb(161,161,170)", // uneasy 不安
+  "rgb(251,146,60)", // close 亲近
+  "rgb(244,114,182)", // flutter 心动
+  "rgb(45,212,191)", // jealous 吃醋
+  "rgb(148,163,184)", // restrained 克制
+  "rgb(52,211,153)", // curious 好奇与表达
 ];
 const FALLBACK_COLOR = "rgb(148,163,184)";
 
@@ -206,7 +258,7 @@ export function moodDisplay(term: string): { label: string; color: string } {
   return { label: word || String(term ?? ""), color: moodColor(term) };
 }
 
-/** 把 13 组按组渲染成文本（组名 + family + category + note + 全部词）。 */
+/** 把 10 组按组渲染成文本（组名 + family + category + note + 全部参考说法）。 */
 export function renderEmotionLexiconGroups(): string {
   return LEXICON.map((group) => {
     const head = `${group.title} ｜ family：${group.family} ｜ category：${group.category} ｜ kind：${group.kind}`;
@@ -228,13 +280,15 @@ export function renderEmotionLexiconGroups(): string {
 
 /** 动作传来的原始字段（一律 unknown：模型什么都可能写）。 */
 export type EmotionReportInput = {
+  /** 自由概括 1~5 字（超了截断） */
   primaryEmotion?: unknown;
+  /** 10 组之一（**必填**） */
+  group?: unknown;
   secondaryEmotions?: unknown;
   intensity?: unknown;
   confidence?: unknown;
   dimensions?: unknown;
   suggestedMode?: unknown;
-  category?: unknown;
   evidence?: unknown;
   memoryQuery?: unknown;
 };
@@ -251,7 +305,6 @@ function normalizeEvidence(raw: unknown): EmotionEvidenceInput[] {
     if (!item || typeof item !== "object") continue;
     const quote = clipChars((item as EmotionEvidenceInput).quote, QUOTE_MAX);
     const summary = clipChars((item as EmotionEvidenceInput).summary, SUMMARY_MAX);
-    // 两个都给时**以 quote 为准**（用户要的是"引起波动的那一句"，不是他自己概括的）
     if (quote) out.push({ quote });
     else if (summary) out.push({ summary });
   }
@@ -259,42 +312,39 @@ function normalizeEvidence(raw: unknown): EmotionEvidenceInput[] {
 }
 
 /**
- * 校验 + 归一化一笔上报。
+ * 校验 + 归一化一笔上报（2026-10 新规矩：自由词 + 必填 group）。
  *
- * 规矩（用户逐条说的）：
- *   · 主情绪**必须是词表里的原词**，不在表里 → `ok:false`，整笔不入库；
- *   · 次情绪 0~2 个、也在表里，表外的**丢掉并如实说**（不因为一个次情绪废掉整笔）；
- *   · 强度/置信度 0~1；六个维度稀疏、词表外的键丢掉；
- *   · 证据最多 2 条，quote ≤ 40 字 / summary ≤ 20 字（**截断**，不拒绝）；
- *   · `category` 不写就按主情绪那一组算（词表里本来就标着）。
+ * 规矩（用户 m08526 / m08557 逐条说的）：
+ *   · 主情绪是**自由概括**，1~5 个字；超 5 字**截断**（不驳回），回执里说一句；
+ *   · `group` **必填**，必须是 10 组 id 之一（bright/calm/…/curious）；不认识 → 整笔不入库；
+ *   · 次情绪 0~2 个，也是自由词、各截 5 字，重复的去掉（不因为次情绪废掉整笔）；
+ *   · 强度/置信度 0~1；六个维度稀疏、不认识的键丢掉；
+ *   · 证据最多 2 条，quote ≤ 40 字 / summary ≤ 20 字（截断，不拒绝）；
+ *   · `category` 由 group 推导（不再让它自己填）。
  */
 export function buildEmotionReport(input: EmotionReportInput): EmotionReportResult {
-  const primaryEmotion = normalizeEmotionTerm(input.primaryEmotion);
+  const rawPrimary = normalizeEmotionTerm(input.primaryEmotion);
+  const primaryEmotion = clipChars(rawPrimary, PRIMARY_MAX);
   if (!primaryEmotion) {
     return {
       ok: false,
-      message:
-        '这一笔没记：primaryEmotion 是空的。主情绪必须从情绪词表里挑一个原词 —— 先写 {"kind":"emotion.lexicon"} 取一份。',
+      message: `这一笔没记：primaryEmotion 是空的。用 1~5 个字概括当下最贴的那种感觉，再给一个 group（${EMOTION_GROUP_HINT}）。`,
     };
   }
-  if (!EMOTION_TERMS.has(primaryEmotion)) {
+  const rawGroup = typeof input.group === "string" ? input.group.trim() : "";
+  const group = emotionGroupById(rawGroup);
+  if (!group) {
     return {
       ok: false,
-      message: `「${clipChars(primaryEmotion, 12)}」不在情绪词表里，这一笔没记（表里没有的词一律无效）。主情绪要用表里的原词 —— {"kind":"emotion.lexicon"} 可以取整份表。`,
+      message: `这一笔没记：group 不对（收到「${clipChars(rawGroup, 12) || "空"}」）。group 必须从这 10 组里挑一个：${EMOTION_GROUP_HINT}。`,
     };
   }
-  const group = emotionGroupOf(primaryEmotion);
 
   const secondaryEmotions: string[] = [];
-  const droppedSecondary: string[] = [];
   const rawSecondary = Array.isArray(input.secondaryEmotions) ? input.secondaryEmotions : [];
   for (const raw of rawSecondary) {
-    const word = normalizeEmotionTerm(raw);
+    const word = clipChars(normalizeEmotionTerm(raw), PRIMARY_MAX);
     if (!word || word === primaryEmotion) continue;
-    if (!EMOTION_TERMS.has(word)) {
-      droppedSecondary.push(word);
-      continue;
-    }
     if (!secondaryEmotions.includes(word) && secondaryEmotions.length < SECONDARY_MAX) {
       secondaryEmotions.push(word);
     }
@@ -318,21 +368,19 @@ export function buildEmotionReport(input: EmotionReportInput): EmotionReportResu
   const evidence = normalizeEvidence(input.evidence);
 
   const rawQuery = (input.memoryQuery ?? {}) as EmotionMemoryQuery;
-  const queryEmotion = normalizeEmotionTerm(rawQuery.emotion);
   const memoryQuery: EmotionMemoryQuery = {
-    emotion: EMOTION_TERMS.has(queryEmotion) ? queryEmotion : primaryEmotion,
+    emotion: primaryEmotion,
     topic: clipChars(rawQuery.topic, QUOTE_MAX) || undefined,
   };
 
   const intensity = clamp01(input.intensity, 0.5);
   const confidence = clamp01(input.confidence, 0.5);
   const suggestedMode = isEmotionMode(input.suggestedMode) ? input.suggestedMode : "daily";
-  const category = isEmotionCategory(input.category)
-    ? input.category
-    : ((group?.category ?? "base") as EmotionEventRecord["category"]);
 
   const notes: string[] = [];
-  if (droppedSecondary.length) notes.push(`表外的次情绪已丢掉：${droppedSecondary.join("、")}`);
+  if (primaryEmotion !== rawPrimary) {
+    notes.push(`超过 ${PRIMARY_MAX} 字，已截成「${primaryEmotion}」`);
+  }
   if (input.suggestedMode && !isEmotionMode(input.suggestedMode)) {
     notes.push("档位不认识，按日常算");
   }
@@ -341,20 +389,21 @@ export function buildEmotionReport(input: EmotionReportInput): EmotionReportResu
     ok: true,
     record: {
       primaryEmotion,
+      group: group.id,
       secondaryEmotions,
       intensity,
       confidence,
       dimensions,
       suggestedMode,
-      category,
+      category: group.category as EmotionEventRecord["category"],
       evidence,
       memoryQuery,
       sourceType: "conversation_inference",
     },
     message: `上报了一笔情绪：${primaryEmotion}${
       secondaryEmotions.length ? `（+${secondaryEmotions.join("、")}）` : ""
-    } · 强度 ${Math.round(intensity * 100)}% · 置信度 ${Math.round(confidence * 100)}% · ${emotionModeLabel(
-      suggestedMode,
-    )}档${notes.length ? `｜${notes.join("；")}` : ""}`,
+    } · ${group.id} · 强度 ${Math.round(intensity * 100)}% · 置信度 ${Math.round(
+      confidence * 100,
+    )}% · ${emotionModeLabel(suggestedMode)}档${notes.length ? `｜${notes.join("；")}` : ""}`,
   };
 }

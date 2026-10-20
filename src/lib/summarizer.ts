@@ -95,9 +95,12 @@ export async function summarizeBatch(opts: {
   const clean = text
     .replace(/```[\s\S]*?```/g, "") // 它偶尔会包代码块
     .replace(/^#+\s*/gm, "") // 标题记号
-    .replace(/\s+/g, " ")
+    /* ⚠️ 只压行内空白：摘要现在是四段（每段一行），压成单空格就把结构吃掉了 */
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim()
-    .slice(0, SUMMARY_MAX_CHARS);
+    /* 四段各自的上限写在提示词里；这里只兜"整体跑飞"，给标题留点余量 */
+    .slice(0, SUMMARY_MAX_CHARS + 140);
   return clean || null;
 }
 
@@ -117,6 +120,8 @@ async function runAndStore(
   const conv = useApp.getState().conversations.find((c) => c.id === conversationId);
   useApp.getState().patchSummary(conversationId, {
     text,
+    /* 第几次摘要 —— 旧摘要的保留配额按它衰减（用户 m09621） */
+    passes: (previous?.passes ?? 0) + 1,
     upToIndex,
     covered: (conv?.summary?.covered ?? 0) + coveredAdd,
     tokens: estimateTokens(text),
@@ -160,17 +165,46 @@ export async function maybeSummarize(opts: {
   const batchSrc = sliceMessages(conv, end).filter((m) => m.content.trim());
   const batch: SummaryMsg[] = batchSrc.map((m) => ({ role: m.role, content: m.content }));
 
+  /** 用户关掉「自动折叠」就别再自动摘了（他手动点"重新总结"仍然可以） */
+  if (settings.autoCompact === false) return;
+
   const plan = planSummary({
     messages: batch,
     summary: conv.summary,
     historyTokens,
     historyRoom: room,
     keepRecent: 0,
+    /* 触发改成"没摘过的攒够多少条"（用户 m09621："25 轮摘一次"） */
+    everyMessages: settings.summaryEvery || 50,
     minBatch: 6,
   });
   if (!plan.should) return;
 
-  await runAndStore(opts.conversationId, batch, conv.summary, end, batchSrc.length);
+  /**
+   * ⚠️ 水位线要用**库里的下标**换回来（用户 m09729 让补漏时发现的两个坑）：
+   *
+   *   · `plan.upToIndex` 是相对"传进去的 batch 数组"算的，而 `batch` 已经
+   *     过滤掉空消息了 —— 直接拿它当库内下标会**跳过头**：被跳过的那几十条
+   *     既没进摘要、又永远排在"已覆盖"之前 → 对模型来说就是凭空丢了。
+   *   · 单次最多摘 SUMMARY_BATCH_MAX 条；剩下的留到下次，水位线也必须停在
+   *     这次真正摘到的那一条，不能直接推到 `end`。
+   *
+   * 做法：从水位线往后数"有内容的"消息，数到这次摘的条数为止，记下最后一条的
+   * 库内下标 +1。
+   */
+  const take = plan.batch.length;
+  let seen = 0;
+  let upTo = from;
+  for (let i = from; i < end; i += 1) {
+    const m = conv.messages[i];
+    if (!m || !m.content.trim()) continue;
+    seen += 1;
+    upTo = i + 1;
+    if (seen >= take) break;
+  }
+  if (upTo <= from) return;
+
+  await runAndStore(opts.conversationId, batch.slice(0, take), conv.summary, upTo, take);
 }
 
 /** 界面上「重新生成摘要」用：立刻重摘一次（不看触发线） */
@@ -183,8 +217,37 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
   const end = Math.max(from, conv.messages.length - keep);
   const batchSrc = sliceMessages(conv, end).filter((m) => m.content.trim());
   if (batchSrc.length === 0) return null;
-  const batch: SummaryMsg[] = batchSrc.map((m) => ({ role: m.role, content: m.content }));
-  return runAndStore(conversationId, batch, conv.summary, end, batchSrc.length);
+
+  /**
+   * 手动「重新总结」一次可能面对 400+ 条未摘消息（真机就出现过 434 条）。
+   * 一次性全塞给上游有爆上下文的风险，所以这里按 token 从**最近**往回收：
+   * 超了就只压最近这一段，水位线停在真正压到的那一条，剩下的下次再压。
+   */
+  const MAX_SRC_TOKENS = 24000;
+  let src = batchSrc;
+  const allTokens = batchSrc.reduce((n, m) => n + estimateTokens(m.content), 0);
+  if (allTokens > MAX_SRC_TOKENS) {
+    const kept: typeof batchSrc = [];
+    let used = 0;
+    for (let i = batchSrc.length - 1; i >= 0; i -= 1) {
+      const item = batchSrc[i]!;
+      const t = estimateTokens(item.content);
+      if (used + t > MAX_SRC_TOKENS) break;
+      kept.unshift(item);
+      used += t;
+    }
+    if (kept.length > 0) src = kept;
+  }
+
+  const batch: SummaryMsg[] = src.map((m) => ({ role: m.role, content: m.content }));
+  /* 水位线：这一批最后一条在**库里的下标 +1**（batchSrc 已过滤空消息，不能直接拿长度当下标） */
+  const last = src[src.length - 1];
+  let upTo = end;
+  if (last) {
+    const idx = conv.messages.lastIndexOf(last);
+    if (idx >= 0) upTo = idx + 1;
+  }
+  return runAndStore(conversationId, batch, conv.summary, upTo, src.length);
 }
 
 export { historyForApi };

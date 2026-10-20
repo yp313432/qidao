@@ -103,6 +103,29 @@ verified `context.userId`** — never a client-sent id, never a demo/mock user.
 If `AGENTS.project.md` exists, it holds the user's project instructions. Follow
 it with the same priority as this file.
 
+### 栖岛：动作（AppAction）参数改动必须同步的地方
+
+用户明确要求（2026-10）：**只要动了动作参数（新增 / 删除 / 改名 / 必填与类型变化），
+以下每一处都要一起改，改完必须跑绿**，不许只改一半：
+
+1. `src/lib/types.ts` — `AppAction` 联合成员与字段
+2. `src/lib/action-schema.ts` — `ACTION_SCHEMA` 条目与 `fields`
+3. `src/lib/action-meta.ts` — 权限映射 `ACTION_PERMISSION` + `describeAction` 回执文案
+4. `src/lib/actions.ts` — `case` 执行分支与回执字符串
+5. `src/lib/prompt.ts` / `src/lib/manual.ts` — 说明书里的示例与规则（降级模式 `ABILITIES` 也要看）
+6. 校验脚本 — `verify-action-registry.mjs` 的 `EXPECTED_KIND_COUNT`，以及
+   `verify-tool-recall.mjs` 里的抄件 `ACTION_SCHEMA_KIND_GROUP` 与 `EXPECTED_TOTAL`
+   （这两处是**手工抄件**，最容易漏）
+
+跑这两个才算完：
+
+```sh
+node verify-action-registry.mjs
+node verify-tool-recall.mjs
+```
+
+新增/删除动作后 kind 总数会变，两个脚本里的数字必须相等（当前 **95**）。
+
 ---
 
 ## 1. Your environment / workspace (for you, never surfaced to the user)

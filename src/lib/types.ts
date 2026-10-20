@@ -24,9 +24,9 @@ export type Attachment = {
  *
  * 2026-10：旧的 11 维词表（`lib/state-dims.ts` 的 `DimId`）**连同 `state.report`
  * 一起退场**（用户原话："就是那 11 个就不用了"）—— 现在心情只有一份词表：
- * `lib/emotion-lexicon.ts` 的 13 组 / 约 217 词（星屿插件那一份）。
+ * `lib/emotion-lexicon.ts` 的 10 组（星屿插件那一份；2026-10 起上报改自由词）。
  *
- * 这里刻意**不收窄成字面量联合**：那 217 个词由插件持有，收窄等于在这里抄第二份
+ * 这里刻意**不收窄成字面量联合**：那些参考说法由插件持有，收窄等于在这里抄第二份
  * （正是这次要除掉的东西）。显示走 `emotion-lexicon.ts` 的 `moodDisplay()`，
  * 表外的旧值原样显示、不留空白。
  */
@@ -60,14 +60,6 @@ export type Moment = {
   likes?: MomentLike[];
   /** 评论（多轮）。缺省 = 还没有评论 */
   comments?: MomentComment[];
-  /**
-   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
-   *
-   * 用户原话："他说没有读的功能或者选取锁定片段"。
-   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
-   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
-   */
-  pins?: string[];
 };
 
 /** 一封他写给我的信。 */
@@ -78,14 +70,6 @@ export type Letter = {
   at: number;
   /** 有没有"拆开"看过 —— 没看过的，一进前端就会跳出信封动画 */
   seen: boolean;
-  /**
-   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
-   *
-   * 用户原话："他说没有读的功能或者选取锁定片段"。
-   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
-   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
-   */
-  pins?: string[];
 };
 
 /** 一个重要日子：生日、纪念日、约好的那天。 */
@@ -132,6 +116,8 @@ export type RequestLogEntry = {
   prompt?: number;
   completion?: number;
   cached?: number;
+  /** 这一轮发给上游的工具定义（JSON Schema）约多少 token —— 没走原生工具就是 0 */
+  tools?: number;
 };
 
 /**
@@ -182,6 +168,11 @@ export type ChatMessage = {
     completion?: number;
     cached?: number;
     total?: number;
+    /**
+     * 这一轮压在 tools 字段里的工具定义占多少 token（用户 m08850："能把这部分算出来吗，
+     * 就写在输入输出命中那一行"）。降级模式没有 tools 字段 → 不写，界面也就不显示。
+     */
+    tools?: number;
   };
   /** 这条是**定时任务**让他主动说的，不是用户问的（聊天里会带一个小标记） */
   scheduled?: boolean;
@@ -280,7 +271,7 @@ export type EmotionSuggestedMode = "daily" | "affectionate" | "flirtatious" | "i
 export type EmotionSceneCategory = "base" | "intimacy" | "tension" | "cognition" | "expression";
 
 /**
- * AI 上报的一笔情绪事件（**新词表**，13 组 / 约 217 词）。
+ * AI 上报的一笔情绪事件（2026-10 起：自由词 + 10 组）。
  *
  * 谁写的：AI 自己，用 `emotion.report` 动作（L0 静默，见 lib/actions.ts）。
  * 给谁看：「星屿」插件 —— `src/plugins/emotion-lifeform/lib/emotion/qidao-scenes.ts`
@@ -293,9 +284,11 @@ export type EmotionEventRecord = {
   id: string;
   /** 事件时间（ms）—— 插件的时间轴用它，别用"读出来的时间" */
   at: number;
-  /** 主情绪：**必须**是新词表里的原词（表外的当场退回，不入库） */
+  /** 主情绪：**自由概括 1~5 字**（超 5 字截断；2026-10 用户 m08526 定的） */
   primaryEmotion: string;
-  /** 次情绪 0~2 个，同样来自词表 */
+  /** 10 组互斥的分组 id（bright / calm / low / angry / uneasy / close / flutter / jealous / restrained / curious） */
+  group?: string;
+  /** 次情绪 0~2 个，同样是自由词（各截 5 字） */
   secondaryEmotions: string[];
   /** 0~1 */
   intensity: number;
@@ -364,6 +357,11 @@ export type Conversation = {
     tokens: number;
     /** 生成时那批原文的 token —— 跟上面一比就是省了多少 */
     sourceTokens: number;
+    /**
+     * 第几次摘要（0 = 第一次）。旧摘要的"保留配额"靠它衰减：
+     * 100% → 70% → 50% → 40% 地板（用户 m09621 拍板）。
+     */
+    passes?: number;
     updatedAt: number;
   };
 };
@@ -529,6 +527,8 @@ export type Settings = {
   keepRecent: number;
   /** 超预算时自动折叠更早的消息 */
   autoCompact: boolean;
+  /** 每攒多少条没摘过的消息就摘一次（用户 m09621："25 轮摘一次"，50 条） */
+  summaryEvery: number;
   /** 用到预算的百分之多少开始折叠 */
   compactAt: number;
   /** 思考档案保留天数，0 = 永久保留 */
@@ -904,14 +904,6 @@ export type DiaryEntry = {
    * 老存档没有这个字段 → 当"你写的"，界面就不打标签（只有他写的才挂「他写的」）。
    */
   by?: "ai" | "me";
-  /**
-   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
-   *
-   * 用户原话："他说没有读的功能或者选取锁定片段"。
-   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
-   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
-   */
-  pins?: string[];
 };
 
 export type QuotaState = {
@@ -1019,11 +1011,14 @@ export type FeatureId =
    * 2026-10 起这是**唯一**的情绪上报通道：旧的 `state.report`（那朵花的 11 个维度）
    * 已经整条退场（用户："就是那 11 个就不用了"），它的数据源 `lib/state-dims.ts`
    * 与 store 里的 `stateSamples` 一并删掉。
-   * 词表不在这里（也不在每轮提示词里）：用 `emotion.lexicon` 现取一份。
+   * 10 组 id 清单在 `lib/emotion-lexicon.ts` 里（很短，跟着说明书一起给）。
    */
   | {
       kind: "emotion.report";
+      /** 自由概括 1~5 字（超了截断，不驳回） */
       primaryEmotion: string;
+      /** 10 组之一，**必填**：bright/calm/low/angry/uneasy/close/flutter/jealous/restrained/curious */
+      group: string;
       secondaryEmotions?: string[];
       /** 0~1 */
       intensity?: number;
@@ -1032,13 +1027,13 @@ export type FeatureId =
       /** 六个维度 0~1，稀疏（没报的当 0） */
       dimensions?: Partial<EmotionDimensionScores>;
       suggestedMode?: EmotionSuggestedMode;
+      /** 旧字段：2026-10 起由 group 推导，传了也不看（留着免得旧调用方报错） */
       category?: EmotionSceneCategory;
       /** 最多 1 条（纠结时 2 条）；每条要么 quote（≤40 字）要么 summary（≤20 字） */
       evidence?: EmotionEvidenceInput | EmotionEvidenceInput[];
       memoryQuery?: EmotionMemoryQuery;
     }
   /** **取一份情绪词表**（按需翻手册里那一节；只读，不改任何数据） */
-  | { kind: "emotion.lexicon" }
   /**
    * **发一张表情包**（零参数）。
    *
@@ -1050,7 +1045,7 @@ export type FeatureId =
   | { kind: "sticker.send"; feel?: string }
   /**
    * **看一眼表情库有哪些分组**（零参数，只读）。
-   * 跟 `emotion.lexicon` 同一个套路：分组清单不常驻提示词，要挑得准时现取一次。
+   * 分组清单不常驻提示词，要挑得准时现取一次。
    */
   | { kind: "sticker.groups" }
   /**
@@ -1150,9 +1145,6 @@ export type FeatureId =
    * 锁住某一句：之后改/删碰到它会直接被拒（同上第 7 条）。
    * 只在"用户明确要求别改这段"时调用 —— 锁是保护，不是摆设。
    */
-  | { kind: "diary.pin"; query: string; sentence: string }
-  | { kind: "moment.pin"; query: string; sentence: string }
-  | { kind: "letter.pin"; query: string; sentence: string }
   | { kind: "diary.remove"; query: string }
   /** 改一封信（标题/正文）；删信用 `letter.remove` */
   | { kind: "letter.update"; query: string; title?: string; body?: string }

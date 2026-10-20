@@ -31,6 +31,32 @@ import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
 
+/**
+ * 把参数归一化成可比较的字符串（键排序、丢空值）。
+ *
+ * 用途：判断"工具通道刚执行的那一次"和"正文里又写的那一块"是不是同一个动作
+ * （模型经常把刚调过的动作在正文里复述一遍，不去重就会执行两遍 —— 删日记/发消息尤其要命）。
+ */
+export function stableArgs(input: unknown): string {
+  let v: unknown = input;
+  if (typeof input === "string") {
+    const t = input.trim();
+    if (!t) return "{}";
+    try {
+      v = JSON.parse(t);
+    } catch {
+      return t;
+    }
+  }
+  if (!v || typeof v !== "object") return JSON.stringify(v ?? null);
+  if (Array.isArray(v)) return `[${v.map((x) => stableArgs(x)).join(",")}]`;
+  const o = v as Record<string, unknown>;
+  const keys = Object.keys(o)
+    .filter((k) => o[k] !== undefined && o[k] !== null && o[k] !== "")
+    .sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableArgs(o[k])}`).join(",")}}`;
+}
+
 export type UseChatOpts = {
   /**
    * 工具轮里"模型没说话"时念一句过渡（**只有语音页要**）。
@@ -303,6 +329,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
       /** 面包屑用：思考/正文"刚开始"各记一次就够，别每帧都记 */
       let hadThinking = false;
       let usage: ChatMessage["usage"];
+      /** 这一轮工具定义占的 token（只有原生 tools 那条路才有；见 finalize） */
+      let toolTokensUsed = 0;
       let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
 
       /**
@@ -457,6 +485,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           worldHit: world.hit,
           recentActions,
           permissions: settings.permissions,
+          /** 历史窗口条数（和设置页那个「至少保留最近」同一个值） */
+          keepRecent: settings.keepRecent,
         };
         return {
           ...base,
@@ -730,18 +760,17 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 所以正常聊天永远不触发，长对话大约每 15~20 轮一次（预算是 12000 时）。
        * 失败不影响主流程（摘不出来就照旧"整条丢"）。
        */
+      /** 这一轮系统提示词占多少 token（摘要判定要用，两条路都得有） */
+      let summarySystemTokens = 0;
       if (native) {
         const sysText = systemPrompt(buildReq(true));
         fixedRef.current = {
           system: estimateTokens(sysText),
           tools: estimateTokens(JSON.stringify(actionToolsFor(kindsSent))),
         };
-        await maybeSummarize({
-          conversationId,
-          history,
-          systemTokens: fixedRef.current.system,
-          toolTokens: fixedRef.current.tools,
-        });
+        // 用户 m08850：把"工具定义花了多少 token"也报出来 —— 只算这一轮真正发出去的那几个动作
+        toolTokensUsed = fixedRef.current.tools;
+        summarySystemTokens = fixedRef.current.system;
       }
 
       /**
@@ -754,7 +783,30 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * **不入队**，只如实回一句 ⚠️（名字写错了），留在正文里让模型自己改。
        */
       const knownKinds = new Set<string>(ACTION_SCHEMA.map((a) => a.kind));
-      const actions = state.usedNative ? [] : takeActions(content);
+      /**
+       * 两条路都要收（用户 m08970「补一下漏洞吧」）。
+       *
+       * 原来写的是 `state.usedNative ? [] : takeActions(content)` ——
+       * 只要这一轮调过原生工具，正文里的动作块就被**静默丢掉**。
+       * 而按需注册的兜底规则恰好承诺"清单里没带的动作，写正文动作块，客户端照样执行"，
+       * 于是模型以为做了、用户那边什么都没发生（最难查的那种"失灵"）。
+       *
+       * 去重：同一个 kind + 同样参数，工具通道已经执行过的不再执行第二遍。
+       */
+      const alreadyDone = new Set<string>();
+      for (const r of state.rounds) {
+        for (const c of r.calls) {
+          if (!c.kind) continue;
+          alreadyDone.add(`${c.kind}|${stableArgs(c.args)}`);
+        }
+      }
+      const actions = takeActions(content).filter((a) => {
+        const obj = a as unknown as Record<string, unknown>;
+        const kind = String(obj.kind ?? "");
+        const rest: Record<string, unknown> = { ...obj };
+        delete rest.kind;
+        return !alreadyDone.has(`${kind}|${stableArgs(rest)}`);
+      });
       const unknownNames: string[] = [];
       for (const action of actions) {
         if (!knownKinds.has(action.kind)) {
@@ -829,10 +881,32 @@ export function useChatStream(opts: UseChatOpts = {}) {
         attachments,
         thinking,
         thinkingDurationMs: Date.now() - started,
-        usage,
+        // 有 usage 就带上工具 token；上游没返 usage 但确实发了工具定义时，也单独记一笔
+        usage: usage
+          ? { ...usage, tools: toolTokensUsed || undefined }
+          : toolTokensUsed
+            ? { tools: toolTokensUsed }
+            : undefined,
         // 这一轮他"真的动过手"的记录（调了哪个动作、成没成）—— 给消息下面那行过程看
         rounds: state.rounds.length > 0 ? state.rounds : undefined,
       });
+      /**
+       * 摘要：**原生 / 文本协议两条路都要跑**，而且失败绝不能影响这一轮。
+       *
+       * ⚠️ 原来只写在 `if (native)` 分支里 —— 走降级（默认 `auto` 且没配自定义上游就是降级）
+       * 的用户**永远等不到摘要**，历史只能一条条被整段丢掉（用户 m09729 让补漏时发现）。
+       */
+      try {
+        await maybeSummarize({
+          conversationId,
+          history,
+          systemTokens: summarySystemTokens || estimateTokens(systemPrompt(buildReq(native))),
+          toolTokens: toolTokensUsed,
+        });
+      } catch {
+        /* 摘不出来就照旧走"整条丢"，不能让摘要失败影响这一轮 */
+      }
+
       if (meta) {
         useApp.getState().logRequest({
           promptHash: meta.promptHash ?? "",
@@ -841,6 +915,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           prompt: usage?.prompt,
           completion: usage?.completion,
           cached: usage?.cached,
+          tools: toolTokensUsed || undefined,
         });
       }
       // 「本机计数快满了」只在**走服务端**时提醒（那时花的才是服务端那把 key）；

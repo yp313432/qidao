@@ -55,7 +55,7 @@ import * as toolSelect from "./src/lib/tool-select.ts";
 
 /* 用命名空间导入 + 取值（而不是命名 import）：规则文件正在被改，缺一个导出不该让
    整个脚本 link 失败 —— 缺了由【0】的断言报"导出过期"，比崩掉好排查。 */
-const { selectActionKinds, ALL_GROUPS, ALWAYS_KINDS, FALLBACK_RULE, renderToolNameList } =
+const { selectActionKinds, ALL_GROUPS, ALWAYS_KINDS, CORE_GROUPS, FALLBACK_RULE, renderToolNameList } =
   toolSelect;
 const explainSelection = toolSelect.explainSelection;
 
@@ -99,7 +99,6 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["cron.update", "提醒"],
   ["cron.remove", "提醒"],
   ["emotion.report", "自我"],
-  ["emotion.lexicon", "自我"],
   ["sticker.send", "自我"],
   ["sticker.groups", "自我"],
   ["view.list", "自我"],
@@ -112,6 +111,12 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["garden.gomoku.new", "玩"],
   ["garden.fish.cast", "玩"],
   ["garden.fish.reel", "玩"],
+  ["garden.tarot.draw", "玩"],
+  ["garden.flower.plant", "玩"],
+  ["garden.flower.water", "玩"],
+  ["garden.flower.feed", "玩"],
+  ["garden.flower.pick", "玩"],
+  ["garden.flower.gift", "玩"],
   ["garden.walk", "玩"],
   ["garden.cesta.look", "玩"],
   ["learn.openReading", "学习"],
@@ -134,6 +139,9 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["todo.add", "记录"],
   ["diary.add", "记录"],
   ["diary.update", "记录"],
+  ["diary.read", "记录"],
+  ["moment.read", "记录"],
+  ["letter.read", "记录"],
   ["diary.remove", "记录"],
   ["chat.new", "聊天"],
   ["memory.update", "记忆"],
@@ -149,18 +157,8 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["letter.update", "记录"],
   ["tool.call", "工具"],
   ["http.call", "工具"],
-  /**
-   * 2026-10 新增的**联网**两个（`web.search` / `web.fetch`）——
-   * 手机版第一次真的有"搜网页 / 读正文"（走 Capacitor 自带的原生 HTTP，绕开跨域）。
-   * ⚠️ 顺序必须跟 `action-schema.ts` 的声明顺序一致（【0】会逐项对账）。
-   */
   ["web.search", "工具"],
   ["web.fetch", "工具"],
-  /**
-   * 2026-10 新增的「主动感知」六个（零参数，调用即"看一眼现在的状态"）——
-   * 用户原话："我给开他那么多权限，其实是希望他**主动的去用**"。
-   * ⚠️ 顺序必须跟 `action-schema.ts` 的声明顺序一致（【0】会逐项对账）。
-   */
   ["sense.time", "感知"],
   ["sense.device", "感知"],
   ["sense.place", "感知"],
@@ -185,10 +183,11 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * `EXPECTED_KIND_COUNT` 是**同一个数**，改一处必须改两处）。
  * 下面【0】还会拿这份抄件跟 `action-schema.ts` 逐项对，所以数量对不上会先在那里冒出来。
  * → **81**（2026-11 加 `sense.usage`：AI 主动查屏幕使用时长，不配页面）。
- * → **87**（2026-11 加花园六个：`garden.gomoku.play/pass/new` + `garden.fish.cast/reel` + `garden.walk` ——
- * 用户 m02156："ai 不能控制棋局，是程序在下，我要的是 ai 自己下"，棋桌/池塘改由他调动作）。
+ * → **87**（2026-11 加花园六个：`garden.gomoku.play/pass/new` + `garden.fish.cast/reel` + `garden.walk`）。
+ * → **93**（2026-11 加花圃养护五个 `garden.flower.{plant,water,feed,pick,gift}`）。
+ * → **99**（2026-11 加日记/动态/信三读三锁六个 `*.read` / `*.pin`）。
  */
-const EXPECTED_TOTAL = 87;
+const EXPECTED_TOTAL = 95;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -385,13 +384,19 @@ function simulateWith(hits, judge) {
   const words = Object.values(hits).reduce((n, ws) => n + ws.length, 0);
   const groups = Object.keys(hits);
   const wentAll = !judge({ words, groups: groups.length, hits });
+  /* 零命中时真实规则发的是"常驻 + CORE_GROUPS"（2026-10 改的），不再全发 */
+  const coreKinds = ALL_KINDS.filter(
+    (k) => ALWAYS_KINDS.includes(k) || CORE_GROUPS.includes(ACTION_GROUP_OF[k]),
+  );
   const kinds = wentAll
-    ? [...ALL_KINDS]
+    ? coreKinds
     : ALL_KINDS.filter((k) => ALWAYS_KINDS.includes(k) || groups.includes(ACTION_GROUP_OF[k]));
   return {
     wentAll,
     kinds,
-    groups: wentAll ? [...ALL_GROUPS] : ALL_GROUPS.filter((g) => groups.includes(g)),
+    groups: wentAll
+      ? ALL_GROUPS.filter((g) => CORE_GROUPS.includes(g))
+      : ALL_GROUPS.filter((g) => groups.includes(g)),
     dropped: TOTAL - kinds.length,
   };
 }
@@ -698,13 +703,18 @@ async function main() {
   /* ═════════ D. 安全网：无关键词 → 全发 ═════════ */
 
   console.log(
-    `\n【D】安全网 —— 一句关键词都没有的话，必须全发 ${TOTAL} 个（宁可多花 token，绝不漏）`,
+    `\n【D】安全网 —— 一句关键词都没有的话，发"常驻 + 核心组"（${CORE_GROUPS.join("/")}）；不再全发`,
   );
+  const coreKinds = ALL_KINDS.filter(
+    (k) => ALWAYS_KINDS.includes(k) || CORE_GROUPS.includes(ACTION_GROUP_OF[k]),
+  );
+  const coreGroups = ALL_GROUPS.filter((g) => CORE_GROUPS.includes(g));
   for (const phrase of SAFETY_PHRASES) {
     const r = select(phrase);
-    const ok = same(r.kinds, ALL_KINDS) && same(r.groups, ALL_GROUPS) && r.dropped === 0;
+    const ok =
+      same(r.kinds, coreKinds) && same(r.groups, coreGroups) && r.dropped === TOTAL - coreKinds.length;
     check(
-      `D1 「${phrase}」→ 全发 ${r.kinds.length}/${TOTAL} 个，dropped=${r.dropped}`,
+      `D1 「${phrase}」→ 常驻+核心组 ${r.kinds.length}/${TOTAL} 个，dropped=${r.dropped}`,
       ok,
       j({ kinds: r.kinds.length, groups: r.groups.length, dropped: r.dropped }),
     );
@@ -856,11 +866,14 @@ async function main() {
   console.log("\n【G】权限 —— allowed 返回 false 的动作绝不出现（常驻也一样）");
   const denyAlways = (k) => !ALWAYS_KINDS.includes(k);
   const g1 = select("嗯嗯", undefined, denyAlways);
+  const g1Expected = ALL_KINDS.filter(
+    (k) => !ALWAYS_KINDS.includes(k) && CORE_GROUPS.includes(ACTION_GROUP_OF[k]),
+  );
   check(
-    `G1 拒绝常驻七个 → 一个都不出现，剩下 ${TOTAL - ALWAYS_KINDS.length} 个照发`,
+    `G1 拒绝常驻七个 → 一个都不出现，核心组剩 ${g1Expected.length} 个照发`,
     !ALWAYS_KINDS.some((k) => g1.kinds.includes(k)) &&
-      g1.kinds.length === TOTAL - ALWAYS_KINDS.length &&
-      g1.dropped === ALWAYS_KINDS.length,
+      g1.kinds.length === g1Expected.length &&
+      g1.dropped === TOTAL - g1Expected.length,
     j({ kinds: g1.kinds.length, dropped: g1.dropped }),
   );
   const g2 = select("放个歌听", undefined, (k) => k !== "media.playTrack");

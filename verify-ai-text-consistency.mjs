@@ -13,7 +13,7 @@
  * 用户那句"他为啥还在跑 state report"就是这么来的。
  *
  * 那类错的失败方式很阴：**不报错、不崩、界面照常**，只是 AI 说的和代码做的不一样。
- * `verify-emotion-lexicon-only.mjs` 管的是"旧词表在代码里退了没"；
+ * `verify-emotion-10groups.mjs` 管的是"情绪的代码口径（自由词 + 10 组）对不对"；
  * 这个脚本管的是**另一件事**：同一批退役概念，在"真正会发给 AI 的文本"里退了没。
  * 两个脚本的失败方式不同，所以是两个脚本（别合并）。
  *
@@ -65,7 +65,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 
-/* ───────────────────── 反向验证开关（照 verify-emotion-lexicon-only.mjs 的做法） ─────────────────────
+/* ───────────────────── 反向验证开关（照 verify-emotion-10groups.mjs 的做法） ─────────────────────
  * 任务书要求："故意在内存里注入一条退役文案 → 脚本必须变红"。
  * 做成开关（而不是手改源码再改回来），这样这条反向验证**以后每次都能重跑**。
  * 注意：注入只落在内存里的字符串上（以及一份 snapshot 出来的数组），
@@ -451,14 +451,17 @@ check(
   ALWAYS.includes("emotion.report"),
   ALWAYS.join(","),
 );
-check("③ emotion.lexicon 在动作定义里（按需取全词表）", KIND_SET.has("emotion.lexicon"));
+check(
+  "③ emotion.lexicon 已删除（2026-10 改成自由词 + 10 组）",
+  !KIND_SET.has("emotion.lexicon"),
+);
 check(
   "④ 说明书里明说「情绪一律走 emotion.report」",
   /情绪一律/.test(TEXT.manual) && TEXT.manual.includes("emotion.report"),
 );
 check(
-  "⑤ 说明书 / 提示词里都指引了「没看到词表就先取一份 emotion.lexicon」",
-  TEXT.manual.includes("emotion.lexicon") && TEXT.prompt.includes("emotion.lexicon"),
+  "⑤ 说明书 / 提示词里都要求 group 必填（10 组）",
+  TEXT.manual.includes("group 必填") && TEXT.prompt.includes("group 必填"),
 );
 check(
   "⑥ 原生提示词那一份也讲了情绪走 emotion.report",
@@ -470,30 +473,26 @@ const lexiconSection = REVERSE
   : manualMod.emotionLexiconSection();
 const groups = lexMod.EMOTION_GROUPS;
 check(
-  `⑦ 新词表是 13 组（实际 ${groups.length} 组）`,
-  groups.length === 13,
+  `⑦ 情绪分组是 10 组（实际 ${groups.length} 组）`,
+  groups.length === 10,
   groups.map((g) => g.id).join(","),
 );
 check(
-  `⑧ 词条数 = ${lexMod.EMOTION_TERM_ENTRIES}（用户说的"约 217 词"）`,
-  lexMod.EMOTION_TERM_ENTRIES === 217,
-  String(lexMod.EMOTION_TERM_ENTRIES),
+  "⑧ 每轮提示词里给了 10 组 id 清单（很短）",
+  lexMod.EMOTION_GROUP_IDS.every((id) => TEXT.prompt.includes(id) || TEXT.manual.includes(id)),
 );
 check(
-  "⑨ 按需取的那节词表就是 `renderEmotionLexiconGroups()` 的真输出（没有第二份词表）",
-  lexiconSection.includes(lexMod.renderEmotionLexiconGroups()),
+  "⑨ 参考说法那节就是 `renderEmotionGroups()` 的真输出（没有第二份词表）",
+  groups.every((g) => lexiconSection.includes(g.terms.join("、"))),
 );
-const missingTerms = [];
+const missingGroupParts = [];
 for (const g of groups) {
-  for (const need of [g.title, g.family, g.category, g.note]) {
-    if (!lexiconSection.includes(String(need))) missingTerms.push(`${g.id}:${String(need).slice(0, 14)}`);
-  }
-  for (const t of g.terms) if (!lexiconSection.includes(t)) missingTerms.push(`${g.id}:词「${t}」`);
+  if (!lexiconSection.includes(g.terms.join("、"))) missingGroupParts.push(g.id);
 }
 check(
-  `⑩ 13 组的 title/family/category/note 与全部 ${lexMod.EMOTION_TERM_ENTRIES} 个词条都在词表那节里`,
-  missingTerms.length === 0,
-  missingTerms.slice(0, 5).join("、") || "零缺失",
+  `⑩ 10 组的参考说法都在词表那节里`,
+  missingGroupParts.length === 0,
+  missingGroupParts.join("、") || "零缺失",
 );
 check(
   "⑪ 词表正文**没有**被塞进每轮提示词（按需取，用户按 token 付费）",
@@ -589,7 +588,6 @@ const AP = metaMod.ACTION_PERMISSION;
 const NO_PERMISSION_KINDS = [
   "view.list",
   "emotion.report",
-  "emotion.lexicon",
   "sticker.send",
   "sticker.groups",
 ];
@@ -656,12 +654,10 @@ check(
     : `${PERM_IDS.size} 条权限全部有人用`,
 );
 
-/** 情绪词表的"口径"别分叉：说明书里唯一该叫的名字是《情绪词表》 */
+/** 情绪口径别分叉：每轮文本里只有「10 组 · 自由词」，不许再冒出旧词表的名字 */
 check(
-  "说明书里那份表只叫《情绪词表》，没有第二个名字（心情词表 / 花瓣词表）",
-  TEXT.manual.includes("情绪词表") &&
-    !TEXT.manual.includes("心情词表") &&
-    !TEXT.manual.includes("花瓣词表"),
+  "说明书里讲情绪只用「10 组 · 自由词」，没有旧词表的名字（情绪词表 / 心情词表 / 花瓣词表）",
+  !TEXT.manual.includes("心情词表") && !TEXT.manual.includes("花瓣词表") && !TEXT.manual.includes("情绪词表"),
 );
 
 /* ══════════════ 【四】归属与豁免的自检（防止脚本自己变空） ══════════════ */

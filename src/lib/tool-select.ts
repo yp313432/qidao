@@ -275,6 +275,19 @@ function normalize(text: string): string {
  *  白白打断上游的前缀缓存。）
  */
 /**
+ * 一个关键词都没命中时，**只给这些组**（用户 m08970："零命中也能省吧"）。
+ *
+ * 为什么可以这么砍：`FALLBACK_RULE` 已经把"全部动作名"给了模型，
+ * 它需要清单外的动作时可以在正文里写动作块（客户端照样过闸门执行）。
+ * 所以"没给定义"只影响**少一层约束**，不影响能力。
+ *
+ * 选这几组而不是全发的理由：它们覆盖**最常临场发生**的事 —
+ * 切页面（界面）、看一眼状态（感知）、记一笔（记忆）、提醒（提醒）、分段说话（聊天）。
+ * 花园 / 媒体 / 日记 / 工具那些都是"用户明确说了才做"的，交给关键词和兜底规则。
+ */
+export const CORE_GROUPS: GroupId[] = ["界面", "感知", "记忆", "提醒", "聊天"];
+
+/**
  * 判定"这句话的意思够不够明确"。
  *
  * 走过的弯路（三轮才定下来，都留着当教训）：
@@ -318,7 +331,23 @@ export function selectActionKinds(input: SelectToolsInput): SelectToolsResult {
   }
 
   /** 一个特征词都没命中 = 真不知道他要什么 → 全发（这一轮不省，但绝不漏） */
-  if (words < MIN_HIT_WORDS) return everything([...ALL_GROUPS]);
+  /**
+   * 零命中：以前是"全发 99 个"（约 8200 token），闲聊每轮都这么烧。
+   * 现在只发常驻 + 核心组（约 20 个 ≈ 1500 token），其余走兜底规则。
+   */
+  if (words < MIN_HIT_WORDS) {
+    const kinds = all.filter((k) => {
+      if (!allowed(k)) return false;
+      if (always.has(k)) return true;
+      const g = groupOf[k];
+      return Boolean(g && CORE_GROUPS.includes(g));
+    });
+    return {
+      kinds,
+      groups: ALL_GROUPS.filter((g) => CORE_GROUPS.includes(g)),
+      dropped: all.length - kinds.length,
+    };
+  }
 
   /**
    * 命中的**整组**都发 —— 简单、可解释、不会漏（见文件头第 1 条）。

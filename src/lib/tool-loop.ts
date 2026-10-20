@@ -612,7 +612,18 @@ export async function runToolLoop(input: {
     }
     if (r.error) error = r.error;
     if (r.stalled) stalled = true;
-    if (r.usage) usage = r.usage;
+    // 用量**累加**（2026-10 修）：工具循环一轮里有好几次上游请求，
+    // 原来写 `usage = r.usage` 是覆盖 —— 只剩最后一轮，用户看到的消耗比官方少一大截。
+    if (r.usage) {
+      const add = (a?: number, b?: number) =>
+        typeof a === "number" || typeof b === "number" ? (a ?? 0) + (b ?? 0) : undefined;
+      usage = {
+        prompt: add(usage?.prompt, r.usage.prompt),
+        completion: add(usage?.completion, r.usage.completion),
+        cached: add(usage?.cached, r.usage.cached),
+        total: add(usage?.total, r.usage.total),
+      };
+    }
 
     // 没有工具调用 = 模型给最终回答了，正常收尾
     if (r.toolCalls.length === 0) break;

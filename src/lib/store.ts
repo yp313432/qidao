@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { currentStatusText } from "@/lib/ai-status";
 import { kvSetRaw } from "@/lib/data/local-kv";
 import { pushActionLog, pushRequestLog } from "@/lib/data/retention";
+import { inferGroupId } from "@/lib/emotion-lexicon";
 import { createQidaoPersistStorage } from "@/lib/idb-storage";
 
 /**
@@ -97,6 +98,7 @@ const defaultSettings: Settings = {
   contextBudget: 12000,
   keepRecent: 16,
   autoCompact: true,
+  summaryEvery: 50,
   compactAt: 80,
   thinkingKeepDays: 0,
   voiceLang: "zh-CN",
@@ -447,7 +449,7 @@ export type AppState = {
   /** 定时任务：到点让他自己开口 */
   tasks: ScheduledTask[];
   /**
-   * 他上报的**情绪事件**（新词表 13 组）—— 「星屿」插件的数据源。
+   * 他上报的**情绪事件**（自由词 + 10 组）—— 「星屿」插件的数据源。
    *
    * ⚠️ 2026-10：这是**唯一**一份情绪档案。旧的 `stateSamples`（那朵花的 11 个维度）
    * 跟着 `state.report` 一起删掉了 —— 用户："就是那 11 个就不用了"，
@@ -710,12 +712,10 @@ export type AppState = {
   appendGardenTalk: (turns: Array<{ role: "user" | "assistant"; content: string }>) => void;
   addDiary: (mood: DiaryEntry["mood"], body: string, by?: "ai" | "me") => void;
   /** 改一条日记的正文（改与删的配套，见 `diary.update` 动作） */
-  patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"]; pins?: string[] }) => void;
+  patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"] }) => void;
   deleteDiary: (id: string) => void;
   /** 改一封信的标题/正文（不碰 `seen` —— 改完不该又变成"没拆过"） */
-  patchLetter: (id: string, patch: { title?: string; body?: string; pins?: string[] }) => void;
-  /** 改一条动态的正文 / 锁定片段（`moment.pin` 用）。 */
-  patchMoment: (id: string, patch: { text?: string; pins?: string[] }) => void;
+  patchLetter: (id: string, patch: { title?: string; body?: string }) => void;
   markSavedToDocs: (conversationId: string, messageId: string) => void;
   enabledTools: () => McpServer[];
 };
@@ -828,7 +828,7 @@ export const useApp = create<AppState>()(
         set((s) => {
           /**
            * ⚠️ `undefined` = 这个动作**不挂权限**（现在只有 `emotion.report` /
-           * `emotion.lexicon`）→ 不是"默认 ask"，而是"不需要授权"：
+           * ）→ 不是"默认 ask"，而是"不需要授权"：
            * `action-gate.tsx` 见到没有权限就直接执行、不弹卡片。
            */
           const permission = ACTION_PERMISSION[action.kind];
@@ -1639,10 +1639,6 @@ export const useApp = create<AppState>()(
         set((s) => ({
           letters: s.letters.map((l) => (l.id === id ? { ...l, ...patch } : l)),
         })),
-      patchMoment: (id, patch) =>
-        set((s) => ({
-          moments: s.moments.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-        })),
 
       /* ---------- 动态空间：动态 / 一天一篇日记 / 信 ---------- */
 
@@ -1896,6 +1892,18 @@ export const useApp = create<AppState>()(
               .map((url) => ({ id: uid("stk"), url, group: DEFAULT_STICKER_GROUP }));
           })(),
           stickerGroups: Array.isArray(saved.stickerGroups) ? (saved.stickerGroups as string[]) : [],
+          /**
+           * **情绪记录**：2026-10 词表从 13 组换成 10 组 · 自由词，老记录没有 `group`。
+           * 不补的话星屿插件按组上色时历史点全落默认灰蓝。能按主情绪查到组就查，
+           * 查不到按旧大类兜底（`inferGroupId`）—— 一条都不丢（用户 m09312 第 6 条）。
+           */
+          emotionEvents: (Array.isArray(saved.emotionEvents)
+            ? (saved.emotionEvents as EmotionEventRecord[])
+            : []
+          ).map((e) => {
+            const group = inferGroupId(e);
+            return e.group === group ? e : { ...e, group };
+          }),
           // 思考链已经不再归档了（存了也只看得到一次，纯占地方）——
           // 每次加载都清空，把老版本存下的那 18.8KB 腾出来。
           thinkingArchive: [],

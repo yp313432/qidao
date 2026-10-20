@@ -14,7 +14,6 @@ import {
 import { buildHttpRequest } from "@/lib/http-tools";
 import { WALK_PLACES, placeByZh } from "@/lib/garden-walk";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
-import { emotionLexiconSection } from "@/lib/manual";
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
 import { pickStickerByGroup, stickerGroupList } from "@/lib/stickers";
@@ -88,28 +87,22 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
     return list.find((x) => get(x).toLowerCase().includes(needle)) ?? null;
   };
 
-  /**
-   * 锁片段判定（2026-10 用户 m07934 第 7 条）。
-   *
-   * 改/删给的 `query` 只是"内容片段"，长短都不一定 —— 只要跟某条锁定句子沾边
-   * （互相包含，或指到同一段），就当成"动到了锁住的部分"，直接拒绝。
-   * 锁是**执行端的硬拒绝**：不靠提示词里那句"请勿修改"。
-   */
-  const hitsPin = (pins: string[] | undefined, q: string): string | null => {
-    if (!pins || pins.length === 0) return null;
-    const norm = (v: string): string => v.replace(/\s+/g, " ").trim();
-    const needle = norm(q);
-    if (!needle) return null;
-    for (const pin of pins) {
-      const p = norm(pin);
-      if (!p) continue;
-      if (needle.includes(p) || p.includes(needle)) return pin;
-    }
-    return null;
-  };
-
   /** 读回动作里统一的日期写法（跟界面上一样：MM/DD HH:mm） */
-  const stamp = (t: number): string =>
+  /**
+ * 读类动作的"概括"（2026-10 用户拍板）：**不给全文，每条只给一句概括**。
+ *
+ * 用户原话："读的话就是能不能让他每条概括返回呢，做截断的话不就读一半没了吗" ——
+ * 截断会把一句话拦腰砍断；概括是"取第一句 + 字数"，他要细节可以再用 query 精确读。
+ */
+function summarize(body: string, max = 60): string {
+  const flat = String(body ?? "").replace(/\s+/g, " ").trim();
+  if (!flat) return "（空的）";
+  const firstSentence = flat.split(/(?<=[。！？!?])/)[0] ?? flat;
+  const pick = firstSentence.length >= 12 ? firstSentence : flat;
+  return pick.length > max ? `${pick.slice(0, max)}…` : pick;
+}
+
+const stamp = (t: number): string =>
     new Date(t).toLocaleString("zh-CN", {
       month: "2-digit",
       day: "2-digit",
@@ -679,14 +672,14 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       return `记进待办了：${text.slice(0, 18)}`;
     }
 
-    /* ---------------- 情绪（新词表 · 13 组 / 约 217 词） ----------------
+    /* ---------------- 情绪（2026-10 起：自由词 + 10 组互斥） ----------------
      * 用户："做好适配，不然 AI 不知道怎么用新的情绪词。"
      *
      * 校验和归一化都在 `@/lib/emotion-lexicon` 的 `buildEmotionReport()`（纯函数，
      * 能脱离界面单跑）—— 这边只负责"入库 + 回一句话"：
      *   · **词表外的词一律无效**：主情绪不在表里 → 整笔退回，不入库（宁可让他重报）；
      *   · quote ≤ 40 字 / summary ≤ 20 字 / 依据 ≤ 2 条 → 超了**在那一层截断**；
-     *   · 词表本身不在这里，也不在每轮提示词里 —— `emotion.lexicon` 现取。
+     *   · 情绪改成自由词 + 10 组之后，不再需要「取一份词表」这个动作。
      *
      * ⚠️ 2026-10：这是**唯一**的情绪上报通道。旧的 `state.report`（那朵花的 11 个维度）
      * 已整条删掉 —— 用户原话："就是那 11 个就不用了。"
@@ -699,7 +692,7 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
         confidence: action.confidence,
         dimensions: action.dimensions,
         suggestedMode: action.suggestedMode,
-        category: action.category,
+        group: action.group,
         evidence: action.evidence,
         memoryQuery: action.memoryQuery,
       });
@@ -708,15 +701,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       return result.message;
     }
 
-    /**
-     * **取一份情绪词表**（只读）。
-     *
-     * 这是"手册按需翻"那一步：词表不进每轮提示词（用户按 token 付费），
-     * 要报情绪时现取一份 —— 结果会像别的动作一样，在**下一轮**作为
-     * 「你刚才动手的结果」回到他眼前。
-     */
-    case "emotion.lexicon":
-      return `情绪词表（按需取用，不用每轮背）：\n\n${emotionLexiconSection()}`;
 
     /**
      * **发一张表情包**（用户 2026-11："他们自己就可以调用表情包"）。
@@ -745,7 +729,7 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
 
     /**
      * **取一份表情分组清单**（只读）—— 他想"挑得准"时现问一次。
-     * 跟 `emotion.lexicon` 同一个套路：清单不常驻提示词（省 token），要用才取。
+     * 跟情绪那节的思路一样：清单不常驻提示词（省 token），要用才取。
      */
     case "sticker.groups": {
       const store = useApp.getState();
@@ -944,34 +928,36 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
 
     case "diary.read": {
       const rawLimit = Number((action as { limit?: unknown }).limit);
-      const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.round(rawLimit) : 5));
+      const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.round(rawLimit) : 10));
       const q = str((action as { query?: unknown }).query).trim();
       let list = useApp.getState().diary.slice().sort((a, b) => b.createdAt - a.createdAt);
       if (q) list = list.filter((d) => d.body.toLowerCase().includes(q.toLowerCase()));
       if (list.length === 0) return q ? `没找到提到「${q}」的日记` : "现在一条日记都没有";
       const show = list.slice(0, limit);
-      const lines = show.map((d) => {
-        const lock = d.pins && d.pins.length ? `（锁着 ${d.pins.length} 句）` : "";
-        return `· ${stamp(d.createdAt)} ${d.by === "ai" ? "我写的" : "你写的"}${lock}\n${d.body}`;
-      });
-      return `最近 ${show.length} 篇日记（共 ${list.length} 篇）：\n${lines.join("\n\n")}`;
+      const lines = show.map(
+        (d) =>
+          `· ${stamp(d.createdAt)} ${d.by === "ai" ? "我写的" : "你写的"} · ${d.body.length} 字\n  ${summarize(d.body)}`,
+      );
+      return `共 ${list.length} 篇，这里是每篇的概括（要看某篇全文，就用 query 指那句具体的话再读）：
+${lines.join("\n")}`;
     }
 
     case "moment.read": {
       const rawLimit = Number((action as { limit?: unknown }).limit);
-      const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.round(rawLimit) : 5));
+      const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.round(rawLimit) : 10));
       const q = str((action as { query?: unknown }).query).trim();
       let list = useApp.getState().moments.slice().sort((a, b) => b.at - a.at);
       if (q) list = list.filter((m) => m.text.toLowerCase().includes(q.toLowerCase()));
       if (list.length === 0) return q ? `没找到提到「${q}」的动态` : "现在一条动态都没有";
       const show = list.slice(0, limit);
       const lines = show.map((m) => {
-        const lock = m.pins && m.pins.length ? "（锁着）" : "";
         const like = (m.likes ?? []).length;
-        const cm = (m.comments ?? []).map((c) => `    ${c.by === "ai" ? "我" : "你"}：${c.text}`).join("\n");
-        return `· ${stamp(m.at)} ${m.by === "ai" ? "我发的" : "你发的"}${lock}${like ? ` · ${like} 个赞` : ""}\n${m.text}${cm ? `\n${cm}` : ""}`;
+        const cm = (m.comments ?? []).length;
+        const extra = [like ? `${like} 赞` : "", cm ? `${cm} 条评论` : ""].filter(Boolean).join(" · ");
+        return `· ${stamp(m.at)} ${m.by === "ai" ? "我发的" : "你发的"}${extra ? ` · ${extra}` : ""}\n  ${summarize(m.text)}`;
       });
-      return `最近 ${show.length} 条动态（共 ${list.length} 条）：\n${lines.join("\n\n")}`;
+      return `共 ${list.length} 条，这里是每条的概括（要看哪条的评论，就用 query 指那条再读）：
+${lines.join("\n")}`;
     }
 
     case "letter.read": {
@@ -982,56 +968,13 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
         list = list.filter((l) => `${l.title} ${l.body}`.toLowerCase().includes(needle));
       }
       if (list.length === 0) return q ? `没找到提到「${q}」的信` : "现在一封信都没有";
-      const lines = list.slice(0, 10).map((l) => {
-        const lock = l.pins && l.pins.length ? `（锁着 ${l.pins.length} 句）` : "";
-        return `· ${stamp(l.at)}「${l.title}」${lock}${l.seen ? "" : "（用户还没拆开看）"}\n${l.body}`;
-      });
-      return `共 ${list.length} 封${list.length > 10 ? "，先给最近 10 封" : ""}：\n${lines.join("\n\n")}`;
-    }
-
-    /* ---------------- 锁片段 ----------------
-     * 同样是 m07934 第 7 条：用户要能"点一句、锁住它"。
-     * 锁之后 update/remove 撞到那句会被拒 —— 见下面几处的 hitsPin。
-     */
-
-    case "diary.pin": {
-      const q = str((action as { query?: unknown }).query).trim();
-      const sentence = str((action as { sentence?: unknown }).sentence).trim();
-      if (!q) return "得说清锁哪一篇（给个内容片段）";
-      if (!sentence) return "得说清锁哪一句";
-      const hit = findByText(useApp.getState().diary, q, (d) => d.body);
-      if (!hit) return `没找到跟「${q}」对得上的日记`;
-      if (!hit.body.includes(sentence)) return `那篇日记里没有「${sentence.slice(0, 20)}」这句，照抄原文再锁`;
-      const pins = Array.from(new Set([...(hit.pins ?? []), sentence]));
-      useApp.getState().patchDiary(hit.id, { pins });
-      return `锁住了「${sentence.slice(0, 20)}」——以后我改这篇、删这篇，碰到这句都会被拒。`;
-    }
-
-    case "moment.pin": {
-      const q = str((action as { query?: unknown }).query).trim();
-      const sentence = str((action as { sentence?: unknown }).sentence).trim();
-      if (!q) return "得说清锁哪条动态（给个内容片段）";
-      if (!sentence) return "得说清锁哪一句";
-      const hit = findByText(useApp.getState().moments, q, (m) => m.text, true);
-      if (!hit) return `没找到跟「${q}」对得上的动态`;
-      if (!hit.text.includes(sentence)) return `那条动态里没有「${sentence.slice(0, 20)}」这句，照抄原文再锁`;
-      const pins = Array.from(new Set([...(hit.pins ?? []), sentence]));
-      useApp.getState().patchMoment(hit.id, { pins });
-      return `锁住了「${sentence.slice(0, 20)}」——这条动态以后不许删。`;
-    }
-
-    case "letter.pin": {
-      const q = str((action as { query?: unknown }).query).trim();
-      const sentence = str((action as { sentence?: unknown }).sentence).trim();
-      if (!q) return "得说清锁哪一封（标题或正文片段）";
-      if (!sentence) return "得说清锁哪一句";
-      const hit = findByText(useApp.getState().letters, q, (l) => `${l.title} ${l.body}`, true);
-      if (!hit) return `没找到跟「${q}」对得上的信`;
-      if (!`${hit.title} ${hit.body}`.includes(sentence))
-        return `那封信里没有「${sentence.slice(0, 20)}」这句，照抄原文再锁`;
-      const pins = Array.from(new Set([...(hit.pins ?? []), sentence]));
-      useApp.getState().patchLetter(hit.id, { pins });
-      return `锁住了「${sentence.slice(0, 20)}」——这封信以后改不了、也删不了这句。`;
+      const show = list.slice(0, 15);
+      const lines = show.map(
+        (l) =>
+          `· ${stamp(l.at)}「${l.title}」· ${l.body.length} 字${l.seen ? "" : "（还没拆开看）"}\n  ${summarize(l.body)}`,
+      );
+      return `共 ${list.length} 封，这里是每封的概括（要看哪封全文，就用 query 指那封的标题或里面那句）：
+${lines.join("\n")}`;
     }
 
     case "diary.update": {
@@ -1041,8 +984,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       if (!body) return "得给新的正文";
       const hit = findByText(useApp.getState().diary, q, (d) => d.body);
       if (!hit) return `没找到跟「${q}」对得上的日记`;
-      const lockedU = hitsPin(hit.pins, q) ?? hitsPin(hit.pins, body);
-      if (lockedU) return `「${lockedU.slice(0, 20)}」这句是锁住的，不许改`;
       useApp.getState().patchDiary(hit.id, { body });
       return `日记改好了（原：${hit.body.slice(0, 14)}… → 新：${body.slice(0, 14)}…）`;
     }
@@ -1052,8 +993,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       if (!q) return "得说清删哪一条（给个内容片段）";
       const hit = findByText(useApp.getState().diary, q, (d) => d.body);
       if (!hit) return `没找到跟「${q}」对得上的日记`;
-      const lockedR = hitsPin(hit.pins, q);
-      if (lockedR) return `「${lockedR.slice(0, 20)}」这句是锁住的，这篇不能删`;
       useApp.getState().deleteDiary(hit.id);
       return `删掉了那条日记：${hit.body.slice(0, 16)}…`;
     }
@@ -1069,9 +1008,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       if (title) patch.title = title;
       if (body) patch.body = body;
       if (Object.keys(patch).length === 0) return "没给要改的内容（title / body 至少给一个）";
-      const lockedLU =
-        hitsPin(hit.pins, q) ?? hitsPin(hit.pins, title) ?? hitsPin(hit.pins, body);
-      if (lockedLU) return `「${lockedLU.slice(0, 20)}」这句是锁住的，不许改`;
       useApp.getState().patchLetter(hit.id, patch);
       return `信改好了（「${patch.title ?? hit.title}」）`;
     }
@@ -1180,8 +1116,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       const list = useApp.getState().moments;
       const hit = findByText(list, q, (m) => m.text, true);
       if (!hit) return q ? `没找到跟「${q}」对得上的动态` : "还没有动态";
-      const lockedMR = hitsPin(hit.pins, q);
-      if (lockedMR) return `「${lockedMR.slice(0, 20)}」这句是锁住的，这条动态不能删`;
       useApp.getState().deleteMoment(hit.id);
       return `删掉了动态：「${hit.text.slice(0, 22)}」`;
     }
@@ -1191,8 +1125,6 @@ async function runActionInner(action: AppAction, ctx: ActionContext): Promise<st
       const list = useApp.getState().letters;
       const hit = findByText(list, q, (l) => `${l.title} ${l.body}`, true);
       if (!hit) return q ? `没找到跟「${q}」对得上的信` : "还没有信";
-      const lockedLR = hitsPin(hit.pins, q);
-      if (lockedLR) return `「${lockedLR.slice(0, 20)}」这句是锁住的，这封信不能删`;
       useApp.getState().deleteLetter(hit.id);
       return `删掉了信：「${hit.title}」`;
     }

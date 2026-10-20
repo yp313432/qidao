@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -38,6 +38,23 @@ import { Avatar } from "@/components/avatar";
 function hasRenderedText(s: string | undefined | null): boolean {
   if (!s) return false;
   const bare = s
+    /*
+      ⚠️ 2026-10（用户 m09523 截图：定时唤醒那条消息两段之间多一个空框）：
+      **图片/链接语法要先整段删掉再判空**。原来的写法只删 `!` `[` `]` `(` `)`
+      这几个符号，`![]( )`、`![](null)` 这种"空图片"会剩下一个 URL 残留被当成正文，
+      于是画出一个没有内容的图片框。链接则只保留可读文字（`[看图]( )` → 「看图」）。
+      空地址的（`![]( )`、`[看图]( )`）要单独处理：Markdown 不会解析它们，
+      会原样显示成一行括号，等于一个空框。
+    */
+    .replace(/!\[[^\]]*\]\(\s*\)/g, "")
+    .replace(/\[([^\]]*)\]\(\s*\)/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    // 「只有序号/列表符、没有内容」的一行（`1.`、`-`、`•`）—— 渲染成空列表项就是空框
+    .replace(/^\s*(?:\d+[.)]|[-*+•])\s*$/gm, "")
+    // HTML 实体写成的空白 / 裸 HTML 标签（`<br>`、`<div></div>`）渲染出来都没有字
+    .replace(/&(?:nbsp|ensp|emsp|thinsp|zwnj|zwj);/gi, "")
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
     .replace(/[*_~#>`!|()[\]]/g, "")
     .replace(/[\s\u200b-\u200f\u2060\ufeff]/g, "");
   return bare.length > 0;
@@ -53,6 +70,34 @@ function hasRenderedText(s: string | undefined | null): boolean {
 function isPunctOnly(s: string | undefined | null): boolean {
   if (!s) return true;
   return /^[\s\p{P}\p{S}]*$/u.test(s);
+}
+
+/**
+ * 最后一道兜底：**渲染完真的没字，就把这颗气泡藏掉**。
+ *
+ * 为什么还要这一层（用户 m09523 截图：定时唤醒那条两段之间多一个空框）：
+ * `hasRenderedText` 是拿字符串猜的，可有些写法"有字"却渲染不出任何东西——
+ * 空地址图片 `![]( )`、只有序号的一行 `1.`、未知标记…… 猜漏一个就是一个空框。
+ * 这里在挂载后量一次 `innerText`：没有可见文字、也没有图片/视频/画布，
+ * 就 `display: none`。用回调 ref（commit 阶段）所以不会闪一下再消失。
+ */
+/**
+ * 渲染前的轻量清理：只处理**空地址**的图片/链接。
+ *
+ * `[看图]( )` 这种 Markdown 不认（地址是空的），会原样显示成一行括号，
+ * 屏幕上就是"一个带括号的空框"。这里把空地址链接压成纯文字、空地址图片直接删掉。
+ */
+function cleanForRender(s: string): string {
+  return s
+    .replace(/!\[[^\]]*\]\(\s*\)/g, "")
+    .replace(/\[([^\]]+)\]\(\s*\)/g, "$1");
+}
+
+function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
+  if (!el) return;
+  const hasText = el.innerText.trim().length > 0;
+  const hasMedia = el.querySelector("img, video, canvas, hr") !== null;
+  el.style.display = hasText || hasMedia ? "" : "none";
 }
 import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
@@ -578,9 +623,13 @@ export function ChatView() {
                 paddingBottom: padBottom,
               }}
             >
-            {/* 「更早的对话（摘要）」那条线 —— 只在这条对话真有摘要时出现（P4b） */}
-            <SummaryLine conversationId={conv!.id} />
-            {conv!.messages.map((m) => {
+            {/*
+              ⚠️ 2026-10（用户 m09634）：这条线原来放在**整个列表最前面**，
+              于是它永远钉在顶上、上方什么都没有 —— 看着像"页面被截断"、
+              上面的消息翻不到了。其实原文一条都没删，只是线站错地方了。
+              现在它插在"摘要覆盖的最后一条之后"，跟着数据走。
+            */}
+            {conv!.messages.map((m, i) => {
               const mine = m.role === "user";
               const streaming = liveId === m.id;
               /**
@@ -615,8 +664,14 @@ export function ChatView() {
                 noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
               if (noBody && !pendingPlaceholder) return null;
               return (
+                <Fragment key={m.id}>
+                  {/* 摘要线：在"摘要覆盖的最后一条"之后插一条，点开才是摘要 */}
+                  {i === (conv!.summary?.upToIndex ?? 0) && (
+                    <li>
+                      <SummaryLine conversationId={conv!.id} />
+                    </li>
+                  )}
                 <li
-                  key={m.id}
                   id={`msg-${m.id}`}
                   className={cn(
                     /*
@@ -843,14 +898,15 @@ export function ChatView() {
                                 {parts.map((p, i) => (
                                   <div
                                     key={i}
-                                    {...quotePress(m.id, p)}
+                                    ref={hideIfRenderedEmpty}
+                                    {...quotePress(m.id, cleanForRender(p))}
                                     className={cn(
                                       "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
                                   >
-                                    <Markdown text={p} />
+                                    <Markdown text={cleanForRender(p)} />
                                   </div>
                                 ))}
                               </div>
@@ -860,7 +916,8 @@ export function ChatView() {
                           const liveText = streaming ? firstSegment(m.content) : m.content;
                           return hasRenderedText(liveText) && !isPunctOnly(liveText) ? (
                             <div
-                              {...quotePress(m.id, liveText)}
+                              ref={hideIfRenderedEmpty}
+                              {...quotePress(m.id, cleanForRender(liveText))}
                               className="w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
@@ -873,7 +930,7 @@ export function ChatView() {
                               {streaming ? (
                                 <p className="whitespace-pre-wrap break-words">{liveText}</p>
                               ) : (
-                                <Markdown text={liveText} />
+                                <Markdown text={cleanForRender(liveText)} />
                               )}
                             </div>
                           ) : pendingPlaceholder ? (
@@ -924,9 +981,15 @@ export function ChatView() {
                             而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
                             现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
-                        {m.usage && (m.usage.prompt || m.usage.completion) && (
+                        {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
                           <p className="mt-1 px-1 text-[10px] text-subtle">
-                            {m.usage.prompt ? `输入 ${m.usage.prompt}` : ""}
+                            {m.usage.prompt
+                              ? `输入 ${m.usage.prompt}${
+                                  typeof m.usage.tools === "number" && m.usage.tools > 0
+                                    ? `（工具 ${m.usage.tools}）`
+                                    : ""
+                                }`
+                              : ""}
                             {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
                             {/*
                               缓存显示成**命中率**（用户："改成缓存命中率，
@@ -938,6 +1001,11 @@ export function ChatView() {
                             m.usage.prompt
                               ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
                               : ""}
+                            {/*
+                              工具定义也吃输入 token（用户 m08850 / m08970）：它**已含在输入里**，
+                              所以写成「输入 14577（工具 2903）」而不是另加一段；
+                              降级模式没有 tools 字段 → 这里是 0 → 不显示括号。
+                            */}
                           </p>
                         )}
                       </div>
@@ -1041,6 +1109,7 @@ export function ChatView() {
                             点「修改」→ 正文填进下面那个唯一的输入框 → 发送 = 保存并重答。 */}
                   </div>
                 </li>
+                </Fragment>
               );
             })}
             </ol>

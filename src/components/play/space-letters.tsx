@@ -127,16 +127,6 @@ function LettersSection({ onOpen }: { onOpen: (l: Letter) => void }) {
                     </span>
                   </span>
                 </button>
-                {l.pins && l.pins.length > 0 && (
-                  <button
-                    type="button"
-                    title={`锁着 ${l.pins.length} 句：${l.pins.join(" / ")}（点一下解开）`}
-                    onClick={() => useApp.getState().patchLetter(l.id, { pins: [] })}
-                    className="shrink-0 px-1 text-[11px] text-muted"
-                  >
-                    🔒
-                  </button>
-                )}
                 <button
                   type="button"
                   aria-label="删掉这封信"

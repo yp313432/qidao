@@ -289,19 +289,25 @@ export const ACTION_SCHEMA = [
   {
     kind: "emotion.report",
     group: "自我",
-    summary: "上报一笔情绪（新词表）",
+    summary: "上报一笔情绪",
     fields: [
       {
         name: "primaryEmotion",
         type: "string",
         required: true,
-        note: "主情绪，**必须是情绪词表里的原词**（13 组 / 约 217 词）；表外的词会被判无效",
+        note: "主情绪：**自由概括 1~5 个字**（如「被看穿的心慌」「踏实」）；超过 5 字会被截断，不会被驳回",
+      },
+      {
+        name: "group",
+        type: "string",
+        required: true,
+        note: "10 组之一（**必填**）：bright 明亮 / calm 平静 / low 低落 / angry 生气 / uneasy 不安 / close 亲近 / flutter 心动 / jealous 吃醋 / restrained 克制 / curious 好奇与表达",
       },
       {
         name: "secondaryEmotions",
         type: "string[]",
         required: false,
-        note: "次情绪 0~2 个，也要在词表里（如 羞涩 / 克制）",
+        note: "次情绪 0~2 个，也是自由词（各截 5 字，如 羞 / 慌）",
       },
       { name: "intensity", type: "number", required: false, note: "强度 0~1" },
       { name: "confidence", type: "number", required: false, note: "置信度 0~1（跟强度分开看）" },
@@ -321,7 +327,7 @@ export const ACTION_SCHEMA = [
         name: "category",
         type: "string",
         required: false,
-        note: "大类：base / intimacy / tension / cognition / expression（不写就按主情绪那一组来）",
+        note: "旧字段，现在由 group 推导（传了也不看）",
       },
       {
         name: "evidence",
@@ -333,15 +339,9 @@ export const ACTION_SCHEMA = [
         name: "memoryQuery",
         type: "object",
         required: false,
-        note: "{emotion: 用哪个词去记忆里找, topic?: 话题}",
+        note: "{emotion: 用哪个词去记忆里找（一般就用主情绪）, topic?: 话题}",
       },
     ],
-  },
-  {
-    kind: "emotion.lexicon",
-    group: "自我",
-    summary: "取一份情绪词表",
-    fields: [],
   },
   {
     kind: "sticker.send",
@@ -739,39 +739,6 @@ export const ACTION_SCHEMA = [
     summary: "读回写过的信",
     fields: [
       { name: "query", type: "string", required: false, note: "只想找提到某个词的（可选）" },
-    ],
-  },
-  /**
-   * ——— 锁定片段 ———
-   *
-   * 同样是 m07934 第 7 条：用户要能让他"别动这一段"。
-   * 锁是**执行端**的硬拒绝（改/删碰到它直接失败），不是提示词里的一句客气话。
-   */
-  {
-    kind: "diary.pin",
-    group: "记录",
-    summary: "锁住日记里的某一句（之后不许改、不许删）",
-    fields: [
-      { name: "query", type: "string", required: true, note: "锁哪一篇（内容片段）" },
-      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文那一句）" },
-    ],
-  },
-  {
-    kind: "moment.pin",
-    group: "记录",
-    summary: "锁住某条动态（之后不许删）",
-    fields: [
-      { name: "query", type: "string", required: true, note: "锁哪条动态（内容片段）" },
-      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文；整条锁就把正文开头抄过来）" },
-    ],
-  },
-  {
-    kind: "letter.pin",
-    group: "记录",
-    summary: "锁住信里的某一句话",
-    fields: [
-      { name: "query", type: "string", required: true, note: "锁哪一封（标题或正文片段）" },
-      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文那一句）" },
     ],
   },
   {

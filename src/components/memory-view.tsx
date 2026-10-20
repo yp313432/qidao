@@ -11,7 +11,8 @@ import { cn, formatClock } from "@/lib/utils";
 
 const BUDGET_STEPS = [2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000];
 const KEEP_STEPS = [4, 8, 12, 16, 24, 32, 40];
-const COMPACT_STEPS = [50, 60, 70, 80, 90];
+/* 摘要把「攒多少条」当触发（用户 m09621：「25 轮摘一次」= 50 条） */
+const SUMMARY_EVERY_STEPS = [20, 30, 40, 50, 60, 80, 100];
 
 export function MemoryView() {
   const settings = useApp((s) => s.settings);
@@ -234,12 +235,12 @@ export function MemoryView() {
             </button>
           </div>
           <Stepper
-            label="用到多少开始折叠"
-            hint="给回复留出空间"
-            value={`${settings.compactAt}%`}
+            label="每攒多少条摘一次"
+            hint="50 条约等于 25 轮对话"
+            value={`${settings.summaryEvery ?? 50} 条`}
             disabled={!settings.autoCompact}
-            onPrev={() => patch({ compactAt: step(COMPACT_STEPS, settings.compactAt, -1) })}
-            onNext={() => patch({ compactAt: step(COMPACT_STEPS, settings.compactAt, 1) })}
+            onPrev={() => patch({ summaryEvery: step(SUMMARY_EVERY_STEPS, settings.summaryEvery ?? 50, -1) })}
+            onNext={() => patch({ summaryEvery: step(SUMMARY_EVERY_STEPS, settings.summaryEvery ?? 50, 1) })}
           />
         </div>
 
@@ -253,7 +254,7 @@ export function MemoryView() {
             {ctx?.hasSummary
               ? `已经有一份摘要（约 ${ctx.summaryTokens} tokens）—— 原文不再发出，省了约 ${ctx.summarySaved} tokens。`
               : "超出预算时，更早的消息会被压成一份摘要继续带着走（而不是直接忘掉）。" +
-                "平时用不到，长对话（大约每 15~20 轮）会自动做一次。"}
+                "平时用不到，每攒够 50 条（约 25 轮）会自动做一次。"}
           </p>
           <div className="mt-2 flex gap-2">
             <button
@@ -279,6 +280,10 @@ export function MemoryView() {
                         : `没得可摘 —— 摘要压的是「最近 ${settings.keepRecent ?? 16} 条之外」的更早消息；` +
                             "这段对话还不够长（或者那一截已经摘过了）。聊长了它会自己摘。",
                     );
+                  })
+                  .catch(() => {
+                    /* 摘要失败不能变成界面报错（纪律：它只是后台的一件小事） */
+                    setSummaryMsg("摘要这次没做出来（上游没回或超时了）。过一会儿再点一次。");
                   })
                   .finally(() => setSummarizing(false));
               }}

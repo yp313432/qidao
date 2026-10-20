@@ -5,7 +5,7 @@ import { findFlower } from "@/lib/garden-flowers";
  * 每类动作落在哪项权限上（权限清单见 lib/permissions.ts）。
  *
  * ⚠️ 是 **Partial**：**没有映射的动作 = 不需要授权，闸门直接放行**
- * （现在只有 `emotion.report` / `emotion.lexicon` 这两个 —— 见下面那一段注释）。
+ * （现在只有 `emotion.report` 这一个 —— 见下面那一段注释）。
  * 加新动作时忘了在这里挂权限 = 它变成"免确认直接执行"，所以宁可在这里写清楚。
  */
 export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>> = {
@@ -50,7 +50,7 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
    * ——— 情绪这两个动作**不挂权限**（2026-10 用户要求删掉"情绪权限"那一项）———
    *
    * 为什么可以直接删：`emotion.report` 已经**常驻**（`tool-select.ts` 的常驻集合）、
-   * 11 维花瓣与 `state.report` 早已退场，`emotion.lexicon` 只是"取一份词表看看" ——
+   * 11 维花瓣与 `state.report` 早已退场，上报改自由词 + 10 组 ——
    * 两者都是 L0 静默、无副作用（写本机的情绪记录），给他看的那道闸没有意义。
    *
    * ⚠️ 删掉的是权限**这一项**，不是动作。这两个 kind 在这里没有映射 = **无权限直接执行**
@@ -110,9 +110,6 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "diary.read": "read_diary",
   "moment.read": "read_context",
   "letter.read": "read_context",
-  "diary.pin": "diary",
-  "moment.pin": "moment_post",
-  "letter.pin": "letter_write",
   "letter.update": "letter_write",
   "chat.new": "chat",
   // 改与删：落在各自功能原有的权限上（不新开权限）
@@ -235,10 +232,8 @@ export function actionTitle(action: AppAction): string {
       const pct = Math.round(Number(action.intensity ?? 0.5) * 100);
       return `上报一笔情绪：${action.primaryEmotion}${
         secondary.length ? `（+${secondary.join("、")}）` : ""
-      } · 强度 ${pct}%`;
+      } · ${action.group ?? "?"} · 强度 ${pct}%`;
     }
-    case "emotion.lexicon":
-      return "取一份情绪词表看看";
     case "sticker.send":
       return "发一张表情包";
     case "sticker.groups":
@@ -357,12 +352,6 @@ export function actionTitle(action: AppAction): string {
       return action.query ? `读动态（找「${action.query.slice(0, 12)}」）` : "读最近的动态";
     case "letter.read":
       return action.query ? `读信（找「${action.query.slice(0, 12)}」）` : "读最近的信";
-    case "diary.pin":
-      return `锁住日记里的一句：「${action.sentence.slice(0, 16)}」`;
-    case "moment.pin":
-      return `锁住动态里的一句：「${action.sentence.slice(0, 16)}」`;
-    case "letter.pin":
-      return `锁住信里的一句：「${action.sentence.slice(0, 16)}」`;
     case "tool.call":
       return `调用外部工具「${action.tool}」${action.server ? `（服务器：${action.server.slice(0, 20)}）` : ""}`;
     case "http.call":

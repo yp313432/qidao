@@ -49,13 +49,13 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * 所以棋桌/池塘不再由页面替他落子、抛竿，改成他调动作、页面演）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 99;
+const EXPECTED_KIND_COUNT = 95;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。
  *
  * 2026-10：用户要求删掉 AI 权限页那一项「情绪权限」（`state_report`）——
- * `emotion.report` 已经常驻、11 维花瓣早退场，`emotion.lexicon` 只是取一份词表，
+ * `emotion.report` 已经常驻、11 维花瓣早退场、`emotion.lexicon` 已删除（改自由词 + 10 组），
  * 两个都是 L0 静默写本机的东西，给他看的那道闸没有意义。
  * ⚠️ 没有权限 = **闸门直接执行、不弹卡片**（见 `action-gate.tsx`）。
  * 所以这份名单是**白名单**：多一个少一个都必须在这里明说，不许悄悄变成"免确认直接执行"。
@@ -64,7 +64,7 @@ const EXPECTED_KIND_COUNT = 99;
  * 也不写任何别人的东西。用户明确要求"不新增一张卡片"（每次发表情都弹卡片会烦死），
  * 所以它跟情绪那两个一样归"不需要授权"。
  */
-const NO_PERMISSION_KINDS = ["view.list", "emotion.report", "emotion.lexicon", "sticker.send", "sticker.groups"];
+const NO_PERMISSION_KINDS = ["view.list", "emotion.report", "sticker.send", "sticker.groups"];
 const EXPECTED_PERMISSION_BOUND_COUNT = EXPECTED_KIND_COUNT - NO_PERMISSION_KINDS.length;
 
 const fails = [];

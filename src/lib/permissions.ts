@@ -78,7 +78,7 @@ export const PERMISSIONS: PermissionDef[] = [
    */
   {
     id: "read_emotion",
-    title: "他自己报过的情绪",
+    title: "用户自己报过的情绪",
     hint: "星屿灵体吃的那份数据：他报过什么、现在什么心情",
     risk: "L0",
     status: "ready",
@@ -134,7 +134,7 @@ export const PERMISSIONS: PermissionDef[] = [
    *
    * 为什么整条删掉（用户原话："ai 权限页那个情绪删了吧，如果适配都做好的话"）：
    *   · 它服务的旧动作 `state.report`（11 维花瓣）已经退场；
-   *   · 剩下的 `emotion.report` 已经**常驻**、`emotion.lexicon` 只是取一份词表 ——
+   *   · 剩下的 `emotion.report` 已经**常驻** ——
    *     两个都是 L0 静默、写在本机，用户在这儿点"允许"没有任何意义，
    *     反而让人以为"不点就不上报情绪"。
    * 现在这两个动作**不挂权限、直接执行**（见 `action-meta.ts` 与 `action-gate.tsx`）。

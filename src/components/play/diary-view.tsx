@@ -171,31 +171,6 @@ export function DiaryWall() {
                       他写的
                     </span>
                   )}
-                  {/*
-                    锁标记（2026-10 m07934 第 7 条：他要能"选取锁定片段"）。
-                    他锁住的句子，改/删都会被 actions.ts 拒绝；点这里能解开。
-                  */}
-                  {d.pins && d.pins.length > 0 && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      title={`锁着 ${d.pins.length} 句：${d.pins.join(" / ")}（点一下解开）`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        useApp.getState().patchDiary(d.id, { pins: [] });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          useApp.getState().patchDiary(d.id, { pins: [] });
-                        }
-                      }}
-                      className="rounded-full bg-fg/10 px-1.5 py-0.5 text-[10px] text-muted"
-                    >
-                      🔒 {d.pins.length}
-                    </span>
-                  )}
                 </span>
                 <span className="mt-1.5 block text-[13px] leading-5">
                   {open ? d.body : clip(d.body, d.body.length > 60 ? 46 : 60)}
