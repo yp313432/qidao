@@ -458,10 +458,20 @@ export function systemPrompt(input: PromptInput): string {
   const tools = toolCatalog(input.tools);
   const who = input.name?.trim() || "yan";
   const self = input.aiName?.trim() || "星芒";
-  // 世界书里"常驻"的条目进系统提示词 —— 它们很少改动，所以不影响前缀缓存
+  /**
+   * 世界书里"常驻"的条目进系统提示词 —— 它们很少改动，所以不影响前缀缓存。
+   *
+   * ⚠️ 2026-10 用户实测（m07934 第 5 条）：「世界书只是被模型看到，但它不遵守，没有用」。
+   * 原因不是"注入失败"，而是它原来只是一段**平铺的清单**（"- 内容"），混在人设后面：
+   * 模型把它当"背景资料"，看了、能复述，但不当成约束。
+   * 所以现在：**挪到说明书之后、人设之前**（越靠前越像"规矩"，越靠后越像"设定"），
+   * 编号成 `R1 R2 …`（能被引用、能自查），并明说"违反算答错、优先于人设和风格"。
+   */
   const worldAlways =
     input.worldAlways && input.worldAlways.length
-      ? `\n【用户给你定的规矩（世界书 · 一直生效）】\n${input.worldAlways.map((c) => `- ${c}`).join("\n")}`
+      ? `\n【世界书 · 用户定的硬规矩（必须遵守）】\n${input.worldAlways
+          .map((c, i) => `R${i + 1}. ${c}`)
+          .join("\n")}\n\n这些是**硬约束**，不是"可以参考的设定"：违反了就算这一轮答错。\n它们优先于下面的人设、语气和风格 —— 有冲突时以世界书为准。`
       : "";
   /**
    * 「硬要求 + 说明书」放**最前面**。
@@ -477,7 +487,7 @@ export function systemPrompt(input: PromptInput): string {
     aiName: self,
     userGender: input.userGender,
   });
-  return `${manual}
+  return `${manual}${worldAlways}
 
 你是${self}，一个安静、清晰、擅长深度思考的助手。用户名叫 ${who}。
 你在「栖岛」里 —— 这是用户一个人的私人空间，界面和内容都只属于他。
@@ -486,7 +496,7 @@ export function systemPrompt(input: PromptInput): string {
   }
 思考在内部完成；正文不要重复「让我思考」之类的套话。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
-  }${worldAlways}
+  }
 ${tools}
 ${input.nativeTools ? NATIVE_ACTIONS : ABILITIES}${
     input.nativeTools && input.selectiveTools
@@ -540,7 +550,9 @@ export function perceptionBlock(input: PromptInput): string {
       : "",
     // 世界书里这轮命中关键词的条目 —— 跟"此刻的情况"一样挂尾部，不动系统提示词
     input.worldHit && input.worldHit.length
-      ? `【聊到了这些，用户希望你记得】\n${input.worldHit.map((c) => `- ${c}`).join("\n")}`
+      ? `【聊到了这些，用户希望你记得（这些也是硬规矩）】\n${input.worldHit
+          .map((c) => `- ${c}`)
+          .join("\n")}\n- 回答前先回头对照系统提示词开头那几条 R 编号（世界书）—— 有没有哪条被这轮的话碰到了、必须照做。`
       : "",
     // 他上几轮动手的结果（回执）—— 没有这一节他永远不知道自己到底做没做
     input.recentActions && input.recentActions.length

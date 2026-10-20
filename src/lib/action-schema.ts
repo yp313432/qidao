@@ -708,6 +708,72 @@ export const ACTION_SCHEMA = [
       { name: "body", type: "string", required: true, note: "改成什么" },
     ],
   },
+  /**
+   * ——— 读回自己写过的东西 ———
+   *
+   * 2026-10 用户 m07934 第 7 条："日记，动态，信，这些他说没有读的功能或者选取锁定片段"。
+   * 他当时的思考链原话："我可以查一下？没有读日记的工具……只有 diary.add/update/remove/deleteLast"。
+   * 于是有了下面这三个 read：**先能看见，才谈得上改对**。
+   */
+  {
+    kind: "diary.read",
+    group: "记录",
+    summary: "读回自己写过的日记",
+    fields: [
+      { name: "limit", type: "number", required: false, note: "读几篇，默认 5，最多 30" },
+      { name: "query", type: "string", required: false, note: "只想找提到某个词的（可选）" },
+    ],
+  },
+  {
+    kind: "moment.read",
+    group: "记录",
+    summary: "读回动态（含评论）",
+    fields: [
+      { name: "limit", type: "number", required: false, note: "读几条，默认 5，最多 30" },
+      { name: "query", type: "string", required: false, note: "只想找提到某个词的（可选）" },
+    ],
+  },
+  {
+    kind: "letter.read",
+    group: "记录",
+    summary: "读回写过的信",
+    fields: [
+      { name: "query", type: "string", required: false, note: "只想找提到某个词的（可选）" },
+    ],
+  },
+  /**
+   * ——— 锁定片段 ———
+   *
+   * 同样是 m07934 第 7 条：用户要能让他"别动这一段"。
+   * 锁是**执行端**的硬拒绝（改/删碰到它直接失败），不是提示词里的一句客气话。
+   */
+  {
+    kind: "diary.pin",
+    group: "记录",
+    summary: "锁住日记里的某一句（之后不许改、不许删）",
+    fields: [
+      { name: "query", type: "string", required: true, note: "锁哪一篇（内容片段）" },
+      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文那一句）" },
+    ],
+  },
+  {
+    kind: "moment.pin",
+    group: "记录",
+    summary: "锁住某条动态（之后不许删）",
+    fields: [
+      { name: "query", type: "string", required: true, note: "锁哪条动态（内容片段）" },
+      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文；整条锁就把正文开头抄过来）" },
+    ],
+  },
+  {
+    kind: "letter.pin",
+    group: "记录",
+    summary: "锁住信里的某一句话",
+    fields: [
+      { name: "query", type: "string", required: true, note: "锁哪一封（标题或正文片段）" },
+      { name: "sentence", type: "string", required: true, note: "锁哪一句（照抄原文那一句）" },
+    ],
+  },
   {
     kind: "diary.remove",
     group: "记录",

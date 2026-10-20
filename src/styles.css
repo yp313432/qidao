@@ -4171,3 +4171,48 @@ html[data-keyboard="up"] .qi-board {
   border-top: 1px dashed var(--line, rgba(120, 96, 70, 0.16));
   margin-top: 4px;
 }
+
+/* ── 刚导入的一批归到哪组 / 长按分组页签改名删组（用户 m07934 第 2、3 条）── */
+.sticker-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  border-top: 1px dashed var(--line, rgba(120, 96, 70, 0.16));
+  margin-top: 2px;
+}
+.sticker-fresh-label {
+  font-size: 10.5px;
+  color: var(--text-subtle, rgba(90, 72, 56, 0.6));
+}
+.sticker-tabmenu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  border-top: 1px dashed var(--line, rgba(120, 96, 70, 0.16));
+  margin-top: 2px;
+}
+.sticker-tabmenu-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, rgba(74, 58, 44, 0.78));
+  margin-right: 2px;
+}
+.sticker-rename-input {
+  min-width: 0;
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line, rgba(120, 96, 70, 0.18));
+  background: var(--surface, rgba(255, 255, 255, 0.6));
+  font-size: 11px;
+  color: inherit;
+  outline: none;
+}
+.sticker-skip {
+  opacity: 0.55;
+}

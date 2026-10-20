@@ -710,10 +710,12 @@ export type AppState = {
   appendGardenTalk: (turns: Array<{ role: "user" | "assistant"; content: string }>) => void;
   addDiary: (mood: DiaryEntry["mood"], body: string, by?: "ai" | "me") => void;
   /** 改一条日记的正文（改与删的配套，见 `diary.update` 动作） */
-  patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"] }) => void;
+  patchDiary: (id: string, patch: { body?: string; mood?: DiaryEntry["mood"]; pins?: string[] }) => void;
   deleteDiary: (id: string) => void;
   /** 改一封信的标题/正文（不碰 `seen` —— 改完不该又变成"没拆过"） */
-  patchLetter: (id: string, patch: { title?: string; body?: string }) => void;
+  patchLetter: (id: string, patch: { title?: string; body?: string; pins?: string[] }) => void;
+  /** 改一条动态的正文 / 锁定片段（`moment.pin` 用）。 */
+  patchMoment: (id: string, patch: { text?: string; pins?: string[] }) => void;
   markSavedToDocs: (conversationId: string, messageId: string) => void;
   enabledTools: () => McpServer[];
 };
@@ -1636,6 +1638,10 @@ export const useApp = create<AppState>()(
       patchLetter: (id, patch) =>
         set((s) => ({
           letters: s.letters.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        })),
+      patchMoment: (id, patch) =>
+        set((s) => ({
+          moments: s.moments.map((m) => (m.id === id ? { ...m, ...patch } : m)),
         })),
 
       /* ---------- 动态空间：动态 / 一天一篇日记 / 信 ---------- */

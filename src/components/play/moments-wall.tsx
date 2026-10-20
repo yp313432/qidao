@@ -249,6 +249,16 @@ function MomentPost({ moment }: { moment: Moment }) {
 
         <div className="mt-1.5 flex items-center gap-3 text-[12px]" style={{ color: WX.time }}>
           <MomentTime at={moment.at} />
+          {/* 锁标记（2026-10 m07934 第 7 条）：锁住的句子，删这条会被拒；点一下解开 */}
+          {moment.pins && moment.pins.length > 0 && (
+            <button
+              type="button"
+              title={`锁着 ${moment.pins.length} 句：${moment.pins.join(" / ")}（点一下解开）`}
+              onClick={() => useApp.getState().patchMoment(moment.id, { pins: [] })}
+            >
+              🔒
+            </button>
+          )}
           <button
             type="button"
             aria-label="删掉这条动态"

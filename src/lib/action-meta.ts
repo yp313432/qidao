@@ -102,6 +102,17 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "diary.add": "diary",
   "diary.update": "diary",
   "diary.remove": "delete_diary",
+  /**
+   * 读回 + 锁片段（2026-10 m07934 第 7 条）。
+   * 读挂在已有的 `read_diary` / `read_context` 上（不新造权限 id）；
+   * 锁是写入性动作，跟着写入的那道闸走。
+   */
+  "diary.read": "read_diary",
+  "moment.read": "read_context",
+  "letter.read": "read_context",
+  "diary.pin": "diary",
+  "moment.pin": "moment_post",
+  "letter.pin": "letter_write",
   "letter.update": "letter_write",
   "chat.new": "chat",
   // 改与删：落在各自功能原有的权限上（不新开权限）
@@ -340,6 +351,18 @@ export function actionTitle(action: AppAction): string {
       return `删掉信${action.query ? `「${action.query.slice(0, 14)}」` : "（最近一封）"}`;
     case "letter.update":
       return `改一封信（按「${action.query.slice(0, 12)}」找）`;
+    case "diary.read":
+      return action.query ? `读日记（找「${action.query.slice(0, 12)}」）` : "读最近的日记";
+    case "moment.read":
+      return action.query ? `读动态（找「${action.query.slice(0, 12)}」）` : "读最近的动态";
+    case "letter.read":
+      return action.query ? `读信（找「${action.query.slice(0, 12)}」）` : "读最近的信";
+    case "diary.pin":
+      return `锁住日记里的一句：「${action.sentence.slice(0, 16)}」`;
+    case "moment.pin":
+      return `锁住动态里的一句：「${action.sentence.slice(0, 16)}」`;
+    case "letter.pin":
+      return `锁住信里的一句：「${action.sentence.slice(0, 16)}」`;
     case "tool.call":
       return `调用外部工具「${action.tool}」${action.server ? `（服务器：${action.server.slice(0, 20)}）` : ""}`;
     case "http.call":

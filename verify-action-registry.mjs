@@ -49,7 +49,7 @@ const PROMPT_SRC = readFileSync(new URL("./src/lib/prompt.ts", import.meta.url),
  * 所以棋桌/池塘不再由页面替他落子、抛竿，改成他调动作、页面演）。
  * 加/删动作就往这里 ±1 —— 三边（types.ts / action-meta.ts / ACTION_SCHEMA）不一致会直接 FAIL。
  */
-const EXPECTED_KIND_COUNT = 93;
+const EXPECTED_KIND_COUNT = 99;
 
 /**
  * **不挂权限**的动作（`ACTION_PERMISSION` 里故意没有它们的键）。

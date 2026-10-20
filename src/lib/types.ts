@@ -60,6 +60,14 @@ export type Moment = {
   likes?: MomentLike[];
   /** 评论（多轮）。缺省 = 还没有评论 */
   comments?: MomentComment[];
+  /**
+   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
+   *
+   * 用户原话："他说没有读的功能或者选取锁定片段"。
+   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
+   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
+   */
+  pins?: string[];
 };
 
 /** 一封他写给我的信。 */
@@ -70,6 +78,14 @@ export type Letter = {
   at: number;
   /** 有没有"拆开"看过 —— 没看过的，一进前端就会跳出信封动画 */
   seen: boolean;
+  /**
+   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
+   *
+   * 用户原话："他说没有读的功能或者选取锁定片段"。
+   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
+   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
+   */
+  pins?: string[];
 };
 
 /** 一个重要日子：生日、纪念日、约好的那天。 */
@@ -888,6 +904,14 @@ export type DiaryEntry = {
    * 老存档没有这个字段 → 当"你写的"，界面就不打标签（只有他写的才挂「他写的」）。
    */
   by?: "ai" | "me";
+  /**
+   * **锁住的片段**（2026-10 用户 m07934 第 7 条）。
+   *
+   * 用户原话："他说没有读的功能或者选取锁定片段"。
+   * 语义：这里的每一句都是用户点名锁住的 —— 他改、删都会被执行端拒绝，
+   * 只有用户自己能在界面上解开。老数据没有这个键 = 没锁任何东西。
+   */
+  pins?: string[];
 };
 
 export type QuotaState = {
@@ -1113,6 +1137,22 @@ export type FeatureId =
   | { kind: "diary.add"; body: string }
   /** 改 / 删日记（2026-10 配套：以前只能"删最近一条"，不能按条改删） */
   | { kind: "diary.update"; query: string; body: string }
+  /**
+   * 读回自己写过的东西（2026-10 用户 m07934 第 7 条）。
+   *
+   * 他以前只有写入和删除，没有"看"—— 于是改一篇日记只能凭记忆猜 `query` 里该填什么片段，
+   * 思考链里原话："没有读日记的工具……只有 diary.add/update/remove/deleteLast"。
+   */
+  | { kind: "diary.read"; limit?: number; query?: string }
+  | { kind: "moment.read"; limit?: number; query?: string }
+  | { kind: "letter.read"; query?: string }
+  /**
+   * 锁住某一句：之后改/删碰到它会直接被拒（同上第 7 条）。
+   * 只在"用户明确要求别改这段"时调用 —— 锁是保护，不是摆设。
+   */
+  | { kind: "diary.pin"; query: string; sentence: string }
+  | { kind: "moment.pin"; query: string; sentence: string }
+  | { kind: "letter.pin"; query: string; sentence: string }
   | { kind: "diary.remove"; query: string }
   /** 改一封信（标题/正文）；删信用 `letter.remove` */
   | { kind: "letter.update"; query: string; title?: string; body?: string }

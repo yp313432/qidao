@@ -155,6 +155,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     会立刻被 toggle 成"取消选中"（真机上表现为"长按之后一张都没选上"）。
   */
   const longPressedRef = useRef(false);
+  /** 刚导入的一批（停「全部」时导入的）—— 导完问一句"归到哪组"（用户 m07934 第 2 条） */
+  const [stickerFresh, setStickerFresh] = useState<string[]>([]);
+  /** 长按某个分组页签 → 改名 / 删组（用户 m07934 第 3 条） */
+  const [stickerTabMenu, setStickerTabMenu] = useState<string | null>(null);
+  const [stickerRename, setStickerRename] = useState<string | null>(null);
+  const [stickerRenameText, setStickerRenameText] = useState("");
   /*
     「今天 N 次 · 输入/输出 · 缓存命中率」那条**已删除**（用户要求：
     "到时候直接上设置里看，这地方就不留了"）。
@@ -224,6 +230,15 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
    *   · 自动**去白底** —— 照片/白底截图变成真正透明的表情（用户要的"表情包格式"）
    */
   async function addStickers(files: File[]) {
+    /*
+      用户 m07934 第 2 条：「不能直接导入分好的组，要先传到未分组，再长按编辑移动到
+      其他组里，很麻烦」。所以：
+        · 正停在某个**具体分组**里导入 → 直接进那组（最省事，符合直觉）
+        · 停在「全部」→ 按文件名猜（猜不出就「未分组」），导完弹一条"这 N 张归到哪"，
+          点一下就整体挪过去，不点就当没分组
+    */
+    const pinned = stickerTab !== "全部" ? stickerTab : "";
+    const fresh: string[] = [];
     for (const f of files) {
       if (!f.type.startsWith("image/")) continue;
       let url = await stickerFromFile(f);
@@ -231,13 +246,25 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         const transparent = await stripWhiteBackground(url);
         if (transparent) url = transparent;
       }
-      /*
-        自动分组（用户 m07420）：文件名带汉字前缀就按它分组
-        （`无语_翻了.gif` → 无语），纯编号的（IMG_2041、mmexport…）还是「未分组」。
-      */
-      useApp.getState().addSticker(url, guessGroupFromName(f.name));
-      setStickerTab("全部");
+      useApp.getState().addSticker(url, pinned || guessGroupFromName(f.name));
+      /* addSticker 是插在最前面，所以刚进来的那张是 [0] */
+      const lib = useApp.getState().stickerLib;
+      if (lib[0]) fresh.push(lib[0].id);
     }
+    if (pinned) {
+      setStickerTab(pinned);
+      return;
+    }
+    if (fresh.length > 0) {
+      setStickerTab("全部");
+      setStickerFresh(fresh);
+    }
+  }
+
+  /** 把这批刚导入的挪到某组（`setStickerFresh([])` = 就这样，不分组） */
+  function assignFresh(group: string) {
+    for (const id of stickerFresh) useApp.getState().moveSticker(id, group);
+    setStickerFresh([]);
   }
 
   function sendSticker(dataUrl: string) {
@@ -498,7 +525,37 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                   <button
                     key={g}
                     type="button"
-                    onClick={() => setStickerTab(g)}
+                    onClick={() => {
+                      /* 长按抬手还会补一个 click —— 别把刚打开菜单的组又切过去 */
+                      if (longPressedRef.current) {
+                        longPressedRef.current = false;
+                        return;
+                      }
+                      setStickerTab(g);
+                      setStickerTabMenu(null);
+                    }}
+                    onPointerDown={(e) => {
+                      if (g === "全部") return;
+                      const sx = e.clientX;
+                      const sy = e.clientY;
+                      const cancel = () => {
+                        window.clearTimeout(timer);
+                        window.removeEventListener("pointermove", onMove);
+                        window.removeEventListener("pointerup", cancel);
+                        window.removeEventListener("pointercancel", cancel);
+                      };
+                      const onMove = (ev: PointerEvent) => {
+                        if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) cancel();
+                      };
+                      const timer = window.setTimeout(() => {
+                        longPressedRef.current = true;
+                        setStickerTabMenu(g);
+                        cancel();
+                      }, 500);
+                      window.addEventListener("pointermove", onMove);
+                      window.addEventListener("pointerup", cancel, { once: true });
+                      window.addEventListener("pointercancel", cancel, { once: true });
+                    }}
                     className={cn("sticker-tab", stickerTab === g && "sticker-tab-on")}
                   >
                     {g}
@@ -533,6 +590,108 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               </button>
             </div>
 
+            {/* 刚导入的这批归到哪组（用户 m07934 第 2 条）*/}
+            {stickerFresh.length > 0 && (
+              <div className="sticker-fresh">
+                <span className="sticker-fresh-label">这 {stickerFresh.length} 张归到</span>
+                {Array.from(
+                  new Set([
+                    DEFAULT_STICKER_GROUP,
+                    ...stickerGroupList(customStickers, stickerGroups).filter((g) => g !== "全部"),
+                  ]),
+                ).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => assignFresh(g)}
+                    className="sticker-group-item"
+                  >
+                    {g}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setStickerFresh([])}
+                  className="sticker-group-item sticker-skip"
+                >
+                  就这样
+                </button>
+              </div>
+            )}
+
+            {/* 长按分组页签 → 改名 / 删组（用户 m07934 第 3 条）*/}
+            {stickerTabMenu && (
+              <div className="sticker-tabmenu">
+                <span className="sticker-tabmenu-name">{stickerTabMenu}</span>
+                <button
+                  type="button"
+                  className="sticker-op"
+                  onClick={() => {
+                    setStickerRename(stickerTabMenu);
+                    setStickerRenameText(stickerTabMenu);
+                    setStickerTabMenu(null);
+                  }}
+                >
+                  改名
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op sticker-op-del"
+                  onClick={() => {
+                    useApp.getState().removeStickerGroup(stickerTabMenu);
+                    if (stickerTab === stickerTabMenu) setStickerTab("全部");
+                    setStickerTabMenu(null);
+                  }}
+                >
+                  删组
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op"
+                  onClick={() => setStickerTabMenu(null)}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+
+            {stickerRename && (
+              <div className="sticker-tabmenu">
+                <input
+                  value={stickerRenameText}
+                  onChange={(e) => setStickerRenameText(e.target.value)}
+                  aria-label="新组名"
+                  className="sticker-rename-input"
+                  placeholder="新组名"
+                />
+                <button
+                  type="button"
+                  className="sticker-op sticker-op-done"
+                  onClick={() => {
+                    const g = stickerRenameText.trim();
+                    if (g && g !== stickerRename) {
+                      useApp.getState().renameStickerGroup(stickerRename, g);
+                      if (stickerTab === stickerRename) setStickerTab(g);
+                    }
+                    setStickerRename(null);
+                    setStickerRenameText("");
+                  }}
+                >
+                  确定
+                </button>
+                <button
+                  type="button"
+                  className="sticker-op"
+                  onClick={() => {
+                    setStickerRename(null);
+                    setStickerRenameText("");
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+
             <div className="sticker-grid">
               {customStickers
                   .filter(
@@ -566,18 +725,35 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                           }
                           sendSticker(s.url);
                         }}
-                        onPointerDown={() => {
+                        onPointerDown={(e) => {
                           if (stickerManage) return;
+                          /*
+                            用户 m07934 第 1 条：「长按编辑改成和气泡一样的，滑动时不触发，
+                            只有固定按的时候触发」。所以按下记坐标，**手指一动就取消**；
+                            按住不动到 420ms 才进管理态（比原来的 550ms 好按）。
+                          */
+                          const sx = e.clientX;
+                          const sy = e.clientY;
+                          const cancel = () => {
+                            window.clearTimeout(timer);
+                            window.removeEventListener("pointermove", onMove);
+                            window.removeEventListener("pointerup", cancel);
+                            window.removeEventListener("pointercancel", cancel);
+                          };
+                          const onMove = (ev: PointerEvent) => {
+                            if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) {
+                              cancel();
+                            }
+                          };
                           const timer = window.setTimeout(() => {
                             longPressedRef.current = true;
                             setStickerManage(true);
                             setStickerPick([s.id]);
-                          }, 550);
-                          window.addEventListener(
-                            "pointerup",
-                            () => window.clearTimeout(timer),
-                            { once: true },
-                          );
+                            cancel();
+                          }, 420);
+                          window.addEventListener("pointermove", onMove);
+                          window.addEventListener("pointerup", cancel, { once: true });
+                          window.addEventListener("pointercancel", cancel, { once: true });
                         }}
                         className={cn(
                           "sticker-cell",

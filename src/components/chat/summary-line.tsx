@@ -21,12 +21,30 @@ export function SummaryLine({ conversationId }: { conversationId: string }) {
   const summary = useApp((s) =>
     s.conversations.find((c) => c.id === conversationId)?.summary,
   );
+  /*
+    用户 m07934 第 4 条：「摘要之后的前文翻不了了……摘要只是把前文消息塞进 ai 里了，
+    我这里还是要能正常看到所有聊天记录的」。
+
+    实现上，摘要**从来不会删本地消息**（`messages` 全量留着，只在发给模型时
+    `droppedBySummary()` 把它们换成摘要）。所以这里把"被吸收的那些原文"直接摊出来：
+    既能让他翻、也能当自检 —— 如果"本地共 X 条"明显小于他印象里的条数，那就是真的
+    丢过数据，要另查。
+  */
+  const conv = useApp((s) => s.conversations.find((c) => c.id === conversationId));
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showOld, setShowOld] = useState(false);
+  const [oldLimit, setOldLimit] = useState(40);
+  const [expandId, setExpandId] = useState<string | null>(null);
 
   if (!summary?.text) return null;
+
+  const localCount = conv?.messages.length ?? 0;
+  const absorbed = Math.max(0, summary.upToIndex ?? 0);
+  const oldMsgs = (conv?.messages ?? []).slice(0, absorbed);
+  const shownOld = oldMsgs.slice(Math.max(0, oldMsgs.length - oldLimit));
 
   const saved = Math.max(0, summary.sourceTokens - summary.tokens);
 
@@ -104,6 +122,78 @@ export function SummaryLine({ conversationId }: { conversationId: string }) {
                 这段原文已经不再发给他了，换成了上面的摘要（约省 {saved} token）。
                 觉得写得不对就改，或者重摘一次。
               </p>
+              <p className="mt-1 text-[11px] leading-4 text-subtle">
+                本地共 {localCount} 条 · 摘要覆盖前 {absorbed} 条（原文都还在，下面能翻）
+              </p>
+
+              {/* 被吸收的原文 —— 只影响"发给他的上下文"，不影响你翻看历史 */}
+              <button
+                type="button"
+                onClick={() => setShowOld((v) => !v)}
+                className="mt-2 flex items-center gap-1 rounded-full bg-elevated px-3 py-2 text-[12px]"
+              >
+                <ChevronRight
+                  className={cn("size-3.5 transition-transform", showOld && "rotate-90")}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+                {showOld ? "收起原文" : `查看被吸收的 ${absorbed} 条原文`}
+              </button>
+              {showOld && (
+                <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-line bg-elevated px-2.5 py-2">
+                  {shownOld.length === 0 ? (
+                    <p className="py-2 text-[11px] leading-4 text-subtle">
+                      摘要覆盖的范围内本地没有消息（可能是摘要生成后又清过记录）。
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {shownOld.map((m) => {
+                        const long = (m.content ?? "").length > 240;
+                        const body =
+                          long && expandId !== m.id
+                            ? `${(m.content ?? "").slice(0, 240)}…`
+                            : m.content;
+                        return (
+                          <li key={m.id} className="text-[11px] leading-4">
+                            <span className="mr-1.5 text-subtle">
+                              {new Date(m.createdAt).toLocaleString("zh-CN", {
+                                month: "numeric",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <span className="mr-1 text-subtle">
+                              {m.role === "user" ? "你" : "他"}
+                            </span>
+                            <span className="whitespace-pre-wrap break-words text-muted">
+                              {body || "（空）"}
+                            </span>
+                            {long && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandId(expandId === m.id ? null : m.id)}
+                                className="ml-1 text-subtle underline decoration-dotted"
+                              >
+                                {expandId === m.id ? "收起" : "展开"}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {oldMsgs.length > shownOld.length && (
+                    <button
+                      type="button"
+                      onClick={() => setOldLimit((n) => n + 40)}
+                      className="mt-2 w-full rounded-full bg-chip px-3 py-2 text-[11px] text-muted"
+                    >
+                      再往前看 40 条
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
