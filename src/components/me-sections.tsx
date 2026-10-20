@@ -468,7 +468,7 @@ function MeSections({ tab }: { tab: MeTab }) {
       const r = await resetWake();
       setWakeResetMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`);
       // 清完记录就没了 —— 正打开着的话跟着刷新一下，别显示上一轮的旧日志
-      if (wakeLogOpen) setWakeLogLines(await readWakeLog(6));
+      if (wakeLogOpen) setWakeLogLines(await readWakeLog(16));
     } catch (err) {
       // 不吞错误：这是用户手机上唯一能自救的入口
       setWakeResetMsg(`🔴 没跑起来：${(err as Error).message || "未知错误"}`);
@@ -1682,7 +1682,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             aria-expanded={wakeLogOpen}
             className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
           >
-            {wakeLogOpen ? "收起后台记录" : "看后台最近几次醒来"}
+            {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
           </button>
           {wakeLogOpen && (
             <div className="mt-1.5 rounded-2xl bg-elevated px-3 py-2">
@@ -1691,7 +1691,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               ) : wakeLogLines && wakeLogLines.length > 0 ? (
                 <>
                   <p className="text-[11px] leading-4 text-subtle">
-                    后台最近 {wakeLogLines.length} 次醒来（最近的在最上面）：
+                    后台最近 {wakeLogLines.length} 条记录（最近的在最上面）：
                   </p>
                   <ul className="mt-1 space-y-1">
                     {wakeLogLines.map((line, i) => (

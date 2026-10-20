@@ -87,13 +87,19 @@ var MUTED_RECHECK_MIN = 240;
  * 这次唤醒的**总预算**。官方文档：iOS 约 30 秒、安卓最多 10 分钟，跨平台按 30 秒算。
  * 重试和诊断都从这里面扣 —— 扣完就放弃本轮（宁可少一次诊断，也不能把这次唤醒拖死）。
  */
-var WAKE_BUDGET_MS = 30000;
+  /*
+    ⚠️ 2026-10 真机第二次事故：后台记录里**每小时都醒**，但一行"开始问他 / 他说了 /
+    他没说 / 上游报错"都没有 —— 说明进程在"问上游"那一步被系统掐断了（安卓给后台任务
+    的时间很短，30 秒预算 + 3 次重试很容易超）。所以预算收窄到 18 秒、单次 6 秒、
+    只重试一次（6 + 1.5 + 6 ≈ 14 秒，留出写日志和弹通知的时间）。
+  */
+  var WAKE_BUDGET_MS = 18000;
 
 /** 单次上游请求最多等多久（这个引擎里没有 AbortController，只能让定时器跟 fetch 赛跑） */
-var ATTEMPT_TIMEOUT_MS = 5000;
+var ATTEMPT_TIMEOUT_MS = 6000;
 
 /** 网络类失败后的重试间隔；最多 3 次尝试，所以只要两档（2s / 5s） */
-var RETRY_DELAYS_MS = [2000, 5000];
+var RETRY_DELAYS_MS = [1500];
 
 /** 还剩多少时间才值得再试一次（给下一次尝试留出余地） */
 var MIN_ATTEMPT_MS = 1500;
@@ -644,6 +650,17 @@ addEventListener("qidaoWake", function (resolve, reject) {
            ⚠️ "起程序"≠"看他"：起程序是系统每小时的节拍（很轻），
               看才是真的读对话、调 AI（花钱的那一步）。
       */
+      /*
+        上次是不是死在「问上游」那步（进程被系统掐断）—— 不写这一行，用户下一次
+        看到的就是"醒了、也没说话"，跟概率问题分不开。`wake_stage` 由请求前写入、
+        `finish()` 收尾时清掉。
+      */
+      if (cfg("wake_stage") === "asking") {
+        logLine("#" + count + " " + stamp + " 上次醒来停在「问上游」没跑完（后台任务被系统掐断了）");
+        /* 只报一次：留着的话每次醒来都会重复这一行 */
+        kvSet("wake_stage", "");
+      }
+
       var lookAcc = kvNum("look_acc");
       /*
         ⚠️ 2026-10 真机事故："一天都没通知"，后台记录里却连着 6 次"这次没看他"。
@@ -899,6 +916,10 @@ addEventListener("qidaoWake", function (resolve, reject) {
         resolve();
       }
 
+      /* 进请求前先落一行：这样"卡在问上游"和"问到了但没说"就能分开 */
+      kvSet("wake_stage", "asking");
+      ctx.log("→ 开始问他（预算 " + Math.round(WAKE_BUDGET_MS / 1000) + " 秒）");
+
       requestWithRetry(
         ctx,
         askUrl,
@@ -924,6 +945,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
        * 收尾：说了就弹通知 + 归零；**没说就记着、下次必定说**（用户："这次没说下次必定说"）。
        */
       function finish(said, forced) {
+        /* 先把"还在问上游"的标记清掉 —— 下面有好几个 return 分支 */
+        kvSet("wake_stage", "");
         if (said) {
           /**
            * **自主行动那条**（actionMode 命中时）：把回复里的动作抠出来交给前台执行。
