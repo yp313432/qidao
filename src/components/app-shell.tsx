@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
+import { startAwakeLoop } from "@/lib/awake";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
@@ -109,7 +110,16 @@ export function AppShell() {
     };
     beat();
     const id = window.setInterval(beat, WORLD_TICK_MS);
-    return () => window.clearInterval(id);
+    /**
+     * **前台醒着**（用户 m10218）：你人在 App 里的时候，他不必等系统闹钟 ——
+     * 每 4 分钟自己看一眼"有没有想做的事"，有料才发请求，一天最多主动说 8 条。
+     * 详见 `lib/awake.ts` 开头那段。
+     */
+    const stopAwake = startAwakeLoop();
+    return () => {
+      window.clearInterval(id);
+      stopAwake();
+    };
   }, []);
 
   /**

@@ -115,6 +115,17 @@ it with the same priority as this file.
 （用户看到的只是"他说了一句，但鱼竿没动"）。改完跑 `node verify-life-session.mjs`，
 它会比对两边集合是否相等，并检查"一段生活"的跨帧续跑、世界心跳是否还挂着。
 
+**还有第三份**：`src/lib/awake.ts` 的 `AWAKE_KINDS` —— 前台"醒着"（用户人在 App 里）
+时他自己可以做的动作。三份的语义不同，但交集要心里有数：
+
+- 后台那份 = 用户**不在**时能做的（窄，且还要过权限闸门）
+- 前台落地那份 = 后台产物**认不认**（必须与后台逐字相等）
+- `AWAKE_KINDS` = 用户**在看**时能做的（比后台松一点，但绝不放 `ui.navigate` /
+  提醒 / 删除 —— 那些会当着用户的面把页面切走或弹窗）
+
+改 `AWAKE_KINDS` 后跑 `node verify-awake.mjs`（30 项：白名单边界、打盹与"有料才问"
+两道省钱闸门、说话必须走 `beginScheduledReply`+`finalizeAssistant`）。
+
 ### 栖岛：动作（AppAction）参数改动必须同步的地方
 
 用户明确要求（2026-10）：**只要动了动作参数（新增 / 删除 / 改名 / 必填与类型变化），
