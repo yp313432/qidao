@@ -103,6 +103,18 @@ verified `context.userId`** — never a client-sent id, never a demo/mock user.
 If `AGENTS.project.md` exists, it holds the user's project instructions. Follow
 it with the same priority as this file.
 
+### 栖岛：后台能做哪些动作 = 两份白名单，改一处必须改另一处
+
+后台那段 JS（`public/runners/wake.js`）和前台落地（`src/lib/wake-sync.ts`）
+各有一份"允许执行的动作"白名单，靠手工对齐：
+
+1. `public/runners/wake.js` 的 `extractAction()` 里 `var allow = { … }`
+2. `src/lib/wake-sync.ts` 的 `PENDING_ACTION_WHITELIST`
+
+只改一边的表现是**静默失败**：他在后台想钓鱼，前台不认这个动作，于是什么都不发生
+（用户看到的只是"他说了一句，但鱼竿没动"）。改完跑 `node verify-life-session.mjs`，
+它会比对两边集合是否相等，并检查"一段生活"的跨帧续跑、世界心跳是否还挂着。
+
 ### 栖岛：动作（AppAction）参数改动必须同步的地方
 
 用户明确要求（2026-10）：**只要动了动作参数（新增 / 删除 / 改名 / 必填与类型变化），

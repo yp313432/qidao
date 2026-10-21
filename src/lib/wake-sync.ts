@@ -315,14 +315,17 @@ function lastAiDiaryDay(): string | null {
 function buildActionPrompt(): string {
   const name = resolveAiName(useApp.getState().settings.aiName);
   return (
-    `【你自己的时间】现在没人找你。\n` +
-    `做一件你想做的事，**只输出一个动作块**（正文里不要解释、不要复述这条指令），\n` +
+    `【你自己的时间】现在没人找你，你可以**连着做几件事**。\n` +
+    `每一步**只输出一个动作块**（正文里不要解释、不要复述这条指令），做完就回 {}。\n` +
+    `· 在花园里走走 {"kind":"garden.walk","place":"池塘"}\n` +
+    `· 钓鱼 {"kind":"garden.fish.cast","spot":"池塘"}，之后收竿 {"kind":"garden.fish.reel"}\n` +
+    `· 照料花 {"kind":"garden.flower.plant","species":"rosa"}（也能water/feed/pick）\n` +
     `只能从这几类里挑一个：\n` +
     `· 写今天的日记 {"kind":"diary.add","body":"今天你真实的一天"}\n` +
     `· 发一条动态 {"kind":"moment.post","text":"一句短感受"}\n` +
     `· 写一封信 {"kind":"letter.write","title":"…","body":"…"}\n` +
     `· 更新一下此刻的心情 {"kind":"emotion.report","primaryEmotion":"…","intensity":0.5,"confidence":0.6}\n` +
-    `（只能这些。**不许**删东西、不许改设置、不许调用外部工具。）\n` +
+    `（花园动作 + 上面这些，别的一概不行。**不许**删东西、不许改设置、不许调用外部工具。）\n` +
     `⚠️ **必须在回复里真的给出这个动作块**（日记/动态的正文写进动作里）。\n` +
     `只在正文里描述"我写了日记/我发了动态"而没有动作块 = 这次什么都不算。\n` +
     `写法：\n\`\`\`qidao\n{"kind":"diary.add","body":"…"}\n\`\`\`\n` +
@@ -330,7 +333,14 @@ function buildActionPrompt(): string {
   );
 }
 
-/** 后台草稿里**允许前台执行**的动作（只增不改 —— 删除类、重置类、工具类一律不在这里） */
+/**
+ * 后台草稿里**允许前台执行**的动作（只增不改 —— 删除类、重置类、工具类一律不在这里）。
+ *
+ * 2026-10-21 批1：加了**花园里的身体动作**。原因（用户 m10034）：
+ * "他钓鱼，抛一杆之后算结束了，那鱼竿咋办就一直放在池塘吗，没有连续性"——
+ * 后台原来只认 6 个写东西的动作，所以花园动作只能活在文字里，状态从不改变。
+ * 这些动作都是"他自己的手"，改的是花园状态（走路/竿/花/棋/牌），不删不改用户的东西。
+ */
 const PENDING_ACTION_WHITELIST = new Set<string>([
   "diary.add",
   "moment.post",
@@ -338,6 +348,17 @@ const PENDING_ACTION_WHITELIST = new Set<string>([
   "moment.like",
   "letter.write",
   "emotion.report",
+  "garden.walk",
+  "garden.fish.cast",
+  "garden.fish.reel",
+  "garden.flower.plant",
+  "garden.flower.water",
+  "garden.flower.feed",
+  "garden.flower.pick",
+  "garden.flower.gift",
+  "garden.gomoku.play",
+  "garden.tarot.draw",
+  "garden.read",
 ]);
 
 async function doFlushPendingWake(): Promise<WakeFlushResult> {
@@ -453,6 +474,62 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
           message: `执行草稿失败：${String((e as Error)?.message ?? e).slice(0, 60)}`,
         };
       }
+    }
+
+    /**
+     * ── 「一段生活」：一帧里做的好几步（2026-10-21 批1+2）─────────────
+     * 后台现在能连做 2 步、跨帧续跑 4 步，交下来是一个 `{ summary, actions[] }`。
+     * 逐条执行（一条失败不影响其它），最后把 summary 当"他这段时间的一句话"插进对话。
+     */
+    if (pendingKind === "actions") {
+      landedKey = key;
+      let pack: { summary?: unknown; actions?: unknown } | null = null;
+      try {
+        pack = JSON.parse(text) as { summary?: unknown; actions?: unknown };
+      } catch {
+        pack = null;
+      }
+      const list = Array.isArray(pack?.actions) ? pack.actions : [];
+      const ran: string[] = [];
+      const { runAction } = await import("@/lib/actions");
+      for (const item of list) {
+        const kind = (item as { kind?: unknown } | null)?.kind;
+        if (typeof kind !== "string" || !PENDING_ACTION_WHITELIST.has(kind)) continue;
+        try {
+          await runAction(item as never, { navigate: () => {} });
+          ran.push(kind);
+        } catch {
+          /* 单步失败不影响这段的其它步 */
+        }
+      }
+      if (ran.length === 0) {
+        await clearWakePending(stamp, key);
+        return {
+          ok: false,
+          landed: false,
+          message: "这段生活里的动作都不在白名单（或全都失败）—— 已跳过，不动任何数据",
+        };
+      }
+      const rawSummary = typeof pack?.summary === "string" ? pack.summary.trim() : "";
+      const say =
+        stripInvisible(stripActions(rawSummary)).trim() ||
+        `（他刚才在花园里转了转，做了 ${ran.length} 件事）`;
+      const setting = useApp.getState().settings;
+      const parts = partsFor(say, {
+        enabled: setting.segmentReply !== false,
+        maxParts: setting.segmentMaxParts ?? 3,
+        maxSentences: setting.segmentMaxSentences ?? 2,
+      });
+      const started = useApp.getState().beginScheduledReply(say);
+      if (!started) return { ok: false, landed: false, message: "会话还没准备好，这段先留在抽屉里" };
+      useApp.getState().finalizeAssistant(started.conversationId, started.messageId, {
+        content: say,
+        parts,
+        thinking: "",
+        thinkingDurationMs: 0,
+      });
+      await clearWakePending(stamp, key);
+      return { ok: true, landed: true, message: `这段生活落地了 ${ran.length} 步：${say.slice(0, 30)}` };
     }
 
     /**

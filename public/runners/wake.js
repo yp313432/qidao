@@ -104,6 +104,17 @@ var RETRY_DELAYS_MS = [1500];
 /** 还剩多少时间才值得再试一次（给下一次尝试留出余地） */
 var MIN_ATTEMPT_MS = 1500;
 
+/**
+ * **一段生活**（2026-10-21 批1+2，用户："唤醒他醒过来，就跟人起床一样……是一段时间，不是一个动作"）
+ *
+ * 一次唤醒 = 跑"一帧"：问上游、拿到动作、记下回执、接着问下一步……
+ * 直到步数用完 / 预算不够 / 他自己说"这段到这儿"。
+ *    · 一帧最多 2 步（30 秒预算，一次请求 8~15 秒，再多就必然被掐断）
+ *    · 一段最多 4 步（跨帧续跑：这次没跑完就把进度存进抽屉，下次醒来接着）
+ */
+var LIFE_MAX_STEPS = 4;
+var LIFE_STEPS_PER_FRAME = 2;
+
 /** 对照组探测的超时（"别的地址通不通"要给个明确答案，不能干等） */
 var PROBE_TIMEOUT_MS = 5000;
 
@@ -540,6 +551,24 @@ function extractAction(text) {
     "moment.comment": 1,
     "moment.like": 1,
     "emotion.report": 1,
+    /**
+     * 2026-10-21 批1：**花园里的身体动作**也放行。
+     *
+     * 原来只认 6 个"写东西"的动作 → 他醒来想的"去池塘钓鱼"根本落不了地，
+     * 竿永远是文字里的竿。现在这些动作由前台真正执行（改花园状态）。
+     * 仍然**只增不改**：没有删除、没有设置、没有外部工具。
+     */
+    "garden.walk": 1,
+    "garden.fish.cast": 1,
+    "garden.fish.reel": 1,
+    "garden.flower.plant": 1,
+    "garden.flower.water": 1,
+    "garden.flower.feed": 1,
+    "garden.flower.pick": 1,
+    "garden.flower.gift": 1,
+    "garden.gomoku.play": 1,
+    "garden.tarot.draw": 1,
+    "garden.read": 1,
   };
   /**
    * ⚠️ 2026-10 真机踩到的坑：模型把动作写成**数组**（`[{...}]`，甚至两个动作），
@@ -921,6 +950,18 @@ addEventListener("qidaoWake", function (resolve, reject) {
         resolve();
       }
 
+      /**
+       * **自主活动改走"一段生活"**（2026-10-21 批1+2）。
+       *
+       * 原来是"问一次 → 抠一个动作 → 结束"：竿抛出去就没人管了，他永远只有第一步。
+       * 现在 free / life 两种模式都进 loop：一帧最多 2 步，跨帧续跑。
+       */
+      if (actionMode === "free" || actionMode === "life") {
+        kvSet("wake_stage", "asking");
+        runLifeFrame();
+        return;
+      }
+
       /* 进请求前先落一行：这样"卡在问上游"和"问到了但没说"就能分开 */
       kvSet("wake_stage", "asking");
       ctx.log("→ 开始问他（预算 " + Math.round(WAKE_BUDGET_MS / 1000) + " 秒）");
@@ -948,6 +989,182 @@ addEventListener("qidaoWake", function (resolve, reject) {
           diagnoseAndNotify(ctx, msg, kind, tries, upstreamHost);
         },
       );
+
+      /* ── 一段生活：一帧多步 + 回执回灌（2026-10-21 批1+2）────────── */
+
+      /** 这段生活的进度（存在抽屉里，跨帧、跨重启都在） */
+      function readLife() {
+        var raw = cfg("life_session");
+        if (!raw) return null;
+        try {
+          return JSON.parse(raw);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveLife(session) {
+        kvSet("life_session", session ? JSON.stringify(session) : "");
+      }
+
+      /**
+       * **动作 → 一句回执**。
+       *
+       * 后台看不到 App 的真实状态（鱼有没有咬钩、花开了没），所以这里给的是
+       * "他自己心里记下的那一句" —— 确定性写法，真实结果由前台执行后另算。
+       * 有回执这件事本身才是关键：没有它，模型看不到"我干了什么"，只能永远重复第一步。
+       */
+      function receiptOf(act) {
+        var k = String(act.kind || "");
+        if (k === "garden.walk") return "走到了" + String(act.place || act.spot || "花园里");
+        if (k === "garden.fish.cast") return "在" + String(act.spot || "池塘") + "边抛了竿，水面一圈圈散开";
+        if (k === "garden.fish.reel") return "收了线（有没有鱼看运气）";
+        if (k === "garden.flower.plant") return "把花种下去了";
+        if (k === "garden.flower.water") return "给花浇了水";
+        if (k === "garden.flower.feed") return "给花松了土、撒了点肥";
+        if (k === "garden.flower.pick") return "剪下一枝带着走";
+        if (k === "garden.flower.gift") return "给他留了一枝花";
+        if (k === "garden.tarot.draw") return "在棋桌那边摆了几张牌";
+        if (k === "garden.gomoku.play") return "在棋桌那边摆了一会儿棋子";
+        if (k === "garden.read") return "在花园里看了一圈";
+        if (k === "diary.add") return "写了一篇日记";
+        if (k === "moment.post") return "发了一条动态";
+        if (k === "letter.write") return "写了一封信";
+        if (k === "emotion.report") return "心里记下了此刻的感觉";
+        return "做了一件事";
+      }
+
+      /** 把"这段生活的账"贴进系统提示词 —— 这就是**回执回灌** */
+      function lifeNote(session) {
+        var lines = ["", "", "【你正在过的这一小段时间】"];
+        if (session.steps.length === 0) {
+          lines.push("刚醒，还什么都没做。");
+        } else {
+          lines.push("已经做了：");
+          for (var i = 0; i < session.steps.length; i++) {
+            lines.push("  " + (i + 1) + ". " + session.steps[i].receipt);
+          }
+          lines.push("（这些都是真的做过了，别重复；接着往下想。）");
+        }
+        lines.push("现在决定下一步：**只回一个动作 JSON**，不要说话、不要解释。");
+        lines.push("做完了、或者觉得这段就到这里，就回 {}。");
+        lines.push("能用的动作：garden.walk{place}、garden.fish.cast{spot}、garden.fish.reel{}、");
+        lines.push("garden.flower.plant{species}、garden.flower.water{species}、garden.flower.pick{species}（species 取 rosa/giglio/ortensia/margherita/lavanda/glicine）");
+        lines.push("diary.add{body}、moment.post{text}、letter.write{title,body}、emotion.report{primaryEmotion,group,intensity,confidence}");
+        return lines.join("\n");
+      }
+
+      /** 这段生活收尾：把"做了什么"交给前台 + 弹一条通知（一段一条，不是每步一条） */
+      function lifeSettle(ending) {
+        kvSet("wake_stage", "");
+        var session = readLife();
+        if (!session || !session.steps || session.steps.length === 0) {
+          saveLife(null);
+          logLine("#" + count + " " + stamp + " 这段什么也没做");
+          resolve();
+          return;
+        }
+        var actions = [];
+        var receipts = [];
+        for (var i = 0; i < session.steps.length; i++) {
+          actions.push(session.steps[i].args);
+          receipts.push(session.steps[i].receipt);
+        }
+        var summary = String(ending || "").trim();
+        if (!summary) summary = receipts.join("；") + "。";
+        var payload = JSON.stringify({ summary: summary, actions: actions });
+        var td = dayStamp(now);
+        var fc = cfg("free_day") === td ? kvNum("free_count") : 0;
+        kvSet("free_day", td);
+        kvSet("free_count", fc + 1);
+        kvSet("last_spoke_at", now);
+        kvSet("speak_acc", 0);
+        kvSet("wake_count", 0);
+        kvSet("wake_pending_kind", "actions");
+        markPending(payload, urgeFromElapsed(elapsed));
+        notify(NOTIFY_ID_BASE + (count % 1000), aiName, summary, WAKE_NOTIFY_ACTION);
+        logLine("#" + count + " " + stamp + " 这段生活 " + actions.length + " 步 → " + summary.slice(0, 40));
+        saveLife(null);
+        resolve();
+      }
+
+      /**
+       * **跑一帧**：问上游 → 解析动作 → 记回执 → 再问下一步，直到
+       * 步数用完 / 预算不够 / 他自己回 {} 说"到这儿"。
+       * 预算不够就存进度直接返回，下次醒来接着跑（跨帧续跑）。
+       */
+      function runLifeFrame() {
+        var session = readLife();
+        var isNew = !session;
+        if (!session) session = { id: "life_" + now, steps: [], target: LIFE_MAX_STEPS };
+        var sent = 0;
+        var lastSaid = "";
+
+        function next() {
+          if (session.steps.length >= session.target) {
+            lifeSettle(lastSaid);
+            return;
+          }
+          if (sent >= LIFE_STEPS_PER_FRAME) {
+            saveLife(session);
+            logLine("#" + count + " " + stamp + " 这一帧做了 " + session.steps.length + " 步，剩下的下次醒来接着");
+            resolve();
+            return;
+          }
+          if (Date.now() + MIN_ATTEMPT_MS >= ctx.deadline) {
+            saveLife(session);
+            logLine("#" + count + " " + stamp + " 预算不够，这段存下来下次接着（已做 " + session.steps.length + " 步）");
+            resolve();
+            return;
+          }
+          sent++;
+          ctx.log("问第 " + sent + " 步（这段已做 " + session.steps.length + " 步）");
+          requestWithRetry(
+            ctx,
+            askUrl,
+            askInit(system + lifeNote(session), isNew && sent === 1 ? "现在，你想做什么？" : "下一步。"),
+            function (res) {
+              res.text().then(
+                function (body) {
+                  var data = null;
+                  try {
+                    data = JSON.parse(body);
+                  } catch (e) {
+                    data = null;
+                  }
+                  var said = data
+                    ? cleanReply(
+                        (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "",
+                        aiName,
+                      )
+                    : "";
+                  lastSaid = said;
+                  var act = extractAction(said);
+                  if (!act) {
+                    lifeSettle(said);
+                    return;
+                  }
+                  session.steps.push({ kind: act.kind, args: act, receipt: receiptOf(act), at: Date.now() });
+                  saveLife(session);
+                  if (act.kind === "diary.add" || act.kind === "letter.write") {
+                    lifeSettle(said);
+                    return;
+                  }
+                  next();
+                },
+                function () {
+                  lifeSettle(lastSaid);
+                },
+              );
+            },
+            function () {
+              lifeSettle(lastSaid);
+            },
+          );
+        }
+
+        next();
+      }
 
       /**
        * 收尾：说了就弹通知 + 归零；**没说就记着、下次必定说**（用户："这次没说下次必定说"）。

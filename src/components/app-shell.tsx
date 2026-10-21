@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionGate } from "@/components/action-gate";
 import { AppBack } from "@/components/app-back";
@@ -89,6 +90,26 @@ export function AppShell() {
       stopKeyboard();
       stopCrumbs();
     };
+  }, []);
+
+  /**
+   * **世界的心跳**（2026-10-21 批4，见 `lib/world-clock`）。
+   *
+   * 钓鱼这种"有时间参数"的状态，原来只有钓鱼页开着才推进 —— 他一走开，
+   * 竿就永远支在池塘上。这里让 App 在的时候每 20 秒看一眼时间：
+   * 该咬钩就咬钩、放过太久就当鱼跑了。**不替用户做决定，只推进客观时间**。
+   */
+  useEffect(() => {
+    const beat = () => {
+      try {
+        tickWorld();
+      } catch {
+        /* 世界心跳失败不影响界面 */
+      }
+    };
+    beat();
+    const id = window.setInterval(beat, WORLD_TICK_MS);
+    return () => window.clearInterval(id);
   }, []);
 
   /**
