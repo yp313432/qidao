@@ -139,6 +139,14 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
         [WAKE_KEYS.actionDiary]: (s.diaryReminders !== false) ? "1" : "0",
         [WAKE_KEYS.actionFree]: "1",
         [WAKE_KEYS.actionEcho]: "1",
+        /**
+         * 2026-10-21 批1+2：自由活动现在是"**一段生活**"（一帧最多 2 步、一段最多 4 步），
+         * 所以一天只给 1 次太少了 —— 他一天只有一段"自己的时间"。
+         * 提到 3 段/天、每次醒来 40% 概率进入（后台 `cfgNumOr` 的默认值是 1 / 30，
+         * 不推这两行就等于退回老行为）。
+         */
+        [WAKE_KEYS.actionFreeMax]: "3",
+        [WAKE_KEYS.actionFreePct]: "40",
         [WAKE_KEYS.actionHour]: String(s.wakeLevel === "active" ? 20 : 20),
         [WAKE_KEYS.actionMinute]: "30",
         [WAKE_KEYS.actionDay]: lastAiDiaryDay() ?? "",
