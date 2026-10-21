@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { buildContext } from "@/lib/awareness";
+import { DEFAULT_STICKER_GROUP, stickerGroupList } from "@/lib/stickers";
 import { resolveAiName } from "@/lib/branding";
 import {
   historyForApi,
@@ -416,6 +417,26 @@ export function useChatStream(opts: UseChatOpts = {}) {
       // MCP 服务器 + 用户自己配的 HTTP 接口，一起交给提示词（一处实现见 promptToolsFor）
       const tools = promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools);
       const context = buildContext();
+      /**
+       * **让他知道表情库有哪些分组**（用户 m10324："发表情包不按分组来，随意发不准"）。
+       *
+       * 以前 `sticker.send` 的 feel 全靠他猜分组名 —— 猜不中就"随便挑一张"，
+       * 于是经常发一个跟当前情绪不搭的（拿「委屈」回一句撒娇）。
+       * 分组清单只有几个字，常驻在「此刻的情况」里，比每轮现问 `sticker.groups` 便宜。
+       */
+      {
+        const st0 = useApp.getState();
+        const groups = stickerGroupList(st0.stickerLib, st0.stickerGroups);
+        if (groups.length > 0) {
+          const brief = groups
+            .map((g) => {
+              const n = st0.stickerLib.filter((x) => (x.group || DEFAULT_STICKER_GROUP) === g).length;
+              return `${g}(${n})`;
+            })
+            .join("、");
+          context.aware = [...(context.aware ?? []), `表情包分组（sticker.send 的 feel 只能填这些之一）：${brief}`];
+        }
+      }
       // 世界书：常驻的进系统提示词，命中关键词的挂在最后一条用户消息尾部。
       // 这里没有直接的 text 变量，就从历史里找最后一条用户消息来判断关键词。
       const lastUser = [...history].reverse().find((m) => m.role === "user");

@@ -416,6 +416,15 @@ export function boardOf(moves: GardenChessMove[]): ReturnType<typeof emptyBoard>
 
 export type AppState = {
   hydrated: boolean;
+  /**
+   * **他现在醒着还是打盹**（用户 m10324 要求：头像旁边要能看出来）。
+   *
+   * 只由 `lib/awake.ts` 写：页面可见 + 用户最近 2 分钟有动作 = `"awake"`，
+   * 否则 `"asleep"`。**不持久化**（见 persist 的 partialize）—— 这是"此刻"的状态，
+   * 存下来的话下次冷启动会显示一个假的上次状态。
+   */
+  awakeState: "awake" | "asleep";
+  setAwakeState: (state: "awake" | "asleep") => void;
   settings: Settings;
   quota: QuotaState;
   conversations: Conversation[];
@@ -734,6 +743,8 @@ export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
       hydrated: false,
+      awakeState: "asleep",
+      setAwakeState: (state) => set({ awakeState: state }),
       settings: defaultSettings,
       quota: { used: 0, windowStart: Date.now() },
       conversations: [],

@@ -4216,3 +4216,19 @@ html[data-keyboard="up"] .qi-board {
 .sticker-skip {
   opacity: 0.55;
 }
+
+/* ── 小窗 / 失焦时停止重绘（用户 m10324：挂小窗会闪白和色块）────────────
+ *
+ * 只加动画暂停还不够：真正让 WebView 反复重绘的是大面积的 `backdrop-filter`
+ * （模糊背景那几层）。失焦时一起关掉，回到前台由 app-shell 的 syncQuiet 摘掉
+ * `q-paused`，外观完全恢复。
+ */
+html.q-paused *,
+html.q-paused *::before,
+html.q-paused *::after {
+  animation-play-state: paused !important;
+}
+html.q-paused * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

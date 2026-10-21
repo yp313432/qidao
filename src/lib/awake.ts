@@ -78,6 +78,13 @@ export function noteUserActivity(): void {
   lastUserActAt = Date.now();
 }
 
+/** 把"醒着/打盹"同步给界面（头像旁那枚胶囊） */
+function syncAwakeState(now = Date.now()): void {
+  const want: "awake" | "asleep" = isAwake(now) ? "awake" : "asleep";
+  const st = useApp.getState();
+  if (st.awakeState !== want) st.setAwakeState(want);
+}
+
 /** 现在他"醒着"吗（纯本地判断，不发请求） */
 export function isAwake(now = Date.now()): boolean {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
@@ -109,13 +116,43 @@ function clues(now: number): Clue[] {
     out.push({ kind: "fish", note: `竿还支着（${pond.spot || "池塘"}），水面还没动` });
   }
 
+  /**
+   * **时段的料**：一个人待着的时候，是"天光"最容易让他想动。
+   *
+   * ⚠️ 第一版只写了"天刚亮 / 天在暗"，结果一天里绝大多数时间**一条料都没有**，
+   * 于是他永远不动（用户 m10324："点开 app 好久了，也没看到有动静"）。
+   * 现在四个时段都算料，各自 30 分钟冷却一次。
+   */
   const hour = new Date(now).getHours();
-  if (hour >= 6 && hour < 9) out.push({ kind: "morning", note: "天刚亮，花园里露水还没干" });
+  if (hour >= 5 && hour < 9) out.push({ kind: "morning", note: "天刚亮，花园里露水还没干" });
+  if (hour >= 9 && hour < 12) out.push({ kind: "forenoon", note: "上午的光刚好，院子里很安静" });
+  if (hour >= 12 && hour < 15) out.push({ kind: "noon", note: "中午了，日头正亮" });
+  if (hour >= 15 && hour < 18) out.push({ kind: "afternoon", note: "下午了，光开始斜" });
   if (hour >= 18 && hour < 21) out.push({ kind: "dusk", note: "天在暗下来，花园里安静下来了" });
+  if (hour >= 21 || hour < 1) out.push({ kind: "night", note: "夜里了，院子里只剩虫声" });
 
-  const lastSay = lastSpeakAt > 0 ? lastSpeakAt : lastUserActAt;
-  if (lastSay > 0 && now - lastSay > 25 * 60 * 1000) {
-    out.push({ kind: "quiet", note: "你们有一阵没说话了，他一个人待着" });
+  /**
+   * **很久没说话**：看的是"最后一条消息的时间"，不是"用户最后动屏幕的时间"。
+   *
+   * 这是一个必须记住的坑：用 `lastUserActAt` 的话，**你越在场它越不成立** ——
+   * 你一动屏幕时间就被刷新，这条料永远不会出现（第一版就是这么哑的）。
+   */
+  const st2 = useApp.getState();
+  const conv = st2.conversations.find((c) => c.id === st2.activeId) ?? st2.conversations[0];
+  const lastMsgAt = conv?.messages.at(-1)?.createdAt ?? 0;
+  if (lastMsgAt > 0 && now - lastMsgAt > 20 * 60 * 1000) {
+    out.push({ kind: "quiet", note: `你们上一次说话是 ${Math.round((now - lastMsgAt) / 60000)} 分钟前` });
+  }
+
+  /**
+   * **基线**：即使上面一条都没中，也给他 25% 的机会"就是想动一下"。
+   *
+   * 没有这条的话，他在"没鱼咬钩、也不是整点时段"的大部分时间里永远不动，
+   * 用户看到的就是"这个功能像坏的"。25% × 每 4 分钟一拍 ≈ 平均 16 分钟动一次，
+   * 既不烦人，又让人能感觉到他活着。
+   */
+  if (out.length === 0 && Math.random() < 0.25) {
+    out.push({ kind: "idle", note: "没什么事，只是醒着" });
   }
 
   /**
@@ -283,8 +320,10 @@ export function startAwakeLoop(): () => void {
   window.addEventListener("touchstart", mark, opts);
 
   const timer = window.setInterval(() => {
+    syncAwakeState();
     void awakeBeat().catch(() => {});
   }, AWAKE_TICK_MS);
+  syncAwakeState();
 
   return () => {
     window.clearInterval(timer);

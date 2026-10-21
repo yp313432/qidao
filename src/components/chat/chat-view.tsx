@@ -199,6 +199,8 @@ export function ChatView() {
   const empty = !conv || conv.messages.length === 0;
   const aiName = resolveAiName(settings.aiName);
   const hydrated = useApp((s) => s.hydrated);
+  /** 他现在醒着还是打盹（只由 lib/awake.ts 写）—— 用户 m10324 要能一眼看到 */
+  const awakeState = useApp((s) => s.awakeState);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
   const { busy, liveId, step, send, regenerate } = useChatStream();
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
@@ -729,11 +731,44 @@ export function ChatView() {
                             状态是**按条**存的（`finalizeAssistant` 收尾时抄进去），
                             所以翻历史看到的是"当时"，不是"现在"。
                           */}
-                          {m.status && (
-                            <span className="rounded-full border border-line bg-chip px-1.5 py-0.5 text-[10px] leading-none text-muted">
-                              {m.status}
-                            </span>
-                          )}
+                          {(() => {
+                            /**
+                             * 用户 m10324："把他头像旁边的状态加一个沉睡还是醒着的，
+                             * 我本意是想我点开 app 他就醒着，所以现在是个什么情况"。
+                             *
+                             * 所以**只有最新一条**显示实时状态（醒着 / 打盹）；
+                             * 更早的消息仍然显示当时那个动作状态（钓鱼中 / 浇花），
+                             * 两者不能混：历史是"当时"，最新是"现在"。
+                             */
+                            const isLatest = i === conv!.messages.length - 1;
+                            if (isLatest && !mine) {
+                              const awake = awakeState === "awake";
+                              return (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] leading-none",
+                                    awake
+                                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                                      : "border-line bg-chip text-muted",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "size-1.5 rounded-full",
+                                      awake ? "bg-emerald-500" : "bg-subtle",
+                                    )}
+                                  />
+                                  {awake ? "醒着" : "打盹"}
+                                </span>
+                              );
+                            }
+                            if (!m.status) return null;
+                            return (
+                              <span className="rounded-full border border-line bg-chip px-1.5 py-0.5 text-[10px] leading-none text-muted">
+                                {m.status}
+                              </span>
+                            );
+                          })()}
                           {/*
                             来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
                             所以要看 `origin` 分开说（用户要求）：

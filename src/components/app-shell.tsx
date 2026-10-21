@@ -116,9 +116,29 @@ export function AppShell() {
      * 详见 `lib/awake.ts` 开头那段。
      */
     const stopAwake = startAwakeLoop();
+    /**
+     * **切到小窗 / 别的应用时停掉重绘**（用户 m10324："其他应用挂小窗的时候，
+     * 栖岛会一直闪屏，有白光和色块"）。
+     *
+     * 安卓 WebView 在小窗里仍然合成：背景那层大面积的 `backdrop-filter` +
+     * 常驻动画会反复触发重绘，表现出来就是闪白/色块。失焦时把它们整体按暂停，
+     * 回来再恢复 —— 视觉上没有任何损失（反正看不见）。
+     */
+    const syncQuiet = () => {
+      const quiet = document.visibilityState === "hidden" || !document.hasFocus();
+      document.documentElement.classList.toggle("q-paused", quiet);
+    };
+    window.addEventListener("focus", syncQuiet);
+    window.addEventListener("blur", syncQuiet);
+    document.addEventListener("visibilitychange", syncQuiet);
+    syncQuiet();
     return () => {
       window.clearInterval(id);
       stopAwake();
+      window.removeEventListener("focus", syncQuiet);
+      window.removeEventListener("blur", syncQuiet);
+      document.removeEventListener("visibilitychange", syncQuiet);
+      document.documentElement.classList.remove("q-paused");
     };
   }, []);
 
