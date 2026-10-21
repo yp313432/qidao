@@ -4,7 +4,7 @@ import { isNativeApp } from "@/lib/platform";
 import { partsFor, stripInvisible } from "@/lib/segment";
 import { useApp } from "@/lib/store";
 import { waitHydrated } from "@/lib/store-ready";
-import { stripActions } from "@/lib/use-chat";
+import { stripActionLines, stripActions } from "@/lib/use-chat";
 import {
   WAKE_KEYS,
   ackWakeLedger,
@@ -455,21 +455,36 @@ async function doFlushPendingWake(): Promise<WakeFlushResult> {
       }
     }
 
-    const started = useApp.getState().beginScheduledReply(text);
-    /** 会话还没准备好（理论上不会）：**交接键留着**，下一次进前台再试 —— 不丢他这句话 */
-    if (!started) return { ok: false, landed: false, message: "会话还没准备好，这句话先留在抽屉里" };
     /**
      * 后台草稿里的**动作块不能漏进气泡**（用户 m02156 报过唤醒消息里摊着参数），
      * 而且他在后台可能一次写了好几段（用户："不能分段回复"）——
      * 跟主对话同一个规则：先洗正文，再算分段。
      */
-    const shown = stripInvisible(stripActions(text)).trim() || stripInvisible(text).trim();
+    /**
+     * ⚠️ 回退那一支原来直接吃**原始 text** —— 他那次正好在正文里漏了半截动作 JSON，
+     * 于是"洗干净"的结果被自己回退成了没洗的版本（用户 m09869 截图抓到）。
+     * 现在回退也走 `stripActionLines`（只删 JSON 那种行），实在没有正文才给一句说明。
+     */
+    const shown =
+      stripInvisible(stripActions(text)).trim() ||
+      stripInvisible(stripActionLines(text)).trim() ||
+      "（他这次只动了手，没写正文）";
     const setting = useApp.getState().settings;
     const parts = partsFor(shown, {
       enabled: setting.segmentReply !== false,
       maxParts: setting.segmentMaxParts ?? 3,
       maxSentences: setting.segmentMaxSentences ?? 2,
     });
+    /**
+     * ⚠️ **先算正文和分段，再插占位消息**。
+     * 原来的顺序是"先 beginScheduledReply 插一条空消息，再洗正文"——
+     * 万一洗正文/分段抛错（外层 catch 只是返回失败、交接键留着下次重试），
+     * 那条空消息就永远留在会话里 —— 用户看到的"空气泡"有一半是这么来的。
+     */
+    const started = useApp.getState().beginScheduledReply(text);
+    /** 会话还没准备好（理论上不会）：**交接键留着**，下一次进前台再试 —— 不丢他这句话 */
+    if (!started) return { ok: false, landed: false, message: "会话还没准备好，这句话先留在抽屉里" };
+
     useApp.getState().finalizeAssistant(started.conversationId, started.messageId, {
       content: shown,
       parts,

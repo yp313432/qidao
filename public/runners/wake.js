@@ -475,6 +475,10 @@ function requestWithRetry(ctx, url, init, onReply, onFail) {
  */
 function diagnoseAndNotify(ctx, msg, kind, tries, host) {
   ctx.log("问不到上游（" + kind + "，" + tries + " 次都没成）：" + String(msg).slice(0, 60));
+  logLine(
+    "#" + ctx.count + " " + ctx.stamp + " 问不到上游（" + kind + "，" + tries + " 次）：" +
+      String(msg).slice(0, 60),
+  );
   var left = ctx.deadline - Date.now();
   if (left < PROBE_MIN_MS) {
     ctx.log("诊断：no-time —— 时间不够（剩 " + Math.max(0, Math.round(left / 1000)) + " 秒），跳过对照探测");
@@ -861,6 +865,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
       function onUpstreamReply(status, body) {
         if (status < 200 || status >= 300) {
           ctx.log("上游 " + status);
+          logLine("#" + count + " " + stamp + " 上游回了 " + status + "：" + String(body).slice(0, 60));
           errorNotify(count, stamp, "上游返回 " + status + "：" + String(body).slice(0, 80));
           resolve();
           return;
@@ -919,6 +924,9 @@ addEventListener("qidaoWake", function (resolve, reject) {
       /* 进请求前先落一行：这样"卡在问上游"和"问到了但没说"就能分开 */
       kvSet("wake_stage", "asking");
       ctx.log("→ 开始问他（预算 " + Math.round(WAKE_BUDGET_MS / 1000) + " 秒）");
+      /* 用户 m09886："醒来了，但是还是没有消息" —— 界面上只看到"看他"那几行，
+         分不清是"问上游卡住"还是"问到了但决定不说"。所以关键三步都写进 wake_log。 */
+      logLine("#" + count + " " + stamp + " 开始问他（预算 " + Math.round(WAKE_BUDGET_MS / 1000) + " 秒）");
 
       requestWithRetry(
         ctx,

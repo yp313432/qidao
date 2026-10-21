@@ -6,6 +6,7 @@ import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { partsFor, stripInvisible } from "@/lib/segment";
+import { stripActions } from "@/lib/use-chat";
 import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
 
@@ -282,8 +283,13 @@ export function TaskDaemon() {
           /* 动作没执行成功也不该让这条消息本身消失 */
         }
       }
+      /**
+       * ⚠️ 这里原来只 `stripInvisible` —— `splitActions` 只管代码块/完整 JSON，
+       * 遇到"漏在正文里的半截动作 JSON"（用户 m09869 截图那种）会原样塞进气泡。
+       * 跟主对话用同一道清洗（`stripActions` 里含按行兜底的 `stripActionLines`）。
+       */
       const shown =
-        stripInvisible(draftRest).trim() ||
+        stripInvisible(stripActions(draftRest)).trim() ||
         (draftActions.length ? "（这件事我做完了）" : "（他自己开了口，但没说出什么）");
       /**
        * **分段回复**：定时任务这条路以前整段塞一个气泡，用户 m02156 报"定时唤醒发的消息不能分段"。

@@ -88,8 +88,8 @@ function isPunctOnly(s: string | undefined | null): boolean {
  * 屏幕上就是"一个带括号的空框"。这里把空地址链接压成纯文字、空地址图片直接删掉。
  */
 function cleanForRender(s: string): string {
-  return s
-    .replace(/!\[[^\]]*\]\(\s*\)/g, "")
+  return stripActionLines(s)
+    .replace(/!\[[^\]]*\](\(\s*\))/g, "")
     .replace(/\[([^\]]+)\]\(\s*\)/g, "$1");
 }
 
@@ -113,7 +113,7 @@ import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import type { Attachment } from "@/lib/types";
-import { useChatStream } from "@/lib/use-chat";
+import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";

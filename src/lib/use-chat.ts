@@ -175,11 +175,51 @@ function collectFrom(chunk: string, out: AppAction[]) {
 const BARE_ACTION_TAIL =
   /\n[^\n]{0,40}"(?:intensity|confidence|primaryEmotion|secondaryEmotions|suggestedMode|dimensions|memoryQuery|momentId|kind)"\s*:[\s\S]*$/;
 
+/**
+ * **把漏在正文里的动作 JSON 清掉**（只删 JSON 那一段，正文一个字都不动）。
+ *
+ * 用户 m09869 共享屏幕抓到的真 bug：后台那条定时消息里漏出了**半截**动作 JSON ——
+ * `ind":"garden.fish.cast","spot":"岸边"}`。它连开头的 `{"k` 都没了，
+ * 所以 `BARE_ACTION_TAIL`（要求整块/整段、且从换行起算）认不出来，原样漏到气泡里。
+ *
+ * 两条判据（都刻意写窄 —— 中文正文里不会长成这两种样子）：
+ *   ① 行内出现 `{"kind":` / `{"spot":` … → 从那里砍到行尾，**前面的正文留着**；
+ *   ② 整行就是一段残片（行首是 `"kind":` / `ind":` 这种"缺左括号"的键名 + 冒号，
+ *      行尾是 `}` / `]`） → 整行丢掉。
+ */
+const ACTION_FIELDS =
+  "ind|kind|spot|place|mood|text|body|title|intensity|confidence|primaryEmotion|secondaryEmotions|suggestedMode|dimensions|memoryQuery|momentId|query|sentence|feel|to|amount|days|hour|minute";
+
+const ACTION_JSON_START = new RegExp("\\{\\s*\"?(?:" + ACTION_FIELDS + ")\"?\\s*:");
+const ACTION_JSON_HEAD = new RegExp("^\"?(?:" + ACTION_FIELDS + ")\"?\\s*:");
+const ACTION_JSON_END = /[}\]]\s*,?\s*$/;
+
+export function stripActionLines(text: string): string {
+  if (!text || !text.includes('":')) return text;
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    const at = line.search(ACTION_JSON_START);
+    if (at >= 0 && ACTION_JSON_END.test(line.slice(at))) {
+      const head = line.slice(0, at).trimEnd();
+      if (head) out.push(head);
+      continue;
+    }
+    const t = line.trim();
+    if (t.length <= 260 && ACTION_JSON_HEAD.test(t) && t.includes('":') && ACTION_JSON_END.test(t)) {
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 export function stripActions(text: string): string {
-  return text
-    .replace(STRICT_BLOCK, "")
-    .replace(/```[ \t]*qidao[\s\S]*$/i, "")
-    .replace(BARE_ACTION_TAIL, "")
+  return stripActionLines(
+    text
+      .replace(STRICT_BLOCK, "")
+      .replace(/```[ \t]*qidao[\s\S]*$/i, "")
+      .replace(BARE_ACTION_TAIL, ""),
+  )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
