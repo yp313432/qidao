@@ -2261,7 +2261,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             {voiceProvider === "elevenlabs" &&
               " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
             {voiceProvider === "dashscope" &&
-              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。"}
+              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。注意：这一档只做朗读（把他写的话念出来），按住麦克风说话要换回第 1 档。"}
           </p>
         </div>
 

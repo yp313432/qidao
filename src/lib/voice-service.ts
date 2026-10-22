@@ -182,6 +182,20 @@ export async function transcribe(
   cfg = voiceConfig(),
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   if (!cfg) return { ok: false, reason: "还没配语音服务（我的 → 语音服务）" };
+  /**
+   * **百炼这一档只有"说"，没有"听"**（用户 m11038 看到表里那个叉号问过）。
+   *
+   * 它的语音识别是另一套接口（异步任务 + 文件上传），跟这里"发一段音频给
+   * `/audio/transcriptions` 拿回文字"的形状完全不同，这次没接。
+   * 与其让它走到 OpenAI 分支去撞 404，不如直接说清楚怎么办。
+   */
+  if (voiceProviderOf(cfg.baseUrl) === "dashscope") {
+    return {
+      ok: false,
+      reason:
+        "百炼这一档只接了「说」（把文字念出来），没接「听」（把你说的转成文字）。要用麦克风说话，去 我的 → 系统 → 语音 换回「1 · OpenAI 兼容」。",
+    };
+  }
   try {
     /**
      * ⚠️ **ElevenLabs 单独一条路**（2026-10 用户要换它）：头是 `xi-api-key`（不是 Bearer）、
