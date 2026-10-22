@@ -623,6 +623,14 @@ export type Settings = {
    */
   voiceBaseUrl?: string;
   voiceApiKey?: string;
+  /**
+   * 按情绪调整语气（百炼专用，默认开）。
+   *
+   * 用户 m10841：百炼的语音能"按情绪念"。实现是合成时带一句 `instruction`
+   * （自然语言描述怎么念），取自最近一次情绪上报的 group。
+   * 关掉就一律平着念。
+   */
+  voiceEmotionTags?: boolean;
   /** 转文字的模型名，如 FunAudioLLM/SenseVoiceSmall */
   voiceAsrModel?: string;
   /** 合成的模型名，如 FunAudioLLM/CosyVoice2-0.5B */

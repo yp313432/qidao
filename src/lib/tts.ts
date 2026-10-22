@@ -25,6 +25,7 @@
 import { IS_APP } from "@/lib/platform";
 import { useApp } from "@/lib/store";
 import { synthesize, voiceConfigured } from "@/lib/voice-service";
+import { instructionOfEmotion } from "@/lib/dashscope";
 
 export type SpeakResult = { ok: true } | { ok: false; reason: string };
 
@@ -62,7 +63,20 @@ export async function speakTextAsync(
    * 用户只要填一次地址和 key ✅
    */
   if (voiceConfigured()) {
-    const out = await synthesize(clean);
+    /**
+     * **按情绪调整语气**（用户 m10841："这个百炼是千问的语音模型…情绪标签是啥意思"）。
+     *
+     * 只在百炼那条路上有意义：它支持 `instruction`（一句自然语言描述怎么念）。
+     * 拿的是**最近一次情绪上报**的 group —— 他刚说"心跳快了一下"，下一句就该轻一点。
+     * 读不到/关掉了就传空，平着念（宁可平，也不要瞎加）。
+     */
+    let instruction = "";
+    const st = useApp.getState();
+    if (st.settings.voiceEmotionTags !== false) {
+      const last = st.emotionEvents?.[st.emotionEvents.length - 1];
+      instruction = instructionOfEmotion(last?.group);
+    }
+    const out = await synthesize(clean, undefined, { instruction });
     if (out.ok) {
       try {
         const audio = new Audio(out.url);

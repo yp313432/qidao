@@ -1,4 +1,13 @@
 import { useApp } from "@/lib/store";
+import {
+  DS_DEFAULT_BASE,
+  DS_SYSTEM_VOICES,
+  DS_TTS_MODELS,
+  designVoice,
+  listDashscopeVoices,
+  synthDashscope,
+  type DsVoice,
+} from "@/lib/dashscope";
 
 /**
  * 独立的语音服务（语音转文字 + 文字转语音）。
@@ -29,12 +38,15 @@ export function voiceConfig(): VoiceConfig | null {
   const s = useApp.getState().settings;
   const key = (s.voiceApiKey ?? "").trim();
   if (!key) return null;
+  const baseUrl = (s.voiceBaseUrl ?? "").trim() || DEFAULT_BASE;
+  const ds = voiceProviderOf(baseUrl) === "dashscope";
   return {
-    baseUrl: (s.voiceBaseUrl ?? "").trim() || DEFAULT_BASE,
+    baseUrl,
     apiKey: key,
-    asrModel: (s.voiceAsrModel ?? "").trim() || DEFAULT_ASR,
-    ttsModel: (s.voiceTtsModel ?? "").trim() || DEFAULT_TTS,
-    voice: (s.voiceTtsVoice ?? "").trim() || DEFAULT_VOICE,
+    // 百炼的转文字是另一套接口，这里先留空（只用它的合成）
+    asrModel: (s.voiceAsrModel ?? "").trim() || (ds ? "" : DEFAULT_ASR),
+    ttsModel: (s.voiceTtsModel ?? "").trim() || (ds ? DS_TTS_MODELS[0]! : DEFAULT_TTS),
+    voice: (s.voiceTtsVoice ?? "").trim() || (ds ? DS_SYSTEM_VOICES[0]!.id : DEFAULT_VOICE),
   };
 }
 
@@ -52,10 +64,16 @@ const join = (base: string, path: string) => `${base.replace(/\/+$/, "")}${path}
  * `/text-to-speech/{voice_id}` 与 `/speech-to-text`，音色要用 `/voices` 拉；合成出来是 mp3。
  * 所以这里先**认服务商**（地址里带 `elevenlabs.io` 就是它），下面每条路分开走。
  */
-export type VoiceProvider = "openai" | "elevenlabs";
+export type VoiceProvider = "openai" | "elevenlabs" | "dashscope";
 
 export function voiceProviderOf(baseUrl: string): VoiceProvider {
-  return /elevenlabs\.io/i.test(baseUrl.trim()) ? "elevenlabs" : "openai";
+  const s = baseUrl.trim();
+  /**
+   * 百炼（阿里）：通用域名 `dashscope.aliyuncs.com`，业务空间专属域名
+   * `{workspace}.cn-beijing.maas.aliyuncs.com`。它**不是** OpenAI 形状（见 lib/dashscope.ts）。
+   */
+  if (/dashscope\.aliyuncs\.com|\.maas\.aliyuncs\.com/i.test(s)) return "dashscope";
+  return /elevenlabs\.io/i.test(s) ? "elevenlabs" : "openai";
 }
 
 /**
@@ -73,6 +91,21 @@ export async function listVoiceModels(
   if (!cfg) return { ok: false, reason: "先在「我的 → 语音服务」填密钥" };
   const provider = voiceProviderOf(cfg.baseUrl);
   try {
+    if (provider === "dashscope") {
+      const r = await listDashscopeVoices({
+        baseUrl: cfg.baseUrl,
+        apiKey: cfg.apiKey,
+        model: cfg.ttsModel,
+        voice: cfg.voice,
+      });
+      if (!r.ok) return { ok: false, reason: r.reason };
+      return {
+        ok: true,
+        provider,
+        models: DS_TTS_MODELS,
+        voices: r.voices.map((v) => v.id),
+      };
+    }
     if (provider === "elevenlabs") {
       const res = await fetch(join(cfg.baseUrl, "/voices"), { headers: { "xi-api-key": cfg.apiKey } });
       if (!res.ok) return { ok: false, reason: `ElevenLabs 音色拉取失败：HTTP ${res.status}（密钥对吗？）` };
@@ -204,9 +237,21 @@ export async function transcribe(
 export async function synthesize(
   text: string,
   cfg = voiceConfig(),
+  opts: { instruction?: string } = {},
 ): Promise<{ ok: true; url: string } | { ok: false; reason: string }> {
   if (!cfg) return { ok: false, reason: "还没配语音服务" };
   try {
+    /**
+     * **百炼（阿里）**：不是 OpenAI 形状，三条路都在 `lib/dashscope.ts` 里。
+     * `instruction` 只在它这里有用（另外两家没有"用一句话描述怎么念"这种参数）。
+     */
+    if (voiceProviderOf(cfg.baseUrl) === "dashscope") {
+      return await synthDashscope(
+        { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.ttsModel, voice: cfg.voice },
+        text,
+        opts.instruction,
+      );
+    }
     /**
      * ⚠️ **ElevenLabs 单独一条路**：`POST {base}/text-to-speech/{voice_id}`，
      * 头 `xi-api-key`，body 用 `model_id`，回来是 mp3。

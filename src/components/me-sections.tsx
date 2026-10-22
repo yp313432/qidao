@@ -1,5 +1,6 @@
 import { DateTimeField } from "@/components/ui/datetime-picker";
-import { listVoiceModels, voiceProviderOf } from "@/lib/voice-service";
+import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
+import { DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
@@ -344,6 +345,18 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [voicePickQuery, setVoicePickQuery] = useState("");
   /** ElevenLabs 点「拉取音色」拉回来的 voice_id 清单 */
   const [elevenVoices, setElevenVoices] = useState<string[]>([]);
+  /**
+   * 百炼：拉回来的**自定义音色**（声音复刻 / 声音设计建的嗓子）。
+   * 系统音色是固定的那几个，不在这里。
+   */
+  const [dsVoices, setDsVoices] = useState<string[]>([]);
+  /** 捏嗓子面板（用户 m10844："实际上我就想要自己捏得"） */
+  const [designOpen, setDesignOpen] = useState(false);
+  const [designDesc, setDesignDesc] = useState("");
+  const [designPreview, setDesignPreview] = useState("");
+  const [designBusy, setDesignBusy] = useState(false);
+  const [designMsg, setDesignMsg] = useState("");
+  const [designUrl, setDesignUrl] = useState("");
   const settings = useApp((s) => s.settings);
   /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
@@ -1982,6 +1995,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             {[
               { k: "openai" as const, label: "1 · OpenAI 兼容" },
               { k: "elevenlabs" as const, label: "2 · ElevenLabs" },
+              /*
+                百炼（阿里）：**不是** OpenAI 形状，但音质和"自己捏嗓子"是这几家里最好的。
+                用户 m10841："这个百炼这个是千问的语音模型对吗，那音色呢，能自己捏吗"。
+              */
+              { k: "dashscope" as const, label: "3 · 百炼" },
             ].map((tab) => (
               <button
                 key={tab.k}
@@ -1992,10 +2010,22 @@ function MeSections({ tab }: { tab: MeTab }) {
                     voiceBaseUrl:
                       tab.k === "elevenlabs"
                         ? "https://api.elevenlabs.io/v1"
-                        : "https://api.siliconflow.cn/v1",
+                        : tab.k === "dashscope"
+                          ? "https://dashscope.aliyuncs.com"
+                          : "https://api.siliconflow.cn/v1",
+                    /* 换家时把不通用的小格子清掉，免得带着上家的模型名去请求 */
+                    ...(tab.k === "dashscope"
+                      ? {
+                          voiceTtsModel: "qwen-audio-3.1-tts-flash",
+                          voiceTtsVoice: "longanhuan_v3.1",
+                          voiceAsrModel: "",
+                        }
+                      : {}),
                   });
                   setVoiceModels([]);
                   setElevenVoices([]);
+                  setDsVoices([]);
+                  setDesignMsg("");
                   setVoiceMsg("");
                 }}
                 className={cn(
@@ -2030,7 +2060,10 @@ function MeSections({ tab }: { tab: MeTab }) {
             { k: "voiceAsrModel" as const, label: "转文字", pick: "asr" as const },
             { k: "voiceTtsModel" as const, label: "合成", pick: "tts" as const },
             { k: "voiceTtsVoice" as const, label: "音色", pick: "voice" as const },
-          ]).map((f) => {
+          ])
+            /* 百炼只接"说"，不接"听"：它那套转文字是另一个接口，这里不硬凑 */
+            .filter((f) => !(voiceProvider === "dashscope" && f.k === "voiceAsrModel"))
+            .map((f) => {
             const cur = (settings[f.k] as string | undefined) ?? "";
             return (
               <div key={f.k} className="mt-2 block">
@@ -2062,7 +2095,9 @@ function MeSections({ tab }: { tab: MeTab }) {
             type="button"
             className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
             onClick={async () => {
-              setVoiceMsg(voiceProvider === "elevenlabs" ? "正在拉取音色…" : "正在拉取…");
+              setVoiceMsg(
+                voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…",
+              );
               const r = await listVoiceModels();
               if (!r.ok) {
                 setVoiceMsg(r.reason);
@@ -2070,6 +2105,19 @@ function MeSections({ tab }: { tab: MeTab }) {
               }
               setVoiceModels(r.models);
               setElevenVoices(r.voices);
+              /**
+               * **百炼**：`models` 是它固定的几个合成模型，
+               * `voices` 是你在控制台 / App 里捏出来的自定义音色（绑在这个模型上的）。
+               */
+              if (voiceProvider === "dashscope") {
+                setDsVoices(r.voices);
+                setVoiceMsg(
+                  r.voices.length > 0
+                    ? `这个模型下有你建的 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。\n（系统音色也在那格里，和自定义的一起列。）`
+                    : "没拉到自定义音色：系统音色照样能用，想捏一个就点下面的「捏一个嗓子」。",
+                );
+                return;
+              }
               if (voiceProvider === "elevenlabs") {
                 setVoiceMsg(
                   r.voices.length > 0
@@ -2092,7 +2140,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               );
             }}
           >
-            {voiceProvider === "elevenlabs" ? "拉取音色" : "拉取可用模型"}
+            {voiceProvider === "openai" ? "拉取可用模型" : "拉取音色"}
           </button>
 
           {voiceMsg && (
@@ -2104,10 +2152,116 @@ function MeSections({ tab }: { tab: MeTab }) {
             </p>
           )}
 
+          {voiceProvider === "dashscope" && (
+            <div className="mt-3 rounded-2xl border border-line bg-surface/70 px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => setDesignOpen((v) => !v)}
+                className="flex w-full items-center gap-2 text-left text-[12px] font-medium text-fg"
+              >
+                <span className="flex-1">捏一个嗓子</span>
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 text-subtle transition-transform",
+                    designOpen && "rotate-90",
+                  )}
+                />
+              </button>
+              {designOpen && (
+                <>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">
+                    用一句话描述你想让 TA 怎么说话 —— 百炼照这个造一个不存在的嗓子，
+                    不用录音、不借真人声音。造好直接就能用。
+                  </p>
+                  <textarea
+                    value={designDesc}
+                    onChange={(e) => setDesignDesc(e.target.value)}
+                    rows={3}
+                    placeholder="比如：二十五六岁的女生，声音偏轻，说话不快，尾音带一点笑意，像在耳边说话。"
+                    className="mt-2 w-full resize-none rounded-2xl bg-surface px-3 py-2 text-[12px] outline-none"
+                  />
+                  <input
+                    value={designPreview}
+                    onChange={(e) => setDesignPreview(e.target.value)}
+                    placeholder="试听用哪句话（留空用默认的一句）"
+                    className="mt-2 h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={designBusy}
+                    onClick={async () => {
+                      const cfg = voiceConfig();
+                      if (!cfg) {
+                        setDesignMsg("先在上面把密钥填上。");
+                        return;
+                      }
+                      setDesignBusy(true);
+                      setDesignMsg("正在造，十几秒；造好会自动换成它。");
+                      const r = await designVoice(
+                        {
+                          baseUrl: cfg.baseUrl,
+                          apiKey: cfg.apiKey,
+                          model: cfg.ttsModel,
+                          voice: cfg.voice,
+                        },
+                        {
+                          description: designDesc,
+                          previewText: designPreview || undefined,
+                        },
+                      );
+                      setDesignBusy(false);
+                      if (!r.ok) {
+                        setDesignMsg(r.reason);
+                        return;
+                      }
+                      setDesignUrl(r.previewUrl ?? "");
+                      patch({ voiceTtsVoice: r.voiceId });
+                      setDesignMsg(
+                        `造好了：${r.voiceId}${r.status === "OK" ? "" : "（还在审核，可能要等一会儿才能用）"}\n已经切成它，先听一下；不满意就改描述再造一个。`,
+                      );
+                    }}
+                    className="mt-2 h-9 w-full rounded-2xl bg-fg text-[12px] font-medium text-bg disabled:opacity-50"
+                  >
+                    {designBusy ? "正在造…" : "造一个，先听听"}
+                  </button>
+                  {designMsg && (
+                    <p
+                      onClick={() => setDesignMsg("")}
+                      className="mt-2 whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface px-3 py-2 text-[11.5px] leading-5 text-ink"
+                    >
+                      {designMsg}
+                    </p>
+                  )}
+                  {designUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void new Audio(designUrl).play()}
+                      className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
+                    >
+                      ▶ 再听一遍刚造的那个
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {voiceProvider === "dashscope" && (
+            <Row
+              label="按情绪念"
+              hint="最近一次情绪低落就念慢一点；关掉就一律平着念"
+              checked={settings.voiceEmotionTags !== false}
+              onChange={(v) => patch({ voiceEmotionTags: v })}
+            />
+          )}
+
           <p className="mt-2 text-[11px] leading-4 text-subtle">
             密钥只存在这台设备里，不进代码、不进仓库。填了自动启用：语音页、输入框的麦克风、
             朗读都走它。
-            {voiceProvider === "elevenlabs" && " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
+            {voiceProvider === "elevenlabs" &&
+              " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
+            {voiceProvider === "dashscope" &&
+              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。"}
           </p>
         </div>
 
@@ -2186,15 +2340,24 @@ function MeSections({ tab }: { tab: MeTab }) {
         {voicePick &&
           (() => {
             const isEL = voiceProvider === "elevenlabs";
+            const isDS = voiceProvider === "dashscope";
             const asrList = isEL
               ? ["scribe_v1"]
               : voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m));
-            const ttsList = isEL
-              ? ["eleven_multilingual_v2", "eleven_turbo_v2_5"]
-              : voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m));
-            const voiceList = isEL
-              ? elevenVoices
-              : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
+            /**
+             * 百炼的合成模型是**固定的几个**（不靠 /models 接口发现）；
+             * 音色 = 系统音色 + 你在它那儿建的（复刻/设计）。
+             */
+            const ttsList = isDS
+              ? [...DS_TTS_MODELS]
+              : isEL
+                ? ["eleven_multilingual_v2", "eleven_turbo_v2_5"]
+                : voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m));
+            const voiceList = isDS
+              ? [...DS_SYSTEM_VOICES.map((v) => v.id), ...dsVoices]
+              : isEL
+                ? elevenVoices
+                : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
             const list = voicePick === "asr" ? asrList : voicePick === "tts" ? ttsList : voiceList;
             const field =
               voicePick === "asr" ? "voiceAsrModel" : voicePick === "tts" ? "voiceTtsModel" : "voiceTtsVoice";
