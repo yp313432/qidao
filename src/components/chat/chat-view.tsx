@@ -1533,6 +1533,12 @@ function VoiceBubble({
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState(att.text ?? "");
+  /**
+   * 转写**默认不显示**（用户 m11699："发语音时都不显示文本，只有我长按转文字
+   * 才会在气泡下面出现文本"）。文字其实一直在 `att.text` 里给他读，
+   * 只是不摆到屏幕上 —— 长按点了"转成文字"才摊开。
+   */
+  const [showText, setShowText] = useState(false);
   const [busy, setBusy] = useState(false);
   const [say, setSay] = useState("");
   /** 长按菜单的位置（视口坐标）：贴着被长按的那个气泡 */
@@ -1588,6 +1594,7 @@ function VoiceBubble({
         return;
       }
       setText(r.text);
+      setShowText(true);
       // 存回消息里，下次打开就不用再转一遍
       if (convId && msgId) {
         const conv = useApp.getState().conversations.find((c) => c.id === convId);
@@ -1727,15 +1734,15 @@ function VoiceBubble({
         转写**就放在气泡下面**（用户 m11599），浅灰小字、最多两行。
         长按才看文字会把页面弄得很空，也让他"不知道你说了什么"。
       */}
-      {text ? (
-        <div className="line-clamp-2 max-w-[240px] whitespace-pre-wrap break-words text-left text-[11px] leading-[1.5] text-muted">
+      {showText && text ? (
+        <div className="max-w-[240px] whitespace-pre-wrap break-words text-left text-[11px] leading-[1.5] text-muted">
           {text}
         </div>
+      ) : busy ? (
+        <div className="text-[10.5px] text-subtle">正在转文字…</div>
       ) : gone ? (
         <div className="text-[10.5px] text-subtle">这条太久远了，音频已经清掉</div>
-      ) : (
-        <div className="text-[10.5px] italic text-subtle">{busy ? "正在转文字…" : "没转成文字"}</div>
-      )}
+      ) : null}
       {say && <div className="max-w-[86%] text-[10.5px] text-warn">{say}</div>}
 
       {/* 贴着气泡的菜单（用完即卸，点空白处关掉） */}
@@ -1752,7 +1759,7 @@ function VoiceBubble({
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                {text ? (
+                {text && showText ? (
                   <button
                     type="button"
                     className={item}
@@ -1770,7 +1777,8 @@ function VoiceBubble({
                     className={item}
                     onClick={() => {
                       setMenu(null);
-                      void transcribeNow();
+                      if (text) setShowText(true);
+                      else void transcribeNow();
                     }}
                   >
                     转成文字
