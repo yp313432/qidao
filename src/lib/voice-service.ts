@@ -176,11 +176,42 @@ export async function listVoiceModels(
   }
 }
 
+/**
+ * **"听"用哪一家**（用户 m11063 选了"混搭"：耳朵别家、嗓子百炼）。
+ *
+ * 百炼没有 OpenAI 形状的 `/audio/transcriptions`，所以想用它的音色又说不出话，
+ * 就得让"听"单独指一家。这里返回单独配的那套；没配返回 null（跟随主配置）。
+ */
+export function asrConfig(): { baseUrl: string; apiKey: string; model: string } | null {
+  const s = useApp.getState().settings;
+  const key = (s.voiceAsrApiKey ?? "").trim();
+  if (!key) return null;
+  return {
+    baseUrl: (s.voiceAsrBaseUrl ?? "").trim() || "https://api.siliconflow.cn/v1",
+    apiKey: key,
+    model: (s.voiceAsrModel ?? "").trim() || "FunAudioLLM/SenseVoiceSmall",
+  };
+}
+
 /** 语音 → 文字。audio 是录下来的音频（webm/mp4 都行） */
 export async function transcribe(
   audio: Blob,
   cfg = voiceConfig(),
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  /**
+   * 单独配了"听"就用它 —— 这样百炼那档（只有说）也能正常语音通话：
+   * 说出来的是你捏的嗓子，听你的话靠硅基流动。
+   */
+  const own = asrConfig();
+  if (own) {
+    cfg = {
+      baseUrl: own.baseUrl,
+      apiKey: own.apiKey,
+      asrModel: own.model,
+      ttsModel: "",
+      voice: "",
+    };
+  }
   if (!cfg) return { ok: false, reason: "还没配语音服务（我的 → 语音服务）" };
   /**
    * **百炼这一档只有"说"，没有"听"**（用户 m11038 看到表里那个叉号问过）。
@@ -193,7 +224,7 @@ export async function transcribe(
     return {
       ok: false,
       reason:
-        "百炼这一档只接了「说」（把文字念出来），没接「听」（把你说的转成文字）。要用麦克风说话，去 我的 → 系统 → 语音 换回「1 · OpenAI 兼容」。",
+        "百炼没有「听」这条接口。想让语音通话也用它：去 我的 → 系统 → 语音 → 3·百炼 → 打开「转文字借别家」，填一家的地址和密钥（推荐硅基流动的 SenseVoiceSmall），听就不受影响了。",
     };
   }
   try {

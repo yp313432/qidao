@@ -328,7 +328,6 @@ function MeSections({ tab }: { tab: MeTab }) {
    */
   const [voiceMsg, setVoiceMsg] = useState("");
   /** 浏览器里能选的音色（App 里由系统引擎决定，所以是空数组） */
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   /**
    * 语音服务里"能被选"的模型（拉取后才有）。
    *
@@ -352,6 +351,8 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [dsVoices, setDsVoices] = useState<string[]>([]);
   /** 捏嗓子面板（用户 m10844："实际上我就想要自己捏得"） */
   const [designOpen, setDesignOpen] = useState(false);
+  /** 百炼那一档的「转文字借别家」小面板 */
+  const [asrOpen, setAsrOpen] = useState(false);
   const [designDesc, setDesignDesc] = useState("");
   const [designPreview, setDesignPreview] = useState("");
   const [designBusy, setDesignBusy] = useState(false);
@@ -362,6 +363,8 @@ function MeSections({ tab }: { tab: MeTab }) {
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
   /** 有没有填密钥 —— 没填就等于没配，朗读不会有声音（系统 TTS 已删） */
   const voiceConfigured = Boolean((settings.voiceApiKey ?? "").trim());
+  /** "听"单独配的那家有没有密钥（没有就跟随主配置） */
+  const asrKey = (settings.voiceAsrApiKey ?? "").trim();
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
@@ -2156,6 +2159,93 @@ function MeSections({ tab }: { tab: MeTab }) {
             <div className="mt-3 rounded-2xl border border-line bg-surface/70 px-3 py-2.5">
               <button
                 type="button"
+                onClick={() => setAsrOpen((v) => !v)}
+                className="flex w-full items-center gap-2 text-left"
+              >
+                <span className="flex-1 text-[12px] font-medium text-fg">
+                  转文字（听）· 借别家
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 text-[10.5px]",
+                    asrKey ? "text-emerald-600" : "text-subtle",
+                  )}
+                >
+                  {asrKey ? "已接上" : "未配置"}
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 shrink-0 text-subtle transition-transform",
+                    asrOpen && "rotate-90",
+                  )}
+                />
+              </button>
+              {asrOpen && (
+                <>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">
+                    百炼没有「听」这条接口。想用它捏的嗓子又能按住说话，就让转文字走别家
+                    —— 推荐硅基流动的 SenseVoiceSmall（又快又便宜）。三项都空着＝不启用，
+                    那就只能文字聊天。
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    <input
+                      value={settings.voiceAsrBaseUrl ?? ""}
+                      onChange={(e) => patch({ voiceAsrBaseUrl: e.target.value })}
+                      placeholder="地址，如 https://api.siliconflow.cn/v1"
+                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+                    />
+                    <input
+                      type="password"
+                      value={settings.voiceAsrApiKey ?? ""}
+                      onChange={(e) => patch({ voiceAsrApiKey: e.target.value })}
+                      placeholder="这家的密钥（和上面那个可以不一样）"
+                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+                    />
+                    <input
+                      value={settings.voiceAsrModel ?? ""}
+                      onChange={(e) => patch({ voiceAsrModel: e.target.value })}
+                      placeholder="模型，如 FunAudioLLM/SenseVoiceSmall"
+                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+                    />
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({
+                          voiceAsrBaseUrl: "https://api.siliconflow.cn/v1",
+                          voiceAsrModel: "FunAudioLLM/SenseVoiceSmall",
+                        })
+                      }
+                      className="h-8 flex-1 rounded-xl border border-line bg-surface text-[11.5px] text-fg"
+                    >
+                      填硅基流动的推荐值
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({ voiceAsrApiKey: "", voiceAsrBaseUrl: "", voiceAsrModel: "" })
+                      }
+                      className="h-8 w-16 rounded-xl border border-line bg-surface text-[11.5px] text-muted"
+                    >
+                      清空
+                    </button>
+                  </div>
+                  {asrKey && (
+                    <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-emerald-600">
+                      <span className="size-1.5 rounded-full bg-emerald-500" />
+                      正在用 {(settings.voiceAsrModel ?? "").split("/").pop() || "默认模型"} 听
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {voiceProvider === "dashscope" && (
+            <div className="mt-3 rounded-2xl border border-line bg-surface/70 px-3 py-2.5">
+              <button
+                type="button"
                 onClick={() => setDesignOpen((v) => !v)}
                 className="flex w-full items-center gap-2 text-left text-[12px] font-medium text-fg"
               >
@@ -2261,7 +2351,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             {voiceProvider === "elevenlabs" &&
               " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
             {voiceProvider === "dashscope" &&
-              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。注意：这一档只做朗读（把他写的话念出来），按住麦克风说话要换回第 1 档。"}
+              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。注意：它自己只有朗读，按住麦克风说话要先在上面配好「转文字借别家」。"}
           </p>
         </div>
 
@@ -2299,36 +2389,7 @@ function MeSections({ tab }: { tab: MeTab }) {
           >
             试听一句
           </button>
-          {!IS_APP && (
-            <button
-              type="button"
-              onClick={() => setVoices(window.speechSynthesis?.getVoices?.() ?? [])}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-fg"
-            >
-              换音色（共 {voices.length} 个）
-            </button>
-          )}
         </div>
-        {!IS_APP && voices.length > 0 && (
-          <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-2xl bg-chip px-3 py-2">
-            {voices
-              .filter((v) => /zh|cmn|Chinese/i.test(v.lang))
-              .slice(0, 12)
-              .map((v) => (
-                <button
-                  key={v.voiceURI}
-                  type="button"
-                  onClick={() => patch({ voiceURI: v.voiceURI })}
-                  className={cn(
-                    "block w-full truncate rounded-2xl px-2 py-1.5 text-left text-[12px]",
-                    settings.voiceURI === v.voiceURI ? "bg-elevated text-fg" : "text-muted",
-                  )}
-                >
-                  {v.name} · {v.lang}
-                </button>
-              ))}
-          </div>
-        )}
         <p className="mt-2 text-[11px] leading-4 text-subtle">
           App 里已经不用手机自带的语音（那是 YOYO）。合成失败会直说原因，不会偷偷换成系统声音。
         </p>

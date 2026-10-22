@@ -624,6 +624,14 @@ export type Settings = {
   voiceBaseUrl?: string;
   voiceApiKey?: string;
   /**
+   * "听"单独指一家（用户 m11063 选定"混搭"）。
+   *
+   * 百炼只有"说"，所以想用它的嗓子又说得出话，就得让转文字走别家。
+   * 留空就跟随上面的主配置。
+   */
+  voiceAsrBaseUrl?: string;
+  voiceAsrApiKey?: string;
+  /**
    * 按情绪调整语气（百炼专用，默认开）。
    *
    * 用户 m10841：百炼的语音能"按情绪念"。实现是合成时带一句 `instruction`

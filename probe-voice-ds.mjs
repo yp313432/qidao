@@ -39,6 +39,30 @@ const state = await page.evaluate(() => {
 });
 console.log(JSON.stringify(state));
 
+console.log("asr clicked:", await clickText("转文字（听）· 借别家"));
+await page.waitForTimeout(500);
+const asrPanel = await page.evaluate(() => {
+  const txt = document.body.innerText;
+  return {
+    hasRec: txt.includes("填硅基流动的推荐值"),
+    asrInputs: [...document.querySelectorAll("input")].filter((i) =>
+      (i.getAttribute("placeholder") ?? "").includes("siliconflow"),
+    ).length,
+  };
+});
+console.log(JSON.stringify({ asrPanel }));
+
+/* 先给「借别家」面板拍一张 */
+await page.evaluate(() => {
+  const t = [...document.querySelectorAll("*")].find(
+    (el) => el.children.length === 0 && el.textContent?.trim() === "转文字（听）· 借别家",
+  );
+  t?.scrollIntoView({ block: "start" });
+});
+await page.waitForTimeout(400);
+await page.screenshot({ path: "shot-voice-asr.png" });
+console.log("asr shot done");
+
 console.log("design clicked:", await clickText("捏一个嗓子"));
 await page.waitForTimeout(600);
 
