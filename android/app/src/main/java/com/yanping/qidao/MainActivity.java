@@ -1,5 +1,8 @@
 package com.yanping.qidao;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 
 import com.getcapacitor.BridgeActivity;
@@ -20,5 +23,20 @@ public class MainActivity extends BridgeActivity {
     // ⚠️ 必须跟插件里的 edgeToEdge() 一起用：只开窗口、不交安全区，顶栏会被状态栏压住
     registerPlugin(ShellBridgePlugin.class);
     super.onCreate(savedInstanceState);
+
+    /**
+     * **通知权限必须真的问一次**（用户 m10397：后台醒了但通知不弹）。
+     *
+     * targetSdk 36 → Android 13+ 要求运行时授权 `POST_NOTIFICATIONS`；
+     * 没授权时 `NotificationManager.notify()` **不抛异常、什么都不做**，
+     * 所以我们以前"发通知"的那段代码一直静默失败，日志里也看不出来。
+     *
+     * 只在第一次（没授权过）问；用户拒过一次后再打开 App 不再纠缠（系统要求
+     * 二次询问要用户主动触发，硬问会被系统忽略）。想再开：系统设置 → 栖岛 → 通知。
+     */
+    if (Build.VERSION.SDK_INT >= 33
+        && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1001);
+    }
   }
 }

@@ -9,6 +9,7 @@ import { partsFor, stripInvisible } from "@/lib/segment";
 import { stripActions } from "@/lib/use-chat";
 import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
 import { useApp } from "@/lib/store";
+import { syncTaskNotifications } from "@/lib/task-notify";
 
 /**
  * 定时任务的守护进程。
@@ -117,6 +118,31 @@ function splitActions(text: string): { actions: Record<string, unknown>[]; rest:
 }
 export function TaskDaemon() {
   const busy = useRef(false);
+
+  /**
+   * **把定时任务排进系统通知**（用户 m10442：他试的是「定时任务」，不是闹钟）。
+   *
+   * 这个守护进程本身是纯前台 JS —— App 一关就没人跑，所以以前定的 7:30
+   * 在 App 关着的时候什么都不会发生。现在任务一有变化就同步到系统闹钟里，
+   * 到点由系统弹一条通知把 App 叫起来，点开之后 `tick()` 才真的去问他。
+   *
+   * 用签名比对短路：store 每变一次都会回调，但只有任务本身变了才重排。
+   */
+  useEffect(() => {
+    let lastSig = "";
+    const sync = () => {
+      const tasks = useApp.getState().tasks;
+      const sig = tasks
+        .map((t) => `${t.id}:${t.enabled ? 1 : 0}:${t.time ?? ""}:${t.at ?? ""}`)
+        .join("|");
+      if (sig === lastSig) return;
+      lastSig = sig;
+      void syncTaskNotifications(tasks).catch(() => {});
+    };
+    sync();
+    const unsub = useApp.subscribe(() => sync());
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const tick = async () => {
