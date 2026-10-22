@@ -1,5 +1,6 @@
 import { DateTimeField } from "@/components/ui/datetime-picker";
-import { listVoiceModels } from "@/lib/voice-service";
+import { listVoiceModels, voiceProviderOf } from "@/lib/voice-service";
+import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -181,8 +182,8 @@ const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] 
  * 所以这里**只有**：头像/名字那张卡 + 5 个入口 + 版本号。
  */
 export function MeHub() {
-  const settings = useApp((s) => s.settings);
   const patch = useApp((s) => s.patchSettings);
+  const settings = useApp((s) => s.settings);
   const scrollRef = useScrollMemory("me");
 
   return (
@@ -335,7 +336,19 @@ function MeSections({ tab }: { tab: MeTab }) {
    * 直接给一排可点的按钮，点一下就是换引擎。
    */
   const [voiceModels, setVoiceModels] = useState<string[]>([]);
+  /**
+   * **弹层选择器**（用户 m10646："拉取不要做成列出来的，改成弹层选择，就跟之前做的
+   * 聊天页面的模型选择那种"）。`voicePick` 是正在挑哪一格。
+   */
+  const [voicePick, setVoicePick] = useState<null | "asr" | "tts" | "voice">(null);
+  const [voicePickQuery, setVoicePickQuery] = useState("");
+  /** ElevenLabs 点「拉取音色」拉回来的 voice_id 清单 */
+  const [elevenVoices, setElevenVoices] = useState<string[]>([]);
   const settings = useApp((s) => s.settings);
+  /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
+  const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
+  /** 有没有填密钥 —— 没填就等于没配，朗读不会有声音（系统 TTS 已删） */
+  const voiceConfigured = Boolean((settings.voiceApiKey ?? "").trim());
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
@@ -1954,88 +1967,115 @@ function MeSections({ tab }: { tab: MeTab }) {
       <Section title="语音">
         <Row
           label="朗读回复"
-          hint="使用系统语音"
+          hint={voiceConfigured ? `用 ${voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"} 的音色念` : "还没配语音服务，配好才会有声音"}
           checked={settings.voiceReplies}
           onChange={(v) => patch({ voiceReplies: v })}
         />
 
-        {/* 音色 / 语速 / 音调 —— 用户要的"换音色和改音调" */}
-        <p className="mt-4 mb-2 text-[12px] text-muted">语音服务（语音转文字 + 合成）</p>
-        <div className="rounded-2xl bg-chip px-3.5 py-3">
-          <p className="text-[11px] leading-4 text-subtle">
-            手机的系统识别就是 YOYO（它自己接话、不把文字还给栖岛）✅ 所以这里单接一家：
-            自己录音 → 上传转文字 → 语言模型回复 → 再合成语音放出来 ✅
-            <br />
-            硅基流动那家：地址填 https://api.siliconflow.cn/v1 ，
-            转文字 FunAudioLLM/SenseVoiceSmall，合成 FunAudioLLM/CosyVoice2-0.5B ✅
-            <br />
-            要换 ElevenLabs：地址填 https://api.elevenlabs.io/v1 ，转文字模型写 scribe_v1，
-            合成模型写 eleven_multilingual_v2，音色那格点「拉取模型」会自动填 voice_id ✅
-            （它要国际卡、免费额度小，而且国内直连不通，得挂梯或经你自己的服务器中转。）✅
-          </p>
+        {/*
+          语音服务：两家分开（用户 m10646 要求的分法）。
+          ⚠️ 安卓系统 TTS 已删 —— "试听像手机自带的 YOYO"就是它顶着，
+          删掉之后合成失败会直说，不再冒充。
+        */}
+        <div className="mt-4 rounded-2xl bg-chip px-3.5 py-3">
+          <div className="flex gap-1 rounded-xl bg-surface/70 p-1">
+            {[
+              { k: "openai" as const, label: "1 · OpenAI 兼容" },
+              { k: "elevenlabs" as const, label: "2 · ElevenLabs" },
+            ].map((tab) => (
+              <button
+                key={tab.k}
+                type="button"
+                onClick={() => {
+                  if (tab.k === voiceProvider) return;
+                  patch({
+                    voiceBaseUrl:
+                      tab.k === "elevenlabs"
+                        ? "https://api.elevenlabs.io/v1"
+                        : "https://api.siliconflow.cn/v1",
+                  });
+                  setVoiceModels([]);
+                  setElevenVoices([]);
+                  setVoiceMsg("");
+                }}
+                className={cn(
+                  "flex-1 rounded-[11px] py-1.5 text-center text-[12px]",
+                  tab.k === voiceProvider
+                    ? "bg-surface font-medium text-fg shadow-sm"
+                    : "text-muted",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {[
             { k: "voiceBaseUrl" as const, label: "地址", ph: "https://api.siliconflow.cn/v1" },
             { k: "voiceApiKey" as const, label: "密钥", ph: "sk-…", secret: true },
-            { k: "voiceAsrModel" as const, label: "转文字模型", ph: "FunAudioLLM/SenseVoiceSmall" },
-            { k: "voiceTtsModel" as const, label: "合成模型", ph: "FunAudioLLM/CosyVoice2-0.5B" },
-            { k: "voiceTtsVoice" as const, label: "音色", ph: "alex" },
-          ].map((f) => {
-            /**
-             * 模型那两格给"可点的备选"：拉取过就列出来，点一下换掉。
-             * 音色那格给固定的几个嗓子名（接口不返回音色清单，只能按名字选）。
-             */
-            const chips =
-              f.k === "voiceAsrModel"
-                ? voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m))
-                : f.k === "voiceTtsModel"
-                  ? voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m))
-                  : f.k === "voiceTtsVoice"
-                    ? ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"]
-                    : [];
+          ].map((f) => (
+            <div key={f.k} className="mt-2 block">
+              <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+              <input
+                type={f.secret ? "password" : "text"}
+                value={(settings[f.k] as string | undefined) ?? ""}
+                onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
+                placeholder={f.ph}
+                className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+              />
+            </div>
+          ))}
+
+          {([
+            { k: "voiceAsrModel" as const, label: "转文字", pick: "asr" as const },
+            { k: "voiceTtsModel" as const, label: "合成", pick: "tts" as const },
+            { k: "voiceTtsVoice" as const, label: "音色", pick: "voice" as const },
+          ]).map((f) => {
+            const cur = (settings[f.k] as string | undefined) ?? "";
             return (
               <div key={f.k} className="mt-2 block">
                 <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
-                <input
-                  type={f.secret ? "password" : "text"}
-                  value={(settings[f.k] as string | undefined) ?? ""}
-                  onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
-                  placeholder={f.ph}
-                  className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-                />
-                {chips.length > 0 && (
-                  <span className="mt-1.5 flex flex-wrap gap-1.5">
-                    {chips.slice(0, 8).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => patch({ [f.k]: m } as Partial<typeof settings>)}
-                        className={`rounded-full border px-2 py-0.5 text-[10.5px] ${
-                          (settings[f.k] as string | undefined) === m
-                            ? "border-accent/60 bg-accent/10 text-accent"
-                            : "border-line bg-surface text-muted"
-                        }`}
-                      >
-                        {f.k === "voiceTtsVoice" ? m : m.split("/").pop()}
-                      </button>
-                    ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVoicePick(f.pick);
+                    setVoicePickQuery("");
+                  }}
+                  className="flex h-10 w-full items-center gap-2 rounded-2xl bg-surface px-3 text-left text-[12px] text-fg"
+                >
+                  <span className="flex-1 truncate font-mono text-[11px]">
+                    {cur || "（点这里选）"}
                   </span>
-                )}
+                  <ChevronRight className="size-3.5 shrink-0 text-subtle" />
+                </button>
               </div>
             );
           })}
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            密钥只存在这台设备里，不进代码、不进仓库 ✅ 填了就会自动启用：
-            语音页和输入框的麦克风都改走它（YOYO 不再出现 ✅），朗读也用它家的音色 ✅
-            「试听一句」用的就是这个音色 ✅
+
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-4 text-subtle">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            正在用 {(((settings.voiceTtsModel ?? "").split("/").pop() || "—"))} ·{" "}
+            {(settings.voiceTtsVoice ?? "").trim() || "—"}
           </p>
+
           <button
             type="button"
             className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
             onClick={async () => {
-              setVoiceMsg("正在拉取…");
+              setVoiceMsg(voiceProvider === "elevenlabs" ? "正在拉取音色…" : "正在拉取…");
               const r = await listVoiceModels();
               if (!r.ok) {
                 setVoiceMsg(r.reason);
+                return;
+              }
+              setVoiceModels(r.models);
+              setElevenVoices(r.voices);
+              if (voiceProvider === "elevenlabs") {
+                setVoiceMsg(
+                  r.voices.length > 0
+                    ? `拉到 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。`
+                    : "一家音色都没拉到：这个 key 可能还没建过声音。",
+                );
                 return;
               }
               const pick = (re: RegExp) => r.models.find((m) => re.test(m)) ?? "";
@@ -2044,18 +2084,17 @@ function MeSections({ tab }: { tab: MeTab }) {
               patch({
                 ...(asr ? { voiceAsrModel: asr } : {}),
                 ...(tts ? { voiceTtsModel: tts } : {}),
-                ...(r.voices[0] ? { voiceTtsVoice: r.voices[0] } : {}),
               } as Partial<typeof settings>);
-              setVoiceModels(r.models);
               setVoiceMsg(
-                `拉到 ${r.models.length} 个语音相关的模型（其他聊天/画图的已经帮你滤掉了）：\n` +
+                `拉到 ${r.models.length} 个语音相关的模型（聊天、画图的已滤掉）：\n` +
                   [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`].filter(Boolean).join("\n") +
-                  `\n\n模型是"引擎"，音色是"嗓子"：下面点按钮就能换，音色从 alex / anna / bella… 里挑一个。`,
+                  "\n\n点上面那几格可以换；长名字不用手打。",
               );
             }}
           >
-            拉取模型（按地址自动认服务商，拉到就填上面三个）
+            {voiceProvider === "elevenlabs" ? "拉取音色" : "拉取可用模型"}
           </button>
+
           {voiceMsg && (
             <p
               className="mt-2 whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface px-3 py-2 text-[11.5px] leading-5 text-ink"
@@ -2064,6 +2103,12 @@ function MeSections({ tab }: { tab: MeTab }) {
               {voiceMsg}
             </p>
           )}
+
+          <p className="mt-2 text-[11px] leading-4 text-subtle">
+            密钥只存在这台设备里，不进代码、不进仓库。填了自动启用：语音页、输入框的麦克风、
+            朗读都走它。
+            {voiceProvider === "elevenlabs" && " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
+          </p>
         </div>
 
         <p className="mt-4 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>
@@ -2091,7 +2136,11 @@ function MeSections({ tab }: { tab: MeTab }) {
         <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => void speakTextAsync("你好，我是" + resolveAiName(settings.aiName) + "。", {})}
+            onClick={async () => {
+              setVoiceMsg("正在合成…");
+              const r = await speakTextAsync("你好，我是" + resolveAiName(settings.aiName) + "。", {});
+              setVoiceMsg(r.ok ? "" : `没读出来：${r.reason}`);
+            }}
             className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-fg"
           >
             试听一句
@@ -2126,12 +2175,92 @@ function MeSections({ tab }: { tab: MeTab }) {
               ))}
           </div>
         )}
-        {IS_APP && (
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            App 里的音色由<span className="text-fg">安卓系统的语音引擎</span>决定：去「系统设置 → 语音合成」里换引擎/装语音包，
-            这里调的是语速和音调。
-          </p>
-        )}
+        <p className="mt-2 text-[11px] leading-4 text-subtle">
+          App 里已经不用手机自带的语音（那是 YOYO）。合成失败会直说原因，不会偷偷换成系统声音。
+        </p>
+
+        {/*
+          **弹层选择器**（用户 m10646："改成弹层选择，就跟之前做的聊天页面的模型选择那种"）。
+          一次只列一类（转文字 / 合成 / 音色），带搜索框；点一下就是换掉。
+        */}
+        {voicePick &&
+          (() => {
+            const isEL = voiceProvider === "elevenlabs";
+            const asrList = isEL
+              ? ["scribe_v1"]
+              : voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m));
+            const ttsList = isEL
+              ? ["eleven_multilingual_v2", "eleven_turbo_v2_5"]
+              : voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m));
+            const voiceList = isEL
+              ? elevenVoices
+              : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
+            const list = voicePick === "asr" ? asrList : voicePick === "tts" ? ttsList : voiceList;
+            const field =
+              voicePick === "asr" ? "voiceAsrModel" : voicePick === "tts" ? "voiceTtsModel" : "voiceTtsVoice";
+            const cur = ((settings[field] as string | undefined) ?? "").trim();
+            const title =
+              voicePick === "asr" ? "选转文字模型" : voicePick === "tts" ? "选合成模型" : "选音色";
+            const q = voicePickQuery.trim().toLowerCase();
+            const shown = list.filter((m) => !q || m.toLowerCase().includes(q));
+            /**
+             * ⚠️ 必须 portal 到 body：这一页的卡片带 backdrop-filter，
+             * 祖先一旦有 filter/transform，position: fixed 就退化成"相对祖先"，
+             * 弹层会被裁在卡片里看不见。
+             */
+            return createPortal(
+              <div
+                className="fixed inset-0 z-[90] flex flex-col justify-end"
+                onClick={() => setVoicePick(null)}
+              >
+                <div className="absolute inset-0 bg-black/40" />
+                <div
+                  className="relative max-h-[64%] rounded-t-3xl border-t border-line bg-[rgba(252,248,242,0.99)] px-4 pb-6 pt-2 shadow-[0_-10px_34px_rgba(40,26,18,0.24)]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-line" />
+                  <p className="text-[13px] font-medium text-fg">{title}</p>
+                  <p className="mt-0.5 text-[10.5px] leading-4 text-muted">
+                    {voicePick === "voice" && isEL
+                      ? "这些是这家 key 底下建过的音色（voice_id）"
+                      : list.length === 0
+                        ? "还没拉到清单，先点上面那个按钮"
+                        : isEL
+                          ? "这家这两个都是能用的"
+                          : "只列语音相关的，聊天和画图那些已经滤掉"}
+                  </p>
+                  <input
+                    value={voicePickQuery}
+                    onChange={(e) => setVoicePickQuery(e.target.value)}
+                    placeholder="搜索…"
+                    className="mt-2 h-9 w-full rounded-xl border border-line bg-elevated px-3 text-[12px] outline-none"
+                  />
+                  <div className="mt-1.5 max-h-64 overflow-y-auto">
+                    {shown.length === 0 && (
+                      <p className="py-4 text-center text-[11.5px] text-subtle">
+                        {list.length === 0 ? "清单是空的" : "没有匹配的"}
+                      </p>
+                    )}
+                    {shown.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          patch({ [field]: m } as Partial<typeof settings>);
+                          setVoicePick(null);
+                        }}
+                        className="flex w-full items-center gap-2 border-b border-line/60 py-2.5 text-left last:border-b-0"
+                      >
+                        <span className="flex-1 truncate font-mono text-[11.5px] text-fg">{m}</span>
+                        {cur === m && <span className="text-[13px] font-bold text-accent">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            );
+          })()}
       </Section>
 
       {/*

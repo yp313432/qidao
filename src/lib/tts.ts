@@ -13,6 +13,11 @@
  * 全 App 只有这一个朗读实现：英语卡的喇叭、消息「朗读」、语音模式、
  * AI 的 speak 动作，都走这里。
  *
+ * ⚠️ 2026-10 用户 m10646："把系统自带的语音删了吧，语音之后只考虑接其他家的" ——
+ * **安卓系统 TTS 已经移除**（那是 YOYO 的声音）。App 里只认「我的 → 语音服务」接的那家；
+ * 合成失败就**如实报错**，绝不悄悄用系统声音顶替（否则用户会以为"换音色没效果"）。
+ * 网页版没有"手机自带语音"这回事，仍保留浏览器 speechSynthesis。
+ *
  * 注意：**不要**在 await 之后再调 `speakText` —— iOS 要求在用户手势的
  * 同一拍里调用，中间隔了异步就会静默失败。所以它是同步函数。
  * （App 里没有 speechSynthesis，要用下面的 `speakTextAsync`。）
@@ -22,20 +27,6 @@ import { useApp } from "@/lib/store";
 import { synthesize, voiceConfigured } from "@/lib/voice-service";
 
 export type SpeakResult = { ok: true } | { ok: false; reason: string };
-
-/* ------------------------- App 里的原生朗读（安卓系统 TTS）------------------------- */
-
-type NativeTts = {
-  speak: (opts: {
-    text: string;
-    lang?: string;
-    rate?: number;
-    pitch?: number;
-    volume?: number;
-  }) => Promise<void>;
-  /** 打断当前这句（通话里"挂断/被插话"要用） */
-  stop?: () => Promise<void>;
-};
 
 /**
  * 正在播的那一段音频（语音服务合成的 mp3）。
@@ -47,27 +38,6 @@ type NativeTts = {
 let currentAudio: HTMLAudioElement | null = null;
 /** 让"等这段音频播完"的那个 promise 立刻落地（否则调用方会一直等） */
 let abortCurrent: (() => void) | null = null;
-
-let nativeTtsCache: { api: NativeTts } | null | undefined;
-
-/**
- * 拿到原生朗读插件。
- *
- * ⚠️ 和通知那边同一个坑：Capacitor 的插件对象是 thenable，
- * 从一个 async 函数里直接 return 它，JS 会当 Promise 去调 `.then()` →
- * 抛 "…then() is not implemented on web"。所以**必须包一层**。
- */
-async function nativeTts(): Promise<{ api: NativeTts } | null> {
-  if (!IS_APP) return null;
-  if (nativeTtsCache !== undefined) return nativeTtsCache;
-  try {
-    const mod = await import("@capacitor-community/text-to-speech");
-    nativeTtsCache = { api: mod.TextToSpeech as unknown as NativeTts };
-  } catch {
-    nativeTtsCache = null;
-  }
-  return nativeTtsCache;
-}
 
 /**
  * 朗读的**统一入口**（异步）。
@@ -148,38 +118,23 @@ export async function speakTextAsync(
         return { ok: false, reason: e instanceof Error ? e.message : "播放失败" };
       }
     }
-    // 合成失败就退回系统语音，别让"点了没声" —— 但把原因带回去
-    const fallback = await speakSystem(clean, opts);
-    return fallback.ok ? fallback : { ok: false, reason: `${out.reason}；${fallback.reason}` };
-  }
-
-  return speakSystem(clean, opts);
-}
-
-/** 系统语音（安卓 TTS / 浏览器 speechSynthesis）—— 没配语音服务时走它 */
-async function speakSystem(clean: string, opts: SpeakOptions): Promise<SpeakResult> {
-  const native = await nativeTts();
-  if (native) {
-    try {
-      await native.api.speak({
-        text: clean,
-        lang: opts.lang ?? guessLang(clean),
-        // 语速/音调从设置里读（用户在「我的 → 语音」里调过就用他的）
-        rate: opts.rate ?? useApp.getState().settings.voiceRate ?? 0.95,
-        pitch: opts.pitch ?? useApp.getState().settings.voicePitch ?? 1,
-        volume: 1,
-      });
-    } catch (err) {
-      opts.onEnd?.();
-      return {
-        ok: false,
-        reason: `读不出来：${(err as Error).message || "系统朗读引擎没响应"}`,
-      };
-    }
+    /**
+     * **不回落**（用户 m10646 明确要求）。以前这里会 `speakSystem()` 兜底，
+     * 结果用户听到的永远是手机自带的 YOYO，还以为"换了音色没区别"。
+     * 现在把失败原因原样交回去，界面上直接显示「合成失败：HTTP 400 …」。
+     */
     opts.onEnd?.();
-    return { ok: true };
+    return { ok: false, reason: out.reason };
   }
 
+  /**
+   * 没配语音服务：App 里**没有声音**（系统 TTS 已删），要明确告诉他去配；
+   * 网页版仍用浏览器朗读（它没有"手机自带语音"这个问题）。
+   */
+  if (IS_APP) {
+    opts.onEnd?.();
+    return { ok: false, reason: "还没配语音服务（我的 → 语音服务）。系统自带语音已移除。" };
+  }
   return speakText(clean, opts);
 }
 
@@ -308,9 +263,6 @@ export function stopSpeaking(): void {
   }
   abortCurrent?.();
   abortCurrent = null;
-  void nativeTts()
-    .then((t) => t?.api.stop?.())
-    .catch(() => undefined);
 }
 
 /**
