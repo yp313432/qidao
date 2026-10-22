@@ -1,6 +1,6 @@
 import { DateTimeField } from "@/components/ui/datetime-picker";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
-import { DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
+import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
@@ -349,6 +349,7 @@ function MeSections({ tab }: { tab: MeTab }) {
    * 系统音色是固定的那几个，不在这里。
    */
   const [dsVoices, setDsVoices] = useState<string[]>([]);
+  const [dsVoiceStatus, setDsVoiceStatus] = useState<Record<string, string>>({});
   /** 捏嗓子面板（用户 m10844："实际上我就想要自己捏得"） */
   const [designOpen, setDesignOpen] = useState(false);
   /** 百炼那一档的「转文字借别家」小面板 */
@@ -2028,6 +2029,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   setVoiceModels([]);
                   setElevenVoices([]);
                   setDsVoices([]);
+        setDsVoiceStatus({});
                   setDesignMsg("");
                   setVoiceMsg("");
                 }}
@@ -2092,6 +2094,17 @@ function MeSections({ tab }: { tab: MeTab }) {
             <span className="size-1.5 rounded-full bg-emerald-500" />
             正在用 {(((settings.voiceTtsModel ?? "").split("/").pop() || "—"))} ·{" "}
             {(settings.voiceTtsVoice ?? "").trim() || "—"}
+            {(() => {
+              /**
+               * 音色状态（用户 m11120 的「合成失败」最可能就是它）：
+               * 刚用声音设计造出来的嗓子先是 DEPLOYING，要等几分钟才能合成。
+               * 不在这儿说，用户只会以为是我写坏了。
+               */
+              const hint = dsVoiceStatusHint(
+                dsVoiceStatus[(settings.voiceTtsVoice ?? "").trim()],
+              );
+              return hint ? <span className="text-accent"> · {hint}</span> : null;
+            })()}
           </p>
 
           <button
@@ -2114,6 +2127,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                */
               if (voiceProvider === "dashscope") {
                 setDsVoices(r.voices);
+        setDsVoiceStatus(r.voiceStatus ?? {});
                 setVoiceMsg(
                   r.voices.length > 0
                     ? `这个模型下有你建的 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。\n（系统音色也在那格里，和自定义的一起列。）`
@@ -2476,6 +2490,13 @@ function MeSections({ tab }: { tab: MeTab }) {
                         className="flex w-full items-center gap-2 border-b border-line/60 py-2.5 text-left last:border-b-0"
                       >
                         <span className="flex-1 truncate font-mono text-[11.5px] text-fg">{m}</span>
+                        {(() => {
+                          if (!isDS || voicePick !== "voice") return null;
+                          const hint = dsVoiceStatusHint(dsVoiceStatus[m]);
+                          return hint ? (
+                            <span className="shrink-0 text-[10px] text-accent">{hint}</span>
+                          ) : null;
+                        })()}
                         {cur === m && <span className="text-[13px] font-bold text-accent">✓</span>}
                       </button>
                     ))}

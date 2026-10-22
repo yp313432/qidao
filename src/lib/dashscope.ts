@@ -239,12 +239,44 @@ export async function synthDashscope(
   const out = (r.json as { output?: { audio?: { url?: string; data?: string } } } | null)?.output;
   const ready = await toAudioUrl(out?.audio?.data ?? out?.audio?.url);
   if (!ready) {
+    /**
+     * 兜底分支（用户 m11120："这是啥意思"）。
+     *
+     * 这里原来是写死的一句"音色必须和创建它时的模型一致" —— 用户照着做了
+     * （音色 id 前缀 `qwen-audio-3.1-tts-plus-vd-…` 和模型完全一致），还是失败，
+     * 于是那句话变成了**误导**：它把上游真正的报错盖住了，谁都查不出来。
+     *
+     * 现在改成：上游原话照抄 + 三种常见原因。宁可难看，也要能定位。
+     */
+    const raw = (r.text || JSON.stringify(r.json ?? {})).replace(/\s+/g, " ").slice(0, 240);
     return {
       ok: false,
-      reason: `合成失败：上游没给音频（模型 ${model} / 音色 ${voice} —— 音色必须和创建它时的模型一致）`,
+      reason:
+        `合成失败（HTTP ${r.status}，上游没给音频）。模型 ${model} / 音色 ${voice}。` +
+        `上游原话：${raw || "（空响应）"}。` +
+        "三种常见原因：①音色刚造好还在审核/部署中（状态不是 OK，等几分钟再试）" +
+        "②音色不是用这个模型造的（创建时选的 target_model 必须和这里的「合成」一致）" +
+        "③这个账号没开通该模型（plus 有时要单独开通）。",
     };
   }
   return { ok: true, url: ready };
+}
+
+/**
+ * 自定义音色的状态 → 人话。
+ *
+ * DashScope 的 `list_voice` 会带 `status`：
+ * · `OK`        能用
+ * · `DEPLOYING` 还在审核/部署中（刚用声音设计造的嗓子通常是这样，要等几分钟）
+ * · `UNDEPLOYED` 已下线，不能用了
+ * 不把这个显示出来，用户就只能看到"合成失败"四个字。
+ */
+export function dsVoiceStatusHint(status: string | undefined): string {
+  const s = (status ?? "").toUpperCase();
+  if (s === "OK" || !s) return "";
+  if (s === "DEPLOYING") return "审核中，等几分钟";
+  if (s === "UNDEPLOYED") return "已下线，不能用";
+  return s;
 }
 
 /* ────────────────────────── 音色 ────────────────────────── */

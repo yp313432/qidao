@@ -86,7 +86,15 @@ export function voiceProviderOf(baseUrl: string): VoiceProvider {
 export async function listVoiceModels(
   cfg = voiceConfig(),
 ): Promise<
-  { ok: true; provider: VoiceProvider; models: string[]; voices: string[] } | { ok: false; reason: string }
+  | {
+      ok: true;
+      provider: VoiceProvider;
+      models: string[];
+      voices: string[];
+      /** 音色 id → 上游状态（`OK` / `DEPLOYING` / `UNDEPLOYED`）；只有百炼会给 */
+      voiceStatus?: Record<string, string>;
+    }
+  | { ok: false; reason: string }
 > {
   if (!cfg) return { ok: false, reason: "先在「我的 → 语音服务」填密钥" };
   const provider = voiceProviderOf(cfg.baseUrl);
@@ -104,6 +112,7 @@ export async function listVoiceModels(
         provider,
         models: DS_TTS_MODELS,
         voices: r.voices.map((v) => v.id),
+        voiceStatus: Object.fromEntries(r.voices.map((v) => [v.id, v.status])),
       };
     }
     if (provider === "elevenlabs") {
