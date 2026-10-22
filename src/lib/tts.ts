@@ -70,12 +70,27 @@ export async function speakTextAsync(
      * 拿的是**最近一次情绪上报**的 group —— 他刚说"心跳快了一下"，下一句就该轻一点。
      * 读不到/关掉了就传空，平着念（宁可平，也不要瞎加）。
      */
-    let instruction = "";
     const st = useApp.getState();
+    /**
+     * 还有一件用户会问的事（m11189："这个试听和语速、音调还管用吧"）：
+     * 系统 TTS 删掉之后，`voiceRate` / `voicePitch` 这两个滑杆原来只喂给
+     * `SpeechSynthesisUtterance`，也就是**已经不起作用了**。
+     * 百炼支持自然语言 instruction，所以把这两个值翻成一句人话捎上；
+     * 别的家不吃这个参数就自然忽略，不会报错。
+     */
+    const bits: string[] = [];
     if (st.settings.voiceEmotionTags !== false) {
       const last = st.emotionEvents?.[st.emotionEvents.length - 1];
-      instruction = instructionOfEmotion(last?.group);
+      const emo = instructionOfEmotion(last?.group);
+      if (emo) bits.push(emo);
     }
+    const rate = st.settings.voiceRate ?? 0.95;
+    if (rate < 0.88) bits.push("语速比平常慢一些");
+    else if (rate > 1.12) bits.push("语速比平常快一些");
+    const pitch = st.settings.voicePitch ?? 1;
+    if (pitch < 0.9) bits.push("音调比平常低一些、更沉稳");
+    else if (pitch > 1.12) bits.push("音调比平常高一些、更年轻");
+    const instruction = bits.join("；");
     const out = await synthesize(clean, undefined, { instruction });
     if (out.ok) {
       try {

@@ -219,6 +219,22 @@ export async function synthDashscope(
   if (!cfg.apiKey.trim()) return { ok: false, reason: "还没填百炼的 API Key" };
   const model = cfg.model.trim() || DS_TTS_MODELS[0]!;
   const voice = cfg.voice.trim() || DS_SYSTEM_VOICES[0]!.id;
+
+  /**
+   * 自己造的嗓子是**绑模型**的：id 里带着造它时的 target_model
+   * （`qwen-audio-3.1-tts-plus-vd-qidao-…`）。
+   * 用户 m11188 就把「合成」改成了 flash 而音色还是 plus 造的 —— 这种组合
+   * 上游只会含糊地说"没法用"，不如在这儿一句话说清楚，还顺手告诉他改哪格。
+   */
+  if (voice.includes("-vd-")) {
+    const boundTo = voice.split("-vd-")[0] ?? "";
+    if (boundTo && !voice.startsWith(model)) {
+      return {
+        ok: false,
+        reason: `这个音色是用 ${boundTo} 造的，但「合成」现在选的是 ${model} —— 两者必须一致。把「合成」改成 ${boundTo} 再试（或者重新用 ${model} 造一个嗓子）。`,
+      };
+    }
+  }
   const input: Record<string, unknown> = {
     text: text.slice(0, 2000),
     voice,
@@ -237,7 +253,14 @@ export async function synthDashscope(
   const err = apiError(r.status, r.json, r.text);
   if (err) return { ok: false, reason: `合成失败：${err}` };
   const out = (r.json as { output?: { audio?: { url?: string; data?: string } } } | null)?.output;
-  const ready = await toAudioUrl(out?.audio?.data ?? out?.audio?.url);
+  /**
+   * ⚠️ 这里必须是 `||`，不是 `??`（用户 m11188 的报错暴露的）。
+   *
+   * 非流式合成时上游会返回 `"data": ""`（空字符串）**同时**给一个有效的
+   * `url`。`"" ?? url` 不会回落（空字符串不是 null/undefined），于是我们把
+   * 空串当音频源 → 判定"上游没给音频" → 每次都失败，而实际上音频就在 url 上。
+   */
+  const ready = await toAudioUrl(out?.audio?.data || out?.audio?.url);
   if (!ready) {
     /**
      * 兜底分支（用户 m11120："这是啥意思"）。
