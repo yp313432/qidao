@@ -131,8 +131,25 @@ async function toAudioUrl(src: Blob | string | null | undefined): Promise<string
   const raw = src.trim();
   if (!raw) return null;
   if (/^https?:\/\//i.test(raw)) {
+    /**
+     * 上游给的结果地址是 **http**（`http://dashscope-result-bj.os-s-cn-beijing…`）。
+     *
+     * 安卓 WebView 里 App 页面本身是 https://localhost，再 fetch 一个 http 资源
+     * 属于"混合内容"，会被直接拦掉 —— 表现就是"合成成功但没声音"。
+     * 同一个 OSS 域名支持 https，所以先换成 https 再取，失败才用原地址。
+     */
+    const httpsRaw = raw.replace(/^http:\/\//i, "https://");
     let blob: Blob | null = null;
     try {
+      const res = await fetch(httpsRaw);
+      if (res.ok) {
+        const b = await res.blob();
+        if (b.size > 0) blob = b;
+      }
+    } catch {
+      /* 混合内容/跨域，下面用原生再试 */
+    }
+    if (!blob) try {
       const res = await fetch(raw);
       if (res.ok) {
         const b = await res.blob();
