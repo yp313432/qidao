@@ -30,6 +30,68 @@ import { instructionOfEmotion } from "@/lib/dashscope";
 export type SpeakResult = { ok: true } | { ok: false; reason: string };
 
 /**
+ * 合成时那句"怎么念"（情绪 + 语速/音调）。
+ *
+ * 系统 TTS 删掉之后，`voiceRate` / `voicePitch` 两个滑杆原来只喂给
+ * `SpeechSynthesisUtterance` —— 已经不起作用了。百炼吃自然语言 `instruction`，
+ * 所以把这两个值翻成人话捎上；别的家不认这个参数就自然忽略，不会报错。
+ */
+export function voiceInstruction(): string {
+  const st = useApp.getState();
+  const bits: string[] = [];
+  if (st.settings.voiceEmotionTags !== false) {
+    const last = st.emotionEvents?.[st.emotionEvents.length - 1];
+    const emo = instructionOfEmotion(last?.group);
+    if (emo) bits.push(emo);
+  }
+  const rate = st.settings.voiceRate ?? 0.95;
+  if (rate < 0.88) bits.push("语速比平常慢一些");
+  else if (rate > 1.12) bits.push("语速比平常快一些");
+  const pitch = st.settings.voicePitch ?? 1;
+  if (pitch < 0.9) bits.push("音调比平常低一些、更沉稳");
+  else if (pitch > 1.12) bits.push("音调比平常高一些、更年轻");
+  return bits.join("；");
+}
+
+export type VoiceBubbleAudio =
+  | { ok: true; dataUrl: string; durationMs: number }
+  | { ok: false; reason: string };
+
+/**
+ * 合成一段**能存进消息里**的语音（用户 m11313：语音气泡）。
+ *
+ * 和 `speakTextAsync` 的区别：那个是"合成完立刻播出去"，播完就把 blob 还掉了；
+ * 气泡要的是**留着的数据**——所以他回消息时用它，合成完转成 dataURL 存进附件。
+ */
+export async function synthesizeVoiceBubble(text: string): Promise<VoiceBubbleAudio> {
+  const clean = text.trim();
+  if (!clean) return { ok: false, reason: "没内容可合成" };
+  if (!voiceConfigured()) return { ok: false, reason: "还没配语音服务（我的 → 系统 → 语音）" };
+  const out = await synthesize(clean, undefined, { instruction: voiceInstruction() });
+  if (!out.ok) return { ok: false, reason: out.reason };
+  try {
+    const res = await fetch(out.url);
+    if (!res.ok) return { ok: false, reason: `取音频失败：HTTP ${res.status}` };
+    const blob = await res.blob();
+    if (!blob.size) return { ok: false, reason: "合成回来了，但音频是空的" };
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result ?? ""));
+      fr.onerror = () => reject(new Error("读不出音频数据"));
+      fr.readAsDataURL(blob);
+    });
+    // 时长：按中文约 4 字/秒、再乘语速系数估（真实时长由播放器自己算）
+    const rate = useApp.getState().settings.voiceRate ?? 0.95;
+    const durationMs = Math.max(1000, Math.round((clean.length / (4 * rate)) * 1000));
+    return { ok: true, dataUrl, durationMs };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : "合成音频取不出来" };
+  } finally {
+    URL.revokeObjectURL(out.url);
+  }
+}
+
+/**
  * 正在播的那一段音频（语音服务合成的 mp3）。
  *
  * ⚠️ 为什么必须留这个句柄：`new Audio(url).play()` 播出去之后**没有任何办法停** ——
@@ -70,27 +132,7 @@ export async function speakTextAsync(
      * 拿的是**最近一次情绪上报**的 group —— 他刚说"心跳快了一下"，下一句就该轻一点。
      * 读不到/关掉了就传空，平着念（宁可平，也不要瞎加）。
      */
-    const st = useApp.getState();
-    /**
-     * 还有一件用户会问的事（m11189："这个试听和语速、音调还管用吧"）：
-     * 系统 TTS 删掉之后，`voiceRate` / `voicePitch` 这两个滑杆原来只喂给
-     * `SpeechSynthesisUtterance`，也就是**已经不起作用了**。
-     * 百炼支持自然语言 instruction，所以把这两个值翻成一句人话捎上；
-     * 别的家不吃这个参数就自然忽略，不会报错。
-     */
-    const bits: string[] = [];
-    if (st.settings.voiceEmotionTags !== false) {
-      const last = st.emotionEvents?.[st.emotionEvents.length - 1];
-      const emo = instructionOfEmotion(last?.group);
-      if (emo) bits.push(emo);
-    }
-    const rate = st.settings.voiceRate ?? 0.95;
-    if (rate < 0.88) bits.push("语速比平常慢一些");
-    else if (rate > 1.12) bits.push("语速比平常快一些");
-    const pitch = st.settings.voicePitch ?? 1;
-    if (pitch < 0.9) bits.push("音调比平常低一些、更沉稳");
-    else if (pitch > 1.12) bits.push("音调比平常高一些、更年轻");
-    const instruction = bits.join("；");
+    const instruction = voiceInstruction();
     const out = await synthesize(clean, undefined, { instruction });
     if (out.ok) {
       try {

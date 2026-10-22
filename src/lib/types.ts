@@ -639,6 +639,14 @@ export type Settings = {
    * 关掉就一律平着念。
    */
   voiceEmotionTags?: boolean;
+  /**
+   * 他**用语音气泡回**的时机（用户 m11313 定的规则）。
+   *
+   * - `whenVoice`（默认）：只要你先发过语音，他这一轮就用语音回 —— 像微信对讲；
+   * - `always`：他每条都用语音回（贵，但全程语音）；
+   * - `off`：只发文字（长按他/我的语音气泡仍能转文字）。
+   */
+  voiceBubbleReply?: "off" | "whenVoice" | "always";
   /** 转文字的模型名，如 FunAudioLLM/SenseVoiceSmall */
   voiceAsrModel?: string;
   /** 合成的模型名，如 FunAudioLLM/CosyVoice2-0.5B */
@@ -1116,7 +1124,15 @@ export type FeatureId =
   | { kind: "learn.openReading"; index?: number }
   | { kind: "learn.speak"; text: string }
   | { kind: "learn.removeCard"; word: string }
-  | { kind: "media.speak"; text: string }
+  | {
+      kind: "media.speak";
+      text: string;
+      /**
+       * 发成**语音气泡**而不是"念一遍"（用户 m11313："或者直接跟 ai 说发语音给我"）。
+       * true 时合成音频挂到这一轮的回复上，正文只当气泡下方的转写文字。
+       */
+      asBubble?: boolean;
+    }
   | { kind: "ambience.play"; index?: number }
   | { kind: "media.import"; url: string; name?: string }
   | { kind: "chat.delete" }

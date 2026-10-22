@@ -149,6 +149,29 @@ node verify-tool-recall.mjs
 
 新增/删除动作后 kind 总数会变，两个脚本里的数字必须相等（当前 **95**）。
 
+### 栖岛：App 里**不许**出现安卓原生弹层（alert / confirm / prompt）
+
+用户 m11475（截图：世界书"改这条"弹出安卓原生白卡片，**原文没带进来**，想加一句话也要整段重打）：
+> "把 app 里所有的安卓原生弹层都找出来做好适配，记得写进设计规则里，不准再犯。"
+
+WebView 里的 `window.alert / confirm / prompt` 是**系统原生对话框**：白卡片、方块按钮、
+跟 App 的玻璃质感完全不搭；而且 `prompt()` 的默认值在部分机型上**不显示** ——
+"只加一句话"就变成了"整段重写"。所以一律用 App 内的：
+
+| 原生 | 换成 |
+| --- | --- |
+| `alert(msg)` | `pushToast(msg)`（`src/lib/toast.ts`，全局 toast 挂在 `app-shell.tsx`） |
+| `confirm(msg)` | **两段式按钮**：第一次点变成"确定…？"，5 秒后自动复原（见 `storage-mode-card.tsx`） |
+| `prompt(title, value)` | `<PromptDialog>`（`src/components/prompt-dialog.tsx`，`defaultValue` **必传**原文） |
+
+**验收**：提交前跑
+
+```sh
+grep -rn "window\.\(alert\|confirm\|prompt\)(" src --include=*.ts --include=*.tsx
+```
+
+必须无输出。新增页面时同理，别图省事。
+
 ---
 
 ## 1. Your environment / workspace (for you, never surfaced to the user)

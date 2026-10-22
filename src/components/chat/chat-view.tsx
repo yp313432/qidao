@@ -112,6 +112,7 @@ import { crumb } from "@/lib/breadcrumbs";
 import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
+import { transcribe } from "@/lib/voice-service";
 import type { Attachment } from "@/lib/types";
 import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
@@ -798,8 +799,13 @@ export function ChatView() {
                         const pics = (m.attachments ?? []).filter(
                           (a) => a.dataUrl && a.kind !== "audio",
                         );
+                        /**
+                         * 语音**单独一坨**（用户 m11313：像微信那样）。
+                         * 它不套正文气泡：微信的语音气泡本身就是"内容"。
+                         */
+                        const voices = (m.attachments ?? []).filter((a) => a.kind === "audio");
                         const rest = (m.attachments ?? []).filter(
-                          (a) => !(a.dataUrl && a.kind !== "audio"),
+                          (a) => a.kind !== "audio" && !a.dataUrl,
                         );
                         return (
                           /* ⚠️ `w-full` 不能省：这是 flex 列里的一个 flex 项，
@@ -831,6 +837,19 @@ export function ChatView() {
                                 ))}
                               </div>
                             )}
+                            {voices.length > 0 && (
+                              <div className="mb-1 flex w-full flex-col items-end gap-1">
+                                {voices.map((a) => (
+                                  <VoiceBubble
+                                    key={a.id}
+                                    att={a}
+                                    mine
+                                    convId={conv!.id}
+                                    msgId={m.id}
+                                  />
+                                ))}
+                              </div>
+                            )}
                             {(body || rest.length > 0) && (
                               <div
                                 {...quotePress(m.id, body)}
@@ -841,10 +860,7 @@ export function ChatView() {
                               >
                                 {rest.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5">
-                                    {rest.map((a) =>
-                                      a.kind === "audio" && a.dataUrl ? (
-                                        <VoiceBubble key={a.id} att={a} />
-                                      ) : (
+                                    {rest.map((a) => (
                                         <span
                                           key={a.id}
                                           className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-[12px]"
@@ -855,8 +871,7 @@ export function ChatView() {
                                             {a.text ? "已读正文" : prettySize(a.size)}
                                           </span>
                                         </span>
-                                      ),
-                                    )}
+                                    ))}
                                   </div>
                                 )}
                                 {body}
@@ -869,6 +884,24 @@ export function ChatView() {
                     ) : (
                       /* ⚠️ 同上：`w-full` 必须留（否则长回复会把这一列撑成"一行不换行"） */
                       <div className="w-full min-w-0">
+                        {/*
+                          他发的**语音气泡**（用户 m11313："他发给我也是语音气泡"）。
+                          放在正文上方：语音是这条消息本身，正文只是气泡下的转写。
+                         */}
+                        {(m.attachments ?? []).some((a) => a.kind === "audio") && (
+                          <div className="mb-1.5 flex flex-col items-start gap-1">
+                            {(m.attachments ?? [])
+                              .filter((a) => a.kind === "audio")
+                              .map((a) => (
+                                <VoiceBubble
+                                  key={a.id}
+                                  att={a}
+                                  convId={conv!.id}
+                                  msgId={m.id}
+                                />
+                              ))}
+                          </div>
+                        )}
                         {/*
                           ⭐ agent loop 的进度：他现在走到第几步、正在执行哪个动作。
                           用户原话："这一轮我发出动作，成没成，要等下一轮结果回来才知道；
@@ -1468,69 +1501,183 @@ export function ChatView() {
 
 
 /** 语音消息气泡：放的是真录音，不是合成音。 */
-function VoiceBubble({ att }: { att: Attachment }) {
+/**
+ * 语音气泡（用户 m11313 定稿："跟微信一样"）。
+ *
+ * 形状：`[▶][波形][7"]` 一条横的实色气泡，宽度随时长变。
+ * 上方那行转写文字放在气泡**下面**（用户要求："转文字的显示内容放在下面"）。
+ *
+ * 两个细节是踩过的坑：
+ *   · 录出来的 webm 没有时长元信息（`el.duration` 是 Infinity）→ 进度条用我们量的秒数；
+ *   · 太老的语音音频会被清掉（只留最近 200 条）→ 这时要**说清楚**，不能点了没反应。
+ */
+function VoiceBubble({
+  att,
+  mine,
+  convId,
+  msgId,
+}: {
+  att: Attachment;
+  mine?: boolean;
+  convId?: string;
+  msgId?: string;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [text, setText] = useState(att.text ?? "");
+  const [busy, setBusy] = useState(false);
+  const [say, setSay] = useState("");
   const secs = Math.max(1, Math.round((att.durationMs ?? 0) / 1000));
+  const gone = !att.dataUrl;
+  /**
+   * 宽度按时长长——跟微信一样，短消息窄、长消息宽。
+   * 用 `minWidth` 而不是 `width`：短语音的波形+时长其实放不进 96px，
+   * 定死宽度会把文字挤出气泡（探针里 4 秒那条就溢出过）。
+   */
+  const minWidth = Math.min(210, 104 + secs * 4);
+  /** 波形根数也按时长来，短气泡别塞 18 根 */
+  const bars = Math.max(8, Math.min(20, Math.round(6 + secs * 1.1)));
 
   function toggle() {
     const el = ref.current;
-    if (!el) return;
+    if (!el || gone) return;
     if (playing) el.pause();
     else void el.play().catch(() => setPlaying(false));
   }
 
+  /** 长按 → 转成文字（微信也这么干） */
+  async function transcribeNow() {
+    if (busy || text || gone || !att.dataUrl) return;
+    setBusy(true);
+    setSay("");
+    try {
+      const blob = await (await fetch(att.dataUrl)).blob();
+      const r = await transcribe(blob);
+      if (!r.ok) {
+        setSay(r.reason);
+        return;
+      }
+      setText(r.text);
+      // 存回消息里，下次打开就不用再转一遍
+      if (convId && msgId) {
+        const conv = useApp.getState().conversations.find((c) => c.id === convId);
+        const msg = conv?.messages.find((m) => m.id === msgId);
+        if (msg) {
+          const atts = (msg.attachments ?? []).map((a) =>
+            a.id === att.id ? { ...a, text: r.text } : a,
+          );
+          useApp.getState().patchMessage(convId, msgId, { attachments: atts });
+        }
+      }
+    } catch (e) {
+      setSay(e instanceof Error ? e.message : "转不成文字");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+  const down = () => {
+    if (text || gone) return;
+    longPressed.current = false;
+    pressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      void transcribeNow();
+    }, 520);
+  };
+  const up = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
   return (
-    <span className="flex max-w-full items-center gap-2.5 rounded-2xl bg-surface px-3 py-2">
-      <audio
-        ref={ref}
-        src={att.dataUrl}
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
-          setPlaying(false);
-          setProgress(0);
-        }}
-        onTimeUpdate={(e) => {
-          const el = e.currentTarget;
-          // MediaRecorder 录出来的 webm 不带时长元数据，el.duration 会是 Infinity；
-          // 拿它当分母进度条永远不动 —— 用我们录的时候自己量的秒数。
-          const total = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : secs;
-          setProgress(Math.min(1, el.currentTime / total));
-        }}
-        className="hidden"
-      />
+    <div className={cn("flex max-w-full flex-col gap-1", mine ? "items-end" : "items-start")}>
       <button
         type="button"
         aria-label={playing ? "暂停语音" : "播放语音"}
-        onClick={toggle}
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-ink-fg"
-      >
-        {playing ? (
-          <Pause className="size-3.5 fill-current" />
-        ) : (
-          <Play className="size-3.5 fill-current" />
+        onClick={() => {
+          if (!longPressed.current) toggle();
+          longPressed.current = false;
+        }}
+        onPointerDown={down}
+        onPointerUp={up}
+        onPointerLeave={up}
+        onPointerCancel={up}
+        style={{ minWidth }}
+        className={cn(
+          "flex select-none items-center gap-2 rounded-[18px] px-2.5 py-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
+          mine
+            ? "bg-accent text-accent-fg shadow-[0_1px_2px_rgba(60,40,20,.18)]"
+            : "border border-line bg-surface text-fg",
+          gone && "opacity-60",
         )}
-      </button>
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="flex items-center gap-1">
-          {Array.from({ length: 14 }).map((_, i) => (
+      >
+        <audio
+          ref={ref}
+          src={att.dataUrl}
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => {
+            setPlaying(false);
+            setProgress(0);
+          }}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            const total = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : secs;
+            setProgress(Math.min(1, el.currentTime / total));
+          }}
+          className="hidden"
+        />
+        <span
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-full",
+            mine ? "bg-black/15 text-accent-fg" : "bg-chip text-fg",
+          )}
+        >
+          {gone ? (
+            <span className="text-[11px]">✕</span>
+          ) : playing ? (
+            <Pause className="size-3.5 fill-current" />
+          ) : (
+            <Play className="size-3.5 fill-current" />
+          )}
+        </span>
+        <span className="flex min-w-0 flex-1 items-center gap-[2.5px]">
+          {Array.from({ length: bars }).map((_, i) => (
             <span
               key={i}
               className={cn(
-                "w-0.5 rounded-full transition-colors",
-                i / 14 <= progress ? "bg-accent" : "bg-fg/25",
+                "w-[2px] shrink-0 rounded-full transition-colors",
+                i / bars <= progress
+                  ? mine
+                    ? "bg-accent-fg"
+                    : "bg-accent"
+                  : mine
+                    ? "bg-accent-fg/45"
+                    : "bg-fg/25",
               )}
-              style={{ height: `${6 + ((i * 7) % 13)}px` }}
+              style={{ height: `${5 + ((i * 11) % 13)}px` }}
             />
           ))}
         </span>
-        <span className="text-[10px] text-muted">
-          {secs} 秒{att.text ? " · 已转成文字，他看得懂" : " · 没转成文字，他只能看到提示"}
+        <span className={cn("shrink-0 text-[11px] tabular-nums", mine ? "text-accent-fg/90" : "text-muted")}>
+          {secs}"
         </span>
-      </span>
-    </span>
+      </button>
+
+      {text ? (
+        <div className="max-w-[86%] whitespace-pre-wrap break-words text-left text-[11px] leading-[1.55] text-muted">
+          {text}
+        </div>
+      ) : gone ? (
+        <div className="text-[10.5px] text-subtle">这条太久远了，音频已经清掉</div>
+      ) : (
+        <div className="text-[10.5px] text-subtle">{busy ? "正在转文字…" : "长按转成文字"}</div>
+      )}
+      {say && <div className="max-w-[86%] text-[10.5px] text-warn">{say}</div>}
+    </div>
   );
 }

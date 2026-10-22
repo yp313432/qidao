@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { PromptDialog } from "@/components/prompt-dialog";
 import { resolveAiName } from "@/lib/branding";
 import { buildManual } from "@/lib/manual";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -76,6 +77,11 @@ export function WorldbookView() {
   }
 
   function Row({ e }: { e: WorldEntry }) {
+  /**
+   * 编辑弹层的状态（用户 m11475：原来的 `window.prompt` 是安卓原生白卡片，
+   * 而且**原文没带进去**，想加一句话也得整段重打）。
+   */
+  const [edit, setEdit] = useState<null | "content" | "keywords">(null);
     return (
       <article className="rounded-3xl border border-line bg-surface px-4 py-3.5">
         <div className="flex items-start gap-2.5">
@@ -110,12 +116,7 @@ export function WorldbookView() {
             <div className="mt-2 flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  const next = window.prompt("改这条（留空 = 删掉）", e.content);
-                  if (next === null) return;
-                  if (!next.trim()) remove(e.id);
-                  else update(e.id, { content: next.trim() });
-                }}
+                onClick={() => setEdit("content")}
                 className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
               >
                 改内容
@@ -123,13 +124,7 @@ export function WorldbookView() {
               {e.position === "tail" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = window.prompt("关键词（空格分开）", (e.keywords ?? []).join(" "));
-                    if (next === null) return;
-                    update(e.id, {
-                      keywords: next.split(/[\s,，、]+/).map((k) => k.trim()).filter(Boolean),
-                    });
-                  }}
+                  onClick={() => setEdit("keywords")}
                   className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
                 >
                   改关键词
@@ -146,6 +141,34 @@ export function WorldbookView() {
             </div>
           </div>
         </div>
+        <PromptDialog
+          open={edit === "content"}
+          title="改这条"
+          hint="原文已经填好，接着改就行。清空并保存 = 删掉这条。"
+          defaultValue={e.content}
+          multiline
+          placeholder="写给他看的规矩…"
+          confirmText="保存"
+          onCancel={() => setEdit(null)}
+          onConfirm={(next) => {
+            setEdit(null);
+            if (!next.trim()) remove(e.id);
+            else update(e.id, { content: next.trim() });
+          }}
+        />
+        <PromptDialog
+          open={edit === "keywords"}
+          title="改关键词"
+          hint="用空格分开，比如：塔罗 抽卡 牌"
+          defaultValue={(e.keywords ?? []).join(" ")}
+          onCancel={() => setEdit(null)}
+          onConfirm={(next) => {
+            setEdit(null);
+            update(e.id, {
+              keywords: next.split(/[\s,，、]+/).map((k) => k.trim()).filter(Boolean),
+            });
+          }}
+        />
       </article>
     );
   }

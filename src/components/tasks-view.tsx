@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlarmClock, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { PromptDialog } from "@/components/prompt-dialog";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -28,6 +29,8 @@ export function TasksView() {
   const [adding, setAdding] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [time, setTime] = useState("08:00");
+  /** 改时间走 App 内弹层（用户 m11475："把 app 里所有的安卓原生弹层都找出来做好适配"） */
+  const [timeEdit, setTimeEdit] = useState<null | { id: string; value: string }>(null);
 
   const today = (() => {
     const d = new Date();
@@ -142,13 +145,7 @@ export function TasksView() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        const next = window.prompt("改成每天几点？（HH:MM）", t.time ?? "08:00");
-                        if (next === null) return;
-                        if (/^\d{1,2}:\d{2}$/.test(next.trim())) {
-                          updateTask(t.id, { time: next.trim(), at: undefined });
-                        }
-                      }}
+                      onClick={() => setTimeEdit({ id: t.id, value: t.time ?? "08:00" })}
                       className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
                     >
                       改时间
@@ -169,6 +166,23 @@ export function TasksView() {
           ))
         )}
       </section>
+
+      <PromptDialog
+        open={timeEdit !== null}
+        title="改成每天几点"
+        hint="24 小时制，比如 07:30"
+        defaultValue={timeEdit?.value ?? "08:00"}
+        placeholder="HH:MM"
+        confirmText="保存"
+        onCancel={() => setTimeEdit(null)}
+        onConfirm={(next) => {
+          const id = timeEdit?.id;
+          setTimeEdit(null);
+          if (!id) return;
+          const v = next.trim();
+          if (/^\d{1,2}:\d{2}$/.test(v)) updateTask(id, { time: v, at: undefined });
+        }}
+      />
     </div>
   );
 }

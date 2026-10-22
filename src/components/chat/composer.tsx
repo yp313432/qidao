@@ -123,6 +123,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const [pending, setPending] = useState<Attachment[]>([]);
   /** 录音中：非空表示正在录，值是已录毫秒 */
   const [recMs, setRecMs] = useState<number | null>(null);
+  /** 录音音量（0~1），画按住说话时的波形 */
+  const [recLevel, setRecLevel] = useState(0);
+  /** 手指上滑到"取消"那条线了 */
+  const [recCancel, setRecCancel] = useState(false);
+  const downAt = useRef(0);
+  const downY = useRef(0);
   const [recErr, setRecErr] = useState("");
   const recRef = useRef<Recorder | null>(null);
   /** App 里用原生识别时，这里是它的句柄（跟录音二选一） */
@@ -358,6 +364,74 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     }
   }
 
+  /**
+   * 按住说话（用户 m11313："直接发语音气泡…跟微信发语音一样"）。
+   *
+   * 真机上的手势约定：
+   *   · **按住**（>250ms）→ 录音，松手发语音气泡；
+   *   · **短按**（<250ms）→ 取消这次录音，改走"转成文字"（原来那个语音输入）；
+   *   · **按住往上滑**（>64px）→ 取消，不发。
+   * 短按保留转文字，是因为很多人习惯"点一下说一句、变成文字"，
+   * 而想发语音的人自然会按住。
+   */
+  async function startVoiceRec(): Promise<boolean> {
+    if (!recordSupported()) {
+      setRecErr("这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。");
+      return false;
+    }
+    try {
+      const rec = await startRecording((ms) => setRecMs(ms), {
+        maxMs: 60_000,
+        onLevel: (r) => setRecLevel(r),
+      });
+      recRef.current = rec;
+      setRecMs(0);
+      return true;
+    } catch (err) {
+      const name = (err as { name?: string }).name;
+      setRecErr(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "麦克风权限被拒了（也可能是 http 页面不给用）。要在浏览器设置里允许麦克风。"
+          : name === "NotFoundError"
+            ? "没找到麦克风设备。"
+            : `录音起不来：${(err as Error).message || name || "未知原因"}`,
+      );
+      setRecMs(null);
+      return false;
+    }
+  }
+
+  function micDown(e: React.PointerEvent) {
+    if (disabled || recMs !== null) return;
+    if (value.trim() || pending.length) {
+      submit();
+      return;
+    }
+    downAt.current = Date.now();
+    downY.current = e.clientY;
+    setRecCancel(false);
+    void startVoiceRec();
+  }
+
+  function micMove(e: React.PointerEvent) {
+    if (recMs === null) return;
+    setRecCancel(e.clientY - downY.current < -64);
+  }
+
+  function micUp(e: React.PointerEvent) {
+    if (recMs === null) return;
+    const held = Date.now() - downAt.current;
+    const cancel = e.clientY - downY.current < -64;
+    setRecCancel(false);
+    // 短按：当成"点一下说一句、转成文字"
+    if (held < 250 && !cancel) {
+      void stopRec(false);
+      void startRec();
+      return;
+    }
+    void stopRec(!cancel);
+  }
+
   async function stopRec(send: boolean) {
     // App 里"停止"= 结束识别；文字已经写进输入框了，不用再发音频
     if (asrRef.current) {
@@ -452,28 +526,33 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           </div>
         )}
         {recMs !== null && (
-          <div className="mb-1.5 flex items-center gap-2.5 rounded-2xl border border-warn/40 bg-warn/10 px-3 py-2.5">
-            <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-warn" />
-            <span className="min-w-0 flex-1 text-[12px] text-fg">
-              正在录音 {Math.floor(recMs / 1000)} 秒
-              <span className="ml-1 text-muted">· 边录边转文字，他就能听懂</span>
+          <div
+            className={cn(
+              "mb-1.5 flex items-center gap-2.5 rounded-2xl border px-3 py-2.5",
+              recCancel ? "border-warn/60 bg-warn/15" : "border-line bg-chip",
+            )}
+          >
+            <span className={cn("size-2.5 shrink-0 animate-pulse rounded-full", recCancel ? "bg-warn" : "bg-accent")} />
+            <span className="flex h-6 min-w-0 flex-1 items-end gap-[2px]">
+              {Array.from({ length: 22 }).map((_, i) => {
+                // 中段高、两端低，像真的波形；再用音量调制
+                const bell = 1 - Math.abs(i - 10.5) / 12;
+                const h = 4 + Math.round((bell * 0.55 + recLevel * 0.9) * 16);
+                return (
+                  <span
+                    key={i}
+                    className={cn("w-[3px] shrink-0 rounded-full transition-[height] duration-100", recCancel ? "bg-warn/70" : "bg-accent/80")}
+                    style={{ height: `${Math.max(4, Math.min(24, h))}px` }}
+                  />
+                );
+              })}
             </span>
-            <button
-              type="button"
-              aria-label="取消录音"
-              onClick={() => void stopRec(false)}
-              className="shrink-0 rounded-full bg-chip px-3 py-1.5 text-[12px] text-muted"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              aria-label="发送语音"
-              onClick={() => void stopRec(true)}
-              className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ink-fg"
-            >
-              发送
-            </button>
+            <span className="shrink-0 text-[12px] tabular-nums text-fg">
+              {Math.floor(recMs / 1000)}"
+            </span>
+            <span className="shrink-0 text-[11px] text-muted">
+              {recCancel ? "松开取消" : "松开发送 · 上滑取消"}
+            </span>
           </div>
         )}
         {recErr && (
@@ -1172,14 +1251,13 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           <button
             type="button"
             aria-label={
-              recMs !== null ? "停止并发送语音" : value.trim() || pending.length ? "发送" : "录音"
+              recMs !== null ? "松开发送语音" : value.trim() || pending.length ? "发送" : "按住说话"
             }
             disabled={disabled}
-            onClick={() => {
-              if (recMs !== null) void stopRec(true);
-              else if (value.trim() || pending.length) submit();
-              else void startRec();
-            }}
+            onPointerDown={micDown}
+            onPointerMove={micMove}
+            onPointerUp={micUp}
+            onPointerCancel={() => void stopRec(false)}
             className={cn(
               "flex size-9 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
               recMs !== null && "bg-warn",

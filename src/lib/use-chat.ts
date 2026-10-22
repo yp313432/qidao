@@ -23,6 +23,11 @@ import {
 import { useApp } from "@/lib/store";
 import { pushToast } from "@/lib/toast";
 import { maybeSummarize } from "@/lib/summarizer";
+import {
+  buildVoiceAttachment,
+  shouldVoiceReply,
+  sweepVoiceAudio,
+} from "@/lib/voice-bubble";
 import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
 import { partsFor } from "@/lib/segment";
@@ -933,9 +938,38 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 渲染时天然跟在正文后面；单发一条会和"这句话"脱节。
        */
       const stickerUrl = useApp.getState().takeReplySticker();
-      const attachments: ChatMessage["attachments"] = stickerUrl
-        ? [{ id: uid("att"), kind: "sticker", name: "表情", mime: "image/png", size: 0, dataUrl: stickerUrl }]
-        : undefined;
+      const stickerAtt: Attachment | null = stickerUrl
+        ? { id: uid("att"), kind: "sticker", name: "表情", mime: "image/png", size: 0, dataUrl: stickerUrl }
+        : null;
+
+      /**
+       * **他这一轮用语音回**（用户 m11313："我先用语音，它用语音回"）。
+       *
+       * 时机由 `settings.voiceBubbleReply` 决定（默认"你先发语音他才语音回"）。
+       * 合成失败**不打断这一轮** —— 文字照发，只是没有语音气泡。
+       */
+      let voiceAtt: Attachment | null = null;
+      try {
+        const convNow = useApp.getState().conversations.find((c) => c.id === conversationId);
+        const spoken = finalText.replace(/\s+/g, " ").trim();
+        if (
+          convNow &&
+          spoken.length >= 2 &&
+          !spoken.includes("（空回复）") &&
+          shouldVoiceReply(convNow.messages)
+        ) {
+          // 太长的整段合成会很慢（一句 600 字要十几秒），气泡只装前 600 字
+          voiceAtt = await buildVoiceAttachment(spoken.slice(0, 600));
+        }
+      } catch {
+        /* 合成失败就当没这回事，文字消息照旧 */
+      }
+
+      const attachments: ChatMessage["attachments"] = voiceAtt
+        ? [...(stickerAtt ? [stickerAtt] : []), voiceAtt]
+        : stickerAtt
+          ? [stickerAtt]
+          : undefined;
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
         content: finalText,
@@ -967,6 +1001,13 @@ export function useChatStream(opts: UseChatOpts = {}) {
         });
       } catch {
         /* 摘不出来就照旧走"整条丢"，不能让摘要失败影响这一轮 */
+      }
+
+      // 语音音频只留最近 200 条（用户 m11313 定的数），更早的只留时长
+      try {
+        sweepVoiceAudio();
+      } catch {
+        /* 清理失败不影响对话 */
       }
 
       if (meta) {
