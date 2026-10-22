@@ -23,6 +23,7 @@ import {
   stickerGroupList,
 } from "@/lib/stickers";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
+import { transcribe } from "@/lib/voice-service";
 import { startListening } from "@/lib/voice";
 import { IS_APP } from "@/lib/platform";
 import { resolveVoiceLang } from "@/lib/voice";
@@ -125,6 +126,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const [recMs, setRecMs] = useState<number | null>(null);
   /** 录音音量（0~1），画按住说话时的波形 */
   const [recLevel, setRecLevel] = useState(0);
+  /** 松手后正在把语音转成文字（他听不见，只能读） */
+  const [recBusy, setRecBusy] = useState(false);
   /** 手指上滑到"取消"那条线了 */
   const [recCancel, setRecCancel] = useState(false);
   const downAt = useRef(0);
@@ -453,6 +456,25 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
       setRecErr("没录到声音，再试一次？");
       return;
     }
+    /**
+     * 发语音之前**先把话转成文字**（用户 m11599）。
+     *
+     * 他"听不见"：模型只拿得到文字。以前不知道这一步，于是他收到一条只有
+     * 「3 秒」的语音，只能回"这条在我这儿是空的"——正是用户看到的那一幕。
+     * 转写失败不拦着发：气泡下面会诚实写「没转成文字」。
+     */
+    if (att.dataUrl) {
+      setRecBusy(true);
+      try {
+        const blob = await (await fetch(att.dataUrl)).blob();
+        const r = await transcribe(blob);
+        if (r.ok) att.text = r.text;
+      } catch {
+        /* 转写不了就发纯语音，气泡上会标出来 */
+      } finally {
+        setRecBusy(false);
+      }
+    }
     onSend("", [att]);
   }
 
@@ -553,6 +575,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             <span className="shrink-0 text-[11px] text-muted">
               {recCancel ? "松开取消" : "松开发送 · 上滑取消"}
             </span>
+          </div>
+        )}
+        {recBusy && (
+          <div className="mb-1.5 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[12px] text-muted">
+            <span className="size-2 animate-pulse rounded-full bg-accent" />
+            正在把这条语音转成文字给他读…
           </div>
         )}
         {recErr && (

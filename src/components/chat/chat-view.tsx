@@ -955,6 +955,12 @@ export function ChatView() {
                           · `bubble-in` 只在"刚生成的那 20 秒内"加：老消息渲染出来就是全的。
                         */}
                         {(() => {
+                          /**
+                           * 语音模式下**正文不再单独出一个气泡**（用户 m11599：
+                           * "他输出既有气泡又有文本，不可以这样，发语音就统一全是语音"）。
+                           * 文字没有丢：它就在语音气泡下面那行转写里。
+                           */
+                          if ((m.attachments ?? []).some((a) => a.kind === "audio")) return null;
                           const parts =
                             !streaming && visibleParts.length > 1 ? visibleParts : null;
                           const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
@@ -1523,11 +1529,18 @@ function VoiceBubble({
   msgId?: string;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState(att.text ?? "");
   const [busy, setBusy] = useState(false);
   const [say, setSay] = useState("");
+  /** 长按菜单的位置（视口坐标）：贴着被长按的那个气泡 */
+  const [menu, setMenu] = useState<{ left: number; top: number; up: boolean; arrow: number } | null>(
+    null,
+  );
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
   const secs = Math.max(1, Math.round((att.durationMs ?? 0) / 1000));
   const gone = !att.dataUrl;
   /**
@@ -1546,7 +1559,23 @@ function VoiceBubble({
     else void el.play().catch(() => setPlaying(false));
   }
 
-  /** 长按 → 转成文字（微信也这么干） */
+  /**
+   * 长按 → 菜单贴着这个气泡（用户 m11599："弹层跟消息贴近点，就跟微信这样"）。
+   * 优先出在气泡**上方**，上面空间不够就落到下方，小箭头跟着换向。
+   */
+  function openMenu() {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const H = 150;
+    const W = 168;
+    const up = r.top > H + 16;
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8);
+    /** 小箭头对准气泡中心（微信那种"指着这条消息"的感觉） */
+    const arrow = Math.min(Math.max(16, r.left + r.width / 2 - left), W - 16);
+    setMenu({ left, top: up ? r.top - 10 : r.bottom + 10, up, arrow });
+  }
+
   async function transcribeNow() {
     if (busy || text || gone || !att.dataUrl) return;
     setBusy(true);
@@ -1577,24 +1606,50 @@ function VoiceBubble({
     }
   }
 
-  const pressTimer = useRef<number | null>(null);
-  const longPressed = useRef(false);
+  /** 存到手机：走浏览器下载（安卓会落到「下载」目录） */
+  function saveToPhone() {
+    if (!att.dataUrl) return;
+    const a = document.createElement("a");
+    a.href = att.dataUrl;
+    a.download = `语音-${secs}秒.webm`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setSay("已存到手机的「下载」里");
+  }
+
+  /** 删掉这条语音：把这个音频附件从消息里去掉（没别的了就整条空掉） */
+  function removeThis() {
+    if (!convId || !msgId) return;
+    const conv = useApp.getState().conversations.find((c) => c.id === convId);
+    const msg = conv?.messages.find((m) => m.id === msgId);
+    if (!msg) return;
+    const others = (msg.attachments ?? []).filter((a) => a.id !== att.id);
+    useApp.getState().patchMessage(convId, msgId, {
+      attachments: others,
+      ...(others.length === 0 ? { content: "" } : {}),
+    });
+  }
+
   const down = () => {
-    if (text || gone) return;
     longPressed.current = false;
     pressTimer.current = window.setTimeout(() => {
       longPressed.current = true;
-      void transcribeNow();
-    }, 520);
+      openMenu();
+    }, 480);
   };
   const up = () => {
     if (pressTimer.current) window.clearTimeout(pressTimer.current);
     pressTimer.current = null;
   };
 
+  const item =
+    "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px] text-fg";
+
   return (
     <div className={cn("flex max-w-full flex-col gap-1", mine ? "items-end" : "items-start")}>
       <button
+        ref={btnRef}
         type="button"
         aria-label={playing ? "暂停语音" : "播放语音"}
         onClick={() => {
@@ -1668,16 +1723,97 @@ function VoiceBubble({
         </span>
       </button>
 
+      {/*
+        转写**就放在气泡下面**（用户 m11599），浅灰小字、最多两行。
+        长按才看文字会把页面弄得很空，也让他"不知道你说了什么"。
+      */}
       {text ? (
-        <div className="max-w-[86%] whitespace-pre-wrap break-words text-left text-[11px] leading-[1.55] text-muted">
+        <div className="line-clamp-2 max-w-[240px] whitespace-pre-wrap break-words text-left text-[11px] leading-[1.5] text-muted">
           {text}
         </div>
       ) : gone ? (
         <div className="text-[10.5px] text-subtle">这条太久远了，音频已经清掉</div>
       ) : (
-        <div className="text-[10.5px] text-subtle">{busy ? "正在转文字…" : "长按转成文字"}</div>
+        <div className="text-[10.5px] italic text-subtle">{busy ? "正在转文字…" : "没转成文字"}</div>
       )}
       {say && <div className="max-w-[86%] text-[10.5px] text-warn">{say}</div>}
+
+      {/* 贴着气泡的菜单（用完即卸，点空白处关掉） */}
+      {menu
+        ? createPortal(
+            <div className="fixed inset-0 z-[97] bg-black/10" onPointerDown={() => setMenu(null)}>
+              <div
+                className="absolute w-[168px] rounded-[13px] border border-line bg-[rgba(253,250,245,0.99)] py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]"
+                style={{
+                  left: menu.left,
+                  ...(menu.up
+                    ? { bottom: window.innerHeight - menu.top }
+                    : { top: menu.top }),
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                {text ? (
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(text).catch(() => undefined);
+                      setMenu(null);
+                      setSay("文字已复制");
+                    }}
+                  >
+                    复制文字
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      setMenu(null);
+                      void transcribeNow();
+                    }}
+                  >
+                    转成文字
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={item}
+                  onClick={() => {
+                    setMenu(null);
+                    saveToPhone();
+                  }}
+                >
+                  存到手机
+                  <span className="text-[10px] text-subtle">.webm</span>
+                </button>
+                <div className="mx-3 my-1 h-px bg-line" />
+                <button
+                  type="button"
+                  className={cn(item, "text-warn")}
+                  onClick={() => {
+                    setMenu(null);
+                    removeThis();
+                  }}
+                >
+                  删掉这条
+                </button>
+                {/* 指着被长按的那个气泡 */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute size-3 rotate-45 border-line bg-[rgba(253,250,245,0.99)]",
+                    menu.up
+                      ? "-bottom-[6.5px] border-b border-r"
+                      : "-top-[6.5px] border-t border-l",
+                  )}
+                  style={{ left: menu.arrow }}
+                />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
