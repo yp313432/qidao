@@ -21,6 +21,7 @@ import {
   systemPrompt,
 } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
+import { pushToast } from "@/lib/toast";
 import { maybeSummarize } from "@/lib/summarizer";
 import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
@@ -1005,7 +1006,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        */
       const ok = useApp.getState().bumpQuota();
       if (!ok) {
-        window.alert(
+        pushToast(
           "本窗口额度用尽了（你现在走的是内置服务端，花的是服务端那把 key）。\n" +
             "想不受限：去「我的 → 自定义上游」填你自己的地址和密钥。",
         );

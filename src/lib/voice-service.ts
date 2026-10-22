@@ -88,9 +88,56 @@ export async function listVoiceModels(
     const res = await fetch(join(cfg.baseUrl, "/models"), {
       headers: { authorization: `Bearer ${cfg.apiKey}` },
     });
-    if (!res.ok) return { ok: false, reason: `拉取失败：HTTP ${res.status}（地址或密钥不对？）` };
+    if (!res.ok) {
+      /**
+       * 401 的排查提示（用户 m10539："拉取硅基流动的模型不成功"，弹的是 HTTP 401）。
+       *
+       * 光说"地址或密钥不对"没法定位 —— 401 / 403 / 404 是三种完全不同的病：
+       * · 401 = 密钥没被认（复制少了、前后带了空格、key 已经删了/重置了）
+       * · 403 = 密钥认了但没权限（没开通这个模型、余额为 0）
+       * · 404 = 地址不对（地址要指到服务商的 /v1，有的还要带 /openai）
+       * 顺手把上游返回的那句话带上，能直接看出是哪一种。
+       */
+      let hint = `拉取失败：HTTP ${res.status}`;
+      if (res.status === 401) {
+        hint +=
+          "\n密钥没被认（401）。检查：①是否复制完整（硅基流动的 key 以 sk- 开头）②前后有没有带空格或换行 ③这个 key 是不是已经被重置/删了";
+      } else if (res.status === 403) {
+        hint += "\n密钥被拒或没额度（403）：去服务商控制台看余额、看这个 key 有没有开通该能力";
+      } else if (res.status === 404) {
+        hint += `\n地址不对（404）：现在填的是 ${cfg.baseUrl}，OpenAI 兼容的地址一般以 /v1 结尾`;
+      }
+      try {
+        const body = (await res.text()).slice(0, 120);
+        if (body.trim()) hint += `\n上游原话：${body.trim()}`;
+      } catch {
+        /* 读不到就不带 */
+      }
+      return { ok: false, reason: hint };
+    }
     const j = (await res.json()) as { data?: { id?: string }[] };
-    return { ok: true, provider, models: (j.data ?? []).map((m) => m.id ?? "").filter(Boolean), voices: [] };
+    const all = (j.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+    /**
+     * **只留语音相关的模型**（用户 m10620："这个做的是语音相关的，其他的聊天、图像模型啥的不相关的就不拉取了"）。
+     *
+     * 硅基流动的 `/models` 会把账号里所有模型都列出来（聊天、画图、向量、重排…），
+     * 一次 98 个，对"选哪个来听我说话"这件事毫无帮助。这里按名字筛出语音类：
+     *   · 识别：asr / whisper / sensevoice / transcribe / speech-to-text
+     *   · 合成：tts / cosyvoice / voice / speech / moss-ttsd / fish
+     * 已知能走 OpenAI 兼容语音端点的排最前（`FunAudioLLM/SenseVoiceSmall`、`CosyVoice2`），
+     * 因为其余新上架的语音模型**未必**支持 `/audio/*` 接口，填进去会 400。
+     */
+    const VOICE_RE = /(?:asr|whisper|sensevoice|cosyvoice|tts|voice|speech|transcri|moss-ttsd|funaudiollm|paraformer)/i;
+    const KNOWN = ["FunAudioLLM/SenseVoiceSmall", "FunAudioLLM/CosyVoice2-0.5B"];
+    const models = all
+      .filter((id) => VOICE_RE.test(id))
+      .sort((a, b) => {
+        const ka = KNOWN.indexOf(a);
+        const kb = KNOWN.indexOf(b);
+        if (ka >= 0 || kb >= 0) return (ka < 0 ? 99 : ka) - (kb < 0 ? 99 : kb);
+        return a.localeCompare(b);
+      });
+    return { ok: true, provider, models, voices: [] };
   } catch (e) {
     return { ok: false, reason: `拉取失败：${String((e as Error)?.message ?? e).slice(0, 60)}` };
   }

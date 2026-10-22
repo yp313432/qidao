@@ -9,6 +9,7 @@ import { ComposerTint } from "@/components/composer-tint";
 import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GiftAlert } from "@/components/gift-alert";
+import { GlobalToast } from "@/components/global-toast";
 import { GlassHighlight } from "@/components/glass-highlight";
 import { PlayerHost } from "@/components/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
@@ -230,6 +231,8 @@ export function AppShell() {
       <LetterAlert />
       {/* 他送了花：一样是一进 app 就弹（见 components/gift-alert.tsx） */}
       <GiftAlert />
+      {/* 全局轻提示：替代 window.alert（安卓原生的白卡片跟这个 App 不搭） */}
+      <GlobalToast />
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </div>

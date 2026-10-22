@@ -317,8 +317,24 @@ export function MePage({
 function MeSections({ tab }: { tab: MeTab }) {
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
+  /**
+   * 语音服务的提示（用户 m10539："这个安卓底层的弹窗没做适配"）。
+   *
+   * 原来成功/失败都走 `window.alert()` —— 在 WebView 里它会被渲染成**安卓系统原生对话框**
+   * （白色卡片 + OK），跟这个 App 的玻璃质感完全不搭，还挡内容。
+   * 改成页内一行提示：不遮挡、可复制、失败时长文案能躺着读完。
+   */
+  const [voiceMsg, setVoiceMsg] = useState("");
   /** 浏览器里能选的音色（App 里由系统引擎决定，所以是空数组） */
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  /**
+   * 语音服务里"能被选"的模型（拉取后才有）。
+   *
+   * 用户 m10620："这个模型他自动就写上了，我也换不了" —— 一格纯文本输入框，
+   * 手打一长串 `FunAudioLLM/CosyVoice2-0.5B` 在手机上很折磨。拉到清单后
+   * 直接给一排可点的按钮，点一下就是换引擎。
+   */
+  const [voiceModels, setVoiceModels] = useState<string[]>([]);
   const settings = useApp((s) => s.settings);
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
@@ -1963,18 +1979,50 @@ function MeSections({ tab }: { tab: MeTab }) {
             { k: "voiceAsrModel" as const, label: "转文字模型", ph: "FunAudioLLM/SenseVoiceSmall" },
             { k: "voiceTtsModel" as const, label: "合成模型", ph: "FunAudioLLM/CosyVoice2-0.5B" },
             { k: "voiceTtsVoice" as const, label: "音色", ph: "alex" },
-          ].map((f) => (
-            <label key={f.k} className="mt-2 block">
-              <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
-              <input
-                type={f.secret ? "password" : "text"}
-                value={(settings[f.k] as string | undefined) ?? ""}
-                onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
-                placeholder={f.ph}
-                className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-              />
-            </label>
-          ))}
+          ].map((f) => {
+            /**
+             * 模型那两格给"可点的备选"：拉取过就列出来，点一下换掉。
+             * 音色那格给固定的几个嗓子名（接口不返回音色清单，只能按名字选）。
+             */
+            const chips =
+              f.k === "voiceAsrModel"
+                ? voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m))
+                : f.k === "voiceTtsModel"
+                  ? voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m))
+                  : f.k === "voiceTtsVoice"
+                    ? ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"]
+                    : [];
+            return (
+              <div key={f.k} className="mt-2 block">
+                <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+                <input
+                  type={f.secret ? "password" : "text"}
+                  value={(settings[f.k] as string | undefined) ?? ""}
+                  onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
+                  placeholder={f.ph}
+                  className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
+                />
+                {chips.length > 0 && (
+                  <span className="mt-1.5 flex flex-wrap gap-1.5">
+                    {chips.slice(0, 8).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => patch({ [f.k]: m } as Partial<typeof settings>)}
+                        className={`rounded-full border px-2 py-0.5 text-[10.5px] ${
+                          (settings[f.k] as string | undefined) === m
+                            ? "border-accent/60 bg-accent/10 text-accent"
+                            : "border-line bg-surface text-muted"
+                        }`}
+                      >
+                        {f.k === "voiceTtsVoice" ? m : m.split("/").pop()}
+                      </button>
+                    ))}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           <p className="mt-2 text-[11px] leading-4 text-subtle">
             密钥只存在这台设备里，不进代码、不进仓库 ✅ 填了就会自动启用：
             语音页和输入框的麦克风都改走它（YOYO 不再出现 ✅），朗读也用它家的音色 ✅
@@ -1984,9 +2032,10 @@ function MeSections({ tab }: { tab: MeTab }) {
             type="button"
             className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
             onClick={async () => {
+              setVoiceMsg("正在拉取…");
               const r = await listVoiceModels();
               if (!r.ok) {
-                window.alert(r.reason);
+                setVoiceMsg(r.reason);
                 return;
               }
               const pick = (re: RegExp) => r.models.find((m) => re.test(m)) ?? "";
@@ -1997,17 +2046,24 @@ function MeSections({ tab }: { tab: MeTab }) {
                 ...(tts ? { voiceTtsModel: tts } : {}),
                 ...(r.voices[0] ? { voiceTtsVoice: r.voices[0] } : {}),
               } as Partial<typeof settings>);
-              window.alert(
-                `拉到了 ${r.models.length} 个模型${r.voices.length ? ` / ${r.voices.length} 个音色` : ""}` +
-                  `（${r.provider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"}）：\n` +
-                  [asr && `转文字 → ${asr}`, tts && `合成 → ${tts}`, r.voices[0] && `音色 → ${r.voices[0]}`]
-                    .filter(Boolean)
-                    .join("\n"),
+              setVoiceModels(r.models);
+              setVoiceMsg(
+                `拉到 ${r.models.length} 个语音相关的模型（其他聊天/画图的已经帮你滤掉了）：\n` +
+                  [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`].filter(Boolean).join("\n") +
+                  `\n\n模型是"引擎"，音色是"嗓子"：下面点按钮就能换，音色从 alex / anna / bella… 里挑一个。`,
               );
             }}
           >
             拉取模型（按地址自动认服务商，拉到就填上面三个）
           </button>
+          {voiceMsg && (
+            <p
+              className="mt-2 whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface px-3 py-2 text-[11.5px] leading-5 text-ink"
+              onClick={() => setVoiceMsg("")}
+            >
+              {voiceMsg}
+            </p>
+          )}
         </div>
 
         <p className="mt-4 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>

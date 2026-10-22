@@ -26,6 +26,8 @@ export function StorageModeCard() {
   const [note, setNote] = useState<MigratedNote | null>(null);
   const [preview, setPreview] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 两段式确认：先记下要点哪一项，再点一次才真的恢复 */
+  const [armed, setArmed] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   /** 存储自检结果（两份各有多少东西）——见 lib/data/selfcheck.ts */
   const [check, setCheck] = useState<Awaited<ReturnType<typeof import("@/lib/data/selfcheck").storageSelfCheck>> | null>(null);
@@ -48,8 +50,14 @@ export function StorageModeCard() {
    *   · `snapshot` —— 整份回到某个快照（恢复前会自动把现状再留一份）
    */
   async function restore(kind: "mirror" | "snapshot", key?: string) {
-    const label = kind === "mirror" ? "安全带里的设置" : "那份快照";
-    if (!window.confirm(`确定要用${label}恢复吗？（恢复前会自动把现在这份留一份）`)) return;
+    /**
+     * 确认改成**按钮两段式**（用户 m10539："安卓底层的弹窗没做适配"）：
+     * `window.confirm()` 在 WebView 里是安卓原生对话框，跟 App 的玻璃感不搭。
+     * 现在是"点一次变成『确定要恢复？』，再点一次才执行，5 秒没点自动取消"——
+     * 目的不变（恢复不可逆，必须多一次动作），只是不再弹系统框。
+     */
+    const target = key ?? kind;
+    if (armed !== target) return;
     setBusy(true);
     setMsg("");
     try {
@@ -190,20 +198,38 @@ export function StorageModeCard() {
                 <button
                   type="button"
                   disabled={busy || !check.mirror.has}
-                  onClick={() => void restore("mirror")}
+                  onClick={() => {
+                    if (armed !== "mirror") {
+                      setArmed("mirror");
+                      window.setTimeout(() => setArmed(null), 5000);
+                      return;
+                    }
+                    setArmed(null);
+                    void restore("mirror");
+                  }}
                   className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
                 >
-                  只用安全带里的设置恢复
+                  {armed === "mirror" ? "确定用安全带里的设置恢复？" : "只用安全带里的设置恢复"}
                 </button>
                 {snaps.map((s) => (
                   <button
                     key={s.key}
                     type="button"
                     disabled={busy}
-                    onClick={() => void restore("snapshot", s.key)}
+                    onClick={() => {
+                      if (armed !== s.key) {
+                        setArmed(s.key);
+                        window.setTimeout(() => setArmed(null), 5000);
+                        return;
+                      }
+                      setArmed(null);
+                      void restore("snapshot", s.key);
+                    }}
                     className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
                   >
-                    回到快照 {new Date(s.at).toLocaleString().slice(5, -3)}
+                    {armed === s.key
+                      ? "确定回到这版？"
+                      : `回到快照 ${new Date(s.at).toLocaleString().slice(5, -3)}`}
                   </button>
                 ))}
               </li>
