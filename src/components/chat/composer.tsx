@@ -126,8 +126,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const [recMs, setRecMs] = useState<number | null>(null);
   /** 录音音量（0~1），画按住说话时的波形 */
   const [recLevel, setRecLevel] = useState(0);
-  /** 松手后正在把语音转成文字（他听不见，只能读） */
-  const [recBusy, setRecBusy] = useState(false);
+  /**
+   * 真的在录吗 —— 用 ref 而不是 `recMs`：
+   * `setRecMs(0)` 是异步的，手指抬得比 React 刷新快时（用户 m11719：
+   * "我手已经拿开了…但它不停止"）`micUp` 里还看到 null，于是既不停止也不发送。
+   */
+  const recOn = useRef(false);
   /** 手指上滑到"取消"那条线了 */
   const [recCancel, setRecCancel] = useState(false);
   const downAt = useRef(0);
@@ -388,6 +392,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         onLevel: (r) => setRecLevel(r),
       });
       recRef.current = rec;
+      recOn.current = true;
       setRecMs(0);
       return true;
     } catch (err) {
@@ -417,21 +422,22 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   }
 
   function micMove(e: React.PointerEvent) {
-    if (recMs === null) return;
+    if (!recOn.current) return;
     setRecCancel(e.clientY - downY.current < -64);
   }
 
+  /**
+   * 松手 = 立刻停止 + 直接发出去（用户 m11719："长按说，松手直接发送，
+   * 不用再点第二次停止再发"）。
+   *
+   * 原来这里有一条"短按 <250ms 就走旧的点击转文字"的分支，它把"松手"吃掉了：
+   * 轻点一下 → 开始录音后一直录，要再点一次才停。现在整条删掉，
+   * 手势只有一种：按下录、松手发、上滑取消。
+   */
   function micUp(e: React.PointerEvent) {
-    if (recMs === null) return;
-    const held = Date.now() - downAt.current;
+    if (!recOn.current) return;
     const cancel = e.clientY - downY.current < -64;
     setRecCancel(false);
-    // 短按：当成"点一下说一句、转成文字"
-    if (held < 250 && !cancel) {
-      void stopRec(false);
-      void startRec();
-      return;
-    }
     void stopRec(!cancel);
   }
 
@@ -445,6 +451,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     }
     const rec = recRef.current;
     recRef.current = null;
+    recOn.current = false;
     setRecMs(null);
     if (!rec) return;
     if (!send) {
@@ -464,15 +471,13 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
      * 转写失败不拦着发：气泡下面会诚实写「没转成文字」。
      */
     if (att.dataUrl) {
-      setRecBusy(true);
+      // 转写在后台做，**不显示任何提示**（用户 m11723："转文字放在后台，不要显示"）
       try {
         const blob = await (await fetch(att.dataUrl)).blob();
         const r = await transcribe(blob);
         if (r.ok) att.text = r.text;
       } catch {
-        /* 转写不了就发纯语音，气泡上会标出来 */
-      } finally {
-        setRecBusy(false);
+        /* 转写不了就发一条纯语音；他要读的时候长按还能再转 */
       }
     }
     onSend("", [att]);
@@ -575,12 +580,6 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             <span className="shrink-0 text-[11px] text-muted">
               {recCancel ? "松开取消" : "松开发送 · 上滑取消"}
             </span>
-          </div>
-        )}
-        {recBusy && (
-          <div className="mb-1.5 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[12px] text-muted">
-            <span className="size-2 animate-pulse rounded-full bg-accent" />
-            正在把这条语音转成文字给他读…
           </div>
         )}
         {recErr && (
@@ -1279,7 +1278,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           <button
             type="button"
             aria-label={
-              recMs !== null ? "松开发送语音" : value.trim() || pending.length ? "发送" : "按住说话"
+              recOn.current ? "松开发送语音" : value.trim() || pending.length ? "发送" : "按住说话"
             }
             disabled={disabled}
             onPointerDown={micDown}

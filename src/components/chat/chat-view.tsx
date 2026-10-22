@@ -1671,7 +1671,7 @@ function VoiceBubble({
         className={cn(
           "flex select-none items-center gap-2 rounded-[18px] px-2.5 py-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
           mine
-            ? "bg-accent text-accent-fg shadow-[0_1px_2px_rgba(60,40,20,.18)]"
+            ? "border border-accent/25 bg-[rgba(247,238,226,0.96)] text-fg shadow-[0_1px_2px_rgba(60,40,20,.12)]"
             : "border border-line bg-surface text-fg",
           gone && "opacity-60",
         )}
@@ -1696,7 +1696,7 @@ function VoiceBubble({
         <span
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-full",
-            mine ? "bg-black/15 text-accent-fg" : "bg-chip text-fg",
+            mine ? "bg-accent/15 text-accent" : "bg-chip text-fg",
           )}
         >
           {gone ? (
@@ -1714,18 +1714,16 @@ function VoiceBubble({
               className={cn(
                 "w-[2px] shrink-0 rounded-full transition-colors",
                 i / bars <= progress
-                  ? mine
-                    ? "bg-accent-fg"
-                    : "bg-accent"
+                  ? "bg-accent"
                   : mine
-                    ? "bg-accent-fg/45"
+                    ? "bg-accent/35"
                     : "bg-fg/25",
               )}
               style={{ height: `${5 + ((i * 11) % 13)}px` }}
             />
           ))}
         </span>
-        <span className={cn("shrink-0 text-[11px] tabular-nums", mine ? "text-accent-fg/90" : "text-muted")}>
+        <span className={cn("shrink-0 text-[11px] tabular-nums", mine ? "text-muted" : "text-muted")}>
           {secs}"
         </span>
       </button>
