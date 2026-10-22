@@ -95,6 +95,14 @@ export async function speakTextAsync(
     if (out.ok) {
       try {
         const audio = new Audio(out.url);
+        /**
+         * 播放失败**不能当成成功**（用户 m11226："还是没有声音"）。
+         *
+         * 原来 `onerror` 和 `play().catch()` 都只是 resolve，函数照样返回
+         * `{ ok: true }` —— 于是界面上写"念出来了"，用户却什么都没听到，
+         * 而且连个原因都没有。这里把失败原因带出去。
+         */
+        let playbackError: string | null = null;
         await new Promise<void>((resolve) => {
           /**
            * ⚠️ **必须有超时兜底**（用户："语音对话不顺畅、有时候能反应过来有时候不能"）。
@@ -128,16 +136,23 @@ export async function speakTextAsync(
           };
           const bail = window.setTimeout(finish, budgetMs);
           audio.onended = finish;
-          audio.onerror = finish;
+          audio.onerror = () => {
+            playbackError = playbackError ?? "播放器报错（音频可能损坏，或被系统拦了）";
+            finish();
+          };
           // 记下"正在播的这段" —— stopSpeaking() 靠它真的把声音掐掉
           currentAudio = audio;
           abortCurrent = finish;
-          void audio.play().catch(finish);
+          void audio.play().catch(() => {
+            playbackError = playbackError ?? "播放被系统拦下（可能没给音频权限）";
+            finish();
+          });
         });
         currentAudio = null;
         abortCurrent = null;
         URL.revokeObjectURL(out.url);
         opts.onEnd?.();
+        if (playbackError) return { ok: false, reason: playbackError };
         return { ok: true };
       } catch (e) {
         currentAudio = null;

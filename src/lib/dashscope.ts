@@ -124,6 +124,18 @@ async function postJson(
   return { status: res.status, text, json: parseJson(text) };
 }
 
+/** base64 字符串 → 音频 Blob（CapacitorHttp 的 blob 响应就是 base64） */
+function b64ToBlob(b64: string): Blob | null {
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return bytes.length > 0 ? new Blob([bytes], { type: "audio/mpeg" }) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 把音频（URL 或 base64）变成能直接播放的 Blob URL */
 async function toAudioUrl(src: Blob | string | null | undefined): Promise<string | null> {
   if (!src) return null;
@@ -140,6 +152,22 @@ async function toAudioUrl(src: Blob | string | null | undefined): Promise<string
      */
     const httpsRaw = raw.replace(/^http:\/\//i, "https://");
     let blob: Blob | null = null;
+    /**
+     * ① 先走**原生下载**（App 内）。原因有两个，都是踩过的：
+     *   · 结果域名是 http，https 页面 fetch 它属于混合内容，直接被拦；
+     *   · OSS 不保证给 CORS 头，网页 fetch 一样会被拦。
+     * 原生 HTTP 两条限制都没有，所以 App 里应当它是第一选择。
+     */
+    const natFirst = await nativeRequest({ url: raw, method: "GET", responseType: "blob" });
+    const natData = natFirst?.data;
+    if (natData instanceof Blob && natData.size > 0) blob = natData;
+    else if (natData && typeof natData === "object" && "data" in natData) {
+      const inner = (natData as { data?: unknown }).data;
+      if (typeof inner === "string" && inner.length > 64) blob = b64ToBlob(inner);
+    } else if (typeof natData === "string" && natData.length > 64) {
+      blob = b64ToBlob(natData);
+    }
+    if (blob) return URL.createObjectURL(blob);
     try {
       const res = await fetch(httpsRaw);
       if (res.ok) {
@@ -270,6 +298,16 @@ export async function synthDashscope(
   const err = apiError(r.status, r.json, r.text);
   if (err) return { ok: false, reason: `合成失败：${err}` };
   const out = (r.json as { output?: { audio?: { url?: string; data?: string } } } | null)?.output;
+  const audioSrc = (out?.audio?.data || out?.audio?.url || "").trim();
+  if (!audioSrc) {
+    const raw = (r.text || JSON.stringify(r.json ?? {})).replace(/\s+/g, " ").slice(0, 240);
+    return {
+      ok: false,
+      reason:
+        `合成失败（HTTP ${r.status}）：上游**连音频地址都没给**。模型 ${model} / 音色 ${voice}。` +
+        `上游原话：${raw || "（空响应）"}。`,
+    };
+  }
   /**
    * ⚠️ 这里必须是 `||`，不是 `??`（用户 m11188 的报错暴露的）。
    *
@@ -277,26 +315,19 @@ export async function synthDashscope(
    * `url`。`"" ?? url` 不会回落（空字符串不是 null/undefined），于是我们把
    * 空串当音频源 → 判定"上游没给音频" → 每次都失败，而实际上音频就在 url 上。
    */
-  const ready = await toAudioUrl(out?.audio?.data || out?.audio?.url);
+  const ready = await toAudioUrl(audioSrc);
   if (!ready) {
     /**
-     * 兜底分支（用户 m11120："这是啥意思"）。
-     *
-     * 这里原来是写死的一句"音色必须和创建它时的模型一致" —— 用户照着做了
-     * （音色 id 前缀 `qwen-audio-3.1-tts-plus-vd-…` 和模型完全一致），还是失败，
-     * 于是那句话变成了**误导**：它把上游真正的报错盖住了，谁都查不出来。
-     *
-     * 现在改成：上游原话照抄 + 三种常见原因。宁可难看，也要能定位。
+     * **第三种失败**（用户 m11226："装的就是最新的，还是这句报错"）：
+     * 上游明明给了地址，是我们取不回来/取回来是空。它和"上游没给音频"
+     * 是两件完全不同的事，必须分开说，否则用户永远查不出卡在哪一层。
      */
-    const raw = (r.text || JSON.stringify(r.json ?? {})).replace(/\s+/g, " ").slice(0, 240);
     return {
       ok: false,
       reason:
-        `合成失败（HTTP ${r.status}，上游没给音频）。模型 ${model} / 音色 ${voice}。` +
-        `上游原话：${raw || "（空响应）"}。` +
-        "三种常见原因：①音色刚造好还在审核/部署中（状态不是 OK，等几分钟再试）" +
-        "②音色不是用这个模型造的（创建时选的 target_model 必须和这里的「合成」一致）" +
-        "③这个账号没开通该模型（plus 有时要单独开通）。",
+        `合成成功，但音频取不回来（地址 ${audioSrc.slice(0, 96)}…）。` +
+        "说明上游已经念出来了，卡在下载这一段：可能是网络、也可能安卓拦了。" +
+        "这句话原样发我，我就能定位。",
     };
   }
   return { ok: true, url: ready };
