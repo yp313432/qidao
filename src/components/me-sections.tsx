@@ -1333,7 +1333,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         />
         <p className="mt-1.5 text-[11px] leading-4 text-subtle">
           打开后他可以把想说的分成几条发过来，一条一个气泡、一条接一条出现。
-          **一句能说完的回复不会被切开**（只有他确实有几句话要分开说时才分）。
+          一句能说完的回复不会被切开（只有他确实有几句话要分开说时才分）。
         </p>
 
         {settings.segmentReply !== false && (
@@ -1831,7 +1831,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         <p className="mt-1.5 text-[11px] leading-4 text-subtle">
           {WAKE_LEVELS.find((lv) => lv.id === (settings.wakeLevel ?? "daily"))?.hint}
           <br />
-          他醒来做的事会出现在对话/朋友圈/日记页；**评论、点赞、发动态会弹通知**，其他不弹（你定的）。
+          他醒来做的事会出现在对话/朋友圈/日记页；评论、点赞、发动态会弹通知，其他不弹（你定的）。
         </p>
 
         {/*
@@ -2000,7 +2000,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               { k: "openai" as const, label: "1 · OpenAI 兼容" },
               { k: "elevenlabs" as const, label: "2 · ElevenLabs" },
               /*
-                百炼（阿里）：**不是** OpenAI 形状，但音质和"自己捏嗓子"是这几家里最好的。
+                百炼（阿里）：不是 OpenAI 形状，但音质和"自己捏嗓子"是这几家里最好的。
                 用户 m10841："这个百炼这个是千问的语音模型对吗，那音色呢，能自己捏吗"。
               */
               { k: "dashscope" as const, label: "3 · 百炼" },

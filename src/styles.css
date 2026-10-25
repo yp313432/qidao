@@ -100,10 +100,10 @@
   --aster-fg: #1c1917;
   --aster-muted: #7a746c;
   --aster-subtle: #b0aaa2;
-  --aster-surface: color-mix(in oklab, #fffcf8 12%, transparent);
-  --aster-elevated: color-mix(in oklab, #ffffff 28%, transparent);
-  --aster-chip: color-mix(in oklab, #ffffff 9%, transparent);
-  --aster-line: color-mix(in oklab, #ffffff 70%, transparent);
+  --aster-surface: color-mix(in oklab, #fffcf8 42%, transparent);
+  --aster-elevated: color-mix(in oklab, #ffffff 54%, transparent);
+  --aster-chip: color-mix(in oklab, #ffffff 24%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 82%, transparent);
   --aster-accent: #c17b5a;
   --aster-accent-fg: #fffaf6;
   --aster-ink: #1c1917;
@@ -111,11 +111,11 @@
   --aster-warn: #b4532a;
   --aster-ok: #4d7c5a;
   --aster-shadow: 0 12px 40px color-mix(in oklab, #1c1917 10%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 90%, transparent);
-  --aster-sheen: color-mix(in oklab, #ffffff 22%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 96%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 26%, transparent);
   --aster-gleam-a: 0.6;
   --aster-flash-a: 0.14;
-  --aster-blur: 30px;
+  --aster-blur: 16px;
   --aster-blob-1: rgba(238, 199, 158, 0.75);
   --aster-blob-2: rgba(206, 184, 238, 0.68);
   --aster-blob-3: rgba(160, 206, 232, 0.68);
@@ -129,10 +129,10 @@
   --aster-fg: #f3ece4;
   --aster-muted: #b5a99c;
   --aster-subtle: #8a7f74;
-  --aster-surface: color-mix(in oklab, #241f1b 11%, transparent);
-  --aster-elevated: color-mix(in oklab, #2c2621 26%, transparent);
-  --aster-chip: color-mix(in oklab, #342d27 8%, transparent);
-  --aster-line: color-mix(in oklab, #f3ece4 30%, transparent);
+  --aster-surface: color-mix(in oklab, #241f1b 30%, transparent);
+  --aster-elevated: color-mix(in oklab, #2c2621 42%, transparent);
+  --aster-chip: color-mix(in oklab, #342d27 22%, transparent);
+  --aster-line: color-mix(in oklab, #f3ece4 36%, transparent);
   --aster-accent: #d49274;
   --aster-accent-fg: #1a1613;
   --aster-ink: #f3ece4;
@@ -144,7 +144,7 @@
   --aster-sheen: color-mix(in oklab, #ffffff 10%, transparent);
   --aster-gleam-a: 0.5;
   --aster-flash-a: 0.12;
-  --aster-blur: 30px;
+  --aster-blur: 16px;
   --aster-blob-1: rgba(170, 96, 48, 0.62);
   --aster-blob-2: rgba(120, 72, 148, 0.55);
   --aster-blob-3: rgba(46, 74, 128, 0.62);
@@ -158,10 +158,10 @@
   --aster-fg: #eceef2;
   --aster-muted: #9aa0ab;
   --aster-subtle: #6d7380;
-  --aster-surface: color-mix(in oklab, #16181d 11%, transparent);
-  --aster-elevated: color-mix(in oklab, #1d2026 20%, transparent);
-  --aster-chip: color-mix(in oklab, #262a32 8%, transparent);
-  --aster-line: color-mix(in oklab, #eceef2 28%, transparent);
+  --aster-surface: color-mix(in oklab, #16181d 28%, transparent);
+  --aster-elevated: color-mix(in oklab, #1d2026 36%, transparent);
+  --aster-chip: color-mix(in oklab, #262a32 20%, transparent);
+  --aster-line: color-mix(in oklab, #eceef2 34%, transparent);
   --aster-accent: #c9cdd6;
   --aster-accent-fg: #0e0f12;
   --aster-ink: #eceef2;
@@ -173,7 +173,7 @@
   --aster-sheen: color-mix(in oklab, #ffffff 9%, transparent);
   --aster-gleam-a: 0.45;
   --aster-flash-a: 0.1;
-  --aster-blur: 30px;
+  --aster-blur: 16px;
   --aster-blob-1: rgba(58, 102, 162, 0.55);
   --aster-blob-2: rgba(92, 74, 168, 0.5);
   --aster-blob-3: rgba(30, 122, 122, 0.5);
@@ -300,6 +300,7 @@ html[data-motion="off"] *::after {
   -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
   backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
   box-shadow:
+    inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
     inset 0 14px 26px -20px var(--aster-glass-highlight),
     var(--aster-shadow);
@@ -320,8 +321,8 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(14px) saturate(1.6);
-  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.6);
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.6);
 }
 
 /*
@@ -332,8 +333,8 @@ html[data-motion="off"] *::after {
 */
 .bg-chip-flat {
   background-color: color-mix(in oklab, var(--aster-fg) 7%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.5);
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.5);
 }
 
 .aster-card {
@@ -354,6 +355,7 @@ html[data-motion="off"] *::after {
   -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
   backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
   box-shadow:
+    inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
     inset 0 14px 26px -20px var(--aster-glass-highlight),
     var(--aster-shadow);
@@ -376,9 +378,10 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(26px) saturate(1.8);
-  backdrop-filter: blur(26px) saturate(1.8);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(1.8);
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(1.8);
   box-shadow:
+    inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
     var(--aster-shadow);
 }
@@ -387,9 +390,10 @@ html[data-motion="off"] *::after {
 .glass-panel {
   background-color: color-mix(in oklab, var(--aster-canvas) 52%, transparent);
   background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 34%);
-  -webkit-backdrop-filter: blur(30px) saturate(1.8);
-  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.8);
+  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.8);
   box-shadow:
+    inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
     var(--aster-shadow);
 }
@@ -427,9 +431,10 @@ html[data-motion="off"] *::after {
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 32%);
   background-repeat: no-repeat;
-  -webkit-backdrop-filter: blur(48px) saturate(1.6);
-  backdrop-filter: blur(48px) saturate(1.6);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(1.6);
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(1.6);
   box-shadow:
+    inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
     var(--aster-shadow);
 }
@@ -438,9 +443,11 @@ html[data-motion="off"] *::after {
 .glass-tray {
   background-color: color-mix(in oklab, var(--aster-canvas) 62%, transparent);
   background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 26%);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
-  backdrop-filter: blur(18px) saturate(1.6);
-  box-shadow: inset 0 1px 0 0 var(--aster-glass-highlight);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.6);
+  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.6);
+  box-shadow:
+    inset 0 0 0 1px var(--aster-line),
+    t 0 1px 0 0 var(--aster-glass-highlight);
 }
 
 /* 选中态：胶囊里更亮的一层玻璃。 */

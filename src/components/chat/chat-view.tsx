@@ -1670,9 +1670,11 @@ function VoiceBubble({
         style={{ minWidth }}
         className={cn(
           "flex select-none items-center gap-2 rounded-[18px] px-2.5 py-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
+          // 跟着全局玻璃走（`--aster-surface` 就是 B 档那层），只用自己的暖边区分左右
           mine
-            ? "border border-accent/25 bg-[rgba(247,238,226,0.96)] text-fg shadow-[0_1px_2px_rgba(60,40,20,.12)]"
-            : "border border-line bg-surface text-fg",
+            ? "border-accent/30 bg-surface text-fg"
+            : "border-line bg-surface text-fg",
+          "border",
           gone && "opacity-60",
         )}
       >
