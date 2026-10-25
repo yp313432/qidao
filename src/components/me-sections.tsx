@@ -1023,19 +1023,16 @@ function MeSections({ tab }: { tab: MeTab }) {
           B 档玻璃（总则 §3 两层）：外层 = L2 主卡（rounded-3xl + border-line + bg-surface），
           里面两条通道 = L3 控件（bg-chip）。原来两张卡平铺在同一层，看不出"这是一组二选一"。
         */}
-        <div className="rounded-3xl border border-line bg-surface p-1.5">
-          <div className="space-y-1">
+        <div className="overflow-hidden rounded-3xl border border-line bg-surface">
+          <div>
             {/* ① 自定义上游 —— 现在唯一能真用的通道 */}
             <div
-              className={cn(
-                "overflow-hidden rounded-2xl border transition-colors",
-                openChan === "custom" ? "border-line bg-elevated" : "border-transparent",
-              )}
+              className="border-b border-line/60"
             >
               <button
                 type="button"
                 onClick={() => setOpenChan("custom")}
-                className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
+                className="flex w-full items-start gap-3 px-4 py-3.5 text-left"
               >
                 {/*
                   选中点用 fg 不用 accent：跟 .choice-on 是同一套"选中 = 黑底白字"的语义，
@@ -1065,7 +1062,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 />
               </button>
               {openChan === "custom" && (
-                <div className="bubble-in px-3.5 pb-3.5">
+                <div className="bubble-in px-4 pb-4">
                   <p className="mb-2 text-[11px] leading-4 text-muted">
                     接哪家都行（DeepSeek、智谱、通义，或任何 OpenAI 兼容接口）。
                   </p>
@@ -1073,14 +1070,14 @@ function MeSections({ tab }: { tab: MeTab }) {
                     value={settings.customBaseUrl}
                     onChange={(e) => patch({ customBaseUrl: e.target.value })}
                     placeholder="https://your-proxy/v1"
-                    className="mb-2 h-11 w-full rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                    className="mb-2 h-11 w-full rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
                   />
                   <input
                     type="password"
                     value={settings.customApiKey}
                     onChange={(e) => patch({ customApiKey: e.target.value })}
                     placeholder="API Key"
-                    className="h-11 w-full rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                    className="h-11 w-full rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
                   />
                   <div className="mt-2 flex items-center gap-2">
                     <input
@@ -1088,14 +1085,14 @@ function MeSections({ tab }: { tab: MeTab }) {
                       onChange={(e) => patch({ upstreamModel: e.target.value.trim() })}
                       placeholder="上游模型名，例如 deepseek-v4-pro"
                       aria-label="上游模型名"
-                      className="h-11 min-w-0 flex-1 rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                      className="h-11 min-w-0 flex-1 rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
                     />
                     {/* 次级操作：不是"主按钮"，所以用 chip 底 + 边线，别跟三档抢视觉 */}
                     <button
                       type="button"
                       disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
                       onClick={probeModels}
-                      className="h-11 shrink-0 rounded-2xl border border-line bg-chip px-3.5 text-[12px] font-medium disabled:opacity-40"
+                      className="h-11 shrink-0 rounded-2xl border border-line/70 bg-transparent px-3.5 text-[12px] font-medium disabled:opacity-40"
                     >
                       {probing ? "问上游…" : "拉取可用模型"}
                     </button>
@@ -1134,7 +1131,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                         onClick={() => setModel(m.id)}
                         className={cn(
                           "rounded-2xl border py-2.5 text-[13px] font-medium transition-colors",
-                          modelNow === m.id ? "choice-on" : "choice-off bg-elevated",
+                          modelNow === m.id ? "choice-on" : "choice-off",
                         )}
                       >
                         {m.label}
@@ -1154,12 +1151,12 @@ function MeSections({ tab }: { tab: MeTab }) {
                     type="button"
                     disabled={!chanCustom || effortBusy}
                     onClick={runEffortProbe}
-                    className="mt-2 h-11 w-full rounded-2xl border border-line bg-ink text-[13px] font-medium text-ink-fg disabled:border-line disabled:bg-chip disabled:text-subtle"
+                    className="mt-2 h-11 w-full rounded-2xl border border-line bg-ink text-[13px] font-medium text-ink-fg disabled:border-line/70 disabled:bg-transparent disabled:text-subtle"
                   >
                     {effortBusy ? "正在试着开关思考，稍等…" : "检测强度支持"}
                   </button>
                   {effortResult && !effortBusy && (
-                    <div className="mt-2 rounded-2xl border border-line bg-elevated px-3 py-2.5">
+                    <div className="mt-2 rounded-2xl border border-line/60 px-3 py-2.5">
                       <ProbeLine label="能开思考（回了思考内容）" pass={effortResult.reasoningOn} />
                       <ProbeLine label="能关思考（关了就不思考）" pass={effortResult.reasoningOff} />
                       <p
@@ -1182,16 +1179,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             </div>
 
             {/* ② ChatGPT 计划 —— 占位（SIWC 还没接），先把位置留出来 */}
-            <div
-              className={cn(
-                "overflow-hidden rounded-2xl border transition-colors",
-                openChan === "gpt" ? "border-line bg-elevated" : "border-transparent",
-              )}
-            >
+            <div>
               <button
                 type="button"
                 onClick={() => setOpenChan("gpt")}
-                className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
+                className="flex w-full items-start gap-3 px-4 py-3.5 text-left"
               >
                 <span className="mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border border-line" />
                 <span className="min-w-0 flex-1">
@@ -1206,14 +1198,14 @@ function MeSections({ tab }: { tab: MeTab }) {
                 />
               </button>
               {openChan === "gpt" && (
-                <div className="bubble-in px-3.5 pb-3.5">
+                <div className="bubble-in px-4 pb-4">
                   <p className="text-[11px] leading-5 text-muted">
                     用你自己的 ChatGPT 计划额度，不额外收费。登录一次就行，之后自动续期。
                   </p>
                   <button
                     type="button"
                     disabled
-                    className="mt-2.5 h-11 w-full rounded-2xl border border-line bg-chip text-[13px] font-medium text-subtle"
+                    className="mt-2.5 h-11 w-full rounded-2xl border border-line/70 text-[13px] font-medium text-subtle"
                   >
                     登录 ChatGPT（还没接）
                   </button>
