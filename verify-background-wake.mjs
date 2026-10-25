@@ -70,44 +70,15 @@ check("注册了事件监听（addEventListener）", /addEventListener\s*\(/.tes
 check("调用了 resolve()（不回调它就永远挂着 —— 插件那边没有超时）", /resolve\s*\(/.test(code));
 check("有 reject() 兜底", /reject\s*\(/.test(code));
 
-check("留着地址占位符（CI 从 GitHub 密钥注入）", runner.includes("__QIDAO_WAKE_URL__"));
-/**
- * ⚠️ **占位符必须只出现一次**（就在变量赋值那一行）。
- *
- * 为什么这条要卡死：CI 是**整串全替换**的。如果文件里还有第二处拿它做判断的代码，
- * 替换之后那句判断就变成"判断自己是不是包含自己"——恒为假 → 永远以为地址没配、
- * 永远不请求 Worker。**这种错不报错，只是安静地不工作。**
- * （真踩过：第一版就是 `WAKE_URL.indexOf("__…__") === -1` 那种写法。）
- * 现在运行时判断用 `/^https?:\/\//` 而不是字面占位符，所以这里可以要求"只有一处"。
- */
+/* ── 2026-10：备路（Cloudflare Worker 中转）已整条移除 ──
+   原因：它会把系统提示词、最近对话、连 apiKey 一起发给中转方；对主路没有增益。
+   下面这几条改成**负向断言**：谁把备路加回来，这里立刻变红。 */
 const placeholderCount = (runner.match(/__QIDAO_WAKE_URL__/g) ?? []).length;
-check(
-  "占位符只出现一次（第二处会被全替换成自比较，静默失效）",
-  placeholderCount === 1,
-  `出现 ${placeholderCount} 次`,
-);
-check("运行时判断用的是「像个网址吗」而不是字面占位符", /\^https\?:\\\/\\\//.test(runner));
+check("文件里不再有 Worker 地址占位符（备路已移除）", placeholderCount === 0, `出现 ${placeholderCount} 次`);
+check("不再请求 Worker（没有 fetch(WAKE_URL) 那种写法）", !/WAKE_URL/.test(code));
+check("没配置时不再弹「第 N 次醒来」的调试通知", !/第\s*"\s*\+\s*count\s*\+\s*"\s*次醒来/.test(runner));
+check("仍然只问用户自己的上游（直连）", /fetchWithTimeout/.test(code) && /baseUrl/.test(code));
 
-check("去问 Worker（用了 fetch）", /fetch\s*\(/.test(code));
-check("带上了 since（Worker 靠它算最短间隔）", /since=/.test(code));
-check("认 `action === \"speak\"`", /action\s*===\s*"speak"/.test(code));
-check("说的话取自 data.text", /data\.text/.test(code));
-check("通知的标题用他的名字（像微信那样显示发件人）", /data\.aiName/.test(code));
-check(
-  "报的是「距他上次开口多久」（程度由它算出来）",
-  /last_spoke_at/.test(code) && /since=/.test(code),
-);
-check(
-  "说了才更新 last_spoke_at（没说就不动 → 程度继续往上爬）",
-  /kvSet\("last_spoke_at", now\)/.test(code),
-);
-check("认「总开关关掉」的静音标记（muted_at）", /muted_at/.test(code));
-check("静音期内不再发请求（省电）", /MUTED_RECHECK_MIN/.test(code));
-check("通知的标题用他的名字（像微信那样显示发件人）", /data\.aiName/.test(code));
-check(
-  "没配地址时退回调试通知（绝不请求假地址）",
-  /__QIDAO_WAKE_URL__/.test(code) && /第\s*"\s*\+\s*count\s*\+\s*"\s*次醒来/.test(code),
-);
 check("出错通知有冷却（别每 25 分钟吵一次）", /last_err_at/.test(code) && /COOLDOWN/.test(code));
 
 check("没用 toISOString（它给的是 UTC，会差 8 小时）", !/toISOString/.test(code));
@@ -153,9 +124,8 @@ check(
   `repeat=${repeats} interval=${interval}`,
 );
 check(
-  "App 侧读的是同一个地址（打包注入的 VITE_QIDAO_WAKE_URL）",
-  /VITE_QIDAO_WAKE_URL/.test(helper),
-);
+  "App 侧不再读 Worker 地址（备路已移除）",
+  !/VITE_QIDAO_WAKE_URL/.test(helper));
 
 /* ───────── 【二·b】甲那条路的关键手：抽屉名字两端必须一致 ───────── */
 
@@ -323,16 +293,10 @@ if (existsSync(join(process.cwd(), "android", "app", "src", "main", "assets"))) 
   console.log("ℹ️  安卓 assets 还没同步 —— 跳过");
 }
 
-/** CI 里那个注入步骤必须在（不然地址永远烘不进去） */
+/** 2026-10：备路整条移除 → CI 里的注入步骤也一并删了。谁加回来这里变红。 */
 const ci = read(join(process.cwd(), ".github", "workflows", "android.yml"));
-check("CI 里有注入步骤（从 QIDAO_WAKE_URL 密钥）", /QIDAO_WAKE_URL/.test(ci));
-check("CI 里把注入的值也给了 App 侧（VITE_QIDAO_WAKE_URL）", /VITE_QIDAO_WAKE_URL/.test(ci));
-check("没配密钥时**不会**让打包失败（只警告）", /没配 QIDAO_WAKE_URL/.test(ci) && !/exit 1[\s\S]{0,80}没配/.test(ci));
-/** ⚠️ 必须是"整串全替换"（见上面那条注释：用 replace 只换第一处会静默失效） */
-check(
-  "CI 的注入是整串全替换（split…join 或 replaceAll，不是 replace）",
-  /split\(MARK\)\.join\(url\)/.test(ci) || /replaceAll\(/.test(ci),
-);
+check("CI 里不再注入 Worker 地址", !/QIDAO_WAKE_URL/.test(ci));
+check("CI 里不再给 App 侧塞 VITE_QIDAO_WAKE_URL", !/VITE_QIDAO_WAKE_URL/.test(ci));
 
 console.log("-".repeat(64));
 console.log(`「他主动找你」接线验收：${bad === 0 ? "全部通过" : `${bad} 项失败`}`);

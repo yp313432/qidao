@@ -43,9 +43,11 @@
  *   写进一个"抽屉"（`android/.../WakeBridgePlugin.java`），这里醒来时从抽屉里读。
  *   为什么绕这一下：安卓不允许网页那边直接往这里塞东西。
  *
- * ── 备路 ────────────────────────────────────────────────
- *   抽屉里没有配置、但打包时注入过 `WAKE_URL`（Worker 中转）→ 走 Worker 那条
- *   （域名在国内被污染时要挂梯，所以默认不用；将来有域名可以启用）。
+ * ── 只走一条路 ────────────────────────────────────────────
+ *   只问用户自己在设置里配的上游（直连，不经过任何中转）。
+ *   曾经的「备路：Cloudflare Worker 中转」在 2026-10 整条移除 ——
+ *   它会把系统提示词、最近对话、连 apiKey 一起发给中转方；
+ *   对主路没有增益，却是真实的数据外流口子。
  *
  * ── 五条纪律（官方文档 + 插件源码 + 真机踩坑读出来的）──────────────
  *   ① 每次最多干 30 秒（安卓上限 10 分钟，但要照顾跨平台）
@@ -62,9 +64,6 @@
  * 主线程等 JS、JS 等主线程 → **死锁，整个 App 卡死**（真机踩过）。
  * 要递东西用"抽屉"（见 `src/lib/wake-bridge.ts`）。
  */
-
-/** Worker 备路的地址（形如 `https://…/api/wake?pass=…`）。⚠️ 由 CI 从 GitHub 密钥注入。 */
-var WAKE_URL = "__QIDAO_WAKE_URL__";
 
 /** 通知 id 的基数（安卓要 32 位整数）。用加法错开，避免几条通知互相覆盖。 */
 var NOTIFY_ID_BASE = 9000;
@@ -1272,88 +1271,8 @@ addEventListener("qidaoWake", function (resolve, reject) {
       return;
     }
 
-    /* ───────── 备路：Worker 中转（抽屉里没配置，但注入过地址）───────── */
-
-    var ready = /^https?:\/\//.test(WAKE_URL);
-    if (!ready) {
-      notify(NOTIFY_ID_BASE + (count % 1000), "栖岛 · 后台唤醒", "第 " + count + " 次醒来：" + stamp + "（本地时间）");
-      logLine("#" + count + " " + stamp + " 没有任何配置（App 没交过来，也没注入 Worker 地址）");
-      resolve();
-      return;
-    }
-
-    var lastSpoke2 = kvNum("last_spoke_at");
-    var since = lastSpoke2 > 0 ? String(Math.max(0, Math.round((now - lastSpoke2) / 60000))) : "";
-    var url = WAKE_URL + (WAKE_URL.indexOf("?") === -1 ? "?" : "&") + "since=" + since;
-
-    /**
-     * 备路也是"问上游"（只是中间多了个 Worker）——
-     * 所以同样：网络类失败隔 2s / 5s 重试，三次都没问到就探对照组、写清结论。
-     * （用户最早那批失败就出在这条路上：能拿到一个被污染的 IP，但连不上。）
-     */
-    var wctx = {
-      deadline: now + WAKE_BUDGET_MS,
-      count: count,
-      stamp: stamp,
-      log: function (text) {
-        logLine("#" + count + " " + stamp + " " + text);
-      },
-      done: resolve,
-    };
-    var workerHost = WAKE_URL.replace(/^https?:\/\//, "").split("/")[0];
-
-    function onWorkerReply(raw) {
-      var data = null;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        data = null;
-      }
-      if (!data) {
-        logLine("#" + count + " " + stamp + " 返回不是 JSON");
-        errorNotify(count, stamp, "拿回来的不是 JSON：" + String(raw).slice(0, 80));
-        resolve();
-        return;
-      }
-      /** 通道本身是通的（拿到了 JSON）→ "连续没成功"归零；`ok:false` 由下面照旧记账 */
-      if (data.ok !== false) kvSet("fail_streak", 0);
-      if (data.muted) kvSet("muted_at", now);
-      if (data.action === "speak" && data.text) {
-        kvSet("last_spoke_at", now);
-        bumpSpokeToday(now);
-        /** 说成一句 → "醒了几次"归零（同主路；用户要求） */
-        kvSet("wake_count", 0);
-        notify(NOTIFY_ID_BASE + (count % 1000), data.aiName || "栖岛", data.text, WAKE_NOTIFY_ACTION);
-        /** 备路也是"他说了" → 同样要**完整**交给前台（跟甲那条路一样，不截断） */
-        markPending(data.text, data.urge);
-        logLine("#" + count + " " + stamp + " 说了（程度 " + data.urge + "）");
-      } else if (data.ok === false) {
-        logLine("#" + count + " " + stamp + " 失败：" + String(data.why || "").slice(0, 60));
-        errorNotify(count, stamp, data.why || "他没答上来");
-      } else {
-        logLine("#" + count + " " + stamp + " 没说：" + String(data.why || "").slice(0, 40));
-      }
-      resolve();
-    }
-
-    requestWithRetry(
-      wctx,
-      url,
-      { method: "GET", headers: { Accept: "application/json" } },
-      function (res) {
-        res.text().then(
-          function (raw) {
-            onWorkerReply(raw);
-          },
-          function () {
-            onWorkerReply("");
-          },
-        );
-      },
-      function (msg, kind, tries) {
-        diagnoseAndNotify(wctx, msg, kind, tries, workerHost);
-      },
-    );
+    /* 备路（Cloudflare Worker 中转）已整条移除 —— 见文件头「只走一条路」。 */
+    logLine("#" + count + " " + stamp + " 主路没走通（备路已移除），这次什么都没发生");
   } catch (err) {
     /* ③ 无论如何都要收尾 */
     reject(err);

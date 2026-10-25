@@ -45,6 +45,13 @@ export type ApiMessage = {
   tool_calls?: ApiToolCall[];
   /** 原生 tools：这条是哪个调用的结果 */
   tool_call_id?: string;
+  /**
+   * 这一条 assistant 消息**当时的思考链原文**（DeepSeek 思考模式要求）。
+   *
+   * 只在"开了思考 + 带 tool_calls 回灌"时必须给：缺了它上游直接 400
+   * （`reasoning_content is required`）。普通消息不带这个字段。
+   */
+  reasoning_content?: string;
 };
 
 /** 随每条消息一起上报的「用户此刻的状态」，让 AI 知道你在干什么。 */
@@ -144,6 +151,14 @@ export type ChatRequest = {
    * 所以调大它能缓解；但调太大某些模型会直接报错 —— 所以做成可调，默认跟随档位。
    */
   maxTokens?: number;
+  /**
+   * 要不要把档位的「推理强度」真的发出去（thinking / reasoning_effort）。
+   *
+   * 为什么不总是发：这些是**可选**参数，老网关 / 只认 OpenAI 原始形状的上游
+   * 会因为多出来的字段直接 400，一轮对话就废了。所以只有用户在设置里
+   * 点过「检测强度支持」并通过（`settings.effortProbeOk === true`）才走这条。
+   */
+  effortOn?: boolean;
 };
 
 /** 上游回的错误正文 → 一句人话（JSON 的 error.message 优先，其次原文前 160 字） */
@@ -214,6 +229,21 @@ async function streamDirect(
   const messages = req.assembled ?? assembleMessages(req, req.messages);
   // 0 / 空 = 跟随档位；用户在设置里调过就用他的
   const maxTokens = req.maxTokens && req.maxTokens > 0 ? req.maxTokens : getModel(req.model).maxTokens;
+  /**
+   * 三档真正生效的那一段。
+   *
+   * `thinking` 是开关、`reasoning_effort` 是力度，两个都放请求体顶层
+   * （DeepSeek 官方“思考模式”的口径；OpenAI 兼容网关认同一个 reasoning_effort）。
+   * 「快答」= thinking.disabled，不带 effort；「均衡」= high；「深思」= max。
+   */
+  const wire = getModel(req.model).wire;
+  const effortBody =
+    req.effortOn && wire
+      ? {
+          thinking: { type: wire.thinking ? "enabled" : "disabled" },
+          ...(wire.effort ? { reasoning_effort: wire.effort } : {}),
+        }
+      : {};
 
   let res: Response;
   try {
@@ -228,6 +258,7 @@ async function streamDirect(
         messages,
         stream: true,
         max_tokens: maxTokens,
+        ...effortBody,
         // 只有真的要走原生工具调用时才带 tools —— 留空就是老协议（正文里的动作块）
         ...(req.actionTools && req.actionTools.length > 0 ? { tools: req.actionTools } : {}),
       }),

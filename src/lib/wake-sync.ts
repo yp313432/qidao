@@ -31,21 +31,6 @@ import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
  * "一直写着正在叫他，然后卡住不动了"）。要递东西就用那个抽屉。
  */
 
-/** 后台那段 JS 需要的地址：优先用 App 里手填的，其次用打包时注入的 */
-export function wakeUrl(): string {
-  const manual = (useApp.getState().settings.wakeUrl ?? "").trim();
-  if (manual) return manual;
-  const injected = String(import.meta.env.VITE_QIDAO_WAKE_URL ?? "").trim();
-  return injected;
-}
-
-/** 地址是从哪儿来的（界面上要说清，免得"我明明填了/明明没填"互相怀疑） */
-export function wakeUrlSource(): "manual" | "build" | "none" {
-  if ((useApp.getState().settings.wakeUrl ?? "").trim()) return "manual";
-  if (String(import.meta.env.VITE_QIDAO_WAKE_URL ?? "").trim()) return "build";
-  return "none";
-}
-
 export type WakeSyncResult = { ok: boolean; message: string };
 
 /** 最近几条对话（老的在前）—— 只取有内容的，最多 12 条 */
@@ -70,18 +55,8 @@ function lastChatAt(): number | undefined {
   return last?.createdAt;
 }
 
-/** Worker 那边两个接口的返回形状 */
-type SyncReply = { ok?: boolean; why?: string; saved?: { recent?: number } };
-type PingReply = {
-  ok?: boolean;
-  action?: string;
-  why?: string;
-  text?: string;
-  urge?: number;
-};
-
 /**
- * 把人设、最近对话、上游配置、两个规矩同步给 Worker。
+ * 把人设、最近对话、上游配置、两个规矩交给手机后台那段 JS。
  *
  * ⚠️ **这条路不影响聊天**：失败就当没发生（不弹错、不阻塞）。
  * 真要排查，用下面的"通道自检"按钮 —— 那才把原因说出来。
@@ -179,29 +154,6 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
           : "这台上交不进去（网页版没有后台；或者这个包还没带上那个抽屉插件）",
       );
     }
-  }
-
-  /* ── ② Worker（乙，备路）：只有配了地址才推（域名被污染时需要梯，所以现在默认不用）── */
-  const url = wakeUrl();
-  if (url && baseUrl && apiKey && model) {
-    notes.push(
-      (await postToWorker(url, {
-        aiName: resolveAiName(s.aiName),
-        displayName: s.displayName,
-        persona: s.persona ?? "",
-        baseUrl,
-        apiKey,
-        model,
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
-        recent: recentMessages(),
-        policy: {
-          enabled: s.wakeEnabled ?? true,
-          quietStart: s.wakeQuietStart ?? 1,
-          quietEnd: s.wakeQuietEnd ?? 8,
-        },
-        lastChatAt: lastChatAt(),
-      })) ?? "",
-    );
   }
 
   return { ok: !notes.some((n) => /还没|交不进去/.test(n)), message: notes.filter(Boolean).join("；") };
@@ -797,29 +749,6 @@ export function watchWakeNotificationTap(cb: (tap: WakeNotificationTap) => void)
   };
 }
 
-/** 把上下文 POST 给 Worker（备路；失败只留一句话，不抛） */async function postToWorker(url: string, payload: unknown): Promise<string> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    let data: SyncReply | null = null;
-    try {
-      data = JSON.parse(text) as SyncReply;
-    } catch {
-      data = null;
-    }
-    if (!res.ok || !data?.ok) {
-      return `Worker 那条没推上（HTTP ${res.status}）：${data?.why ?? text.slice(0, 80)}`;
-    }
-    return `Worker 那条也推上了（最近 ${data.saved?.recent ?? 0} 条）`;
-  } catch (err) {
-    return `Worker 那条连不上：${(err as Error).message}`;
-  }
-}
-
 /**
  * **通道自检**：不改任何状态，只问一句"这条路通不通"。
  *
@@ -889,45 +818,11 @@ export async function pingWake(): Promise<WakeSyncResult> {
     }
   }
 
-  /* 抽屉里没有 / 设置不全 → 退回"Worker 那条路"的自检（配了地址才有意义） */
-  const url = wakeUrl();
-  if (!url) {
-    return {
-      ok: false,
-      message: "还没交给他任何配置（要在「自定义上游」里填好地址 + 密钥 + 模型；装成 App 之后我会自动交过去）。",
-    };
-  }
-
-  const full = url + (url.includes("?") ? "&" : "?") + "since=";
-  try {
-    const res = await fetch(full, { headers: { Accept: "application/json" } });
-    const text = await res.text();
-    let data: PingReply | null = null;
-    try {
-      data = JSON.parse(text) as PingReply;
-    } catch {
-      data = null;
-    }
-
-    /** 口令不对时 Worker 会回 401 JSON（或那张登录页）—— 这是最常见的坑，单独说清 */
-    if (res.status === 401) {
-      return { ok: false, message: "口令不对（Worker 说 unauthorized）—— 检查地址里 pass= 后面那串。" };
-    }
-    if (!data) {
-      return {
-        ok: false,
-        message: `拿回来的不是 JSON（HTTP ${res.status}）：${text.slice(0, 100)}—— 多半是地址写错了。`,
-      };
-    }
-
-    if (data.ok === false) {
-      return { ok: true, message: `通道通了 ✅ 但它还没法说话：${data.why ?? "未知原因"}` };
-    }
-    if (data.action === "speak" && data.text) {
-      return { ok: true, message: `通道全通 ✅ 他这会儿想说的是：「${data.text}」（想找你的程度 ${data.urge}%）` };
-    }
-    return { ok: true, message: `通道通了 ✅ 他现在选择不说：${data.why ?? "（夜间或还没到间隔）"}` };
-  } catch (err) {
-    return { ok: false, message: `连不上：${(err as Error).message}` };
-  }
+  /* 抽屉里没有 / 设置不全：如实说。
+     （备路「Worker 中转」已在 2026-10 整条移除，见文件头的说明） */
+  return {
+    ok: false,
+    message:
+      "还没交给他任何配置（要在「自定义上游」里填好地址 + 密钥 + 模型；装成 App 之后我会自动交过去）。",
+  };
 }

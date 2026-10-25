@@ -490,6 +490,15 @@ async function waitForResolution(
 export function toolResultMessages(
   calls: AssembledToolCall[],
   outcomes: ToolCallOutcome[],
+  /**
+   * 这一轮的思考链原文（DeepSeek 等「思考模式」上游要求回传）。
+   *
+   * 官方口径：开了思考模式又带 tools 时，把 assistant 的 tool_calls 发回去
+   * **必须同时带上这一轮的 `reasoning_content`**，否则 400
+   * （`messages[1].role: assistant ... reasoning_content is required`）。
+   * 关掉思考（快答档）时这里是空串，就不带这个字段。
+   */
+  reasoning?: string,
 ): ApiMessage[] {
   const assistantCalls = calls.map((c, i) => ({
     id: c.id ?? `call_${i}`,
@@ -500,6 +509,7 @@ export function toolResultMessages(
   const assistant: ApiMessage = {
     role: "assistant",
     content: "",
+    ...(reasoning ? { reasoning_content: reasoning } : {}),
     tool_calls: assistantCalls,
   };
   const results: ApiMessage[] = calls.map((c, i) => ({
@@ -647,7 +657,8 @@ export async function runToolLoop(input: {
     rounds.push(record);
     input.onRound?.(record);
     // ⭐ 关键的一步：结果**立刻**变成 tool 消息，下一轮请求就带着它
-    extra.push(...toolResultMessages(r.toolCalls, outcomes));
+    //    （`r.thinking` 一并回传 —— 开了思考模式的上游缺这个字段会 400）
+    extra.push(...toolResultMessages(r.toolCalls, outcomes, r.thinking));
 
     if (input.signal?.aborted) {
       stoppedBy = "aborted";

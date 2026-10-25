@@ -31,15 +31,15 @@ import {
   swRegistration,
   type SwStatus,
 } from "@/lib/notify";
-import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
+import { getModel, MODELS } from "@/lib/models";
+import { probeEffortSupport, type EffortProbeResult } from "@/lib/effort-probe";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
 import { toolProtocolLabel } from "@/lib/tool-protocol";
 import { wakeSupported } from "@/lib/background-wake";
-import { pingWake, readWakeLog, resetWake, wakeUrlSource } from "@/lib/wake-sync";
+import { pingWake, readWakeLog, resetWake } from "@/lib/wake-sync";
 import { speakTextAsync } from "@/lib/tts";
-import { resetLabel } from "@/lib/greeting";
 import { useApp } from "@/lib/store";
 import { WAKE_LEVELS } from "@/lib/wake-schedule";
 import { readImageFile } from "@/lib/image-file";
@@ -378,16 +378,18 @@ function MeSections({ tab }: { tab: MeTab }) {
     const sum = (k: "prompt" | "completion" | "cached") => today.reduce((n, r) => n + (r[k] ?? 0), 0);
     return { calls: today.length, prompt: sum("prompt"), completion: sum("completion"), cached: sum("cached") };
   })();
-  const quota = useApp((s) => s.quota);
-  /** 自己带 key → 只统计真实 token；走服务端 → 才显示窗口额度 */
-  const ownApi = isOwnApi(settings);
   const hydrationDone = useApp((s) => s.hydrated);
   // 配额重置时间是按「现在」算的 —— 服务端和客户端算出来必然不同，
   // 所以等服务端渲染过去之后再显示，避免水合失败。
-  const resetAt = useApp((s) => s.quotaResetAt());
   const hydrated = hydrationDone;
-  const usedPct = Math.min(100, Math.round((quota.used / QUOTA_LIMIT) * 100));
   const patch = useApp((s) => s.patchSettings);
+  /**
+   * 当前档位（会话级）跟聊天页那个「均衡 ⌄」是**同一个值**（store 的 `model`），
+   * 在这儿点三档，聊天页立刻跟着变 —— 用户原话："在设置里配了哪个就用哪个，
+   * 聊天页就显示当前那个"。`settings.defaultModel` 只决定新会话的初始档位。
+   */
+  const modelNow = useApp((s) => s.model);
+  const setModel = useApp((s) => s.setModel);
   const background = settings.background;
   const sum = permissionSummary(settings.permissions);
   /** 这一轮对话实际走哪条通道（跟聊天那边**共用同一个判断**，别在这里再写一套） */
@@ -418,6 +420,15 @@ function MeSections({ tab }: { tab: MeTab }) {
   // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
+  /**
+   * 「用哪个上游」是**单选 + 点击展开**（用户要的两个交互）：
+   * 一次只有一条通道在用，点哪条就展开哪条的参数，另一条收起。
+   * 现在只有「自定义上游」是能用的；「ChatGPT 计划」占位（等 SIWC 接入）。
+   */
+  const [openChan, setOpenChan] = useState<"custom" | "gpt">("custom");
+  /** 「检测强度支持」的进行中 / 结果（跟工具探测一个套路，见 lib/effort-probe） */
+  const [effortBusy, setEffortBusy] = useState(false);
+  const [effortResult, setEffortResult] = useState<EffortProbeResult | null>(null);
   /** 「他主动找你」的通道自检（见 lib/wake-sync）—— 安全：只 fetch Worker，不碰原生 */
   const [wakePinging, setWakePinging] = useState(false);
   const [wakePingMsg, setWakePingMsg] = useState("");
@@ -489,6 +500,40 @@ function MeSections({ tab }: { tab: MeTab }) {
       setProbeResult(failedProbeResult(`探测没跑起来：${(err as Error).message || "未知错误"}`));
     } finally {
       setProbeBusy(false);
+    }
+  }
+
+  /**
+   * 检测「三档强度」是不是真的能调（开思考能开、关思考能关）。
+   *
+   * 结论写进设置（`effortProbeOk`）—— 聊天那侧只有测过才敢发 `thinking` /
+   * `reasoning_effort`，不然老网关会因为多出来的字段整轮 400。
+   * 跟上面的工具探测是同一个套路：用户自己点、自己看结论、结论落盘。
+   */
+  async function runEffortProbe() {
+    setEffortBusy(true);
+    setEffortResult(null);
+    try {
+      const result = await probeEffortSupport({
+        baseUrl: settings.customBaseUrl,
+        apiKey: settings.customApiKey,
+        model: settings.upstreamModel,
+      });
+      setEffortResult(result);
+      patch({ effortProbeOk: result.ok, effortProbeAt: Date.now() });
+    } catch (err) {
+      // effort-probe 自己吞掉所有失败，这里只兜它真抛出来的意外（别让整页白掉）
+      setEffortResult({
+        ok: false,
+        httpOk: false,
+        reasoningOn: false,
+        reasoningOff: false,
+        latencyMs: 0,
+        error: `检测没跑起来：${(err as Error).message || "未知错误"}`,
+        rawSnippet: "",
+      });
+    } finally {
+      setEffortBusy(false);
     }
   }
 
@@ -953,64 +998,255 @@ function MeSections({ tab }: { tab: MeTab }) {
 
   /* ── 模型与用量 ── */
 
+  /**
+   * 这条通道配没配齐（三样都有才算）。
+   * 现在一次只用一条通道 —— 用户原话："在设置里配了就哪个，聊天页就显示当前那个"。
+   */
+  const chanCustom = Boolean(
+    (settings.customBaseUrl ?? "").trim() &&
+      (settings.customApiKey ?? "").trim() &&
+      (settings.upstreamModel ?? "").trim(),
+  );
+  /** 设置页显示的档位 = 聊天页当前用的那档（同一个 `model`） */
+  const curModel = getModel(modelNow ?? "sonnet");  /** 三档是不是"测过且真能调" —— 决定下面那句提示是"已确认"还是"还没测" */
+  const effortOk = settings.effortProbeOk === true;
+  /** 缓存命中率：命中数 / 输入总数（DeepSeek 的 prompt_tokens 已包含命中的部分） */
+  const cacheHitRate =
+    usageToday && usageToday.prompt > 0
+      ? Math.round((usageToday.cached / usageToday.prompt) * 100)
+      : 0;
+
   const usageSections = (
     <>
-      <Section title={ownApi ? "用量（真实统计）" : "额度（服务端）"}>
-        <div className="rounded-2xl bg-chip px-4 py-3">
-          {ownApi ? (
-            <>
-              {usageToday ? (
-                <>
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-sm font-medium">今天 {usageToday.calls} 次请求</p>
-                    <p className="text-[12px] text-muted">
-                      输入 {usageToday.prompt.toLocaleString()} · 输出 {usageToday.completion.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-elevated">
-                    <div
-                      className="h-full bg-accent"
-                      style={{
-                        width: `${Math.round((usageToday.prompt / Math.max(1, usageToday.prompt + usageToday.completion)) * 100)}%`,
-                      }}
-                    />
-                    <div className="h-full flex-1 bg-accent/40" />
-                  </div>
-                  <p className="mt-2 text-[12px] text-muted">
-                    缓存命中 {usageToday.cached.toLocaleString()} tokens
-                    {usageToday.cached > 0 && " —— 这部分上游按更低价算，省的就是它"}
-                  </p>
-                </>
-              ) : (
-                <p className="text-[13px] text-muted">今天还没发过消息。</p>
+      <Section title="用哪个">
+        {/*
+          B 档玻璃（总则 §3 两层）：外层 = L2 主卡（rounded-3xl + border-line + bg-surface），
+          里面两条通道 = L3 控件（bg-chip）。原来两张卡平铺在同一层，看不出"这是一组二选一"。
+        */}
+        <div className="rounded-3xl border border-line bg-surface p-1.5">
+          <div className="space-y-1">
+            {/* ① 自定义上游 —— 现在唯一能真用的通道 */}
+            <div
+              className={cn(
+                "overflow-hidden rounded-2xl border transition-colors",
+                openChan === "custom" ? "border-line bg-elevated" : "border-transparent",
               )}
-              <p className="mt-2 text-[12px] leading-5 text-muted">
-                你填了自己的 API key（花的是你的钱），所以本机<span className="text-fg">不做任何限制</span>，只如实显示上游返回的用量。
+            >
+              <button
+                type="button"
+                onClick={() => setOpenChan("custom")}
+                className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
+              >
+                {/*
+                  选中点用 fg 不用 accent：跟 .choice-on 是同一套"选中 = 黑底白字"的语义，
+                  三套主题下都会跟着反色（accent 在 dawn 是砖红，点一下就一片红不好看）。
+                */}
+                <span
+                  className={cn(
+                    "mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border",
+                    chanCustom ? "border-fg" : "border-line",
+                  )}
+                >
+                  {chanCustom && <span className="size-[7px] rounded-full bg-fg" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium">自定义上游</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-muted">
+                    {chanCustom
+                      ? `${settings.upstreamModel} · ${curModel.label}`
+                      : "还没配：填地址 / 密钥 / 模型名"}
+                  </span>
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "mt-[3px] size-4 shrink-0 text-muted transition-transform",
+                    openChan === "custom" && "rotate-90",
+                  )}
+                />
+              </button>
+              {openChan === "custom" && (
+                <div className="bubble-in px-3.5 pb-3.5">
+                  <p className="mb-2 text-[11px] leading-4 text-muted">
+                    接哪家都行（DeepSeek、智谱、通义，或任何 OpenAI 兼容接口）。
+                  </p>
+                  <input
+                    value={settings.customBaseUrl}
+                    onChange={(e) => patch({ customBaseUrl: e.target.value })}
+                    placeholder="https://your-proxy/v1"
+                    className="mb-2 h-11 w-full rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                  />
+                  <input
+                    type="password"
+                    value={settings.customApiKey}
+                    onChange={(e) => patch({ customApiKey: e.target.value })}
+                    placeholder="API Key"
+                    className="h-11 w-full rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                  />
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      value={settings.upstreamModel}
+                      onChange={(e) => patch({ upstreamModel: e.target.value.trim() })}
+                      placeholder="上游模型名，例如 deepseek-v4-pro"
+                      aria-label="上游模型名"
+                      className="h-11 min-w-0 flex-1 rounded-2xl border border-line/60 bg-elevated px-3 text-[13px] outline-none"
+                    />
+                    {/* 次级操作：不是"主按钮"，所以用 chip 底 + 边线，别跟三档抢视觉 */}
+                    <button
+                      type="button"
+                      disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
+                      onClick={probeModels}
+                      className="h-11 shrink-0 rounded-2xl border border-line bg-chip px-3.5 text-[12px] font-medium disabled:opacity-40"
+                    >
+                      {probing ? "问上游…" : "拉取可用模型"}
+                    </button>
+                  </div>
+                  {modelMsg && <p className="mt-1.5 text-[11px] leading-4 text-warn">{modelMsg}</p>}
+                  {models.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {models.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            patch({ upstreamModel: m });
+                            setModels([]);
+                            setModelMsg(`已选 ${m}`);
+                          }}
+                          className="rounded-full border border-line bg-chip px-3 py-1.5 font-mono text-[11px]"
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/*
+                    推理强度：**点选**，不是滑杆（用户："要不改成点的，不然不好适配"）。
+                    三个点背后是真参数（thinking 开关 + reasoning_effort），
+                    但只有测过（effortProbeOk）才真发 —— 见 lib/effort-probe.ts。
+                  */}
+                  <p className="mt-3 mb-1.5 text-[12px] text-muted">推理强度</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {MODELS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setModel(m.id)}
+                        className={cn(
+                          "rounded-2xl border py-2.5 text-[13px] font-medium transition-colors",
+                          modelNow === m.id ? "choice-on" : "choice-off bg-elevated",
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className={cn("mt-1.5 text-[11px] leading-4", effortOk ? "text-ok" : "text-warn")}>
+                    {effortOk
+                      ? "已确认：这台上游支持调强度，三档会真的改变推理深度。"
+                      : settings.effortProbeOk === false
+                        ? "这台上游不支持调强度 —— 只按默认深度回答，所以这里不摆档位。"
+                        : "还没测过：点一下「检测强度支持」，测过三档才真的生效。"}
+                  </p>
+
+                  {/* 这一页真正要用户点的那一下 —— 主按钮，跟全局一致用黑底白字 */}
+                  <button
+                    type="button"
+                    disabled={!chanCustom || effortBusy}
+                    onClick={runEffortProbe}
+                    className="mt-2 h-11 w-full rounded-2xl border border-line bg-ink text-[13px] font-medium text-ink-fg disabled:border-line disabled:bg-chip disabled:text-subtle"
+                  >
+                    {effortBusy ? "正在试着开关思考，稍等…" : "检测强度支持"}
+                  </button>
+                  {effortResult && !effortBusy && (
+                    <div className="mt-2 rounded-2xl border border-line bg-elevated px-3 py-2.5">
+                      <ProbeLine label="能开思考（回了思考内容）" pass={effortResult.reasoningOn} />
+                      <ProbeLine label="能关思考（关了就不思考）" pass={effortResult.reasoningOff} />
+                      <p
+                        className={cn(
+                          "mt-1.5 text-[11px] leading-4",
+                          effortResult.ok ? "text-ok" : "text-warn",
+                        )}
+                      >
+                        {effortResult.ok
+                          ? "三档真能拉开差距，已经按档位发了。"
+                          : (effortResult.error ?? "没测出结果，换个模型再试试。")}
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[11px] leading-4 text-subtle">
+                    密钥只存在这台设备里，不进代码、不进仓库。
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* ② ChatGPT 计划 —— 占位（SIWC 还没接），先把位置留出来 */}
+            <div
+              className={cn(
+                "overflow-hidden rounded-2xl border transition-colors",
+                openChan === "gpt" ? "border-line bg-elevated" : "border-transparent",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setOpenChan("gpt")}
+                className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
+              >
+                <span className="mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border border-line" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-muted">ChatGPT 计划</span>
+                  <span className="mt-0.5 block text-[11px] text-subtle">未开通</span>
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "mt-[3px] size-4 shrink-0 text-muted transition-transform",
+                    openChan === "gpt" && "rotate-90",
+                  )}
+                />
+              </button>
+              {openChan === "gpt" && (
+                <div className="bubble-in px-3.5 pb-3.5">
+                  <p className="text-[11px] leading-5 text-muted">
+                    用你自己的 ChatGPT 计划额度，不额外收费。登录一次就行，之后自动续期。
+                  </p>
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-2.5 h-11 w-full rounded-2xl border border-line bg-chip text-[13px] font-medium text-subtle"
+                  >
+                    登录 ChatGPT（还没接）
+                  </button>
+                  <p className="mt-2 text-[11px] leading-4 text-subtle">
+                    额度是账号里所有 app 共用的，用完这里也会停。这段是占位，等接入后才真能用。
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="今天用掉的">
+        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+          {usageToday ? (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[15px] font-medium">今天 {usageToday.calls} 次请求</p>
+                <p className="shrink-0 text-[12px] text-muted">
+                  输入 {usageToday.prompt.toLocaleString()} · 输出 {usageToday.completion.toLocaleString()}
+                </p>
+              </div>
+              <p className="mt-1.5 text-[12px] text-muted">
+                缓存命中 {usageToday.cached.toLocaleString()}（{cacheHitRate}%）
               </p>
             </>
           ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{usedPct}% 已使用</p>
-                <p className="text-[12px] text-muted">
-                  {quota.used}/{QUOTA_LIMIT}
-                </p>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-elevated">
-                <div className="h-full rounded-full bg-accent" style={{ width: `${usedPct}%` }} />
-              </div>
-              <p className="mt-2 text-[12px] text-muted" suppressHydrationWarning>
-                {hydrated
-                  ? `${resetAt <= Date.now() ? "窗口已过，下次发送重新计数" : resetLabel(resetAt)} · `
-                  : ""}
-                每窗口 {QUOTA_LIMIT} 条
-              </p>
-              <p className="mt-2 text-[12px] leading-5 text-muted">
-                你在走内置服务端（花的是服务端那把 key），所以才有这个窗口额度。
-                想不受限，去下面「自定义上游」填自己的地址和密钥即可。
-              </p>
-            </>
+            <p className="text-[13px] text-subtle">今天还没发过消息。</p>
           )}
+          <p className="mt-2 text-[12px] leading-5 text-muted">
+            花的是你自己的 key，本机不做任何限制，只如实记录上游返回的用量。
+          </p>
         </div>
       </Section>
 
@@ -1041,78 +1277,6 @@ function MeSections({ tab }: { tab: MeTab }) {
         </Link>
       </Section>
 
-      <Section title="自定义上游">
-        <p className="mb-2 text-[12px] leading-5 text-muted">
-          栖岛不绑定任何模型厂商 —— 接哪家都行（DeepSeek、智谱、通义，或任何 OpenAI
-          兼容接口）。填三样：地址、密钥、模型名。
-          <br />
-          密钥<span className="text-fg">只存在这台设备的浏览器里</span>
-          ，不进代码、不进仓库。
-        </p>
-        <input
-          value={settings.customBaseUrl}
-          onChange={(e) => patch({ customBaseUrl: e.target.value })}
-          placeholder="https://your-proxy/v1"
-          className="mb-2 h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none"
-        />
-        <input
-          type="password"
-          value={settings.customApiKey}
-          onChange={(e) => patch({ customApiKey: e.target.value })}
-          placeholder="API Key"
-          className="h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none"
-        />
-
-        {/* 模型名：换一家 API 最容易踩的坑 —— 名字得听对方的。
-            猜错的话上游只回一句英文报错，看起来像密钥不对，极难定位。 */}
-        <div className="mt-2">
-          <div className="flex items-center gap-2">
-            <input
-              value={settings.upstreamModel}
-              onChange={(e) => patch({ upstreamModel: e.target.value.trim() })}
-              placeholder="上游模型名，例如 deepseek-v4-pro"
-              aria-label="上游模型名"
-              className="h-11 min-w-0 flex-1 rounded-2xl bg-chip px-3 text-sm outline-none"
-            />
-            <button
-              type="button"
-              disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
-              onClick={probeModels}
-              className="h-11 shrink-0 rounded-2xl bg-chip px-3.5 text-[12px] font-medium disabled:opacity-40"
-            >
-              {probing ? "问上游…" : "拉取可用模型"}
-            </button>
-          </div>
-
-          {modelMsg && <p className="mt-1.5 text-[11px] leading-4 text-warn">{modelMsg}</p>}
-
-          {models.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {models.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => {
-                    patch({ upstreamModel: m });
-                    setModels([]);
-                    setModelMsg(`已选 ${m}`);
-                  }}
-                  className="rounded-full bg-chip px-3 py-1.5 font-mono text-[11px]"
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            用自定义地址时这一格<span className="text-fg">必须填</span>
-            —— 上面三档只是推理力度；不填就会把无效的模型名发出去，对方只会回一句英文报错。
-            <br />
-            不记得名字就点「拉取可用模型」，直接问对方要列表。
-          </p>
-        </div>
-      </Section>
 
       {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
       <Section title="工具调用（原生 tools）">
@@ -1544,11 +1708,6 @@ function MeSections({ tab }: { tab: MeTab }) {
                 : "还没配自定义上游（地址 / 密钥 / 模型）"}
             </span>
           </p>
-          {wakeUrlSource() !== "none" && (
-            <p className="mt-1 text-[11px] leading-4 text-subtle">
-              备路（Worker 中转）：{wakeUrlSource() === "manual" ? "手填地址" : "打包时已注入"} —— 只有主路不通时才需要它
-            </p>
-          )}
 
           {/* 夜间不打扰 */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2">

@@ -543,6 +543,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
           customApiKey: settings.customApiKey || undefined,
           upstreamModel: settings.upstreamModel || undefined,
           maxTokens: settings.maxTokens,
+          /**
+           * 三档强度要不要真发出去 —— **只认测出来的结论**。
+           * `effortProbeOk === true` 才发（设置页「检测强度支持」写的）；
+           * 没测过 / 测过不认都是不发 —— 多一个字段换一轮 400 不值得。
+           */
+          effortOn: settings.effortProbeOk === true,
           name: settings.displayName,
           userGender: settings.userGender,
           aiName,
