@@ -47,7 +47,7 @@ check(
   ),
   'wake.js 里 free/life 模式进了 runLifeFrame()',
 );
-check(/saveLife\(session\);\s*\n\s*logLine\("#" \+ count \+ " " \+ stamp \+ " 这一帧做了/.test(wake), "wake.js 跨帧续跑：一帧做完把进度存下来");
+check(/saveLife\(session\);[\s\S]{0,220}?logLine\("#" \+ count \+ " " \+ stamp \+ " 这一帧做了/.test(wake), "wake.js 跨帧续跑：一帧做完把进度存下来");
 check(/kvSet\("wake_pending_kind", "actions"\)/.test(wake), "wake.js 交下来的是 actions 批次（不是单个 action）");
 
 /* ── ③ 两边白名单必须一致（集合相等）── */

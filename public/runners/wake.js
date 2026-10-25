@@ -789,7 +789,11 @@ addEventListener("qidaoWake", function (resolve, reject) {
       var actionMode = "";
       if (cfg("cfg_autonomy_on") === "1" && cfg("cfg_action_prompt")) {
         var today = dayStamp(now);
-        var nowMin = now.getHours() * 60 + now.getMinutes();
+        /* ⚠️ `now` 是 `Date.now()` 的**数字**，不能直接 `.getHours()` ——
+           2026-10 真机：这里抛 TypeError，被最外层 catch 吞掉，
+           于是"每小时都醒、却从没说过话/没写日记"，后台记录里只有 look 那行。 */
+        var nowClock = new Date(now);
+        var nowMin = nowClock.getHours() * 60 + nowClock.getMinutes();
         /**
          * 优先级（用户定的）：**回响 > 日记保底 > 自由活动**，一次醒来只做一件。
          */
@@ -1117,12 +1121,15 @@ addEventListener("qidaoWake", function (resolve, reject) {
           }
           if (sent >= LIFE_STEPS_PER_FRAME) {
             saveLife(session);
+            /* 这一帧是**正常收工**，不是"卡在问上游" —— 标记要清掉 */
+            kvSet("wake_stage", "");
             logLine("#" + count + " " + stamp + " 这一帧做了 " + session.steps.length + " 步，剩下的下次醒来接着");
             resolve();
             return;
           }
           if (Date.now() + MIN_ATTEMPT_MS >= ctx.deadline) {
             saveLife(session);
+            kvSet("wake_stage", "");
             logLine("#" + count + " " + stamp + " 预算不够，这段存下来下次接着（已做 " + session.steps.length + " 步）");
             resolve();
             return;
@@ -1274,7 +1281,16 @@ addEventListener("qidaoWake", function (resolve, reject) {
     /* 备路（Cloudflare Worker 中转）已整条移除 —— 见文件头「只走一条路」。 */
     logLine("#" + count + " " + stamp + " 主路没走通（备路已移除），这次什么都没发生");
   } catch (err) {
-    /* ③ 无论如何都要收尾 */
+    /* ③ 无论如何都要收尾 —— 但**必须留一行痕**：`reject` 之后界面里什么都看不见，
+       否则"醒了却什么都没发生"永远查不出原因（2026-10 真机就是这么瞎了一整天）。 */
+    try {
+      logLine(
+        "#" + count + " " + stamp + " 这次醒来出错了：" +
+          String(err && err.message ? err.message : err).slice(0, 120),
+      );
+    } catch (e2) {
+      /* 连日志都写不进去就算了 */
+    }
     reject(err);
   }
 });
