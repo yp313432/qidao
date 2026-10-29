@@ -4,7 +4,6 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { readImageFile } from "@/lib/image-file";
 import { PageHeader } from "@/components/page-header";
-import { Avatar } from "@/components/avatar";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
@@ -35,8 +34,11 @@ export function CoreView() {
   const avRef = useRef<HTMLSpanElement>(null);
   const nameRef = useRef<HTMLSpanElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  /** 滚到底所需的总可滚量：内容贴住 46px 顶栏时刚好用完（挂载时实测） */
+  const needRef = useRef(0);
 
-  const HEAD_H = 320; // 主卡展开高度
+  const HEAD_H = 352; // 主卡展开高度（行程 = 352-46 = 306px）
   const BAR_H = 46; // 收进顶栏后的高度
   const AV0 = 80;
   const AV1 = 24;
@@ -47,10 +49,16 @@ export function CoreView() {
   const onScroll = (el: HTMLElement) => {
     const head = headRef.current;
     if (!head) return;
-    // 同「我的」：p 里把"已经缩掉的高度"加回来，避免滚动位置被浏览器夹回时来回弹
-    const shrink = Math.max(HEAD_H - head.offsetHeight, 0);
-    const p = clamp01((el.scrollTop + shrink) / (HEAD_H - BAR_H));
-    const e = p * p * (3 - 2 * p);
+    /*
+     * 两段式（跟「我的」同一套）：先让二级入口滑上来贴住主卡底，主卡再开始缩；
+     * 两段加起来正好「滚到底 ⇔ 收成 46px 顶栏 且 内容贴着顶栏」。
+     */
+    const span = Math.max(1, HEAD_H - BAR_H);
+    const dead = Math.max(0, needRef.current - span);
+    const t = clamp01((el.scrollTop - dead) / span);
+    // 同「我的」：必须 1:1，缓动会让主卡缩得比内容上移快，内容钻进卡片下面
+    const e = t;
+    const p = t;
     const W = head.clientWidth || 326;
 
     const headH = lerp(HEAD_H, BAR_H, e);
@@ -82,6 +90,44 @@ export function CoreView() {
     if (el) onScroll(el);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * 补足可滚量（与「我的」同一套）：让「滚到底」= 主卡收成 46px 顶栏、二级入口贴着它。
+   * 这一页内容更少，只补「行程」的话滚到底内容还没贴上来，中间会空一大片。
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    const sp = spacerRef.current;
+    if (!el || !sp) return;
+    const pad = () => {
+      // 第一个内容块（「往下看」那组）距滚动内容顶部的距离
+      const content = headRef.current?.parentElement?.nextElementSibling as HTMLElement | null;
+      const offset = content
+        ? content.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+        : HEAD_H;
+      const need = Math.max(HEAD_H - BAR_H, offset - BAR_H);
+      needRef.current = need;
+      // 增量补（同「我的」）：内容比容器短时 scrollHeight 会被夹成 clientHeight，不能先归零量差值
+      for (let i = 0; i < 8; i += 1) {
+        const diff = need - (el.scrollHeight - el.clientHeight);
+        if (Math.abs(diff) < 1) break;
+        const cur = parseFloat(sp.style.height) || 0;
+        if (cur <= 0 && diff < 0) break;
+        sp.style.height = `${Math.max(0, cur + diff)}px`;
+      }
+      onScroll(el);
+    };
+    pad();
+    const ro = new ResizeObserver(pad);
+    ro.observe(el);
+    window.addEventListener("resize", pad);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", pad);
+    };
+    // HEAD_H / BAR_H 是常量，onScroll 是每帧用的纯函数，不需要进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [draftName, setDraftName] = useState("");
   const permissions = useApp((s) => s.settings.permissions);
   const memories = useApp((s) => s.memories);
@@ -99,13 +145,21 @@ export function CoreView() {
         ref={scrollRef}
         onScroll={(e) => onScroll(e.currentTarget)}
         className="min-h-0 flex-1 overflow-y-auto px-4 pb-24"
+        /* 同「我的」：头块滚动中变矮，关掉滚动锚定，否则 scrollTop 会被浏览器改回去 */
+        style={{ overflowAnchor: "none" }}
       >
         {/* 主卡：他现在的样子 —— 会随滚动塌成顶栏（同一个头像、同一个名字） */}
-        <div
-          ref={headRef}
-          className="sticky z-20 shrink-0 overflow-hidden rounded-3xl"
-          style={{ height: HEAD_H, top: 0 }}
-        >
+        {/*
+          外层固定 HEAD_H 布局占位、内层只改视觉高度（跟「我的」同一套定稿）：
+          内容位置只由 scrollTop 决定，滚到底正好落在 46px 顶栏下面，
+          既不会中间留空，也不会被主卡自身的缩小顶飞。可滚量由底部 spacer 补足。
+        */}
+        <div className="sticky z-20 shrink-0" style={{ height: HEAD_H, top: 0 }}>
+          <div
+            ref={headRef}
+            className="absolute inset-x-0 top-0 overflow-hidden rounded-3xl"
+            style={{ height: HEAD_H }}
+          >
           <div ref={cardRef} className="absolute inset-0 rounded-3xl border border-line bg-elevated" />
           <div
             ref={barRef}
@@ -202,6 +256,7 @@ export function CoreView() {
             </p>
           </div>
         </div>
+        </div>
 
         {/* 二级入口：跟「我的 → AI 核心」一致 */}
         <section className="mt-5">
@@ -230,8 +285,8 @@ export function CoreView() {
         <p className="mt-6 px-1 text-[11px] leading-5 text-subtle">
           点名字能改、点头像能换；其他设置点上面那三项进去改。
         </p>
-        {/* 占位：主卡塌成顶栏释放的 274px 由它撑住，保证这段滚动始终可用（同「我的」） */}
-        <div aria-hidden style={{ height: HEAD_H - BAR_H }} />
+        {/* 占位：保证「主卡塌成顶栏」那 306px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
+        <div ref={spacerRef} aria-hidden style={{ height: HEAD_H - BAR_H, flexShrink: 0 }} />
       </div>
     </div>
   );

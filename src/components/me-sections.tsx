@@ -200,8 +200,11 @@ export function MeHub() {
   const fadeRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLParagraphElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  /** 滚到底所需的总可滚量：内容贴住 46px 顶栏时刚好用完（挂载时实测） */
+  const needRef = useRef(0);
 
-  const HEAD_H = 268; // 展开时资料卡的高度
+  const HEAD_H = 300; // 展开时资料卡的高度（塌陷行程 = 300-46 = 254px，行程越长收得越慢）
   const BAR_H = 46; // 收进顶栏后的高度
   const AV0 = 80; // 头像展开尺寸
   const AV1 = 28; // 头像收起尺寸
@@ -214,19 +217,21 @@ export function MeHub() {
     const head = headRef.current;
     if (!head) return;
     /*
-     * 进度用固定的 222px 而不是 scrollHeight：头部"塌下去"本身会让可滚量变小，
-     * 若拿实时 scrollHeight 当分母，滚动位置会被浏览器夹回去 → p 忽大忽小（抖动）。
-     * 底部留了等高的占位（见文件末尾的 spacer），保证这 222px 始终滚得动。
+     * 两段式（2026-10-29 定稿，前后返工三次才理清）：
+     *   第一段：头块**不动**，先让下面的内容滑上来贴住头底（这一段长度 = need - 行程）
+     *   第二段：头块开始塌，内容跟着 1:1 上移（布局占位不变，只改视觉高度）
+     * 两段加起来正好让「滚到底 ⇔ 头收成 46px 顶栏 且 第一个入口贴着顶栏」。
+     * 开头就让它收（旧版）会出现"中间空一大片"；让它真实变矮又会被顶飞。
      */
+    const span = Math.max(1, HEAD_H - BAR_H);
+    const dead = Math.max(0, needRef.current - span);
+    const t = clamp01((el.scrollTop - dead) / span);
     /*
-     * p = (滚了多少 + 已经缩掉多少) / 222。
-     * 只拿 scrollTop 当进度不行：卡片一塌，可滚量变小，浏览器会把 scrollTop 夹回去，
-     * p 跟着回落 → 卡片又弹开 → 抖动。把"已缩掉的高度"加回来，两者互为补偿，就稳了。
+     * 必须 1:1（不能用 t^1.6 那种前慢后快）：头块是"视觉变矮"、内容按滚动线性上移，
+     * 两者一旦不同步，内容就会钻到头块下面或者拉开一道缝。跟手才贴得住。
      */
-    const shrink = Math.max(HEAD_H - head.offsetHeight, 0);
-    const p = clamp01((el.scrollTop + shrink) / (HEAD_H - BAR_H));
-    const e = p * p * (3 - 2 * p); // 平滑
-    const lag = Math.pow(p, 1.7); // 头像前期更惰，先让卡片塌
+    const e = t;
+    const p = t;
     const W = head.clientWidth || 320;
 
     const headH = lerp(HEAD_H, BAR_H, e);
@@ -263,11 +268,61 @@ export function MeHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * 补足可滚量：让「滚到底」= 头收成 46px 顶栏，且第一个入口正好贴在它下面。
+   *
+   * ⚠️ 2026-10-29 返工三次的教训：
+   *   · 只补到「行程」(254px) → 内容短，滚到底时内容还没贴上来，中间空一大片；
+   *   · 让头块真实变矮 → 内容被「缩小 + 滚动」顶两次，直接飞出屏幕。
+   * 现在按「第一个内容块贴到 BAR_H 需要滚多少」来补，再在 onScroll 里拆成两段。
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    const sp = spacerRef.current;
+    if (!el || !sp) return;
+    const pad = () => {
+      // 第一个内容块（入口列表 / 二级卡片）距滚动内容顶部的距离
+      const content = headRef.current?.parentElement?.nextElementSibling as HTMLElement | null;
+      const offset = content
+        ? content.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+        : HEAD_H;
+      const need = Math.max(HEAD_H - BAR_H, offset - BAR_H);
+      needRef.current = need;
+      /*
+       * 增量补，不能"先归零再量差值"：内容比容器还短时 scrollHeight 会被夹成 clientHeight，
+       * 量出来的差值永远是 0（「AI 概览」就吃过这个亏）。按当前可滚量一次次加，几次收敛。
+       */
+      for (let i = 0; i < 8; i += 1) {
+        const diff = need - (el.scrollHeight - el.clientHeight);
+        if (Math.abs(diff) < 1) break;
+        const cur = parseFloat(sp.style.height) || 0;
+        if (cur <= 0 && diff < 0) break;
+        sp.style.height = `${Math.max(0, cur + diff)}px`;
+      }
+      onScroll(el);
+    };
+    pad();
+    const ro = new ResizeObserver(pad);
+    ro.observe(el);
+    window.addEventListener("resize", pad);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", pad);
+    };
+    // HEAD_H / BAR_H 是常量，不需要进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
       ref={scrollRef}
       onScroll={(e) => onScroll(e.currentTarget)}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav"
+      /*
+       * 关掉 Chrome 的滚动锚定：头块在滚动中真的在变矮、spacer 同时反向变高，
+       * 浏览器会自作主张"保持锚点"去改 scrollTop —— 实测会让进度乱跳（滑到 180 变 202）。
+       */
+      style={{ overflowAnchor: "none" }}
     >
       {/* 标题：滚动时先淡出，把位置让给资料卡 */}
       <div ref={titleRef} className="px-5 inset-top-100 pb-1">
@@ -279,11 +334,22 @@ export function MeHub() {
         资料区 = 一个会"塌"下来的容器：卡片底、顶栏玻璃、头像、名字、文字块都在里面，
         滚动时同一套元素变形，不是换了一套小组件。
       */}
+      {/*
+        ⚠️ 2026-10-29 第三次返工后的定稿：
+        外层永远是 HEAD_H 的**布局占位**，内层 head 只改视觉高度（绝对定位）。
+        这样内容的位置只由 scrollTop 决定 —— 滚到底时内容正好落在 46px 顶栏下面，
+        既不会「中间空一大片」（那是布局高度不变 + 内容没跟上），也不会被头块自身的缩小顶飞。
+        可滚量由底部 spacer 补足，spacer 高度在挂载时实测（见下面那个 effect）。
+      */}
       <div
-        ref={headRef}
-        className="sticky z-20 mx-4 mt-3 shrink-0 overflow-hidden"
+        className="sticky z-20 mx-4 mt-3 shrink-0"
         style={{ height: HEAD_H, top: "calc(var(--q-inset-top, 0px) + 2px)" }}
       >
+        <div
+          ref={headRef}
+          className="absolute inset-x-0 top-0 overflow-hidden"
+          style={{ height: HEAD_H }}
+        >
         <div ref={cardRef} className="absolute inset-0 rounded-3xl border border-line bg-surface" />
         <div
           ref={barRef}
@@ -375,6 +441,7 @@ export function MeHub() {
             })}
           </div>
         </div>
+        </div>
       </div>
 
       {/*
@@ -406,8 +473,8 @@ export function MeHub() {
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
         栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
       </div>
-      {/* 占位：让"卡片塌成顶栏"那 222px 始终滚得动，否则内容少的机型会抖动 */}
-      <div aria-hidden style={{ height: HEAD_H - BAR_H }} />
+      {/* 占位：保证「卡片塌成顶栏」那 254px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
+      <div ref={spacerRef} aria-hidden style={{ height: HEAD_H - BAR_H, flexShrink: 0 }} />
     </div>
   );
 }

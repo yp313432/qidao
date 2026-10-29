@@ -19,7 +19,7 @@ import { usePlayer } from "@/lib/player";
 import { pickStickerByGroup, stickerGroupList } from "@/lib/stickers";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
-import { guessKind } from "@/lib/memory";
+import { closeFact, conflictOf, guessKind, isLive } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { appendVestigium } from "@/lib/garden-trace";
 import { runSenseAction } from "@/lib/sense";
@@ -339,7 +339,28 @@ const stamp = (t: number): string =>
       const tags = Array.isArray(action.tags)
         ? action.tags.map((t) => String(t).replace(/^#/, "").trim()).filter(Boolean).slice(0, 8)
         : undefined;
-      st.addMemoryItem(guessKind(note), note, { source: "对话", tags });
+      const kind = guessKind(note);
+      /* 写入前先跟旧记忆比一次（Mem0 那套 ADD / UPDATE / NOOP）——
+       * 用户 m15129 的抱怨是"同一句『写论文』记了四条"。
+       *   · 几乎一样（≥0.85）→ 只更新旧那条，不新增
+       *   · 相关但说法变了（0.5~0.85）→ 旧那条关掉留历史，写新的（改口不擦除过去）
+       */
+      const live = st.memories.filter((m) => isLive(m));
+      const found = conflictOf(live, note, kind);
+      if (found && found.overlap >= 0.85) {
+        st.updateMemory(found.candidate.id, {
+          content: note,
+          ...(tags?.length ? { tags } : {}),
+          updatedAt: Date.now(),
+        });
+        return `记住了（这条本来就在，我更新了原来的那条，没重复记）`;
+      }
+      if (found) {
+        st.updateMemory(found.candidate.id, closeFact(found.candidate));
+        st.addMemoryItem(kind, note, { source: "对话", tags });
+        return `记住了（旧说法留下当历史，以后算新的这条）`;
+      }
+      st.addMemoryItem(kind, note, { source: "对话", tags });
       return tags?.length ? `记住了（标签：${tags.slice(0, 4).join(" ")}）` : "记住了";
     }
     case "persona.set": {

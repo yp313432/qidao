@@ -57,6 +57,7 @@ const AWAKE_KINDS = [
   "diary.add",
   "moment.post",
   "emotion.report",
+  "memory.add",
 ] as const;
 
 let lastUserActAt = 0;

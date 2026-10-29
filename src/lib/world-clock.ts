@@ -25,6 +25,15 @@ export const BITE_GRACE_MS = 5 * 60 * 1000;
 export const WORLD_TICK_MS = 20_000;
 
 /**
+ * 记忆库体检的节流：合并重复 + 归档淡掉的，每 6 小时最多一次。
+ *
+ * 挂在这儿是因为 `tickWorld` 已经在跑（App 每 20 秒 call 一次）；
+ * 几百条记忆的 O(n²) 比较不能每 20 秒来一遍。
+ */
+const SWEEP_EVERY_MS = 6 * 60 * 60 * 1000;
+let lastSweepAt = 0;
+
+/**
  * 推进一次世界。返回这次真的发生了什么（给调用方决定要不要写进踪迹）。
  *
  * 幂等：同一时刻重复调用不会重复推进（阶段判断在前）。
@@ -45,6 +54,14 @@ export function tickWorld(now: number = Date.now()): string[] {
   if (after.phase === "bite" && after.at > 0 && now - after.at > BITE_GRACE_MS) {
     st.pondSettle("lost");
     notes.push("鱼跑了，竿空着");
+  }
+
+  /** ③ 记忆库体检（合并重复 / 归档淡掉的）：每 6 小时最多一次 */
+  if (now - lastSweepAt > SWEEP_EVERY_MS) {
+    lastSweepAt = now;
+    const r = st.sweepMemories();
+    if (r.merged > 0) notes.push(`记忆里合并掉 ${r.merged} 条重复的`);
+    if (r.archived > 0) notes.push(`有 ${r.archived} 条记忆淡了，收进归档`);
   }
 
   return notes;

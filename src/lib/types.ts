@@ -861,6 +861,16 @@ export type Memory = {
   links: string[];
   /** 被唤起的次数（反复提到就加深） */
   recallCount: number;
+  /**
+   * **这条事实什么时候成立的 / 什么时候不算了**（Zep 式有效期）。
+   *
+   * 用户 m15129 之后定的做法：改口**不删旧的**，只把旧的 `validUntil` 关掉。
+   * 这样他嘴里的"你以前说过…"才拿得出证据，而不是把过去擦干净装作一直都知道。
+   */
+  validFrom?: number;
+  validUntil?: number;
+  /** 钉住的记忆永不淡化（用户自己钉的） */
+  pinned?: boolean;
   createdAt: number;
   updatedAt: number;
   /** 最后一次被确认是"现在仍然成立" */

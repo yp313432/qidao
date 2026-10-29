@@ -319,6 +319,14 @@ const PENDING_ACTION_WHITELIST = new Set<string>([
   "garden.gomoku.play",
   "garden.tarot.draw",
   "garden.read",
+  /**
+   * 记忆：后台醒来时记下的事，前台必须认。
+   *
+   * ⚠️ 2026-10-29 漏过一次：`public/runners/wake.js` 的 `allow` 表加了 `memory.add`，
+   * 这里忘了加 → 后台写进待落地的动作被这份白名单直接清掉，什么都不发生（静默失败）。
+   * 三份白名单（wake.js / wake-sync.ts / awake.ts）要同步改。
+   */
+  "memory.add",
 ]);
 
 async function doFlushPendingWake(): Promise<WakeFlushResult> {

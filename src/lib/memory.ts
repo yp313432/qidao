@@ -67,6 +67,8 @@ const DAY = 86_400_000;
 
 /** 清晰度 0~1：每过一个半衰期掉一半。 */
 export function retention(m: Memory, now = Date.now()): number {
+  // 钉住的永不淡化 —— 用户亲手钉的东西不该自己掉下去
+  if (m.pinned) return 1;
   const hl = HALF_LIFE[m.kind];
   const base = m.strength > 0 ? m.strength : 1;
   if (!hl) return Math.min(1, base);
@@ -176,6 +178,8 @@ export type SearchOptions = {
   /** 只看清晰度高于这个值的（默认 0 = 全看） */
   minRetention?: number;
   includeArchived?: boolean;
+  /** 连"已经不成立"的老事实也一起看（历史视图用；默认不看） */
+  includeExpired?: boolean;
   /** 排序方式 */
   sort?: "recent" | "strong" | "confidence" | "created";
 };
@@ -196,6 +200,7 @@ export function searchMemories(
 
   for (const m of list) {
     if (!opts.includeArchived && m.status !== "active") continue;
+    if (!opts.includeExpired && !isLive(m, now)) continue;
     if (opts.kinds?.length && !opts.kinds.includes(m.kind)) continue;
     const r = retention(m, now);
     if (r < minR) continue;
@@ -252,7 +257,7 @@ export function activate(
   const limit = opts.limit ?? 6;
   // 提问那边扩同义词：说「好累」→ 也去找「躺平 / 精力低 / 不想动」那些记忆
   const words = expandWithSynonyms(keywords(cue));
-  const active = list.filter((m) => m.status === "active");
+  const active = list.filter((m) => isLive(m, now));
   const score = new Map<string, number>();
   const via = new Map<string, "direct" | "link">();
 
@@ -383,4 +388,137 @@ export function fromLegacy(old: { id: string; text: string; createdAt: number }[
       at: kind === "timeline" && dateMatch ? `${dateMatch[1]}-${dateMatch[2]!.padStart(2, "0")}-${dateMatch[3]!.padStart(2, "0")}` : undefined,
     };
   });
+}
+
+/* ------------------------ 记忆库：有效期 / 冲突 / 归档 / 合并 ------------------------
+ *
+ * 用户 m15129："你有什么建议吗，结合现在市面上成熟的记忆库方案"。
+ * 对着 Mem0 / Zep / Letta / LangMem / A-MEM 挑了两条**不需要向量库、不花钱**的纯逻辑：
+ *
+ *   · **写入时冲突消解**（Mem0 的做法）—— 新事实先跟旧的比，重复的不新增；
+ *     改口的把旧的关掉（不是删），于是"写论文"不会再堆成四条。
+ *   · **事实有效期**（Zep / Graphiti 的做法）—— 每条事实带 validUntil，
+ *     过期的不参与召回，但仍然留在库里当历史。
+ *
+ * 另外补：遗忘真正生效（归档）、去重合并、置顶永不淡化。
+ */
+
+/** 这条事实"现在"还成不成立。 */
+export function isLive(m: Memory, now = Date.now()): boolean {
+  if (m.status !== "active") return false;
+  return m.validUntil === undefined || m.validUntil > now;
+}
+
+/** 把一条事实关掉：不删，留作历史（他以后要说"你以前讲过…"就有据可查）。 */
+export function closeFact(m: Memory, now = Date.now()): Memory {
+  return { ...m, validUntil: now, updatedAt: now };
+}
+
+/** 两句话的关键词重合度（0~1）。交集 ÷ 较小的那个集合 —— 短句配长句才公平。 */
+export function overlapOf(a: string, b: string): number {
+  const A = new Set(expandWithSynonyms(keywords(a)));
+  const B = new Set(expandWithSynonyms(keywords(b)));
+  if (A.size === 0 || B.size === 0) return 0;
+  let hit = 0;
+  for (const w of A) if (B.has(w)) hit += 1;
+  return hit / Math.min(A.size, B.size);
+}
+
+export type Conflict = { candidate: Memory; overlap: number };
+
+/**
+ * 写入前找"说的是同一件事"的旧记忆。
+ * 同 kind 加 0.15；重合度 ≥ 0.5 才算；取最高的那条。
+ */
+export function conflictOf(
+  list: Memory[],
+  content: string,
+  kind: MemoryKind,
+  now = Date.now(),
+): Conflict | null {
+  let best: Conflict | null = null;
+  for (const m of list) {
+    if (!isLive(m, now)) continue;
+    const o = overlapOf(m.content, content) + (m.kind === kind ? 0.15 : 0);
+    if (o < 0.5) continue;
+    if (!best || o > best.overlap) best = { candidate: m, overlap: Math.min(o, 1) };
+  }
+  return best;
+}
+
+export type SweepOptions = {
+  /** 清晰度低于这个就归档（默认 0.15） */
+  archiveBelow?: number;
+  /** 多久没被想起来才归档（毫秒，默认 90 天） */
+  archiveAfter?: number;
+  /** 两条重合度高于这个就合并（默认 0.85） */
+  mergeAbove?: number;
+};
+
+export type SweepResult = {
+  list: Memory[];
+  archived: string[];
+  merged: { keep: string; drop: string }[];
+};
+
+/**
+ * 本地体检：该归档的归档、该合并的合并。**不调模型、不删数据**。
+ *
+ * 由 `store.sweepMemories()` 挂在 `world-clock` 的 tick 里每天跑一次 ——
+ * 这也是"遗忘真的会生效"的落点（以前 retention 只影响排序，一条都没少过）。
+ */
+export function sweepMemories(list: Memory[], opts: SweepOptions = {}, now = Date.now()): SweepResult {
+  const below = opts.archiveBelow ?? 0.15;
+  const after = opts.archiveAfter ?? 90 * 24 * 60 * 60 * 1000;
+  const mergeAbove = opts.mergeAbove ?? 0.85;
+
+  const archived: string[] = [];
+  const merged: { keep: string; drop: string }[] = [];
+  let out = [...list];
+
+  /* ① 先合并重复的：同 kind + 关键词几乎一样 */
+  for (let i = 0; i < out.length; i += 1) {
+    const a = out[i]!;
+    if (!isLive(a, now)) continue;
+    for (let j = i + 1; j < out.length; j += 1) {
+      const b = out[j]!;
+      if (!isLive(b, now) || b.kind !== a.kind) continue;
+      if (overlapOf(a.content, b.content) < mergeAbove) continue;
+      // 留更新那条当正文，另一条的标签/连线/次数并进来
+      const keep = b.updatedAt >= a.updatedAt ? b : a;
+      const drop = keep === b ? a : b;
+      const union = (x: string[], y: string[]) => [...new Set([...x, ...y])];
+      out = out
+        .filter((m) => m.id !== drop.id)
+        .map((m) =>
+          m.id === keep.id
+            ? {
+                ...m,
+                tags: union(m.tags, drop.tags).slice(0, 12),
+                links: union(m.links, drop.links).filter((id) => id !== keep.id && id !== drop.id).slice(0, 8),
+                recallCount: m.recallCount + drop.recallCount,
+                strength: Math.max(m.strength, drop.strength),
+                confidence: Math.max(m.confidence, drop.confidence),
+                updatedAt: Math.max(m.updatedAt, drop.updatedAt),
+              }
+            : m,
+        );
+      merged.push({ keep: keep.id, drop: drop.id });
+      i = -1; // 合并后从头再扫一遍（集合变了）
+      break;
+    }
+  }
+
+  /* ② 再归档"淡到看不见、又很久没被想起"的 */
+  out = out.map((m) => {
+    if (!isLive(m, now) || m.pinned) return m;
+    const last = Math.max(m.lastRecalledAt ?? 0, m.updatedAt, m.createdAt);
+    if (retention(m, now) < below && now - last > after) {
+      archived.push(m.id);
+      return { ...m, status: "archived" as const, updatedAt: now };
+    }
+    return m;
+  });
+
+  return { list: out, archived, merged };
 }

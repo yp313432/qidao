@@ -31,10 +31,14 @@ import { kindLabel, parseMusicLink } from "./music-embed";
 import { startOfDay } from "@/lib/days";
 import {
   autoLinks,
+  closeFact,
   confirmMemory as confirmMem,
+  conflictOf,
   fromLegacy,
   guessKind,
+  isLive,
   reinforce,
+  sweepMemories as sweepMem,
 } from "@/lib/memory";
 import { autoTag } from "@/lib/synonyms";
 import { worldPresets } from "@/lib/world-presets";
@@ -563,6 +567,10 @@ export type AppState = {
   deleteMemory: (id: string) => void;
   /** 确认"现在还成立" —— 相当于又记了一次，会更牢 */
   confirmMemory: (id: string) => void;
+  /** 钉住 / 取消钉住（钉住的永不淡化） */
+  togglePinMemory: (id: string) => void;
+  /** 本地体检：合并重复 + 归档淡掉的，返回一句话结果（没人看就算了） */
+  sweepMemories: () => { archived: number; merged: number };
   /** 标记"刚被想起"（加深记忆曲线，由检索那一步调用） */
   reinforceMemory: (ids: string[]) => void;
   /** 界面效果（高亮 / 滚动），由 UiEffects 消费 */
@@ -1376,6 +1384,15 @@ export const useApp = create<AppState>()(
         })),
       confirmMemory: (id) =>
         set((s) => ({ memories: s.memories.map((m) => (m.id === id ? confirmMem(m) : m)) })),
+      togglePinMemory: (id) =>
+        set((s) => ({
+          memories: s.memories.map((m) => (m.id === id ? { ...m, pinned: !m.pinned, updatedAt: Date.now() } : m)),
+        })),
+      sweepMemories: () => {
+        const r = sweepMem(get().memories);
+        if (r.archived.length || r.merged.length) set({ memories: r.list });
+        return { archived: r.archived.length, merged: r.merged.length };
+      },
       reinforceMemory: (ids) => set((s) => ({ memories: reinforce(s.memories, ids) })),
       removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
       /**
