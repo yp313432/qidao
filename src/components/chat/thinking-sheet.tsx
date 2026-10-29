@@ -202,8 +202,8 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
           const expanded = isOpen(i);
           return (
             <div key={`t${i}`} className="flex gap-2.5">
-              <Rail last={last}>
-                <span className="mt-[3px] size-[15px] rounded-full bg-surface">
+              <Rail first={i === 0} last={last}>
+                <span className="mt-[3px] block size-[15px] rounded-full bg-[rgba(252,248,242,1)]">
                   <span className="mx-auto mt-[5px] block size-[5px] rounded-full bg-muted" />
                 </span>
               </Rail>
@@ -239,10 +239,10 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
         const expanded = isOpen(i);
         return (
           <div key={`c${i}`} className="flex gap-2.5">
-            <Rail last={last} bad={!step.call.ok}>
+            <Rail first={i === 0} last={last} bad={!step.call.ok}>
               <span
                 className={cn(
-                  "mt-[3px] flex size-[15px] items-center justify-center rounded-full border bg-surface",
+                  "mt-[3px] flex size-[15px] items-center justify-center rounded-full border bg-[rgba(252,248,242,1)]",
                   step.call.ok ? "border-line" : "border-warn/50",
                 )}
               >
@@ -312,8 +312,8 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
       })}
       {live && (
         <div className="flex gap-2.5">
-          <Rail last>
-            <span className="mt-[3px] size-[15px] rounded-full bg-surface">
+          <Rail first={steps.length === 0} last>
+            <span className="mt-[3px] block size-[15px] rounded-full bg-[rgba(252,248,242,1)]">
               <span className="mx-auto mt-[5px] block size-[5px] animate-pulse rounded-full bg-accent" />
             </span>
           </Rail>
@@ -324,24 +324,31 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
   );
 }
 
-/** 左列：一条竖线 + 行的节点。首尾把线裁掉半格，看着是"从第一个点到最后一个点"。 */
+/**
+ * 左列：一条竖线 + 行的节点。
+ *
+ * 2026-10 用户 m14976："思考链左边这个流式的能不能用竖线连接起来，更有延伸感"
+ * → 原来那条线用的是 `bg-line`（主题里最淡的一档，几乎看不见），而且从行顶开始画，
+ *   首行上面会翘出一小截。现在：
+ *   · 颜色改用 `bg-fg/15`（深一档，浅底上看得见但不抢字），失败行用暖色；
+ *   · 首行从节点中心（11px）起笔、末行收到节点中心，整条线是连续的"从第一个点到最后一个点"。
+ */
 function Rail({
   children,
+  first,
   last,
   bad,
 }: {
   children: React.ReactNode;
+  first?: boolean;
   last?: boolean;
   bad?: boolean;
 }) {
   return (
     <div className="relative flex w-[15px] shrink-0 flex-col items-center">
       <span
-        className={cn(
-          "absolute top-0 w-px",
-          last ? "h-[10px]" : "bottom-0",
-          bad ? "bg-warn/25" : "bg-line",
-        )}
+        className={cn("absolute left-1/2 w-px -translate-x-1/2", bad ? "bg-warn/35" : "bg-fg/15")}
+        style={{ top: first ? 11 : 0, bottom: last ? "calc(100% - 11px)" : 0 }}
       />
       <span className="relative z-[1]">{children}</span>
     </div>

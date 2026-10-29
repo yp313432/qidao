@@ -181,20 +181,87 @@ export function MeHub() {
   const patch = useApp((s) => s.patchSettings);
   const settings = useApp((s) => s.settings);
   const scrollRef = useScrollMemory("me");
+
   /*
-   * 「封面收进导航栏」（用户 m14665 图三）：往下滚时资料区那张大卡走掉，
-   * 顶栏接手——小头像（32px）滑进左边、名字跟上来、底下一层玻璃。
-   * 只在跨过阈值那一刻 setState，滚动过程里不重渲染。
+   * 「封面收进导航栏」——用户 m14888 的原话：
+   *   "这个顶边栏效果我想的是把那个组件做成变化效果的，就是我上滑，整个头像组件滑动缩小到左边，
+   *    而不是还保留着那一大块组件，然后再另做一个缩小组件。"
+   * 所以这里不是"大卡 + 另做一个小条"两套组件，而是**同一个头像、同一个名字**连续变过去：
+   *   卡片高度 268 → 46、头像 80 → 28 并左移、名字跟着缩到头像右边、卡片底淡出、
+   *   46px 高的玻璃条浮上来接手顶栏。
+   * 滚动中只改 style（不 setState），避免每帧重渲染整页。
    */
-  const [solid, setSolid] = useState(false);
-  const solidRef = useRef(false);
+  const headRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const avRef = useRef<HTMLSpanElement>(null);
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const fadeRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLParagraphElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+
+  const HEAD_H = 268; // 展开时资料卡的高度
+  const BAR_H = 46; // 收进顶栏后的高度
+  const AV0 = 80; // 头像展开尺寸
+  const AV1 = 28; // 头像收起尺寸
+  const NAME_W = 220; // 名字输入框宽度（居中时靠它算落点）
+
+  const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
   const onScroll = (el: HTMLElement) => {
-    const next = el.scrollTop > 28;
-    if (next !== solidRef.current) {
-      solidRef.current = next;
-      setSolid(next);
+    const head = headRef.current;
+    if (!head) return;
+    /*
+     * 进度用固定的 222px 而不是 scrollHeight：头部"塌下去"本身会让可滚量变小，
+     * 若拿实时 scrollHeight 当分母，滚动位置会被浏览器夹回去 → p 忽大忽小（抖动）。
+     * 底部留了等高的占位（见文件末尾的 spacer），保证这 222px 始终滚得动。
+     */
+    /*
+     * p = (滚了多少 + 已经缩掉多少) / 222。
+     * 只拿 scrollTop 当进度不行：卡片一塌，可滚量变小，浏览器会把 scrollTop 夹回去，
+     * p 跟着回落 → 卡片又弹开 → 抖动。把"已缩掉的高度"加回来，两者互为补偿，就稳了。
+     */
+    const shrink = Math.max(HEAD_H - head.offsetHeight, 0);
+    const p = clamp01((el.scrollTop + shrink) / (HEAD_H - BAR_H));
+    const e = p * p * (3 - 2 * p); // 平滑
+    const lag = Math.pow(p, 1.7); // 头像前期更惰，先让卡片塌
+    const W = head.clientWidth || 320;
+
+    const headH = lerp(HEAD_H, BAR_H, e);
+    head.style.height = `${headH}px`;
+    if (cardRef.current) cardRef.current.style.opacity = String(1 - clamp01(p / 0.72));
+    // 玻璃条留到最后三成才浮上来，别在卡片还完整时就压一条白边
+    if (barRef.current) barRef.current.style.opacity = String(clamp01((p - 0.55) / 0.35));
+    if (avRef.current) {
+      const scale = lerp(1, AV1 / AV0, e);
+      const x = lerp((W - AV0) / 2, 16, e);
+      // 始终留在容器可见范围内（高度在收缩，别让它被 overflow 裁掉）
+      const y = Math.min(lerp(24, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
+      avRef.current.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
+    if (nameRef.current) {
+      const x = lerp((W - NAME_W) / 2, 16 + AV1 + 8, e);
+      const y = Math.min(lerp(150, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
+      nameRef.current.style.transform = `translate(${x}px, ${y}px) scale(${lerp(1, 0.58, e)})`;
+      if (nameInputRef.current) nameInputRef.current.style.textAlign = e > 0.5 ? "left" : "center";
+    }
+    const fade = String(1 - clamp01(p / 0.34));
+    if (fadeRef.current) {
+      fadeRef.current.style.opacity = fade;
+      fadeRef.current.style.pointerEvents = p > 0.34 ? "none" : "";
+    }
+    if (hintRef.current) hintRef.current.style.opacity = fade;
+    if (titleRef.current) titleRef.current.style.opacity = String(1 - clamp01(p / 0.22));
   };
+
+  // 首帧就摆好位置（不然那几个 absolute 的元素会先挤在左上角闪一下）
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) onScroll(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -202,95 +269,113 @@ export function MeHub() {
       onScroll={(e) => onScroll(e.currentTarget)}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav"
     >
-      <header
-        className="sticky top-0 z-20 inset-top-100 px-5 pb-3 transition-colors duration-200"
-        style={
-          solid
-            ? {
-                backgroundColor: "var(--aster-surface)",
-                backdropFilter: "blur(20px) saturate(1.5)",
-                WebkitBackdropFilter: "blur(20px) saturate(1.5)",
-                borderBottom: "0.5px solid var(--aster-line)",
-              }
-            : undefined
-        }
-      >
-        {/* 高度固定 46px：收起前后都占同样位置，内容不会因为顶栏变矮而跳一下 */}
-        <div className="flex h-[46px] items-center gap-2.5">
-          <span
-            className="overflow-hidden rounded-full transition-all duration-200"
-            style={{ width: solid ? 32 : 0, height: solid ? 32 : 0, opacity: solid ? 1 : 0 }}
-          >
-            <Avatar role="user" size={32} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className={cn("text-xs tracking-wide text-muted", solid && "hidden")}>账号与系统</p>
-            <h1 className={cn("font-serif font-medium transition-all", solid ? "text-base" : "mt-1 text-2xl")}>
-              {solid ? settings.displayName || "我的" : "我的"}
-            </h1>
-          </div>
-        </div>
-      </header>
+      {/* 标题：滚动时先淡出，把位置让给资料卡 */}
+      <div ref={titleRef} className="px-5 inset-top-100 pb-1">
+        <p className="text-xs tracking-wide text-muted">账号与系统</p>
+        <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
+      </div>
 
-      {/* 资料区：头像在上、名字在下；点头像就能换 */}
-      <section className="mx-4 flex flex-col items-center rounded-3xl border border-line bg-surface px-4 py-6">
-        <FileButton
-          ariaLabel="更换我的头像"
-          accept="image/*"
-          className="flex size-20 items-center justify-center rounded-full"
-          onPick={(files) => {
-            const file = files[0];
-            if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
+      {/*
+        资料区 = 一个会"塌"下来的容器：卡片底、顶栏玻璃、头像、名字、文字块都在里面，
+        滚动时同一套元素变形，不是换了一套小组件。
+      */}
+      <div
+        ref={headRef}
+        className="sticky z-20 mx-4 mt-3 shrink-0 overflow-hidden"
+        style={{ height: HEAD_H, top: "calc(var(--q-inset-top, 0px) + 2px)" }}
+      >
+        <div ref={cardRef} className="absolute inset-0 rounded-3xl border border-line bg-surface" />
+        <div
+          ref={barRef}
+          className="absolute inset-x-0 top-0 h-[46px] rounded-3xl"
+          style={{
+            opacity: 0,
+            backgroundColor: "var(--aster-surface)",
+            backdropFilter: "blur(18px) saturate(1.5)",
+            WebkitBackdropFilter: "blur(18px) saturate(1.5)",
+            borderBottom: "0.5px solid var(--aster-line)",
           }}
+        />
+        <span
+          ref={avRef}
+          className="absolute left-0 top-0 block"
+          style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
         >
-          <Avatar role="user" size={80} />
-        </FileButton>
-        <p className="mt-2.5 text-[11px] text-subtle">
+          <FileButton
+            ariaLabel="更换我的头像"
+            accept="image/*"
+            className="flex size-full items-center justify-center rounded-full"
+            onPick={(files) => {
+              const file = files[0];
+              if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
+            }}
+          >
+            <Avatar role="user" size={80} />
+          </FileButton>
+        </span>
+        <p
+          ref={hintRef}
+          className="absolute inset-x-0 text-center text-[11px] text-subtle"
+          style={{ top: 116 }}
+        >
           {settings.userAvatar ? "点头像可以换一张" : "点头像上传一张"}
         </p>
-        <input
-          value={settings.displayName}
-          onChange={(e) => patch({ displayName: e.target.value.slice(0, 24) })}
-          placeholder="你的名字"
-          aria-label="显示名"
-          maxLength={24}
-          className="mt-3 w-full bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
-        />
-        <p className="mt-1 text-[11px] text-subtle">
-          他会用这个名字称呼你 · AI 的头像和名字在「AI 概览」里改
-        </p>
-        {/*
-          称呼（性别）—— 2026-10 用户点名要的：
-          "我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
-           说了才改 —— 要不要给我头像下面设置个性别设置，让 AI 能知道的。"
-          他自己没法猜，只能靠这里告诉他一处、处处生效（提示词 + 说明书都带上）。
-        */}
-        <div className="mt-3 flex items-center justify-center gap-1.5" role="group" aria-label="他该怎么称呼你">
-          {(
-            [
-              { v: "", label: "不说" },
-              { v: "女", label: "用「她」" },
-              { v: "男", label: "用「他」" },
-            ] as const
-          ).map((opt) => {
-            const active = (settings.userGender ?? "") === opt.v;
-            return (
-              <button
-                key={opt.v || "none"}
-                type="button"
-                aria-pressed={active}
-                onClick={() => patch({ userGender: opt.v })}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[11px] transition",
-                  active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
+        <span
+          ref={nameRef}
+          className="absolute left-0 top-0 block"
+          style={{ width: NAME_W, transformOrigin: "0 0" }}
+        >
+          <input
+            ref={nameInputRef}
+            value={settings.displayName}
+            onChange={(e) => patch({ displayName: e.target.value.slice(0, 24) })}
+            placeholder="你的名字"
+            aria-label="显示名"
+            maxLength={24}
+            className="w-full bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
+          />
+        </span>
+        <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 186 }}>
+          <p className="text-center text-[11px] text-subtle">
+            他会用这个名字称呼你 · AI 的头像和名字在「AI 概览」里改
+          </p>
+          {/*
+            称呼（性别）—— 2026-10 用户点名要的：
+            "我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
+             说了才改 —— 要不要给我头像下面设置个性别设置，让 AI 能知道的。"
+            他自己没法猜，只能靠这里告诉他一处、处处生效（提示词 + 说明书都带上）。
+          */}
+          <div
+            className="mt-3 flex items-center justify-center gap-1.5"
+            role="group"
+            aria-label="他该怎么称呼你"
+          >
+            {(
+              [
+                { v: "", label: "不说" },
+                { v: "女", label: "用「她」" },
+                { v: "男", label: "用「他」" },
+              ] as const
+            ).map((opt) => {
+              const active = (settings.userGender ?? "") === opt.v;
+              return (
+                <button
+                  key={opt.v || "none"}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => patch({ userGender: opt.v })}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] transition",
+                    active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </section>
+      </div>
 
       {/*
         5 个入口 —— 点进去才是细节，首页不再平铺一长串
@@ -321,6 +406,8 @@ export function MeHub() {
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
         栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
       </div>
+      {/* 占位：让"卡片塌成顶栏"那 222px 始终滚得动，否则内容少的机型会抖动 */}
+      <div aria-hidden style={{ height: HEAD_H - BAR_H }} />
     </div>
   );
 }
@@ -467,7 +554,12 @@ function MeSections({ tab }: { tab: MeTab }) {
    * 一次只有一条通道在用，点哪条就展开哪条的参数，另一条收起。
    * 现在只有「自定义上游」是能用的；「ChatGPT 计划」占位（等 SIWC 接入）。
    */
-  const [openChan, setOpenChan] = useState<"custom" | "gpt">("custom");
+  const [openChan, setOpenChan] = useState<"custom" | "gpt" | "">("custom");
+  /**
+   * 点一次展开、再点一次收起（用户 m14953："这个键没用，点了不能收起"）。
+   * 原来只会 `setOpenChan("custom")`，于是永远打不开"关"这个状态。
+   */
+  const toggleChan = (id: "custom" | "gpt") => setOpenChan((c) => (c === id ? "" : id));
   /** 「检测强度支持」的进行中 / 结果（跟工具探测一个套路，见 lib/effort-probe） */
   const [effortBusy, setEffortBusy] = useState(false);
   const [effortResult, setEffortResult] = useState<EffortProbeResult | null>(null);
@@ -1159,7 +1251,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             >
               <button
                 type="button"
-                onClick={() => setOpenChan("custom")}
+                onClick={() => toggleChan("custom")}
                 className="flex w-full items-start gap-3 px-4 py-3.5 text-left"
               >
                 {/*
@@ -1310,7 +1402,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             <div>
               <button
                 type="button"
-                onClick={() => setOpenChan("gpt")}
+                onClick={() => toggleChan("gpt")}
                 className="flex w-full items-start gap-3 px-4 py-3.5 text-left"
               >
                 <span className="mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border border-line" />

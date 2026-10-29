@@ -92,7 +92,50 @@ export function MomentsWall() {
       onLightRef.current = next;
       setOnLight(next);
     }
+    // 滚动帧不带走过渡（否则每帧都缓动，越滚越飘）；手指下拉时才单独给回来的动画
+    hero.style.transition = "";
     hero.style.transform = `translate3d(0, ${(y * 0.45).toFixed(1)}px, 0) scale(${(1 + pull).toFixed(3)})`;
+  }
+
+  /*
+   * 下拉放大：手机/WebView 里 scrollTop 到 0 就夹住了，不会变成负数，
+   * 所以 `y < 0` 那条分支永远走不到（用户 m14846："没有往下拉放大的效果"）。
+   * 现在自己在顶部接管手指：按下记住起点、往上拖就按距离放大，松手弹回去。
+   */
+  const pullStart = useRef<number | null>(null);
+  const pullDy = useRef(0);
+
+  function onTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    if (el.scrollTop <= 0) pullStart.current = e.touches[0].clientY;
+  }
+  function onTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    const hero = heroRef.current;
+    const start = pullStart.current;
+    if (start == null || !hero) return;
+    // 手指往上推（dy < 0）= 想滚动页面，交还给滚动容器
+    const dy = e.touches[0].clientY - start;
+    if (dy <= 0) {
+      pullStart.current = null;
+      return;
+    }
+    pullDy.current = dy;
+    const pull = Math.min(dy / 900, 0.25);
+    hero.style.transition = "none";
+    // 只放大、不位移：transform-origin 在顶边，图会往下铺，顶上看不出缝
+    hero.style.transform = `translate3d(0, 0, 0) scale(${(1 + pull).toFixed(3)})`;
+  }
+  function endPull() {
+    const hero = heroRef.current;
+    const moved = pullDy.current > 0;
+    pullStart.current = null;
+    pullDy.current = 0;
+    if (!hero || !moved) return;
+    hero.style.transition = "transform .38s cubic-bezier(.22,1,.36,1)";
+    hero.style.transform = "translate3d(0, 0, 0) scale(1)";
+    window.setTimeout(() => {
+      if (heroRef.current) heroRef.current.style.transition = "";
+    }, 420);
   }
 
   return (
@@ -100,13 +143,23 @@ export function MomentsWall() {
       <div
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         onScroll={(e) => parallax(e.currentTarget)}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={endPull}
+        onTouchCancel={endPull}
       >
-      {/* ── 封面：整块背景图，点一下从相册换 ── */}
-      <div
-        ref={heroRef}
-        className="relative h-[36dvh] shrink-0 overflow-hidden"
-        style={{ backgroundColor: WX.line, transformOrigin: "center top", willChange: "transform" }}
-      >
+      {/*
+        ── 封面：整块背景图，点一下从相册换 ──
+        拆成两层：外层只负责占位（36dvh），内层才是会移动/缩放的那张图。
+        这样外层不建 stacking context，右下角那个"半个压在封面、半个压在下面"的头像
+        才能靠 z-index 浮到内容上面去（用户 m14846 的 bug 1/2）。
+      */}
+      <div className="relative h-[36dvh] shrink-0">
+        <div
+          ref={heroRef}
+          className="absolute inset-0 overflow-hidden"
+          style={{ backgroundColor: WX.line, transformOrigin: "center top", willChange: "transform" }}
+        >
         <FileButton
           ariaLabel="换一张封面（从相册选）"
           accept="image/*"
@@ -130,8 +183,10 @@ export function MomentsWall() {
           ⚠️ 规格跟全 App 一样（size-11 / ChevronLeft size-6 / strokeWidth 1.6），别自己发明尺寸。
         */}
 
+        </div>
+
         {/* 名字 + 头像：微信那样贴在封面右下角（名字在左、头像压着封面下沿） */}
-        <div className="pointer-events-none absolute right-4 -bottom-7 flex items-end gap-3">
+        <div className="pointer-events-none absolute right-4 -bottom-7 z-20 flex items-end gap-3">
           <span
             className="mb-8 max-w-[55vw] truncate text-[17px] font-medium text-white"
             style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}
@@ -143,7 +198,7 @@ export function MomentsWall() {
       </div>
 
       {/* ── 动态消息（纯白信息流，没有玻璃）── */}
-      <div className="pt-8" style={{ backgroundColor: WX.page }}>
+      <div className="relative z-10 pt-8" style={{ backgroundColor: WX.page }}>
         <Composer />
         {moments.length === 0 ? (
           <p className="px-4 py-12 text-center text-[14px]" style={{ color: WX.time }}>

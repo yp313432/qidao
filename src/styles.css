@@ -228,16 +228,22 @@
 
 /* ── 液态玻璃：极透，背景的彩色直接映进来；边只有 0.5px ── */
 [data-material="liquid"] {
-  --aster-surface: color-mix(in oklab, #ffffff 8%, transparent);
-  --aster-elevated: color-mix(in oklab, #ffffff 13%, transparent);
-  --aster-chip: color-mix(in oklab, #ffffff 15%, transparent);
+  /*
+   * 2026-10 用户："液态玻璃还是不太透"。真凶不是白度（本来就只有 8%），
+   * 是 blur 16px 把背景糊成一片色块 —— 糊得越狠越像"磨砂"，反而没有玻璃的透。
+   * 所以把模糊降到 8px（能看出结构），白度再减一点，亮边提亮，
+   * 靠"边亮 + 底透"做出玻璃的厚度感，而不是靠糊。
+   */
+  --aster-surface: color-mix(in oklab, #ffffff 6%, transparent);
+  --aster-elevated: color-mix(in oklab, #ffffff 11%, transparent);
+  --aster-chip: color-mix(in oklab, #ffffff 13%, transparent);
   /* 亮边只在"有边框的元素"上出现；alpha 收淡 = 实机上更细，不要靠 border-width 去压 */
-  --aster-line: color-mix(in oklab, #ffffff 16%, transparent);
-  --aster-blur: 16px;
-  --aster-sat: 1.6;
-  --aster-shadow: 0 6px 20px color-mix(in oklab, var(--aster-fg) 7%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 22%, transparent);
-  --aster-sheen: color-mix(in oklab, #ffffff 22%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 30%, transparent);
+  --aster-blur: 5px;
+  --aster-sat: 1.7;
+  --aster-shadow: 0 6px 20px color-mix(in oklab, var(--aster-fg) 6%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 30%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 26%, transparent);
   --aster-gleam-a: 0.55;
   --aster-flash-a: 0.16;
 }
