@@ -10,6 +10,8 @@ export interface Memory {
   relatedMemoryIds?: string[]
   source?: MemorySource
   formation?: MemoryFormationStage[]
+  /** 被想起过几次（底部记忆区那行小字用） */
+  recallCount?: number
 }
 
 export interface MemorySource {

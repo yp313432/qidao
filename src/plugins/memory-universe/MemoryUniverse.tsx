@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { MemoryDetail } from "./components/MemoryDetail"
 import { UniverseChrome } from "./components/UniverseChrome"
 import { mountUniverse, type UniverseHandle } from "./engine/universe"
@@ -128,7 +128,6 @@ export function MemoryUniverse({
           memory={selected}
           related={related}
           onSelectRelated={(id) => engineRef.current?.select(id)}
-          onClose={() => engineRef.current?.select(null)}
         />
       ) : null}
     </div>

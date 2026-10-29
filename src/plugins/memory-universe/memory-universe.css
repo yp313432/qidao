@@ -67,6 +67,27 @@
   text-wrap: balance;
 }
 
+/* ── 手写斜体标题（用户 2026-10：换成一句契合星空的英文诗） ───────────── */
+.mu-brand-script {
+  margin: 4px 0 0;
+  font-family: "Segoe Script", "Lucida Handwriting", Gabriola, "Brush Script MT", cursive;
+  font-style: italic;
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  color: #efe6d4;
+  text-shadow: 0 0 20px rgba(230, 214, 180, 0.32), 0 0 2px rgba(255, 248, 235, 0.4);
+}
+
+.mu-brand-script-sub {
+  margin: 0;
+  font-family: "Segoe Script", "Lucida Handwriting", Gabriola, cursive;
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--mu-muted);
+}
+
 .mu-search {
   pointer-events: auto;
   min-width: 0;
@@ -377,4 +398,98 @@
   .mu-dossier {
     animation: none;
   }
+}
+
+
+/* ── 底部记忆区（2026-10 用户定的形态）─────────────────────────────────
+ * 不做卡片、不弹窗：文字直接铺在星空底层，占屏高 33%、贴着屏幕最下面。
+ * 上沿 78px 渐隐进星空（跟朋友圈一个手感），内容往上翻时越过上界被渐隐吃掉。
+ * 星图照常在背后走 —— 记忆区的命运归滚动，星空永远是背景。
+ * ------------------------------------------------------------------ */
+.mu-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 33%;
+  z-index: 3;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.35) 34px, #000 78px, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.35) 34px, #000 78px, #000 100%);
+}
+
+/* 一层渐变压暗，不是卡片框 —— 字压在星点上也要认得出来，但看不出边界 */
+.mu-dock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(8, 6, 15, 0.5) 42%, rgba(8, 6, 15, 0.84) 100%);
+  pointer-events: none;
+}
+
+.mu-dock-inner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 78px;
+  bottom: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 28px max(22px, env(safe-area-inset-bottom));
+}
+
+.mu-dock-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.mu-dock-k {
+  font-size: 19px;
+  letter-spacing: 0.16em;
+  color: #f4ecdb;
+}
+
+.mu-dock-d {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: #a2957f;
+}
+
+.mu-dock-body {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  color: #ded3c1;
+  white-space: pre-wrap;
+}
+
+.mu-dock-foot {
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: #918472;
+}
+
+.mu-dock-related {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mu-dock-related button {
+  border: 1px solid rgba(201, 170, 114, 0.28);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: rgba(18, 16, 24, 0.5);
+  color: #d8cdb8;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.mu-dock-related button:active {
+  background: rgba(201, 170, 114, 0.16);
 }

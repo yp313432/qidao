@@ -4368,3 +4368,47 @@ html.q-paused * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   **基调联动**（2026-10-29）
+
+   起因（用户原话）：「我的背景很素净，深色字有点黑，换白色能看清但是按钮
+   啥的就看不清了，根本原因是背景字体和背景组件之间没有联动。」
+
+   原来的毛病：文字色和组件底色是**两套独立系统** ——
+   用户把文字强制改成浅色后，`--aster-fg` 变亮了，但卡片/按钮还是浅色玻璃，
+   于是"浅字压浅底"。只有弹层（`--aster-menu`）当时做了联动。
+
+   现在改成：**文字色定基调**。
+     · 深色字 → `data-scheme="light"`：浅组件 + 深字（默认，原来那套）
+     · 浅色字 → `data-scheme="dark"` ：深组件 + 浅字（卡片/按钮/弹层/选中态整套翻）
+   全站 56 个用语义 token 的组件自动跟着翻，反色按钮 `bg-ink` 也自动反过来。
+   色值直接复用已下线的 dusk 主题那套深色 token（token 本身是好的）。
+
+   ⚠️ 必须写在 `[data-material=…]` 之后、并保持相同权重以上，
+      否则会被材质块里的 surface/chip 覆盖。
+   ══════════════════════════════════════════════════════════════════ */
+:root[data-scheme="dark"] {
+  --aster-canvas: #14100d;
+  --aster-bg: #1a1613;
+  --aster-menu: color-mix(in oklab, #241f1b 94%, transparent);
+  --aster-muted: #c6b9a9;
+  --aster-subtle: #9c9084;
+  --aster-surface: color-mix(in oklab, #2a241f 58%, transparent);
+  --aster-elevated: color-mix(in oklab, #322b25 66%, transparent);
+  --aster-chip: color-mix(in oklab, #3a322b 46%, transparent);
+  --aster-line: color-mix(in oklab, #f3ece4 26%, transparent);
+  --aster-ink: #f3ece4;
+  --aster-ink-fg: #1a1613;
+  --aster-accent: #d49274;
+  --aster-accent-fg: #1a1613;
+  --aster-warn: #e8936a;
+  --aster-ok: #7dba90;
+  --aster-shadow: 0 16px 40px color-mix(in oklab, #000 45%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 30%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 10%, transparent);
+  --aster-gleam-a: 0.5;
+  --aster-flash-a: 0.12;
+  color-scheme: dark;
+}

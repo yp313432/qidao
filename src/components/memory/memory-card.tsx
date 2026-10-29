@@ -1,4 +1,4 @@
-import { Check, Link2, Trash2, Archive } from "lucide-react";
+import { Check, Link2, Trash2, Archive, Pin } from "lucide-react";
 import { KIND_LABEL, retention } from "@/lib/memory";
 import type { Memory } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,12 +48,18 @@ function ago(ts: number): string {
   return `${Math.floor(d / 365)} 年前`;
 }
 
+function day(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+}
+
 export function MemoryCard({
   memory,
   linkNames,
   onConfirm,
   onArchive,
   onDelete,
+  onTogglePin,
   onOpen,
 }: {
   memory: Memory;
@@ -62,18 +68,44 @@ export function MemoryCard({
   onConfirm: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /** 钉住 / 取消钉住（钉住的永不淡化、也不会被归档） */
+  onTogglePin: () => void;
   onOpen?: () => void;
 }) {
   const r = retention(memory);
   const style = KIND_STYLE[memory.kind];
   const confirmStale = !memory.lastConfirmedAt || Date.now() - memory.lastConfirmedAt > 120 * 86_400_000;
+  /** 说过的话后来改了口：这条不删，只是不再算数（validUntil 由写入时的冲突消解关掉） */
+  const expired = memory.validUntil !== undefined && memory.validUntil <= Date.now();
 
   return (
-    <article className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+    <article
+      className={cn(
+        "relative rounded-3xl border bg-surface px-4 py-3.5",
+        memory.pinned ? "border-accent/45" : "border-line",
+      )}
+    >
+      {/* 钉住：一进来就能看见，不用点开详情 */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        aria-label={memory.pinned ? "取消钉住" : "钉住这条"}
+        aria-pressed={!!memory.pinned}
+        className={cn(
+          "absolute right-2.5 top-2.5 flex size-8 items-center justify-center rounded-full",
+          memory.pinned ? "text-accent" : "text-subtle",
+        )}
+      >
+        <Pin className="size-3.5" strokeWidth={1.8} fill={memory.pinned ? "currentColor" : "none"} />
+      </button>
+
       <div className="flex items-start gap-2.5">
         <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", style.dot)} />
         <div className="min-w-0 flex-1">
-          <button type="button" onClick={onOpen} className="block w-full text-left">
+          <button type="button" onClick={onOpen} className="block w-full pr-8 text-left">
             <p className="text-[14px] leading-6 text-fg">{memory.content}</p>
           </button>
 
@@ -91,10 +123,25 @@ export function MemoryCard({
                 想起过 {memory.recallCount} 次
               </span>
             )}
+            {memory.pinned && (
+              <span className="rounded-full bg-accent/12 px-2 py-0.5 text-[10px] text-accent">钉住了</span>
+            )}
+            {expired && (
+              <span className="rounded-full bg-accent/12 px-2 py-0.5 text-[10px] text-accent">
+                已经不算数
+              </span>
+            )}
             {memory.status === "archived" && (
               <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] text-subtle">已归档</span>
             )}
           </div>
+
+          {/* 改过口的记忆：说清它为什么作废，但正文留在上面，不擦掉过去 */}
+          {expired && (
+            <p className="mt-2 text-[11px] leading-4 text-accent/90">
+              {day(memory.validUntil!)}起不算数了 —— 后来改了口，这条留着当证据，不再参与联想
+            </p>
+          )}
 
           <div className="mt-2 flex items-center justify-between gap-3">
             <div className="min-w-0 text-[11px] text-subtle">

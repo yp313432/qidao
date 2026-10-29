@@ -1,6 +1,6 @@
 import { Camera } from "./camera"
-import { hash32, mulberry32, TAU } from "./easing"
-import { CREAM, GOLD, VOID, mixRgb, rgba } from "./palette"
+import { mulberry32, TAU } from "./easing"
+import { CREAM, GOLD, VIOLET, VIOLET_DEEP, VOID, mixRgb, rgba } from "./palette"
 
 export interface Dust {
   x: number
@@ -63,6 +63,11 @@ export function paintBackground(
   h: number,
   nebula: HTMLImageElement | null,
 ): void {
+  /*
+   * 底色：深紫黑 + 一条斜向的紫银河带 + 两团柔光。
+   * 用户 2026-10 的要求：「不要纯黑的背景，类似于这种淡紫金色的星空」——
+   * 所以底色往紫里偏，银河带中间掺一点金，不再是原先那种冷灰黑。
+   */
   ctx.fillStyle = VOID
   ctx.fillRect(0, 0, w, h)
 
@@ -72,29 +77,31 @@ export function paintBackground(
     20,
     w * 0.5,
     h * 0.5,
-    Math.max(w, h) * 0.72,
+    Math.max(w, h) * 0.78,
   )
-  g.addColorStop(0, "rgba(22,18,36,0.55)")
-  g.addColorStop(0.45, "rgba(10,11,22,0.28)")
-  g.addColorStop(1, "rgba(5,4,10,0)")
+  g.addColorStop(0, rgba(VIOLET_DEEP, 0.62))
+  g.addColorStop(0.45, rgba(VIOLET_DEEP, 0.26))
+  g.addColorStop(1, rgba(VIOLET_DEEP, 0))
   ctx.fillStyle = g
   ctx.fillRect(0, 0, w, h)
 
-  // Quiet milky smear
+  // 银河带：斜着一条，中间金、两边紫
   ctx.save()
-  ctx.translate(w * 0.5, h * 0.52)
-  ctx.rotate(-0.42)
-  const smear = ctx.createLinearGradient(0, -h * 0.08, 0, h * 0.08)
-  smear.addColorStop(0, "rgba(0,0,0,0)")
-  smear.addColorStop(0.5, "rgba(186,168,140,0.045)")
-  smear.addColorStop(1, "rgba(0,0,0,0)")
+  ctx.translate(w * 0.5, h * 0.5)
+  ctx.rotate(-0.52)
+  const smear = ctx.createLinearGradient(0, -h * 0.2, 0, h * 0.2)
+  smear.addColorStop(0, rgba(VIOLET, 0))
+  smear.addColorStop(0.34, rgba(VIOLET, 0.085))
+  smear.addColorStop(0.5, rgba(GOLD, 0.1))
+  smear.addColorStop(0.66, rgba(VIOLET, 0.085))
+  smear.addColorStop(1, rgba(VIOLET, 0))
   ctx.fillStyle = smear
-  ctx.fillRect(-w, -h * 0.1, w * 2, h * 0.2)
+  ctx.fillRect(-w, -h * 0.2, w * 2, h * 0.4)
   ctx.restore()
 
   if (nebula && nebula.complete && nebula.naturalWidth > 0) {
     ctx.save()
-    ctx.globalAlpha = 0.42
+    ctx.globalAlpha = 0.3
     ctx.globalCompositeOperation = "lighter"
     const scale = Math.max(w / nebula.naturalWidth, h / nebula.naturalHeight)
     const dw = nebula.naturalWidth * scale
@@ -103,17 +110,30 @@ export function paintBackground(
     ctx.restore()
   }
 
-  // Warm gold breath, very faint
-  const warm = ctx.createRadialGradient(
-    w * 0.62,
-    h * 0.38,
+  // 两团柔光：上紫下金，给纵深一点"呼吸"
+  const violet = ctx.createRadialGradient(
+    w * 0.36,
+    h * 0.34,
     10,
-    w * 0.62,
-    h * 0.38,
-    Math.max(w, h) * 0.38,
+    w * 0.36,
+    h * 0.34,
+    Math.max(w, h) * 0.42,
   )
-  warm.addColorStop(0, "rgba(201,170,114,0.05)")
-  warm.addColorStop(1, "rgba(201,170,114,0)")
+  violet.addColorStop(0, rgba(VIOLET, 0.1))
+  violet.addColorStop(1, rgba(VIOLET, 0))
+  ctx.fillStyle = violet
+  ctx.fillRect(0, 0, w, h)
+
+  const warm = ctx.createRadialGradient(
+    w * 0.64,
+    h * 0.58,
+    10,
+    w * 0.64,
+    h * 0.58,
+    Math.max(w, h) * 0.34,
+  )
+  warm.addColorStop(0, rgba(GOLD, 0.075))
+  warm.addColorStop(1, rgba(GOLD, 0))
   ctx.fillStyle = warm
   ctx.fillRect(0, 0, w, h)
 }

@@ -1,19 +1,27 @@
 import { useMemo, useState } from "react";
-import { Clock, LayoutGrid, Network, Plus, Search } from "lucide-react";
+import { Archive, Clock, LayoutGrid, Network, Plus, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { MemoryCard } from "@/components/memory/memory-card";
 import { MemoryDetail } from "@/components/memory/memory-detail";
 import { MemoryGraph } from "@/components/memory/memory-graph";
 import { MemoryTimeline } from "@/components/memory/memory-timeline";
-import { ALL_KINDS, KIND_HINT, KIND_LABEL, retention, searchMemories } from "@/lib/memory";
+import { ALL_KINDS, KIND_HINT, KIND_LABEL, isLive, retention, searchMemories } from "@/lib/memory";
 import type { SearchOptions } from "@/lib/memory";
 import { useApp } from "@/lib/store";
-import type { Memory, MemoryKind } from "@/lib/types";
+import type { MemoryKind } from "@/lib/types";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
 
 type SortKey = NonNullable<SearchOptions["sort"]>;
+
+function agoShort(ts: number): string {
+  const d = Math.floor((Date.now() - ts) / 86_400_000);
+  if (d <= 0) return "今天";
+  if (d < 30) return `${d} 天前`;
+  if (d < 365) return `${Math.floor(d / 30)} 个月前`;
+  return `${Math.floor(d / 365)} 年前`;
+}
 
 const SORTS: { id: SortKey; label: string }[] = [
   { id: "recent", label: "最近改过" },
@@ -39,11 +47,13 @@ export function MemoryLibrary() {
   const unarchiveMemory = useApp((s) => s.unarchiveMemory);
   const deleteMemory = useApp((s) => s.deleteMemory);
   const confirmMemory = useApp((s) => s.confirmMemory);
+  const togglePinMemory = useApp((s) => s.togglePinMemory);
 
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<MemoryKind | "all">("all");
   const [sort, setSort] = useState<SortKey>("recent");
-  const [showArchived, setShowArchived] = useState(false);
+  /** 归档单独一栏（不再混在列表里靠开关切） */
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftKind, setDraftKind] = useState<MemoryKind>("profile");
@@ -61,18 +71,39 @@ export function MemoryLibrary() {
         {
           kinds: kind === "all" ? undefined : [kind],
           sort,
-          includeArchived: showArchived,
+          includeArchived: false,
+          /*
+           * 列表要把「已经不算数」的也显示出来（但召回不用它们）——
+           * 数据层的 searchMemories 默认过滤失效事实，那是给 AI 召回用的口径；
+           * 界面上必须看得见，否则「改口后旧的留着当证据」这句承诺就落空了。
+           */
+          includeExpired: true,
         },
         Date.now(),
       ),
-    [memories, query, kind, sort, showArchived],
+    [memories, query, kind, sort],
   );
 
-  const active = memories.filter((m) => m.status === "active");
+  /** 「还在用」= 活跃且事实仍成立（改过口的那条不算，但它仍留在列表里当证据） */
+  const active = memories.filter((m) => m.status === "active" && isLive(m));
+  const archived = memories.filter((m) => m.status === "archived");
   const avg =
     active.length > 0
       ? Math.round((active.reduce((n, m) => n + retention(m), 0) / active.length) * 100)
       : 0;
+
+  /** 捞回来 = 取消归档 + 把清晰度抬回能用的水平（不然下次体检又被收走） */
+  function restore(id: string) {
+    const m = memories.find((x) => x.id === id);
+    if (!m) return;
+    updateMemory(id, {
+      strength: Math.max(m.strength, 0.62),
+      confidence: Math.max(m.confidence, 0.7),
+      lastRecalledAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    unarchiveMemory(id);
+  }
 
   const nameOf = (id: string) => memories.find((m) => m.id === id)?.content ?? "";
   const pickedMemory = picked ? (memories.find((m) => m.id === picked) ?? null) : null;
@@ -262,13 +293,12 @@ export function MemoryLibrary() {
           ))}
           <button
             type="button"
-            onClick={() => setShowArchived((v) => !v)}
-            className={cn(
-              "ml-auto rounded-full px-2.5 py-1 text-[11px]",
-              showArchived ? "bg-elevated text-fg" : "text-subtle",
-            )}
+            onClick={() => setArchiveOpen(true)}
+            className="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-subtle"
           >
-            {showArchived ? "含已归档" : "不含归档"}
+            <Archive className="size-3" strokeWidth={1.7} />
+            归档 {archived.length}
+            <span className="text-[10px] text-subtle">›</span>
           </button>
         </div>
       </section>
@@ -283,6 +313,7 @@ export function MemoryLibrary() {
               memory={pickedMemory}
               linkNames={pickedMemory.links.map(nameOf).filter(Boolean)}
               onConfirm={() => confirmMemory(pickedMemory.id)}
+              onTogglePin={() => togglePinMemory(pickedMemory.id)}
               onArchive={() =>
                 pickedMemory.status === "active"
                   ? archiveMemory(pickedMemory.id)
@@ -311,6 +342,7 @@ export function MemoryLibrary() {
               memory={h.memory}
               linkNames={h.memory.links.map(nameOf).filter(Boolean)}
               onConfirm={() => confirmMemory(h.memory.id)}
+              onTogglePin={() => togglePinMemory(h.memory.id)}
               onArchive={() =>
                 h.memory.status === "active"
                   ? archiveMemory(h.memory.id)
@@ -324,6 +356,66 @@ export function MemoryLibrary() {
       </section>
       )}
 
+      {/* 归档：淡掉的不删，收在这一栏（word-clock 每 6 小时最多体检一次） */}
+      {archiveOpen && (
+        /* z-70：压过底部导航（z-60），否则「捞回来」那排被导航挡住 */
+        <div className="fixed inset-0 z-70 flex flex-col justify-end" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="关闭"
+            className="absolute inset-0 bg-fg/25"
+            onClick={() => setArchiveOpen(false)}
+          />
+          <div className="glass-panel relative z-10 max-h-[82%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
+            <div className="mb-2 flex items-center justify-between">
+              <p className="font-serif text-[15px]">归档</p>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setArchiveOpen(false)}
+                className="flex size-9 items-center justify-center"
+              >
+                <X className="size-4.5" />
+              </button>
+            </div>
+            <p className="mb-3 text-[11.5px] leading-5 text-subtle">
+              淡到看不见、又 90 天没被想起来的记忆会收进这里。<span className="text-fg">没有删</span>，
+              只是不参与联想 —— 想留就点「捞回来」。
+            </p>
+            {archived.length === 0 ? (
+              <p className="py-10 text-center text-[12px] leading-5 text-muted">
+                还没有归档的记忆。淡下去、又被忘掉的，才会收到这里。
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {archived.map((m) => (
+                  <div key={m.id} className="rounded-2xl border border-line bg-surface px-3.5 py-3">
+                    <p className="text-[10px] text-subtle">
+                      {KIND_LABEL[m.kind]} · 想起过 {m.recallCount} 次
+                    </p>
+                    <p className="mt-1.5 text-[13px] leading-5 text-fg">{m.content}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] leading-4 text-subtle">
+                        清 {Math.round(retention(m) * 100)}% · 上次想起{" "}
+                        {agoShort(m.lastRecalledAt ?? m.updatedAt)} · 自动收的
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => restore(m.id)}
+                        className="shrink-0 rounded-full border border-accent/40 px-3 py-1 text-[11px] text-accent"
+                      >
+                        捞回来
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 详情面板：点卡片或时间线里的一条就升起来 */}
       <MemoryDetail
         memory={sheetId ? (memories.find((m) => m.id === sheetId) ?? null) : null}
@@ -333,6 +425,7 @@ export function MemoryLibrary() {
             : []
         }
         onClose={() => setSheetId(null)}
+        onTogglePin={() => sheetId && togglePinMemory(sheetId)}
         onSave={(patch) => sheetId && updateMemory(sheetId, patch)}
         onConfirm={() => sheetId && confirmMemory(sheetId)}
         onArchive={() => {

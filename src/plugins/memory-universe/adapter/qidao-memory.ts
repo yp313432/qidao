@@ -97,6 +97,7 @@ export function toUniverseMemory(m: StoreMemory): UniverseMemory {
       at: day(m.createdAt),
     },
     formation: formationOf(m),
+    recallCount: m.recallCount,
   };
 }
 

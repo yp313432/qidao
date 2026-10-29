@@ -128,7 +128,7 @@ export function ThinkingSheet({
         }}
       />
       <div
-        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-[rgba(252,248,242,0.99)] pb-[env(safe-area-inset-bottom)]"
+        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]"
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : "transform 0.26s cubic-bezier(0.22, 0.8, 0.25, 1)",
@@ -203,7 +203,7 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
           return (
             <div key={`t${i}`} className="flex gap-2.5">
               <Rail first={i === 0} last={last}>
-                <span className="mt-[3px] block size-[15px] rounded-full bg-[rgba(252,248,242,1)]">
+                <span className="mt-[3px] block size-[15px] rounded-full bg-bg">
                   <span className="mx-auto mt-[5px] block size-[5px] rounded-full bg-muted" />
                 </span>
               </Rail>

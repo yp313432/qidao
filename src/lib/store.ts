@@ -2029,13 +2029,11 @@ const PLANET_COLORS: Record<"mist" | "violet" | "gold", string> = {
 };
 
 /**
- * 弹层底色要**跟着文字颜色走**，不能跟着主题走。
- *
- * 典型翻车现场：深色背景图 + 强制浅色文字 —— 画布色还是浅的，
- * 弹层就成了白底白字，什么都看不见。所以：浅色文字 ⇒ 深色弹层。
+ * 一个颜色的相对亮度（0~1）。用来判断"这个字色算深还是浅"，
+ * 进而决定整套组件要不要翻成深色 —— 文字和底色的对比从这儿开始绑定。
  */
-function menuFillFor(textColor: string): string {
-  const hex = textColor.replace("#", "");
+function relativeLum(color: string): number {
+  const hex = color.replace("#", "");
   const full =
     hex.length === 3
       ? hex
@@ -2046,8 +2044,17 @@ function menuFillFor(textColor: string): string {
   const r = parseInt(full.slice(0, 2), 16) || 0;
   const g = parseInt(full.slice(2, 4), 16) || 0;
   const b = parseInt(full.slice(4, 6), 16) || 0;
-  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return lum > 0.6
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * 弹层底色要**跟着文字颜色走**，不能跟着主题走。
+ *
+ * 典型翻车现场：深色背景图 + 强制浅色文字 —— 画布色还是浅的，
+ * 弹层就成了白底白字，什么都看不见。所以：浅色文字 ⇒ 深色弹层。
+ */
+function menuFillFor(textColor: string): string {
+  return relativeLum(textColor) > 0.6
     ? "color-mix(in oklab, #131010 90%, transparent)"
     : "color-mix(in oklab, #fffcf8 94%, transparent)";
 }
@@ -2100,6 +2107,11 @@ export function applyAppearance(settings: Settings) {
     root.style.removeProperty("--aster-subtle");
     // 弹层底色回到主题自带的那份
     root.style.removeProperty("--aster-menu");
+    /*
+     * 自动模式：字色跟着主题（深字），组件也保持浅色 —— 两边是一致的。
+     * （以后要"按背景图亮度自动翻转"，在这里换成采样结果即可。）
+     */
+    root.dataset.scheme = "light";
     return;
   }
 
@@ -2109,6 +2121,12 @@ export function applyAppearance(settings: Settings) {
   root.style.setProperty("--aster-subtle", `color-mix(in oklab, ${color} 55%, transparent)`);
   // 文字被强制改色了，弹层底色也得跟着翻，否则白底白字
   root.style.setProperty("--aster-menu", menuFillFor(color));
+  /*
+   * **基调联动**（2026-10-29）：光把字改成浅色还不够 ——
+   * 卡片、按钮、选中态还是浅色玻璃，于是"浅字压浅底"，按钮上的字就糊了。
+   * 这里让字色定整套基调：浅字 ⇒ 深组件（data-scheme="dark"），深字 ⇒ 浅组件。
+   */
+  root.dataset.scheme = relativeLum(color) > 0.6 ? "dark" : "light";
 }
 
 /* ══════════════════════════════════════════════════════════════════

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Pin, X } from "lucide-react";
 import { ALL_KINDS, KIND_HINT, KIND_LABEL, retention } from "@/lib/memory";
 import type { Memory, MemoryKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ export function MemoryDetail({
   onConfirm,
   onArchive,
   onDelete,
+  onTogglePin,
 }: {
   memory: Memory | null;
   linkNames: string[];
@@ -45,6 +46,8 @@ export function MemoryDetail({
   onConfirm: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /** 钉住 / 取消钉住 */
+  onTogglePin: () => void;
 }) {
   const [draft, setDraft] = useState(memory?.content ?? "");
   const [kind, setKind] = useState<MemoryKind>(memory?.kind ?? "profile");
@@ -63,9 +66,12 @@ export function MemoryDetail({
     kind !== memory.kind ||
     tagText.trim() !== memory.tags.join(" ");
   const r = retention(memory);
+  /** 改过口、已经不算数的那条：不删，只在上面说清楚 */
+  const expired = memory.validUntil !== undefined && memory.validUntil <= Date.now();
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    /* z-70：底部导航是 z-60，弹层必须压过它，否则最后一排按钮被导航挡住 */
+    <div className="fixed inset-0 z-70 flex flex-col justify-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="关闭" className="absolute inset-0 bg-fg/25" onClick={onClose} />
       <div className="glass-panel relative z-10 max-h-[86%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
@@ -84,6 +90,14 @@ export function MemoryDetail({
           rows={2}
           className="w-full resize-none rounded-2xl bg-chip px-3 py-2.5 text-[13.5px] leading-6 outline-none"
         />
+
+        {/* 过期说明：改过口的不删，留作"你以前说过"的证据 */}
+        {expired && (
+          <div className="mt-2 rounded-2xl bg-accent/10 px-3.5 py-2.5 text-[11.5px] leading-5 text-accent">
+            这条已经不算数了 —— {when(memory.validUntil)} 起失效。它不会被删除，也不再参与联想，
+            只在你要「你以前是怎么说的」时才翻出来。
+          </div>
+        )}
 
         {/* 类型 */}
         <p className="mt-3 mb-1.5 text-[12px] text-muted">类型</p>
@@ -128,8 +142,22 @@ export function MemoryDetail({
           {linkNames.length > 0 && <p className="mt-1">连着：{linkNames.join(" / ")}</p>}
         </div>
 
+        {/* 钉住：钉住的那条永不淡化、也不会被自动归档 */}
+        <button
+          type="button"
+          onClick={onTogglePin}
+          aria-pressed={!!memory.pinned}
+          className={cn(
+            "mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-[13px]",
+            memory.pinned ? "bg-accent/14 font-medium text-accent" : "bg-chip text-fg",
+          )}
+        >
+          <Pin className="size-4" strokeWidth={1.8} fill={memory.pinned ? "currentColor" : "none"} />
+          {memory.pinned ? "已钉住 · 永不淡化（点一下取消）" : "钉住这条 · 永不淡化、不会被归档"}
+        </button>
+
         {/* 动作 */}
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
             disabled={!dirty}

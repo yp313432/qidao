@@ -17,6 +17,10 @@ export interface StarNode {
   depth: number | null
   reveal: number
   dim: number
+  /** 3D 纵深：负数=更近，正数=更远（只影响大小与亮度，位置已在世界坐标里折过透视） */
+  z: number
+  /** 透视系数 F/(F+z)：近大远小 */
+  persp: number
 }
 
 export function drawMemoryStar(
@@ -35,19 +39,22 @@ export function drawMemoryStar(
 ): number {
   const imp = node.memory.importance ?? 0.55
   const breath = 1 + 0.07 * Math.sin(opts.time * node.freq + node.phase)
-  let r = (2.1 + imp * 3.4) * breath
-  if (opts.selected) r *= 1.55
-  else if (opts.related) r *= 1.18
+  /** 纵深：远的星更小更暗，近的更大更亮（透视系数 0.70~1.61） */
+  const depthSize = 0.55 + 0.62 * node.persp
+  const depthFade = 0.5 + 0.5 * Math.min(1, node.persp)
+  let r = (1.4 + imp * 1.9) * breath * depthSize
+  if (opts.selected) r *= 1.5
+  else if (opts.related) r *= 1.15
   if (opts.hovered) r *= 1.12
 
   const goldMix = opts.selected ? 1 : opts.related ? 0.55 : opts.searchHit ? 0.4 : imp > 0.85 ? 0.22 : 0
   const col: RGB = mixRgb(CREAM, GOLD, goldMix)
-  const a = opts.alpha
+  const a = opts.alpha * depthFade
 
-  const glowR = r * (opts.selected ? 9 : 6.2)
+  const glowR = r * (opts.selected ? 6.2 : 4.2)
   const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR)
-  glow.addColorStop(0, rgba(opts.selected ? GOLD_BRIGHT : col, a * (opts.selected ? 0.7 : 0.42)))
-  glow.addColorStop(0.28, rgba(col, a * 0.16))
+  glow.addColorStop(0, rgba(opts.selected ? GOLD_BRIGHT : col, a * (opts.selected ? 0.6 : 0.3)))
+  glow.addColorStop(0.24, rgba(col, a * 0.1))
   glow.addColorStop(1, rgba(col, 0))
   ctx.fillStyle = glow
   ctx.beginPath()

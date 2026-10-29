@@ -23,6 +23,8 @@ import {
 
 const MAX_DEPTH = 2
 const NEBULA_SRC = "/memory-universe/nebula.jpg"
+/** 透视焦距：z 越大（越远）星越小、越靠中心 */
+const PERSP_F = 1000
 
 export interface UniverseOptions {
   memories: Memory[]
@@ -63,7 +65,7 @@ export function mountUniverse(
   let selectedId: string | null = null
   let hoveredId: string | null = null
   let search = ""
-  let reduced = options.reducedMotion
+  const reduced = options.reducedMotion
   let running = true
   let raf = 0
   let last = performance.now()
@@ -82,7 +84,7 @@ export function mountUniverse(
   let lastMoveT = 0
   const pointers = new Map<number, Pointer>()
   let pinchDist = 0
-  let edgeAppear = new Map<string, number>()
+  const edgeAppear = new Map<string, number>()
 
   const dust: Dust[] = createDust(160, 7)
   const fieldStars: FieldStar[] = createFieldStars(110, 13)
@@ -102,21 +104,30 @@ export function mountUniverse(
       const r = rest.get(m.id) ?? { x: 0, y: 0 }
       const old = prev.get(m.id)
       const rng = mulberry32(hash32(m.id))
+      /*
+       * 3D 纵深（2026-10 加）：每颗星一个 z（负=更近），把透视折算进"世界坐标"本身 ——
+       * 这样相机、命中、连线、聚焦全都不用改：远处的星在世界里天然靠向中心，
+       * 近处的散开、变大变亮。制图层面看就是一片有厚度的星云，而不是一层贴纸。
+       */
+      const z = (rng() - 0.5) * 760
+      const persp = PERSP_F / (PERSP_F + z)
       return {
         memory: m,
-        restX: r.x,
-        restY: r.y,
-        x: old?.x ?? r.x,
-        y: old?.y ?? r.y,
+        restX: r.x * persp,
+        restY: r.y * persp,
+        x: old?.x ?? r.x * persp,
+        y: old?.y ?? r.y * persp,
         vx: old?.vx ?? 0,
         vy: old?.vy ?? 0,
-        tx: r.x,
-        ty: r.y,
+        tx: r.x * persp,
+        ty: r.y * persp,
         phase: rng() * Math.PI * 2,
         freq: 0.45 + rng() * 0.85,
         depth: old?.depth ?? null,
         reveal: old?.reveal ?? 0,
         dim: old?.dim ?? 1,
+        z,
+        persp,
       }
     })
   }
@@ -364,7 +375,8 @@ export function mountUniverse(
     const ordered = [...nodes].sort((a, b) => {
       const da = a.memory.id === selectedId ? 1 : 0
       const db = b.memory.id === selectedId ? 1 : 0
-      return da - db
+      // 远的先画、近的后画：叠出来的遮挡关系才对（选中的那颗永远压最上面）
+      return da - db || b.z - a.z
     })
 
     for (const n of ordered) {
@@ -392,6 +404,8 @@ export function mountUniverse(
       else if (selected) labelA = Math.min(1, alpha)
       if (hovered && !selected) labelA = Math.min(1, 0.95 * intro)
       if (search && !matchesSearch(n.memory)) labelA *= 0.15
+      // 远处的星，字也淡一点（不然一屏的字一样重，就没有纵深了）
+      labelA *= 0.55 + 0.45 * Math.min(1, n.persp)
       drawMemoryLabel(ctx, p.x, p.y, r, n.memory.title, {
         selected,
         related: related || hovered,

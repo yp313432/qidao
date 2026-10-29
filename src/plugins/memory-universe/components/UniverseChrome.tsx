@@ -1,3 +1,9 @@
+/**
+ * 顶部题字。
+ *
+ * 用户 2026-10 的原话：「上面的标题换一个斜体手写英文句子，契合星空记忆的」——
+ * 原来的「记忆宇宙 / QIDAO」改成一句手写的英文诗，中文只留在底部说明行里。
+ */
 export function UniverseChrome({
   query,
   onQuery,
@@ -13,8 +19,8 @@ export function UniverseChrome({
     <>
       <header className="mu-chrome-top">
         <div className="mu-brand">
-          <p className="mu-brand-kicker">QIDAO</p>
-          <h1 className="mu-brand-title">记忆宇宙</h1>
+          <p className="mu-brand-script">Every light up there</p>
+          <p className="mu-brand-script-sub">is a day we kept.</p>
         </div>
         <label className="mu-search">
           <span className="mu-sr">寻找一颗记忆</span>
