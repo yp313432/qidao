@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_app/space")({
     <MePage
       tab="space"
       title="我的空间"
-      subtitle="这个空间长什么样 —— 他的头像和名字、背景图、主题、字体、字号"
+      subtitle="材质、背景、字体、对话框的颜色 —— 点哪一行展开哪一行"
     />
   ),
 });

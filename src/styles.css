@@ -180,6 +180,111 @@
   color-scheme: dark;
 }
 
+/*
+  材质三档（用户 2026-10 定：纯色 / 半磨砂 / 液态玻璃）。
+
+  为什么单独一层：`data-theme` 管的是**配色**（底、字、强调色），
+  `data-material` 管的是**卡片怎么画**（不透明还是有玻璃、糊多少、亮边多粗）。
+  两者正交 —— 所以「纯色 + 雾蓝」和「玻璃 + 米色」都能成立。
+
+  写在这里（theme 块之后）是为了同特异性下覆盖掉 theme 里的玻璃变量。
+*/
+:root {
+  /* 默认 = 半磨砂（现在这版） */
+  --aster-sat: 1.6;
+  /* 背景压纸色：只在纯色模式下生效，压在背景图上的一层主题纸色 */
+  --aster-bg-paper: 0;
+}
+
+/* ── 纯色：实色卡，不模糊、不开 backdrop-filter，靠线和一点阴影分层 ── */
+[data-material="solid"] {
+  --aster-surface: color-mix(in oklab, var(--aster-bg) 96%, #ffffff);
+  --aster-elevated: color-mix(in oklab, var(--aster-bg) 99%, #ffffff);
+  --aster-chip: color-mix(in oklab, var(--aster-canvas) 62%, transparent);
+  --aster-line: color-mix(in oklab, var(--aster-fg) 14%, transparent);
+  --aster-blur: 0px;
+  --aster-sat: 1;
+  --aster-shadow: 0 1px 2px color-mix(in oklab, var(--aster-fg) 7%, transparent);
+  --aster-glass-highlight: transparent;
+  --aster-sheen: transparent;
+  --aster-gleam-a: 0;
+  --aster-flash-a: 0;
+}
+
+/* ── 半磨砂：毛玻璃，能看见背景轮廓但糊成一层 ── */
+[data-material="frost"] {
+  --aster-surface: color-mix(in oklab, var(--aster-bg) 62%, transparent);
+  --aster-elevated: color-mix(in oklab, var(--aster-bg) 72%, transparent);
+  --aster-chip: color-mix(in oklab, var(--aster-bg) 38%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 46%, transparent);
+  --aster-blur: 20px;
+  --aster-sat: 1.5;
+  --aster-shadow: 0 4px 18px color-mix(in oklab, var(--aster-fg) 10%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 92%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 20%, transparent);
+  --aster-gleam-a: 0.4;
+  --aster-flash-a: 0.12;
+}
+
+/* ── 液态玻璃：极透，背景的彩色直接映进来；边只有 0.5px ── */
+[data-material="liquid"] {
+  --aster-surface: color-mix(in oklab, #ffffff 10%, transparent);
+  --aster-elevated: color-mix(in oklab, #ffffff 13%, transparent);
+  --aster-chip: color-mix(in oklab, #ffffff 15%, transparent);
+  /* 亮边只在"有边框的元素"上出现；alpha 收淡 = 实机上更细，不要靠 border-width 去压 */
+  --aster-line: color-mix(in oklab, #ffffff 30%, transparent);
+  --aster-blur: 28px;
+  --aster-sat: 1.72;
+  --aster-shadow: 0 10px 30px color-mix(in oklab, var(--aster-fg) 16%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 30%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 16%, transparent);
+  --aster-gleam-a: 0.55;
+  --aster-flash-a: 0.16;
+}
+
+
+/* ── 纯色模式的四套配色（只换纸和强调色的色相，不碰材质） ── */
+[data-palette="cream"] {
+  --aster-canvas: #ece6dc;
+  --aster-bg: #f6f3ee;
+  --aster-accent: #c17b5a;
+}
+
+[data-palette="blue"] {
+  --aster-canvas: #e3eaf0;
+  --aster-bg: #f2f5f8;
+  --aster-fg: #1b242c;
+  --aster-muted: #6b7883;
+  --aster-accent: #5b7f9e;
+  --aster-canvas-ink: #dfe8ef;
+}
+
+[data-palette="green"] {
+  --aster-canvas: #e5eae0;
+  --aster-bg: #f3f6f1;
+  --aster-fg: #1f261c;
+  --aster-muted: #6e7669;
+  --aster-accent: #6f8c6a;
+}
+
+[data-palette="pink"] {
+  --aster-canvas: #f0e4e6;
+  --aster-bg: #faf3f4;
+  --aster-fg: #2a1f22;
+  --aster-muted: #7d6b6f;
+  --aster-accent: #c07f8c;
+}
+
+/* 纯色模式下，背景图上面压一层主题纸色（0~40%，由 --aster-bg-paper 控制） */
+[data-material="solid"] .page-bg-paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--aster-bg);
+  opacity: var(--aster-bg-paper, 0);
+}
+
 /* 正文字体族：在「我的 → 个性化 → 正文字体」里切换。 */
 :root[data-font="serif"] {
   --font-sans: "Source Serif 4", "Songti SC", "SimSun", "Iowan Old Style", Georgia, serif;
@@ -297,8 +402,8 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
-  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
@@ -321,8 +426,8 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.6);
-  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.6);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(var(--aster-sat, 1.6));
 }
 
 /*
@@ -333,8 +438,8 @@ html[data-motion="off"] *::after {
 */
 .bg-chip-flat {
   background-color: color-mix(in oklab, var(--aster-fg) 7%, transparent);
-  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.5);
-  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(1.5);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 0.85)) saturate(var(--aster-sat, 1.6));
 }
 
 .aster-card {
@@ -352,8 +457,8 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
-  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 30px)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(var(--aster-blur, 30px)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
@@ -378,8 +483,8 @@ html[data-motion="off"] *::after {
   background-size: 240% 100%, 100% 100%;
   background-repeat: no-repeat;
   background-position: -30% 0, 0 0;
-  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(1.8);
-  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(1.8);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 1.5)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
@@ -390,8 +495,8 @@ html[data-motion="off"] *::after {
 .glass-panel {
   background-color: color-mix(in oklab, var(--aster-canvas) 52%, transparent);
   background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 34%);
-  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.8);
-  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
@@ -431,8 +536,8 @@ html[data-motion="off"] *::after {
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 32%);
   background-repeat: no-repeat;
-  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(1.6);
-  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(1.6);
+  -webkit-backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(calc(var(--aster-blur, 16px) * 2.4)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     inset 0 1px 0 0 var(--aster-glass-highlight),
@@ -443,8 +548,8 @@ html[data-motion="off"] *::after {
 .glass-tray {
   background-color: color-mix(in oklab, var(--aster-canvas) 62%, transparent);
   background-image: linear-gradient(180deg, var(--aster-sheen) 0%, transparent 26%);
-  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.6);
-  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--aster-blur, 16px)) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(var(--aster-blur, 16px)) saturate(var(--aster-sat, 1.6));
   box-shadow:
     inset 0 0 0 1px var(--aster-line),
     t 0 1px 0 0 var(--aster-glass-highlight);
@@ -478,8 +583,8 @@ html[data-motion="off"] *::after {
     transparent 0%,
     color-mix(in oklab, var(--aster-canvas) 34%, transparent) 100%
   );
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(var(--aster-sat, 1.6));
+  backdrop-filter: blur(20px) saturate(var(--aster-sat, 1.6));
   /* 顶上一条极淡的分界线，让它跟内容分开；不用重阴影，避免"塑料感" */
   box-shadow:
     inset 0 1px 0 0 var(--aster-glass-highlight);

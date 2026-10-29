@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
+import { callSentence } from "@/lib/call-sentence";
+import { resolveAiName } from "@/lib/branding";
+import { useApp } from "@/lib/store";
+import type { ChatStep } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 /**
  * 思考链 —— 从底部弹出来的一层（Claude 那种）。
@@ -7,6 +12,13 @@ import { X } from "lucide-react";
  * 用户的原话："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"。
  * 好处：思考链不再占正文的地方（它字数多，放在气泡旁边怎么摆都别扭），
  * 点一下弹出来看，关掉就回到对话 ✅
+ *
+ * ── 形态（用户 m12599 定的）──────────────────────────────────
+ *
+ * 不是"思考区 + 动作区"两块，而是**一条线**：想 → 做 → 想 → 做。
+ * 每行只留一句概括，右边一个尖角，**点那行就地展开**（思考给全文、动作补细节）。
+ * 数据来自 `ChatMessage.steps`（流式时按发生顺序切下来的）；
+ * 老消息没有这格 → 退回"整段思考"那段纯文本，跟以前一样。
  *
  * ── 实测修过的两个毛病（别改回去）──────────────────────────────
  *
@@ -29,12 +41,15 @@ import { X } from "lucide-react";
 export function ThinkingSheet({
   open,
   text,
+  steps,
   durationMs,
   live,
   onClose,
 }: {
   open: boolean;
   text: string;
+  /** 过程线（想 → 做 → 想）。没有就用 `text` 显示整段思考（老消息） */
+  steps?: ChatStep[];
   durationMs?: number;
   /** 还在生成中（实时长出来的那种） */
   live?: boolean;
@@ -63,6 +78,7 @@ export function ThinkingSheet({
   if (!open) return null;
 
   const secs = durationMs ? Math.max(1, Math.round(durationMs / 1000)) : 0;
+  const callCount = (steps ?? []).filter((s) => s.kind === "call").length;
 
   /** 抓手拖动中 */
   function onHandleDown(e: React.PointerEvent) {
@@ -112,7 +128,7 @@ export function ThinkingSheet({
         }}
       />
       <div
-        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-[rgba(252,248,242,0.99)] pb-[env(safe-area-inset-bottom)]"
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : "transform 0.26s cubic-bezier(0.22, 0.8, 0.25, 1)",
@@ -132,7 +148,14 @@ export function ThinkingSheet({
         </div>
         <div className="flex items-center justify-between px-4 pt-1.5 pb-2">
           <span className="text-[12px] text-muted">
-            {live ? "正在思考…" : secs ? `思考过程 · 用时 ${secs} 秒` : "思考过程"}
+            {live
+              ? "正在思考…"
+              : [
+                  secs ? `想了 ${secs} 秒` : "想了想",
+                  callCount > 0 ? `动了 ${callCount} 次手` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
           </span>
           <button
             type="button"
@@ -144,12 +167,183 @@ export function ThinkingSheet({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(var(--aster-nav-h)+1.5rem)]">
-          <p className="whitespace-pre-wrap text-[0.95em] leading-[1.85] text-muted">
-            {text || "（没有思考内容）"}
-            {live && <span className="ml-0.5 animate-pulse">▍</span>}
-          </p>
+          {steps && steps.length > 0 ? (
+            <StepList steps={steps} live={live} />
+          ) : (
+            <p className="whitespace-pre-wrap text-[0.95em] leading-[1.85] text-muted">
+              {text || "（没有思考内容）"}
+              {live && <span className="ml-0.5 animate-pulse">▍</span>}
+            </p>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 过程线本体：左列一条竖线领着，每行一句概括 + 右边尖角，点哪行展哪行。
+ *
+ * 只在这里出现一次 —— 对话流里**不再**放过程（用户 m12579："不能放在对话里，
+ * 会显得很长，放在思考链里"），那边只有一行入口。
+ */
+function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
+  const aiName = resolveAiName(useApp((st) => st.settings.aiName));
+  const [open, setOpen] = useState<number[]>([]);
+  const isOpen = (i: number) => open.includes(i);
+  const toggle = (i: number) =>
+    setOpen((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+
+  return (
+    <div className="flex flex-col">
+      {steps.map((step, i) => {
+        const last = i === steps.length - 1;
+        if (step.kind === "think") {
+          const expanded = isOpen(i);
+          return (
+            <div key={`t${i}`} className="flex gap-2.5">
+              <Rail last={last}>
+                <span className="mt-[3px] size-[15px] rounded-full bg-surface">
+                  <span className="mx-auto mt-[5px] block size-[5px] rounded-full bg-muted" />
+                </span>
+              </Rail>
+              <button
+                type="button"
+                onClick={() => toggle(i)}
+                aria-expanded={expanded}
+                className="min-w-0 flex-1 pb-3.5 pt-0.5 text-left"
+              >
+                <span className="flex items-start gap-2">
+                  <span
+                    className={cn(
+                      "flex-1 whitespace-pre-wrap text-[12px] leading-[1.75] text-muted",
+                      !expanded && "line-clamp-2",
+                    )}
+                  >
+                    {step.text}
+                  </span>
+                  <ChevronRight
+                    className={cn(
+                      "mt-1 size-3 shrink-0 text-subtle transition-transform",
+                      expanded && "rotate-90",
+                    )}
+                    strokeWidth={1.6}
+                    aria-hidden="true"
+                  />
+                </span>
+              </button>
+            </div>
+          );
+        }
+        const s = callSentence(step.call, aiName);
+        const expanded = isOpen(i);
+        return (
+          <div key={`c${i}`} className="flex gap-2.5">
+            <Rail last={last} bad={!step.call.ok}>
+              <span
+                className={cn(
+                  "mt-[3px] flex size-[15px] items-center justify-center rounded-full border bg-surface",
+                  step.call.ok ? "border-line" : "border-warn/50",
+                )}
+              >
+                {step.call.ok ? (
+                  <svg
+                    viewBox="0 0 10 10"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="size-2.5 text-muted"
+                    aria-hidden="true"
+                  >
+                    <path d="M2.8 2.6 5.1 5 2.8 7.4" />
+                    <path d="M5.6 7.6h2" />
+                  </svg>
+                ) : (
+                  <span className="text-[8px] font-bold leading-none text-warn">!</span>
+                )}
+              </span>
+            </Rail>
+            <button
+              type="button"
+              onClick={() => toggle(i)}
+              aria-expanded={expanded}
+              className="min-w-0 flex-1 pb-3.5 pt-0.5 text-left"
+            >
+              <span className="flex items-start gap-2">
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block text-[12px] leading-[1.6] [overflow-wrap:anywhere]",
+                      step.call.ok ? "text-fg" : "text-warn",
+                    )}
+                  >
+                    {s.line}
+                  </span>
+                  {(expanded || s.detail) && s.detail && (
+                    <span className="mt-0.5 block text-[11px] leading-[1.55] text-subtle [overflow-wrap:anywhere]">
+                      {s.detail}
+                    </span>
+                  )}
+                  {expanded && s.why && (
+                    <span className="mt-0.5 block text-[11px] leading-[1.55] text-warn/80 [overflow-wrap:anywhere]">
+                      {s.why}
+                    </span>
+                  )}
+                  {expanded && s.raw && (
+                    <span className="mt-0.5 block font-mono text-[10px] leading-[1.5] text-subtle">
+                      {s.raw}
+                    </span>
+                  )}
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "mt-1 size-3 shrink-0 text-subtle transition-transform",
+                    expanded && "rotate-90",
+                  )}
+                  strokeWidth={1.6}
+                  aria-hidden="true"
+                />
+              </span>
+            </button>
+          </div>
+        );
+      })}
+      {live && (
+        <div className="flex gap-2.5">
+          <Rail last>
+            <span className="mt-[3px] size-[15px] rounded-full bg-surface">
+              <span className="mx-auto mt-[5px] block size-[5px] animate-pulse rounded-full bg-accent" />
+            </span>
+          </Rail>
+          <span className="pb-2 pt-0.5 text-[12px] text-subtle">还在想…</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 左列：一条竖线 + 行的节点。首尾把线裁掉半格，看着是"从第一个点到最后一个点"。 */
+function Rail({
+  children,
+  last,
+  bad,
+}: {
+  children: React.ReactNode;
+  last?: boolean;
+  bad?: boolean;
+}) {
+  return (
+    <div className="relative flex w-[15px] shrink-0 flex-col items-center">
+      <span
+        className={cn(
+          "absolute top-0 w-px",
+          last ? "h-[10px]" : "bottom-0",
+          bad ? "bg-warn/25" : "bg-line",
+        )}
+      />
+      <span className="relative z-[1]">{children}</span>
     </div>
   );
 }

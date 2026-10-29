@@ -34,7 +34,7 @@ import { partsFor } from "@/lib/segment";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
-import type { AppAction, Attachment, ChatMessage } from "@/lib/types";
+import type { AppAction, Attachment, ChatMessage, ChatStep } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
 
@@ -632,6 +632,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
       type AttemptState = {
         pendingCalls: { name: string }[];
         rounds: ToolRoundRecord[];
+        /**
+         * 过程线（想 → 做 → 想 …）。`splitAt` 是"思考已经切到哪了"的下标 ——
+         * 每轮工具调用时把**这一轮新想的那段**切出来，顺序就对了。
+         */
+        steps: ChatStep[];
+        splitAt: number;
         usedNative: boolean;
         reqError?: string;
         stalled: boolean;
@@ -719,12 +725,21 @@ export function useChatStream(opts: UseChatOpts = {}) {
           onRound: (r) => {
             state.rounds.push(r);
             /**
+             * 过程线：**这一轮想的那段**先切出来，再记这一轮调了什么（Claude 那种"想→做→想"）。
+             * 不切的话收尾只能存"整段思考 + 全部调用"，顺序永远是"先想后做"。
+             */
+            const seen = thinking.slice(state.splitAt);
+            if (seen.trim().length > 0) state.steps.push({ kind: "think", text: seen.trim() });
+            state.splitAt = thinking.length;
+            for (const c of r.calls) state.steps.push({ kind: "call", call: c });
+            /**
              * ⭐ 每一步的结果**当场**写进这条消息（不等整轮结束）。
              * 这正是用户点名的那句："执行结果那一栏永远有回话"——
              * 成、没成、没匹配上，流式期间就已经挂在他眼皮底下了。
              */
             useApp.getState().patchMessage(conversationId, messageId, {
               rounds: state.rounds.map((x) => ({ round: x.round, calls: [...x.calls] })),
+              steps: state.steps.length > 0 ? [...state.steps] : undefined,
             });
             const before = roundTextStart.at;
             const roundHasText = content.slice(before).trim().length > 0;
@@ -757,6 +772,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const state: AttemptState = {
         pendingCalls: [],
         rounds: [],
+        steps: [],
+        splitAt: 0,
         usedNative: false,
         stalled: false,
         limitNote: undefined,
@@ -767,6 +784,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         hadContent = false;
         state.pendingCalls = [];
         state.rounds = [];
+        state.steps = [];
+        state.splitAt = 0;
         state.usedNative = false;
         state.reqError = undefined;
         state.stalled = false;
@@ -807,6 +826,15 @@ export function useChatStream(opts: UseChatOpts = {}) {
         dirty = true;
         flush();
         await new Promise((r) => window.setTimeout(r, 350));
+      }
+      /**
+       * 收尾：把最后那一段思考也切进过程线。
+       * 没有工具调用时（对话型回答）这里就是整段思考 —— 弹层里照样能看到。
+       */
+      {
+        const tail = thinking.slice(state.splitAt);
+        if (tail.trim().length > 0) state.steps.push({ kind: "think", text: tail.trim() });
+        state.splitAt = thinking.length;
       }
       if (!hadContent && !state.usedNative && !ac.signal.aborted) {
         const why = state.reqError || (lastErr as Error | null)?.message;
@@ -991,6 +1019,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
             : undefined,
         // 这一轮他"真的动过手"的记录（调了哪个动作、成没成）—— 给消息下面那行过程看
         rounds: state.rounds.length > 0 ? state.rounds : undefined,
+        // 过程线（想 → 做 → 想）—— 点开思考链时按这个顺序显示
+        steps: state.steps.length > 0 ? [...state.steps] : undefined,
       });
       /**
        * 摘要：**原生 / 文本协议两条路都要跑**，而且失败绝不能影响这一轮。

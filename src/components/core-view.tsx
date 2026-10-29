@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { FileButton } from "@/components/file-button";
+import { readImageFile } from "@/lib/image-file";
 import { PageHeader } from "@/components/page-header";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
@@ -11,10 +14,15 @@ import { resolveAiName } from "@/lib/branding";
  * AI核心说明第 3 节："AI概览：顶部大玻璃主卡。显示 AI 名称、头像、一句描述，
  * 以及'能感知多少项 / 正在使用多少项 / 待确认多少项'等概览。"
  *
- * 这一页**只读**：不提供任何开关，改权限去「感知权限」那一页 ✅（纯 UI，功能不动）
+ * 这一页基本**只读**：不提供任何开关，改权限去「感知权限」那一页。
+ * 唯一的两个例外（用户 m14237："ai 的名字和头像挪到 ai 概览那里改"）：点头像换图、点名字改名。
  */
 export function CoreView() {
   const settings = useApp((s) => s.settings);
+  const patch = useApp((s) => s.patchSettings);
+  /** 点名字才进编辑态：平时就是一行字，不占地方也不用一直显示输入框 */
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState("");
   const permissions = useApp((s) => s.settings.permissions);
   const memories = useApp((s) => s.memories);
   const aiName = resolveAiName(settings.aiName);
@@ -30,14 +38,55 @@ export function CoreView() {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-24">
         {/* 主卡：他现在的样子 */}
         <section className="rounded-3xl border border-line bg-elevated px-5 py-6 text-center">
-          <div className="mx-auto flex size-20 items-center justify-center overflow-hidden rounded-full bg-chip">
+          <FileButton
+            ariaLabel="更换 AI 头像"
+            accept="image/*"
+            className="mx-auto flex size-20 items-center justify-center overflow-hidden rounded-full bg-chip"
+            onPick={(files) => {
+              const file = files[0];
+              if (file) readImageFile(file, (url) => patch({ aiAvatar: url }));
+            }}
+          >
             {settings.aiAvatar ? (
               <img src={settings.aiAvatar} alt={aiName} className="size-full object-cover" />
             ) : (
               <Sparkles className="size-7 text-accent" />
             )}
-          </div>
-          <p className="mt-3 font-serif text-xl">{aiName}</p>
+          </FileButton>
+          {editingName ? (
+            <input
+              autoFocus
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value.slice(0, 12))}
+              onBlur={() => {
+                patch({ aiName: draftName.trim() });
+                setEditingName(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  patch({ aiName: draftName.trim() });
+                  setEditingName(false);
+                }
+                if (e.key === "Escape") setEditingName(false);
+              }}
+              maxLength={12}
+              aria-label="AI 名字"
+              placeholder={aiName}
+              className="mt-3 w-full bg-transparent text-center font-serif text-xl outline-none placeholder:text-subtle"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setDraftName(settings.aiName ?? "");
+                setEditingName(true);
+              }}
+              aria-label="改 AI 的名字"
+              className="mt-3 font-serif text-xl"
+            >
+              {aiName}
+            </button>
+          )}
           <p className="mt-1 text-[12px] leading-5 text-muted">
             在 {settings.displayName || "你"} 的这个小世界里，陪你说话的那个
           </p>
@@ -85,7 +134,7 @@ export function CoreView() {
         </section>
 
         <p className="mt-6 px-1 text-[11px] leading-5 text-subtle">
-          这一页只是"看一眼他现在什么样"。要调什么，点上面那三项进去改 ✅
+          点名字能改、点头像能换；其他设置点上面那三项进去改。
         </p>
       </div>
     </div>

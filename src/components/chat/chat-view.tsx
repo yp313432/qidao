@@ -103,7 +103,6 @@ import { Markdown } from "@/components/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
-import { ToolProcess } from "@/components/chat/tool-process";
 import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
 import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
@@ -113,7 +112,7 @@ import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { transcribe } from "@/lib/voice-service";
-import type { Attachment } from "@/lib/types";
+import type { Attachment, ChatStep } from "@/lib/types";
 import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
@@ -157,6 +156,7 @@ export function ChatView() {
   /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
   const [thinkSheet, setThinkSheet] = useState<{
     text: string;
+    steps?: ChatStep[];
     ms?: number;
     live?: boolean;
   } | null>(null);
@@ -827,7 +827,7 @@ export function ChatView() {
                                       src={a.dataUrl}
                                       alt={a.kind === "sticker" ? "表情" : a.name}
                                       className={cn(
-                                        "rounded-2xl object-contain",
+                                        "rounded-[18px] rounded-tr-none object-contain",
                                         a.kind === "sticker"
                                           ? "size-24"
                                           : "max-h-56 min-h-16 w-auto min-w-16 max-w-full",
@@ -854,7 +854,7 @@ export function ChatView() {
                               <div
                                 {...quotePress(m.id, body)}
                                 className={cn(
-                                  "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                  "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tr-none bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                   pics.length > 0 && "mt-1",
                                 )}
                               >
@@ -916,30 +916,47 @@ export function ChatView() {
                         )}
                         {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
-                        {(streaming || (settings.showThinking && m.thinking)) && (
-                          /* ⚠️ 胶囊上那个 `[-webkit-tap-highlight-color:transparent]` 是用户 m03024
-                             第 4 条"点开之后胶囊上留一层白底"的**就地**兜底
-                             （全局那条写在 styles.css 的 `:root` 里；这里再钉一遍，不依赖继承）。 */
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setThinkSheet({
-                                text: m.thinking,
-                                ms: m.thinkingDurationMs,
-                                live: Boolean(streaming && !m.content),
-                              })
-                            }
-                            className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted [-webkit-tap-highlight-color:transparent]"
-                          >
-                            {streaming && !m.content ? "正在思考…" : "已思考"}
-                            {m.thinkingDurationMs && !streaming ? (
-                              <span className="text-subtle">
-                                （{Math.max(1, Math.round(m.thinkingDurationMs / 1000))} 秒）
-                              </span>
-                            ) : null}
-                            <span className="text-subtle">点开看</span>
-                          </button>
-                        )}
+                        {(() => {
+                          /**
+                           * ⭐ 过程只留**一行入口**（用户 m12579）：
+                           *   "不能放在对话里，会显得很长，放在思考链里"
+                           * 所以思考和动手并成这一行，点开从底部弹一层，里面是完整的过程线。
+                           */
+                          const callCount = (m.steps ?? [])
+                            .filter((x) => x.kind === "call").length ||
+                            (m.rounds ?? []).reduce((n, r) => n + r.calls.length, 0);
+                          const thinkable = Boolean(m.thinking) || callCount > 0;
+                          if (!streaming && !(settings.showThinking && thinkable)) return null;
+                          const secs = m.thinkingDurationMs
+                            ? Math.max(1, Math.round(m.thinkingDurationMs / 1000))
+                            : 0;
+                          const head = streaming && !m.content ? "正在想…" : secs ? `想了 ${secs} 秒` : "想了想";
+                          return (
+                            /* ⚠️ 胶囊上那个 `[-webkit-tap-highlight-color:transparent]` 是用户 m03024
+                               第 4 条"点开之后胶囊上留一层白底"的**就地**兜底
+                               （全局那条写在 styles.css 的 `:root` 里；这里再钉一遍，不依赖继承）。 */
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setThinkSheet({
+                                  text: m.thinking,
+                                  steps: m.steps,
+                                  ms: m.thinkingDurationMs,
+                                  live: Boolean(streaming && !m.content),
+                                })
+                              }
+                              className="mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] text-muted [-webkit-tap-highlight-color:transparent]"
+                            >
+                              {/* 一根细竖线领着这一行，跟弹层里那条线同一个语汇（用户 m12711） */}
+                              <span aria-hidden className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25" />
+                              {head}
+                              {callCount > 0 && (
+                                <span className="text-subtle">· 动了 {callCount} 次手</span>
+                              )}
+                              <span className="text-subtle">点开看</span>
+                            </button>
+                          );
+                        })()}
                         {/* 弹层本身挂在页面根节点（见文件下方 <ThinkingSheet>）——
                             原来写在 messages.map 里面，每条消息挂一个全屏浮层，
                             既冗余又容易被消息区的滚动/重渲染带歪。 */}
@@ -975,7 +992,8 @@ export function ChatView() {
                                     ref={hideIfRenderedEmpty}
                                     {...quotePress(m.id, cleanForRender(p))}
                                     className={cn(
-                                      "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-[18px] border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                      i === 0 && "rounded-tl-none",
                                       fresh && "bubble-in",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
@@ -992,7 +1010,7 @@ export function ChatView() {
                             <div
                               ref={hideIfRenderedEmpty}
                               {...quotePress(m.id, cleanForRender(liveText))}
-                              className="w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-2xl border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className="w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tl-none border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
@@ -1033,10 +1051,10 @@ export function ChatView() {
                                     src={a.dataUrl}
                                     alt={a.kind === "sticker" ? "表情" : a.name}
                                     className={cn(
-                                      "rounded-xl",
+                                      "rounded-[18px] rounded-tl-none",
                                       a.kind === "sticker"
                                         ? "max-h-32 max-w-32"
-                                        : "max-h-48 max-w-[70%] rounded-2xl",
+                                        : "max-h-48 max-w-[70%]",
                                     )}
                                   />
                                 </button>
@@ -1050,7 +1068,6 @@ export function ChatView() {
                           （见 use-chat 的 onRound），流式期间当然也要看得见 ——
                           这正是"执行结果那一栏永远有回话"。
                         */}
-                        {m.rounds && m.rounds.length > 0 && <ToolProcess rounds={m.rounds} />}
                         {/* ⚠️ 「改」和编辑框**不在这里**了：它们原先写在这个分支里，
                             而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
@@ -1394,6 +1411,7 @@ export function ChatView() {
       <ThinkingSheet
         open={thinkSheet !== null}
         text={thinkSheet?.text ?? ""}
+        steps={thinkSheet?.steps}
         durationMs={thinkSheet?.ms}
         live={thinkSheet?.live}
         onClose={() => setThinkSheet(null)}
@@ -1670,6 +1688,7 @@ function VoiceBubble({
         style={{ minWidth }}
         className={cn(
           "flex select-none items-center gap-2 rounded-[18px] px-2.5 py-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
+          mine ? "rounded-tr-none" : "rounded-tl-none",
           // 跟着全局玻璃走（`--aster-surface` 就是 B 档那层），只用自己的暖边区分左右
           mine
             ? "border-accent/30 bg-surface text-fg"

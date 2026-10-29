@@ -149,6 +149,20 @@ export type ToolCallRecord = {
   ok: boolean;
 };
 
+/**
+ * 一条回复里**按发生顺序**记下来的一步（用户 m12579 定的形态）。
+ *
+ * Claude 那种思考链不是"思考区 + 动作区"两块，而是一条线：
+ * 想 → 做 → 想 → 做。要在界面上还原这个顺序，就得在流式的时候**当场记下来**，
+ * 而不是收尾时把"整段思考 + 全部调用"分别存两格（那样顺序永远是"先想后做"）。
+ *
+ * ⚠️ 老消息没有 `ChatMessage.steps` —— 界面退回"先把思考整段显示，再列调用"，
+ *    跟以前一样，不重写历史。
+ */
+export type ChatStep =
+  | { kind: "think"; text: string }
+  | { kind: "call"; call: ToolCallRecord };
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -192,6 +206,11 @@ export type ChatMessage = {
    * "他说他执行了，但什么都没发生" —— 有了这份记录，"哪一步没成"当场看得见。
    */
   rounds?: { round: number; calls: ToolCallRecord[] }[];
+  /**
+   * 这条回复的过程线（想 → 做 → 想 …），点开思考链时按这个顺序显示。
+   * 只在原生 tools 那条路上有；降级模式没有工具调用，只有一段思考。
+   */
+  steps?: ChatStep[];
   /**
    * **分段回复**：这条正文该切成几个气泡显示（一条一个）。
    *
@@ -368,6 +387,22 @@ export type Conversation = {
 
 export type ThemeId = "dawn" | "dusk" | "ink";
 
+/**
+ * 材质（用户 2026-10 定的三档，取代原来「黎明/黄昏/墨色」那三个主题选项）。
+ *
+ * - `solid`  实色卡：不模糊、不开 backdrop-filter，靠线和一点阴影分层
+ * - `frost`  半磨砂：毛玻璃，看得见背景轮廓但糊成一层
+ * - `liquid` 液态玻璃：极透，背景的彩色直接映进来
+ *
+ * 跟 `theme`（配色）是正交的两件事：`data-theme` 管底/字/强调色，
+ * `data-material` 管卡片怎么画。CSS 见 styles.css 里那三块 `[data-material=…]`。
+ */
+export type MaterialId = "solid" | "frost" | "liquid";
+
+/** 纯色模式下的纸色（只有 `material === "solid"` 时有意义） */
+export type PaletteId = "cream" | "blue" | "green" | "pink";
+
+
 /** 正文字体族 */
 export type FontId = "system" | "serif" | "kai" | "mono";
 
@@ -440,6 +475,12 @@ export type Settings = {
   /** 我自己的头像（dataURL，空表示用名字首字） */
   userAvatar: string;
   theme: ThemeId;
+  /** 材质三档（默认 frost = 现在这版毛玻璃） */
+  material?: MaterialId;
+  /** 纯色模式的纸色（默认奶油白） */
+  palette?: PaletteId;
+  /** 纯色模式下压在背景图上的纸色浓度（0~40，单位 %） */
+  bgPaper?: number;
   font: FontId;
   /**
    * **对话框（玻璃输入框）自选的渐变色**（2026-11 用户要的）。

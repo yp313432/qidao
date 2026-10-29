@@ -80,6 +80,9 @@ import { BOARD as GOBANG_BOARD, boardFull, emptyBoard, idx, inb, lineOfFive } fr
 const defaultSettings: Settings = {
   displayName: "yan",
   theme: "dawn",
+  material: "frost",
+  palette: "cream",
+  bgPaper: 18,
   showThinking: true,
   saveThinking: true,
   notifications: true,
@@ -1971,10 +1974,16 @@ export const useApp = create<AppState>()(
   ),
 );
 
-export function applyTheme(theme: ThemeId) {
+export function applyTheme(_theme?: ThemeId) {
   if (typeof document === "undefined") return;
+  /*
+    2026-10：深色主题（黄昏/墨色）下线，由「材质」三档取代。
+    这里恒定为 dawn（浅色纸底）—— 但**不删** dusk/ink 那两个 CSS 块，
+    将来要做夜间模式可以直接复用。
+  */
+  const theme: ThemeId = "dawn";
   document.documentElement.dataset.theme = theme;
-  const color = theme === "dawn" ? "#f6f3ee" : theme === "dusk" ? "#1a1613" : "#0e0f12";
+  const color = "#f6f3ee";
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", color);
   try {
@@ -2035,6 +2044,16 @@ function menuFillFor(textColor: string): string {
 export function applyAppearance(settings: Settings) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+  /*
+    材质与纸色：`data-material` 决定卡片怎么画（见 styles.css 那三块），
+    `data-palette` 只在纯色模式下有意义（换纸的色相）。
+    压纸色只在纯色模式下生效，其它材质强制 0（玻璃压了就糊）。
+  */
+  const material = settings.material ?? "frost";
+  root.dataset.material = material;
+  root.dataset.palette = settings.palette ?? "cream";
+  const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 18)) : 0;
+  root.style.setProperty("--aster-bg-paper", String(paper / 100));
   root.dataset.font = settings.font ?? "system";
   // 动画开关：auto 时由 CSS 里的 prefers-reduced-motion 决定，on/off 由这里强制定
   root.dataset.motion = settings.motion ?? "auto";

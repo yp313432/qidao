@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
+  ChevronDown,
   ChevronRight,
   Database,
   ImagePlus,
@@ -43,12 +44,12 @@ import { speakTextAsync } from "@/lib/tts";
 import { useApp } from "@/lib/store";
 import { WAKE_LEVELS } from "@/lib/wake-schedule";
 import { readImageFile } from "@/lib/image-file";
-import type { FontId, PlanetTone, ReplyStyle, TextTone, ThemeId } from "@/lib/types";
+import type { FontId, PlanetTone, ReplyStyle, TextTone } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Avatar } from "@/components/avatar";
 import { FileButton } from "@/components/file-button";
-import { DEFAULT_AI_NAME, BUILD_TAG, resolveAiName } from "@/lib/branding";
+import { BUILD_TAG, resolveAiName } from "@/lib/branding";
 import { permissionSummary } from "@/lib/permissions";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory, CHAT_FONT_SIZES } from "@/lib/ux";
@@ -69,12 +70,6 @@ import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
  */
 
 export type MeTab = "space" | "usage" | "data" | "system";
-
-const THEMES: { id: ThemeId; label: string; hint: string }[] = [
-  { id: "dawn", label: "黎明", hint: "奶油纸页" },
-  { id: "dusk", label: "黄昏", hint: "暖夜" },
-  { id: "ink", label: "墨色", hint: "冷黑" },
-];
 
 const STYLES: { id: ReplyStyle; label: string }[] = [
   { id: "default", label: "默认" },
@@ -219,7 +214,7 @@ export function MeHub() {
           className="mt-3 w-full bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
         />
         <p className="mt-1 text-[11px] text-subtle">
-          他会用这个名字称呼你 · AI 头像与名字在「我的空间」里
+          他会用这个名字称呼你 · AI 的头像和名字在「AI 概览」里改
         </p>
         {/*
           称呼（性别）—— 2026-10 用户点名要的：
@@ -341,6 +336,10 @@ function MeSections({ tab }: { tab: MeTab }) {
    * 聊天页面的模型选择那种"）。`voicePick` 是正在挑哪一格。
    */
   const [voicePick, setVoicePick] = useState<null | "asr" | "tts" | "voice">(null);
+  /** 我的空间里哪一组是展开的（null = 全收起，一屏能看完） */
+  const [openFold, setOpenFold] = useState<null | "material" | "bg" | "font" | "tint" | "more">(
+    null,
+  );
   const [voicePickQuery, setVoicePickQuery] = useState("");
   /** ElevenLabs 点「拉取音色」拉回来的 voice_id 清单 */
   const [elevenVoices, setElevenVoices] = useState<string[]>([]);
@@ -617,46 +616,95 @@ function MeSections({ tab }: { tab: MeTab }) {
 
   /* ── 我的空间 ── */
 
+  /* ── 外观：材质 / 背景 / 字体 / 对话框配色（用户 m14333 定的版式）── */
+
+  const MATERIALS = [
+    { id: "solid", label: "纯色", hint: "实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸" },
+    { id: "frost", label: "半磨砂", hint: "毛玻璃：半透、糊一层，什么背景都能搭" },
+    { id: "liquid", label: "液态玻璃", hint: "极透：背景的颜色直接映进卡片，最贵的一档" },
+  ] as const;
+  const PALETTES = [
+    { id: "cream", label: "奶油白", dot: "#f6f3ee" },
+    { id: "blue", label: "雾蓝", dot: "#5b7f9e" },
+    { id: "green", label: "苔绿", dot: "#6f8c6a" },
+    { id: "pink", label: "淡粉", dot: "#c07f8c" },
+  ] as const;
+
+  const material = settings.material ?? "frost";
+  const palette = settings.palette ?? "cream";
+  const matName = MATERIALS.find((m) => m.id === material)?.label ?? "半磨砂";
+  const matHint = MATERIALS.find((m) => m.id === material)?.hint ?? "";
+  const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
+  const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(Boolean).length;
+  const bgHint = `${bgCount ? `${bgCount} 张都设了` : "还没设"} · 压纸色 ${settings.bgPaper ?? 18}%`;
+  const fontHint = `${FONTS.find((f) => f.id === (settings.font ?? "sans"))?.label ?? "默认"} · ${
+    CHAT_FONT_SIZES.find((x) => x.id === (settings.chatFontSize ?? "md"))?.label ?? "中号"
+  }`;
+  const tintHint = "粉青蓝 · 按模式自动配浓度";
+
   const spaceSections = (
     <>
-      <Section title="形象">
-        <div className="flex gap-3">
-          <AvatarSlot
-            label="AI 头像"
-            hint={resolveAiName(settings.aiName)}
-            value={settings.aiAvatar}
-            preview={<Avatar role="ai" size={44} />}
-            onChange={(v) => patch({ aiAvatar: v })}
-          />
-          <AvatarSlot
-            label="我的头像"
-            hint={settings.displayName}
-            value={settings.userAvatar}
-            preview={<Avatar role="user" size={44} />}
-            onChange={(v) => patch({ userAvatar: v })}
-          />
-        </div>
+      <section className="px-4">
+      </section>
 
-        <label className="mt-3 block px-1">
-          <span className="block text-[12px] text-muted">AI 名字</span>
-          <input
-            value={settings.aiName}
-            onChange={(e) => patch({ aiName: e.target.value.slice(0, 12) })}
-            placeholder={DEFAULT_AI_NAME}
-            maxLength={12}
-            aria-label="AI 名字"
-            className="mt-1 w-full rounded-full border border-line bg-chip px-4 py-2.5 text-[15px] outline-none placeholder:text-subtle"
-          />
-        </label>
-        <p className="mt-2 text-[12px] leading-5 text-muted">
-          名字会用在对话、游戏和系统提示里。留空就用默认的「{DEFAULT_AI_NAME}」。
-        </p>
-        <p className="mt-2 text-[12px] leading-5 text-muted">
-          头像只存在这台设备。换一次，对话里所有头像（AI 的、我的）都会跟着变。
-        </p>
-      </Section>
+      <section className="mt-3 px-4">
+        <Fold
+          title="材质"
+          value={`${matName}${material === "solid" ? ` · ${palName}` : ""}`}
+          open={openFold === "material"}
+          onToggle={() => setOpenFold(openFold === "material" ? null : "material")}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {MATERIALS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => patch({ material: m.id })}
+                className={cn(
+                  "rounded-2xl border px-3 py-2.5 text-[13px]",
+                  material === m.id ? "choice-on" : "choice-off",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-subtle">{matHint}</p>
+          {material === "solid" && (
+            <>
+              <p className="mt-4 mb-2 text-[12px] text-muted">纸的颜色</p>
+              <div className="grid grid-cols-4 gap-2">
+                {PALETTES.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    onClick={() => patch({ palette: x.id })}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-2xl border px-2 py-2 text-[12px]",
+                      palette === x.id ? "choice-on" : "choice-off",
+                    )}
+                  >
+                    <span
+                      className="size-3 shrink-0 rounded-full border border-line"
+                      style={{ background: x.dot }}
+                    />
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-subtle">
+                只有纯色模式用得上：卡片是实心的，这四套就是纸的颜色。
+              </p>
+            </>
+          )}
+        </Fold>
 
-      <Section title="背景空间">
+        <Fold
+          title="背景"
+          value={bgHint}
+          open={openFold === "bg"}
+          onToggle={() => setOpenFold(openFold === "bg" ? null : "bg")}
+        >
         {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
         <div className="space-y-2">
           <ImageRow
@@ -764,97 +812,35 @@ function MeSections({ tab }: { tab: MeTab }) {
           disabled={!bgUnlocked}
           onChange={(v) => patch({ background: { ...background, opacity: v } })}
         />
-      </Section>
-
-      {/*
-        时感地址 —— **2026-10 挪到「玩乐 → 插件 → 时感」里去了**。
-        用户把时感收进了"插件"这个类别，那"插件的事在插件里管"：
-        插件编辑器里改地址，设置页不再留重复的一份
-        （同一件事两处能改 = 迟早走散，这是这份文档反复在治的毛病）。
-        老存档里的 `shiganUrl` 不变，插件那边读的就是同一个字段。
-      */}
-
-      <Section title="个性化">
-        <p className="mb-2 text-[12px] text-muted">主题</p>
-        <div className="grid grid-cols-3 gap-2">
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => useApp.getState().setTheme(t.id)}
-              className={cn(
-                "rounded-2xl border px-3 py-3 text-left",
-                settings.theme === t.id ? "choice-card-on" : "choice-card-off",
-              )}
-            >
-              <span className="block text-sm font-medium">{t.label}</span>
-              <span className="text-[11px] text-muted">{t.hint}</span>
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
-        <p className="mb-2 text-[11px] text-subtle">
-          换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
-        </p>
-        {/* 现成的几套：点一下整套换掉 */}
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {TINT_PRESETS.map((p) => {
-            const active = normalizeTint(settings.composerTint).join() === p.colors.join();
-            return (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => patch({ composerTint: [...p.colors] })}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
-                  active ? "border-accent text-fg" : "border-line text-muted",
-                )}
-              >
-                <span
-                  className="size-3 rounded-full"
-                  style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
-                />
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-        {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
-        <div className="flex items-center gap-2">
-          {normalizeTint(settings.composerTint).map((c, i) => (
-            <label
-              key={i}
-              className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
-            >
+          {material === "solid" && (
+            <label className="mt-4 block px-1">
+              <span className="flex items-baseline justify-between text-[12px] text-muted">
+                <span>背景压纸色</span>
+                <span>{settings.bgPaper ?? 18}%</span>
+              </span>
               <input
-                type="color"
-                value={c}
-                aria-label={`第 ${i + 1} 段颜色`}
-                onChange={(e) => {
-                  const next = normalizeTint(settings.composerTint);
-                  next[i] = e.target.value;
-                  patch({ composerTint: next });
-                }}
-                className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
+                type="range"
+                min={0}
+                max={40}
+                step={2}
+                value={settings.bgPaper ?? 18}
+                onChange={(e) => patch({ bgPaper: Number(e.target.value) })}
+                aria-label="背景压纸色"
+                className="mt-2 w-full accent-accent"
               />
-              <span className="font-mono text-[10px] text-subtle">{c}</span>
+              <span className="mt-1 block text-[11px] leading-4 text-subtle">
+                只在纯色模式生效：压一点，实色卡片才不会像贴在花图上。
+              </span>
             </label>
-          ))}
-        </div>
-        {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
-        <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
-          对话框就是这个样子
-        </div>
-        <button
-          type="button"
-          onClick={() => patch({ composerTint: undefined })}
-          className="mt-1.5 text-[11px] text-subtle underline"
-        >
-          恢复默认（粉青蓝）
-        </button>
+          )}
+        </Fold>
 
+        <Fold
+          title="字体"
+          value={fontHint}
+          open={openFold === "font"}
+          onToggle={() => setOpenFold(openFold === "font" ? null : "font")}
+        >
         <p className="mt-4 mb-2 text-[12px] text-muted">正文字体</p>
         <div className="grid grid-cols-2 gap-2">
           {FONTS.map((f) => (
@@ -930,6 +916,84 @@ function MeSections({ tab }: { tab: MeTab }) {
           不然不好同时兼顾。"
           所以这里单独给一组：跟随文字 / 冷薄荷青 / 雾紫 / 暖金 / 自定义。
         */}
+        </Fold>
+
+        <Fold
+          title="对话框配色"
+          value={tintHint}
+          open={openFold === "tint"}
+          onToggle={() => setOpenFold(openFold === "tint" ? null : "tint")}
+        >
+        <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
+        <p className="mb-2 text-[11px] text-subtle">
+          换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
+        </p>
+        {/* 现成的几套：点一下整套换掉 */}
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {TINT_PRESETS.map((p) => {
+            const active = normalizeTint(settings.composerTint).join() === p.colors.join();
+            return (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => patch({ composerTint: [...p.colors] })}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
+                  active ? "border-accent text-fg" : "border-line text-muted",
+                )}
+              >
+                <span
+                  className="size-3 rounded-full"
+                  style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
+                />
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
+        <div className="flex items-center gap-2">
+          {normalizeTint(settings.composerTint).map((c, i) => (
+            <label
+              key={i}
+              className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
+            >
+              <input
+                type="color"
+                value={c}
+                aria-label={`第 ${i + 1} 段颜色`}
+                onChange={(e) => {
+                  const next = normalizeTint(settings.composerTint);
+                  next[i] = e.target.value;
+                  patch({ composerTint: next });
+                }}
+                className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
+              />
+              <span className="font-mono text-[10px] text-subtle">{c}</span>
+            </label>
+          ))}
+        </div>
+        {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
+        <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
+          对话框就是这个样子
+        </div>
+        <button
+          type="button"
+          onClick={() => patch({ composerTint: undefined })}
+          className="mt-1.5 text-[11px] text-subtle underline"
+        >
+          恢复默认（粉青蓝）
+        </button>
+
+        </Fold>
+
+        <Fold
+          title="其他"
+          value="星球颜色 · 认识的日子"
+          open={openFold === "more"}
+          onToggle={() => setOpenFold(openFold === "more" ? null : "more")}
+        >
         <p className="mt-4 mb-2 text-[12px] text-muted">小宇宙的星球颜色</p>
         <div className="flex flex-wrap gap-2">
           {PLANET_TONES.map((t) => (
@@ -992,7 +1056,28 @@ function MeSections({ tab }: { tab: MeTab }) {
         <p className="mt-2 text-[12px] leading-5 text-muted">
           深色背景图下小字看不清时，把它换成浅色字就行。
         </p>
-      </Section>
+        </Fold>
+      </section>
+
+      <section className="mt-6 px-4">
+        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">效果预览</h2>
+        <div className="rounded-3xl border border-line bg-surface p-3">
+          <div className="flex flex-col gap-2">
+            <div className="ml-auto w-fit max-w-[86%] rounded-[18px] rounded-tr-none border border-line bg-surface px-3.5 py-2 text-[13px] text-fg">
+              那你以后说话短点
+            </div>
+            <div className="w-fit max-w-[86%] rounded-[18px] rounded-tl-none border border-line bg-surface px-3.5 py-2 text-[13px] text-fg">
+              好，从这条开始。
+            </div>
+            <div className="glass-float mt-1 flex h-10 items-center rounded-2xl border border-line px-3 text-[12px] text-subtle">
+              和{resolveAiName(settings.aiName)}聊聊…
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 px-1 text-[11px] leading-4 text-subtle">
+          改上面任何一项，这块都会跟着变 —— 不用来回跳到聊天页去试。
+        </p>
+      </section>
     </>
   );
 
@@ -2731,52 +2816,6 @@ function MeSections({ tab }: { tab: MeTab }) {
 }
 
 /* ───────────────────────────── 小部件 ───────────────────────────── */
-
-function AvatarSlot({
-  label,
-  hint,
-  value,
-  preview,
-  onChange,
-}: {
-  label: string;
-  hint: string;
-  value: string;
-  preview: ReactNode;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="min-w-0 flex-1">
-      <FileButton
-        ariaLabel={label}
-        accept="image/*"
-        className="flex items-center gap-2.5 text-left"
-        onPick={(files) => {
-          const file = files[0];
-          if (file) readImageFile(file, onChange);
-        }}
-      >
-        {preview}
-        <span className="min-w-0">
-          <span className="block text-[13px] font-medium">{label}</span>
-          <span className="block truncate text-[11px] text-muted">
-            {value ? "已设置" : "点击上传"} · {hint}
-          </span>
-        </span>
-      </FileButton>
-      {value && (
-        <button
-          type="button"
-          className="mt-1.5 pl-1 text-[11px] text-subtle"
-          onClick={() => onChange("")}
-        >
-          恢复默认
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** 一张背景图槽位：缩略图 + 名字 + 说明 + 更换/移除。 */
 function ImageRow({
   label,
@@ -2859,6 +2898,49 @@ function Section({
       <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">{title}</h2>
       <div className="rounded-3xl border border-line bg-surface p-3">{children}</div>
     </section>
+  );
+}
+
+/**
+ * 折叠入口：一行标题 + 当前值，点开才展开内容。
+ *
+ * 用户定的版式（m14333）：我的空间就是"几行字"，点哪行展哪行；
+ * 不再一页全是常驻卡片 —— 那样每加一项就更长一截。
+ */
+function Fold({
+  title,
+  value,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  value: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="mt-3 rounded-3xl border border-line bg-surface">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] text-fg">{title}</span>
+          <span className="mt-0.5 block truncate text-[12px] text-muted">{value}</span>
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-subtle transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open && <div className="bubble-in border-t border-line/60 px-4 pb-4 pt-3">{children}</div>}
+    </div>
   );
 }
 

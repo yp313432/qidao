@@ -14,16 +14,24 @@ import { useApp } from "@/lib/store";
  */
 export function ComposerTint() {
   const tint = useApp((s) => s.settings.composerTint);
+  const material = useApp((s) => s.settings.material ?? "frost");
 
   useEffect(() => {
     const root = document.documentElement;
     const colors = normalizeTint(tint);
+    /**
+     * 同一套颜色，三种模式配不同浓度（用户 m14214 问"纯色下这套配色是不是废了"）：
+     * · 纯色：底色是实心的，染色只留 30%，像纸本身带的一点颜色
+     * · 半磨砂：100%，颜色从玻璃里透出来最好看
+     * · 液态玻璃：55%，再浓就盖掉透感、变成一块彩玻璃
+     */
+    const scale = material === "solid" ? 0.3 : material === "liquid" ? 0.55 : 1;
     TINT_VARS.forEach((name, i) => {
-      const css = hexToRgba(colors[i], TINT_ALPHAS[i]);
+      const css = hexToRgba(colors[i], TINT_ALPHAS[i] * scale);
       if (css) root.style.setProperty(name, css);
       else root.style.removeProperty(name);
     });
-  }, [tint]);
+  }, [tint, material]);
 
   return null;
 }
