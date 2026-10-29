@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { FileButton } from "@/components/file-button";
 import { readImageFile } from "@/lib/image-file";
 import { PageHeader } from "@/components/page-header";
+import { Avatar } from "@/components/avatar";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
@@ -22,6 +23,16 @@ export function CoreView() {
   const patch = useApp((s) => s.patchSettings);
   /** 点名字才进编辑态：平时就是一行字，不占地方也不用一直显示输入框 */
   const [editingName, setEditingName] = useState(false);
+  /** 滚过主卡之后顶栏收成"小头像 + 名字"（用户 m14665 图三，与「我的」同一套） */
+  const [solid, setSolid] = useState(false);
+  const solidRef = useRef(false);
+  const onScroll = (el: HTMLElement) => {
+    const next = el.scrollTop > 92;
+    if (next !== solidRef.current) {
+      solidRef.current = next;
+      setSolid(next);
+    }
+  };
   const [draftName, setDraftName] = useState("");
   const permissions = useApp((s) => s.settings.permissions);
   const memories = useApp((s) => s.memories);
@@ -33,9 +44,34 @@ export function CoreView() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <PageHeader title="AI 概览" />
+      <div
+        className="relative z-20 transition-colors duration-200"
+        style={
+          solid
+            ? {
+                backgroundColor: "var(--aster-surface)",
+                backdropFilter: "blur(20px) saturate(1.5)",
+                WebkitBackdropFilter: "blur(20px) saturate(1.5)",
+                borderBottom: "0.5px solid var(--aster-line)",
+              }
+            : undefined
+        }
+      >
+        <PageHeader
+          title="AI 概览"
+          right={
+            <span
+              className="flex items-center gap-1.5 overflow-hidden transition-opacity duration-200"
+              style={{ opacity: solid ? 1 : 0 }}
+            >
+              <Avatar role="ai" size={22} />
+              <span className="max-w-24 truncate text-[13px] text-muted">{aiName}</span>
+            </span>
+          }
+        />
+      </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-24">
+      <div onScroll={(e) => onScroll(e.currentTarget)} className="min-h-0 flex-1 overflow-y-auto px-4 pb-24">
         {/* 主卡：他现在的样子 */}
         <section className="rounded-3xl border border-line bg-elevated px-5 py-6 text-center">
           <FileButton

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, Heart, ImagePlus, Send } from "lucide-react";
 import { Avatar } from "@/components/avatar";
@@ -65,10 +65,48 @@ export function MomentsWall() {
     readImageFile(file, (url) => useApp.getState().patchSettings({ momentsCover: url }), 1440);
   }
 
+  /**
+   * 视差：封面比内容慢半拍（用户 m14665 要的"图二那种"）。
+   *
+   * 实现方式刻意选"流里 + transform 反向抵消"：封面仍然在滚动流里占 36dvh，
+   * 滚动 ↑ y 时再 `translateY(+0.45y)` 把它推回去一点，视觉上就只走了 0.55y；
+   * 因为内容紧随其后且是不透明底色，滚上来会把封面下半截盖住。
+   *
+   * 下拉（y < 0）时放大到最多 1.25 倍（用户参照的参考稿里的参数）。
+   * 直接改 style 不 setState —— 滚动每帧都 setState 会重渲染整条消息流。
+   */
+  const heroRef = useRef<HTMLDivElement>(null);
+  /**
+   * 封面滚过一半后，顶栏的白字要变回深色（否则白字压白底看不见）。
+   * 只在跨阈值时 setState 一次，滚动过程中不重渲染。
+   */
+  const [onLight, setOnLight] = useState(false);
+  const onLightRef = useRef(false);
+  function parallax(el: HTMLElement) {
+    const y = el.scrollTop;
+    const hero = heroRef.current;
+    if (!hero) return;
+    const pull = Math.min(Math.max(-y, 0) / 900, 0.25);
+    const next = y > el.clientHeight * 0.45;
+    if (next !== onLightRef.current) {
+      onLightRef.current = next;
+      setOnLight(next);
+    }
+    hero.style.transform = `translate3d(0, ${(y * 0.45).toFixed(1)}px, 0) scale(${(1 + pull).toFixed(3)})`;
+  }
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col" style={{ backgroundColor: WX.page }}>
+    <div className="relative flex min-h-0 flex-1 flex-col" style={{ backgroundColor: WX.page }}>
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        onScroll={(e) => parallax(e.currentTarget)}
+      >
       {/* ── 封面：整块背景图，点一下从相册换 ── */}
-      <div className="relative h-[36dvh] shrink-0" style={{ backgroundColor: WX.line }}>
+      <div
+        ref={heroRef}
+        className="relative h-[36dvh] shrink-0 overflow-hidden"
+        style={{ backgroundColor: WX.line, transformOrigin: "center top", willChange: "transform" }}
+      >
         <FileButton
           ariaLabel="换一张封面（从相册选）"
           accept="image/*"
@@ -91,18 +129,6 @@ export function MomentsWall() {
           所以点封面任意位置都能换图。
           ⚠️ 规格跟全 App 一样（size-11 / ChevronLeft size-6 / strokeWidth 1.6），别自己发明尺寸。
         */}
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-1 px-2 inset-top-50 pb-1">
-          <Link
-            to={(parentOf(pathname) ?? "/play") as never}
-            aria-label={backLabelOf(pathname)}
-            className="pointer-events-auto flex size-11 shrink-0 items-center justify-center text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
-          >
-            <ChevronLeft className="size-6" strokeWidth={1.6} />
-          </Link>
-          <span className="min-w-0 flex-1 truncate font-serif text-lg font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
-            朋友圈
-          </span>
-        </header>
 
         {/* 名字 + 头像：微信那样贴在封面右下角（名字在左、头像压着封面下沿） */}
         <div className="pointer-events-none absolute right-4 -bottom-7 flex items-end gap-3">
@@ -117,7 +143,7 @@ export function MomentsWall() {
       </div>
 
       {/* ── 动态消息（纯白信息流，没有玻璃）── */}
-      <div className="min-h-0 flex-1 overflow-y-auto pt-8" style={{ backgroundColor: WX.page }}>
+      <div className="pt-8" style={{ backgroundColor: WX.page }}>
         <Composer />
         {moments.length === 0 ? (
           <p className="px-4 py-12 text-center text-[14px]" style={{ color: WX.time }}>
@@ -135,6 +161,25 @@ export function MomentsWall() {
         <p className="py-8 text-center text-[11px] tracking-[0.2em]" style={{ color: "#d0d0d0" }}>
           FEELINGS ARRIVE BEFORE WORDS DO
         </p>
+      </div>
+
+        {/* 返回 + 标题固定在最上层（不跟封面一起缩放） */}
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1 px-2 inset-top-50 pb-1">
+          <Link
+            to={(parentOf(pathname) ?? "/play") as never}
+            aria-label={backLabelOf(pathname)}
+            className="pointer-events-auto flex size-11 shrink-0 items-center justify-center"
+            style={{ color: onLight ? "var(--aster-fg)" : "#fff", filter: onLight ? "none" : "drop-shadow(0 1px 3px rgba(0,0,0,.5))" }}
+          >
+            <ChevronLeft className="size-6" strokeWidth={1.6} />
+          </Link>
+          <span
+            className="min-w-0 flex-1 truncate font-serif text-lg font-medium"
+            style={{ color: onLight ? "var(--aster-fg)" : "#fff", textShadow: onLight ? "none" : "0 1px 3px rgba(0,0,0,.5)" }}
+          >
+            朋友圈
+          </span>
+        </header>
       </div>
     </div>
   );

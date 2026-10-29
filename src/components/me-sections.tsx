@@ -2,7 +2,7 @@ import { DateTimeField } from "@/components/ui/datetime-picker";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -181,12 +181,55 @@ export function MeHub() {
   const patch = useApp((s) => s.patchSettings);
   const settings = useApp((s) => s.settings);
   const scrollRef = useScrollMemory("me");
+  /*
+   * 「封面收进导航栏」（用户 m14665 图三）：往下滚时资料区那张大卡走掉，
+   * 顶栏接手——小头像（32px）滑进左边、名字跟上来、底下一层玻璃。
+   * 只在跨过阈值那一刻 setState，滚动过程里不重渲染。
+   */
+  const [solid, setSolid] = useState(false);
+  const solidRef = useRef(false);
+  const onScroll = (el: HTMLElement) => {
+    const next = el.scrollTop > 28;
+    if (next !== solidRef.current) {
+      solidRef.current = next;
+      setSolid(next);
+    }
+  };
 
   return (
-    <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <header className="px-5 inset-top-100 pb-4">
-        <p className="text-xs tracking-wide text-muted">账号与系统</p>
-        <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
+    <div
+      ref={scrollRef}
+      onScroll={(e) => onScroll(e.currentTarget)}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav"
+    >
+      <header
+        className="sticky top-0 z-20 inset-top-100 px-5 pb-3 transition-colors duration-200"
+        style={
+          solid
+            ? {
+                backgroundColor: "var(--aster-surface)",
+                backdropFilter: "blur(20px) saturate(1.5)",
+                WebkitBackdropFilter: "blur(20px) saturate(1.5)",
+                borderBottom: "0.5px solid var(--aster-line)",
+              }
+            : undefined
+        }
+      >
+        {/* 高度固定 46px：收起前后都占同样位置，内容不会因为顶栏变矮而跳一下 */}
+        <div className="flex h-[46px] items-center gap-2.5">
+          <span
+            className="overflow-hidden rounded-full transition-all duration-200"
+            style={{ width: solid ? 32 : 0, height: solid ? 32 : 0, opacity: solid ? 1 : 0 }}
+          >
+            <Avatar role="user" size={32} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={cn("text-xs tracking-wide text-muted", solid && "hidden")}>账号与系统</p>
+            <h1 className={cn("font-serif font-medium transition-all", solid ? "text-base" : "mt-1 text-2xl")}>
+              {solid ? settings.displayName || "我的" : "我的"}
+            </h1>
+          </div>
+        </div>
       </header>
 
       {/* 资料区：头像在上、名字在下；点头像就能换 */}

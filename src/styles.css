@@ -198,13 +198,13 @@
 
 /* ── 纯色：实色卡，不模糊、不开 backdrop-filter，靠线和一点阴影分层 ── */
 [data-material="solid"] {
-  --aster-surface: color-mix(in oklab, var(--aster-bg) 96%, #ffffff);
-  --aster-elevated: color-mix(in oklab, var(--aster-bg) 99%, #ffffff);
-  --aster-chip: color-mix(in oklab, var(--aster-canvas) 62%, transparent);
-  --aster-line: color-mix(in oklab, var(--aster-fg) 14%, transparent);
+  --aster-surface: var(--aster-bg);
+  --aster-elevated: color-mix(in oklab, var(--aster-bg) 94%, #ffffff);
+  --aster-chip: var(--aster-canvas);
+  --aster-line: transparent;
   --aster-blur: 0px;
   --aster-sat: 1;
-  --aster-shadow: 0 1px 2px color-mix(in oklab, var(--aster-fg) 7%, transparent);
+  --aster-shadow: 0 2px 10px color-mix(in oklab, var(--aster-fg) 9%, transparent);
   --aster-glass-highlight: transparent;
   --aster-sheen: transparent;
   --aster-gleam-a: 0;
@@ -216,11 +216,11 @@
   --aster-surface: color-mix(in oklab, var(--aster-bg) 62%, transparent);
   --aster-elevated: color-mix(in oklab, var(--aster-bg) 72%, transparent);
   --aster-chip: color-mix(in oklab, var(--aster-bg) 38%, transparent);
-  --aster-line: color-mix(in oklab, #ffffff 46%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 26%, transparent);
   --aster-blur: 20px;
   --aster-sat: 1.5;
   --aster-shadow: 0 4px 18px color-mix(in oklab, var(--aster-fg) 10%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 92%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 45%, transparent);
   --aster-sheen: color-mix(in oklab, #ffffff 20%, transparent);
   --aster-gleam-a: 0.4;
   --aster-flash-a: 0.12;
@@ -228,16 +228,16 @@
 
 /* ── 液态玻璃：极透，背景的彩色直接映进来；边只有 0.5px ── */
 [data-material="liquid"] {
-  --aster-surface: color-mix(in oklab, #ffffff 10%, transparent);
+  --aster-surface: color-mix(in oklab, #ffffff 8%, transparent);
   --aster-elevated: color-mix(in oklab, #ffffff 13%, transparent);
   --aster-chip: color-mix(in oklab, #ffffff 15%, transparent);
   /* 亮边只在"有边框的元素"上出现；alpha 收淡 = 实机上更细，不要靠 border-width 去压 */
-  --aster-line: color-mix(in oklab, #ffffff 30%, transparent);
-  --aster-blur: 28px;
-  --aster-sat: 1.72;
-  --aster-shadow: 0 10px 30px color-mix(in oklab, var(--aster-fg) 16%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 30%, transparent);
-  --aster-sheen: color-mix(in oklab, #ffffff 16%, transparent);
+  --aster-line: color-mix(in oklab, #ffffff 16%, transparent);
+  --aster-blur: 16px;
+  --aster-sat: 1.6;
+  --aster-shadow: 0 6px 20px color-mix(in oklab, var(--aster-fg) 7%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 22%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 22%, transparent);
   --aster-gleam-a: 0.55;
   --aster-flash-a: 0.16;
 }
@@ -276,7 +276,25 @@
 }
 
 /* 纯色模式下，背景图上面压一层主题纸色（0~40%，由 --aster-bg-paper 控制） */
-[data-material="solid"] .page-bg-paper::after {
+/* 纯色模式：大面积的浮层（输入框、底部导航、面板）也走实色，一整套都"不透明" */
+[data-material="solid"] .glass-float,
+[data-material="solid"] .glass-nav,
+[data-material="solid"] .glass-nav-bar,
+[data-material="solid"] .glass-panel,
+[data-material="solid"] .glass-tray {
+  background-color: var(--aster-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* 底部导航原来还挂了一条渐变光泽带（`glass-nav-bar`），纯色模式下也得摘掉 */
+[data-material="solid"] .glass-nav-bar,
+[data-material="solid"] .glass-nav {
+  background-image: none;
+}
+
+/* 纯色模式：把背景图压一层纸色（0 = 原样，40% = 只剩氛围） */
+[data-material="solid"] [data-bg-layer]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -393,9 +411,9 @@ html[data-motion="off"] *::after {
     linear-gradient(
       100deg,
       transparent 26%,
-      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, 0.10) 40%,
       rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
-      rgba(0, 0, 0, 0.06) 60%,
+      rgba(255, 255, 255, 0.10) 60%,
       transparent 74%
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 45%);
@@ -417,9 +435,9 @@ html[data-motion="off"] *::after {
     linear-gradient(
       100deg,
       transparent 26%,
-      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, 0.10) 40%,
       rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
-      rgba(0, 0, 0, 0.06) 60%,
+      rgba(255, 255, 255, 0.10) 60%,
       transparent 74%
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 60%);
@@ -448,9 +466,9 @@ html[data-motion="off"] *::after {
     linear-gradient(
       100deg,
       transparent 26%,
-      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, 0.10) 40%,
       rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
-      rgba(0, 0, 0, 0.06) 60%,
+      rgba(255, 255, 255, 0.10) 60%,
       transparent 74%
     ),
     linear-gradient(180deg, var(--aster-sheen) 0%, transparent 45%);
@@ -474,9 +492,9 @@ html[data-motion="off"] *::after {
     linear-gradient(
       100deg,
       transparent 26%,
-      rgba(0, 0, 0, 0.06) 40%,
+      rgba(255, 255, 255, 0.10) 40%,
       rgba(255, 255, 255, var(--aster-gleam-a, 0.6)) 50%,
-      rgba(0, 0, 0, 0.06) 60%,
+      rgba(255, 255, 255, 0.10) 60%,
       transparent 74%
     ),
     linear-gradient(180deg, transparent 0%, var(--aster-sheen) 100%);

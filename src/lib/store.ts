@@ -82,7 +82,7 @@ const defaultSettings: Settings = {
   theme: "dawn",
   material: "frost",
   palette: "cream",
-  bgPaper: 18,
+  bgPaper: 12,
   showThinking: true,
   saveThinking: true,
   notifications: true,
@@ -2052,7 +2052,7 @@ export function applyAppearance(settings: Settings) {
   const material = settings.material ?? "frost";
   root.dataset.material = material;
   root.dataset.palette = settings.palette ?? "cream";
-  const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 18)) : 0;
+  const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 12)) : 0;
   root.style.setProperty("--aster-bg-paper", String(paper / 100));
   root.dataset.font = settings.font ?? "system";
   // 动画开关：auto 时由 CSS 里的 prefers-reduced-motion 决定，on/off 由这里强制定
