@@ -201,7 +201,7 @@ export function MeHub() {
   const hintRef = useRef<HTMLParagraphElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const spacerRef = useRef<HTMLDivElement>(null);
-  /** 滚到底所需的总可滚量：内容贴住 46px 顶栏时刚好用完（挂载时实测） */
+  /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
   const needRef = useRef(0);
 
   const HEAD_H = 300; // 展开时资料卡的高度（塌陷行程 = 300-46 = 254px，行程越长收得越慢）
@@ -209,6 +209,16 @@ export function MeHub() {
   const AV0 = 80; // 头像展开尺寸
   const AV1 = 28; // 头像收起尺寸
   const NAME_W = 220; // 名字输入框宽度（居中时靠它算落点）
+  /**
+   * 收起后第一张卡与顶栏之间留的空隙。
+   *
+   * 用户原话："距离可以没有重叠" —— 宁可留一道缝，也不要让内容被顶栏压住。
+   * 这个值参与 need 的计算（见下面 pad），所以它是"收起态唯一的目标间距"，
+   * 别在别处再写死一个数字。
+   */
+  const GAP = 8;
+  /** 头块吸顶时距滚动区顶部的偏移，必须和下面 sticky 的 `top` 里的 +2px 保持一致 */
+  const BAR_TOP = 2;
 
   const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -255,7 +265,11 @@ export function MeHub() {
     const fade = String(1 - clamp01(p / 0.34));
     if (fadeRef.current) {
       fadeRef.current.style.opacity = fade;
-      fadeRef.current.style.pointerEvents = p > 0.34 ? "none" : "";
+      /*
+       * 外层已经是 pointer-events: none，这里必须写 `auto` 才会重新可点 ——
+       * 写 ""（移除内联样式）只会继承外层的 none，称呼那几个按钮就永远点不动了。
+       */
+      fadeRef.current.style.pointerEvents = p > 0.34 ? "none" : "auto";
     }
     if (hintRef.current) hintRef.current.style.opacity = fade;
     if (titleRef.current) titleRef.current.style.opacity = String(1 - clamp01(p / 0.22));
@@ -269,12 +283,18 @@ export function MeHub() {
   }, []);
 
   /**
-   * 补足可滚量：让「滚到底」= 头收成 46px 顶栏，且第一个入口正好贴在它下面。
+   * 补足可滚量：让「滚到底」= 头收成 46px 顶栏，且第一个入口停在它下面 GAP 像素处。
    *
    * ⚠️ 2026-10-29 返工三次的教训：
    *   · 只补到「行程」(254px) → 内容短，滚到底时内容还没贴上来，中间空一大片；
    *   · 让头块真实变矮 → 内容被「缩小 + 滚动」顶两次，直接飞出屏幕。
-   * 现在按「第一个内容块贴到 BAR_H 需要滚多少」来补，再在 onScroll 里拆成两段。
+   * 现在按「第一个内容块贴到 顶栏底边 + GAP 需要滚多少」来补，再在 onScroll 里拆成两段。
+   *
+   * ⚠️ 2026-10-30 用户报"头像缩小之后和下面内容是重叠的"：
+   * 原来目标取的是「顶栏顶边 + BAR_H」（= 顶栏底边，零间距），于是刚收起时第一张卡
+   * 正好贴着玻璃条下沿，视觉上像压在一起。现在目标改成顶栏底边 + GAP，
+   * 并且把 sticky 自己的吸顶偏移（BAR_TOP）和原生状态栏高度（--q-inset-top）也减掉：
+   * 浏览器里 inset-top 是 0，只减 BAR_H 看不出问题，装到真机上内容会被顶栏压住一条。
    */
   useEffect(() => {
     const el = scrollRef.current;
@@ -286,7 +306,16 @@ export function MeHub() {
       const offset = content
         ? content.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
         : HEAD_H;
-      const need = Math.max(HEAD_H - BAR_H, offset - BAR_H);
+      /**
+       * 顶栏底边 = 状态栏高度（原生推的 `--q-inset-top`） + 吸顶偏移 + BAR_H。
+       * 本页的滚动区从屏幕最顶上开始，所以状态栏高度必须算进来。
+       */
+      const insetRaw = getComputedStyle(document.documentElement)
+        .getPropertyValue("--q-inset-top")
+        .trim();
+      const insetTop = Number.isFinite(parseFloat(insetRaw)) ? parseFloat(insetRaw) : 0;
+      const target = BAR_H + GAP + BAR_TOP + insetTop;
+      const need = Math.max(HEAD_H - BAR_H, offset - target);
       needRef.current = need;
       /*
        * 增量补，不能"先归零再量差值"：内容比容器还短时 scrollHeight 会被夹成 clientHeight，
@@ -341,8 +370,18 @@ export function MeHub() {
         既不会「中间空一大片」（那是布局高度不变 + 内容没跟上），也不会被头块自身的缩小顶飞。
         可滚量由底部 spacer 补足，spacer 高度在挂载时实测（见下面那个 effect）。
       */}
+      {/*
+        ⚠️ 2026-10-30 用户报「AI 概览缩小时下面那些功能点不进去」：
+        这一层是 HEAD_H 高的布局占位，收起后它的**透明区域**仍然盖在内容上面（z-20），
+        以前整层默认可点，于是把下面的入口全挡住了。
+        现在整层 pointer-events: none，只有真正要点的元素（头像、名字输入框、称呼按钮）
+        各自加 pointer-events-auto 顶回来。
+        ⚠️ **不要用"把外层 height 改小"来躲这个坑**：外层高度就是内容位置计算和
+        1:1 映射的基准，改小会让"滚到底 ⇔ 头收完 + 内容贴住"这条恒等式断掉。
+      */}
       <div
-        className="sticky z-20 mx-4 mt-3 shrink-0"
+        className="pointer-events-none sticky z-20 mx-4 mt-3 shrink-0"
+        data-surface
         style={{ height: HEAD_H, top: "calc(var(--q-inset-top, 0px) + 2px)" }}
       >
         <div
@@ -364,7 +403,8 @@ export function MeHub() {
         />
         <span
           ref={avRef}
-          className="absolute left-0 top-0 block"
+          /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
+          className="pointer-events-auto absolute left-0 top-0 block"
           style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
         >
           <FileButton
@@ -388,7 +428,8 @@ export function MeHub() {
         </p>
         <span
           ref={nameRef}
-          className="absolute left-0 top-0 block"
+          /* 同上：名字要能输入/聚焦，得单独顶回可点击 */
+          className="pointer-events-auto absolute left-0 top-0 block"
           style={{ width: NAME_W, transformOrigin: "0 0" }}
         >
           <input

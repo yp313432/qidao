@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { prettySize } from "@/lib/attachments";
+import { setChatPageActive } from "@/lib/chat-presence";
 import { firstSegment } from "@/lib/segment";
 import { Avatar } from "@/components/avatar";
 
@@ -88,9 +89,19 @@ function isPunctOnly(s: string | undefined | null): boolean {
  * 屏幕上就是"一个带括号的空框"。这里把空地址链接压成纯文字、空地址图片直接删掉。
  */
 function cleanForRender(s: string): string {
-  return stripActionLines(s)
-    .replace(/!\[[^\]]*\](\(\s*\))/g, "")
-    .replace(/\[([^\]]+)\]\(\s*\)/g, "$1");
+  return (
+    stripActionLines(s)
+      /**
+       * ⚠️ 2026-10-29（用户截图："定时唤醒气泡里出现 III"）：
+       * `|||` 是分段分隔符。分段关掉（或老消息没写 parts）时，它会被当成正文
+       * 原样画出来 —— 屏幕上就是三根竖杠，看着像排版坏了。
+       * 渲染前统一换成换行：既去掉了记号，也**一个字都没丢**（分隔处本来就是断句）。
+       */
+      .replace(/[ \t]*\|{2,}[ \t]*/g, "\n\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/!\[[^\]]*\](\(\s*\))/g, "")
+      .replace(/\[([^\]]+)\]\(\s*\)/g, "$1")
+  );
 }
 
 function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
@@ -173,6 +184,14 @@ export function ChatView() {
    */
   const composerWrap = useRef<HTMLDivElement>(null);
   const [padBottom, setPadBottom] = useState(168);
+  /**
+   * **聊天页存在感**（用户 m01146）：他正聊着时，别让他自己排的唤醒插进来。
+   * 这一面旗子只活在模块变量里（见 `lib/chat-presence`），页面卸载就撤掉。
+   */
+  useEffect(() => {
+    setChatPageActive(true);
+    return () => setChatPageActive(false);
+  }, []);
   useEffect(() => {
     const el = composerWrap.current;
     if (!el) return;

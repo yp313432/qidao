@@ -366,7 +366,7 @@ export function MemoryLibrary() {
             className="absolute inset-0 bg-fg/25"
             onClick={() => setArchiveOpen(false)}
           />
-          <div className="glass-panel relative z-10 max-h-[82%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="glass-panel relative z-10 max-h-[82%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]" data-contrast>
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
             <div className="mb-2 flex items-center justify-between">
               <p className="font-serif text-[15px]">归档</p>

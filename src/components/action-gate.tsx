@@ -123,6 +123,7 @@ export function ActionGate() {
           "glass-menu relative z-10 w-full max-w-sm rounded-3xl px-5 py-5",
           critical && "ring-2 ring-warn/50",
         )}
+        data-contrast
       >
         <div
           className={cn(

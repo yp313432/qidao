@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
+import { wakeShouldYield } from "@/lib/chat-presence";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
@@ -181,6 +182,17 @@ export function TaskDaemon() {
         return minutes >= at;
       });
       if (!due) return;
+
+      /**
+       * ⭐ **别在人家聊着天的时候插一句**（用户 m01146）。
+       *
+       * 他"自己的日子"那三类（自由活动 / 日记保底 / 回响）在对话页开着、App 在前台时
+       * **一律让路**：不删、不标记跑过，只是这一轮不开口 —— 等用户切到别的页面
+       * 或把 App 收起来，下一轮 tick 照常补上。
+       *
+       * 用户自己定的定时任务**不拦**：那是他明确要的提醒。
+       */
+      if (isSystemWake(due) && wakeShouldYield()) return;
 
       busy.current = true;
       /**

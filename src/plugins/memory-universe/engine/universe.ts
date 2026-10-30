@@ -2,21 +2,25 @@ import type { Memory, MemoryRelationship } from "../types"
 import { Camera } from "./camera"
 import { clamp, hash32, lerp, mulberry32, spring } from "./easing"
 import { buildAdjacency, expandFrom, type Adjacency, type LayerMap } from "./graph"
-import { assignRestPositions, computeConstellationTarget } from "./layout"
+import { assignRestPositions } from "./layout"
 import {
   drawMemoryLabel,
   drawMemoryStar,
-  drawOrbits,
+  labelOf,
   type StarNode,
 } from "./memory-node"
 import { drawEdge } from "./relationship-lines"
+import { VOID } from "./palette"
 import {
+  createBokeh,
   createDust,
   createFieldStars,
+  drawBokeh,
   drawDust,
   drawFieldStars,
   drawVignette,
   paintBackground,
+  type Bokeh,
   type Dust,
   type FieldStar,
 } from "./star-field"
@@ -25,6 +29,10 @@ const MAX_DEPTH = 2
 const NEBULA_SRC = "/memory-universe/nebula.jpg"
 /** 透视焦距：z 越大（越远）星越小、越靠中心 */
 const PERSP_F = 1000
+/** 一屏只写 8 个标签：再多就是"网络图节点标注"，用户明确否掉了 */
+const TOP_LABELS = 8
+/** 选中时最多牵出 4 条线 */
+const MAX_LINKS = 4
 
 export interface UniverseOptions {
   memories: Memory[]
@@ -39,6 +47,12 @@ export interface UniverseHandle {
   select: (id: string | null) => void
   resetView: () => void
   locateStars: () => Array<{ id: string; title: string; x: number; y: number }>
+  /** 调试用（截图脚本核对"默认 0 条线 / 选中 ≤4 条 / 一屏 8 个标签"） */
+  debug: () => {
+    nodes: number
+    labels: string[]
+    links: Array<{ a: string; b: string; strength: number }>
+  }
   destroy: () => void
 }
 
@@ -85,9 +99,13 @@ export function mountUniverse(
   const pointers = new Map<number, Pointer>()
   let pinchDist = 0
   const edgeAppear = new Map<string, number>()
+  /** 选中态要画的那几条线（预先按 strength 取前 4，逐帧不用再排序） */
+  let links: Array<{ a: string; b: string; strength: number }> = []
 
-  const dust: Dust[] = createDust(160, 7)
-  const fieldStars: FieldStar[] = createFieldStars(110, 13)
+  const dust: Dust[] = createDust(260, 7)
+  const fieldStars: FieldStar[] = createFieldStars(190, 13)
+  /** 焦外星（近景虚焦光斑）：给画面一点"镜头在前"的纵深 */
+  const bokeh: Bokeh[] = createBokeh(6, 71)
 
   const img = new Image()
   img.crossOrigin = "anonymous"
@@ -132,29 +150,35 @@ export function mountUniverse(
     })
   }
 
+  /** 选中一颗星时，只保留"最相关的 4 条"作为要画的线 */
+  function refreshLinks() {
+    links = []
+    if (!selectedId) return
+    const near = [...(adj.get(selectedId) ?? [])]
+      .sort((p, q) => q.strength - p.strength)
+      .slice(0, MAX_LINKS)
+    for (const n of near) links.push({ a: selectedId, b: n.id, strength: n.strength })
+  }
+
   function retarget() {
+    /*
+     * 第二版：选中时不再把相关星"吸"到选中星周围。
+     * 首版会算 constellation 目标位、再把相机推近——结果点一下星，整片星空哗地重排、
+     * 镜头飞过去，用户说"星别飞走"。现在选中只做两件事：标出层级（用于变暗）、
+     * 记下要画的 4 条线；星星本身待在原地，画面只是"被圈出重点"。
+     */
     if (!selectedId) {
-      for (const n of nodes) {
-        n.tx = n.restX
-        n.ty = n.restY
-        n.depth = null
-      }
+      layers = new Map()
+      for (const n of nodes) n.depth = null
+      refreshLinks()
       return
     }
     layers = expandFrom(selectedId, adj, MAX_DEPTH)
-    const rest = new Map(nodes.map((n) => [n.memory.id, { x: n.restX, y: n.restY }]))
     for (const n of nodes) {
       const d = layers.get(n.memory.id)
       n.depth = d === undefined ? null : d
-      if (d === undefined) {
-        n.tx = n.restX
-        n.ty = n.restY
-      } else {
-        const t = computeConstellationTarget(n.memory.id, selectedId, rest, layers, adj)
-        n.tx = t.x
-        n.ty = t.y
-      }
     }
+    refreshLinks()
   }
 
   function frameFocus(wx: number, wy: number, scale: number) {
@@ -181,11 +205,16 @@ export function mountUniverse(
         maxX = Math.max(maxX, n.restX)
         maxY = Math.max(maxY, n.restY)
       }
-      const pad = 220
+      const pad = 180
       const w = maxX - minX + pad * 2
       const h = maxY - minY + pad * 2
-      const scale = Math.min(cam.width / w, cam.height / h, 1.05)
-      cam.lookAt((minX + maxX) * 0.5, (minY + maxY) * 0.5, scale)
+      const scale = Math.min(cam.width / w, cam.height / h, 1.05) * 1.1
+      // 把星场整体往画面上方推 5%：下面 33% 是记忆区，星别贴着它
+      cam.lookAt(
+        (minX + maxX) * 0.5,
+        (minY + maxY) * 0.5 + (cam.height * 0.05) / scale,
+        scale,
+      )
       return
     }
     const n = nodes.find((x) => x.memory.id === id)
@@ -195,16 +224,11 @@ export function mountUniverse(
     frameFocus(n.tx, n.ty, z)
   }
 
-  function select(id: string | null, fromUser = true) {
-    if (selectedId === id) {
-      if (id && fromUser) focusCamera(id)
-      return
-    }
+  function select(id: string | null) {
+    if (selectedId === id) return
     selectedId = id
-    if (id) layers = expandFrom(id, adj, MAX_DEPTH)
-    else layers = new Map()
+    // 选中 / 取消选中都只重算层级和连线，不动相机、不动星 —— 「星本身不飞走」
     retarget()
-    focusCamera(id)
     idle = 0
     const mem = id ? (memories.find((m) => m.id === id) ?? null) : null
     options.onSelect(mem)
@@ -275,10 +299,12 @@ export function mountUniverse(
       n.reveal = lerp(n.reveal, wantReveal, 1 - Math.exp(-(reduced ? 14 : 3.4) * dt))
       let wantDim = 1
       if (selectedId) {
-        if (n.depth === null) wantDim = 0.18
+        // 只把"跟选中星完全无关"的压暗一点，留着它们当背景星；
+        // 压太狠（首版 0.18）会把画面变成"黑底 + 一颗星 + 几条线"，就没有星空了
+        if (n.depth === null) wantDim = 0.62
         else if (n.depth === 0) wantDim = 1
-        else if (n.depth === 1) wantDim = 0.95
-        else wantDim = 0.78
+        else if (n.depth === 1) wantDim = 1
+        else wantDim = 0.82
       }
       if (search && !matchesSearch(n.memory)) wantDim *= 0.16
       n.dim = lerp(n.dim, wantDim, 1 - Math.exp(-5 * dt))
@@ -286,23 +312,21 @@ export function mountUniverse(
   }
 
   function stepEdges(dt: number) {
+    /*
+     * 只在选中时存在线，而且只有 links 里那 4 条。
+     * 首版是把"层级里所有两端都可见的关系"全画出来 —— 40+ 条记忆时满屏都是线，
+     * 用户截图里的"网络图"就是这么来的。现在默认一条都不画。
+     */
     const next = new Set<string>()
-    if (selectedId) {
-      for (const rel of relationships) {
-        const da = layers.get(rel.sourceId)
-        const db = layers.get(rel.targetId)
-        if (da === undefined || db === undefined) continue
-        next.add(edgeKey(rel.sourceId, rel.targetId))
-      }
-    }
+    for (const l of links) next.add(edgeKey(l.a, l.b))
     for (const key of next) {
       const cur = edgeAppear.get(key) ?? 0
-      const speed = reduced ? 8 : 2.1
+      const speed = reduced ? 8 : 2.4
       edgeAppear.set(key, Math.min(1, cur + dt * speed))
     }
     for (const [key, v] of [...edgeAppear]) {
       if (next.has(key)) continue
-      const nv = v - dt * (reduced ? 8 : 2.6)
+      const nv = v - dt * (reduced ? 8 : 3)
       if (nv <= 0) edgeAppear.delete(key)
       else edgeAppear.set(key, nv)
     }
@@ -323,12 +347,6 @@ export function mountUniverse(
     }
 
     cam.step(dt, reduced)
-    if (selectedId) {
-      const n = nodes.find((x) => x.memory.id === selectedId)
-      if (n && cam.following) {
-        frameFocus(n.x, n.y, cam.tScale)
-      }
-    }
     stepNodes(dt)
     stepEdges(dt)
 
@@ -337,46 +355,40 @@ export function mountUniverse(
     const h = cam.height
     if (bg) ctx.drawImage(bg, 0, 0, w, h)
     else {
-      ctx.fillStyle = "#05040a"
+      ctx.fillStyle = VOID
       ctx.fillRect(0, 0, w, h)
     }
 
-    const fieldDim = selectedId ? 0.38 : 0.85
+    const fieldDim = selectedId ? 0.8 : 1
     drawDust(ctx, dust, cam, time)
     drawFieldStars(ctx, fieldStars, cam, time, fieldDim * intro)
 
-    // Lines under stars
+    // 线画在星下面：细线从星核里"长"出来，压在星上面会显得脏
     if (edgeAppear.size) {
       const pos = new Map(nodes.map((n) => [n.memory.id, n]))
-      for (const rel of relationships) {
-        const key = edgeKey(rel.sourceId, rel.targetId)
+      for (const l of links) {
+        const key = edgeKey(l.a, l.b)
         const appear = edgeAppear.get(key)
         if (!appear) continue
-        const a = pos.get(rel.sourceId)
-        const b = pos.get(rel.targetId)
+        const a = pos.get(l.a)
+        const b = pos.get(l.b)
         if (!a || !b) continue
         const pa = cam.worldToScreen(a.x, a.y)
         const pb = cam.worldToScreen(b.x, b.y)
-        drawEdge(
-          ctx,
-          pa.x,
-          pa.y,
-          pb.x,
-          pb.y,
-          rel.strength,
-          appear,
-          time,
-          hash32(key),
-          reduced,
-        )
+        drawEdge(ctx, pa.x, pa.y, pb.x, pb.y, appear, hash32(key))
       }
     }
 
+    // 一屏只写 8 个标签：这是用户最在意的一条，宁少勿多
+    const labelIds = topLabelIds(selectedId)
+    const centerX = w * 0.5
+    const centerY = h * 0.42
+
+    // 远的先画、近的后画：遮挡关系对了，纵深才成立（选中的那颗永远压最上面）
     const ordered = [...nodes].sort((a, b) => {
       const da = a.memory.id === selectedId ? 1 : 0
       const db = b.memory.id === selectedId ? 1 : 0
-      // 远的先画、近的后画：叠出来的遮挡关系才对（选中的那颗永远压最上面）
-      return da - db || b.z - a.z
+      return da - db || a.persp - b.persp
     })
 
     for (const n of ordered) {
@@ -387,7 +399,7 @@ export function mountUniverse(
       const hovered = n.memory.id === hoveredId
       const searchHit = Boolean(search) && matchesSearch(n.memory)
       const alpha = clamp(n.dim * intro, 0, 1)
-      const r = drawMemoryStar(ctx, p.x, p.y, n, {
+      drawMemoryStar(ctx, p.x, p.y, n, {
         selected,
         related,
         hovered,
@@ -395,26 +407,63 @@ export function mountUniverse(
         time,
         alpha,
       })
-      if (selected) drawOrbits(ctx, p.x, p.y, r, time, alpha)
 
-      let labelA = alpha
-      if (!selected && !related && !hovered) {
-        labelA *= clamp((cam.scale - 0.45) / 0.5, 0.28, 0.72)
-      } else if (related) labelA *= 0.92
-      else if (selected) labelA = Math.min(1, alpha)
-      if (hovered && !selected) labelA = Math.min(1, 0.95 * intro)
-      if (search && !matchesSearch(n.memory)) labelA *= 0.15
-      // 远处的星，字也淡一点（不然一屏的字一样重，就没有纵深了）
-      labelA *= 0.55 + 0.45 * Math.min(1, n.persp)
-      drawMemoryLabel(ctx, p.x, p.y, r, n.memory.title, {
+      if (!labelIds.has(n.memory.id)) continue
+      // 远处的星字也淡一点：一屏 8 个字如果一样重，纵深就没了
+      let labelA = alpha * (0.72 + 0.28 * Math.min(1, n.persp))
+      if (selected) labelA = Math.min(1, alpha * 1.05)
+      else if (hovered) labelA = Math.min(1, labelA + 0.12)
+      if (search && !matchesSearch(n.memory)) labelA *= 0.2
+      drawMemoryLabel(ctx, p.x, p.y, labelOf(n.memory.title), {
         selected,
-        related: related || hovered,
+        related,
         alpha: labelA,
+        width: w,
+        height: h,
+        centerX,
+        centerY,
       })
     }
 
+    // 焦外星压在记忆星之上：它离镜头最近，本来就该挡住后面的东西
+    drawBokeh(ctx, bokeh, cam, time, selectedId ? 0.7 : 1)
+
     drawVignette(ctx, w, h)
     raf = requestAnimationFrame(draw)
+  }
+
+  /**
+   * 取 importance 最高的 8 条；选中那颗不在其中时顶掉最暗的一个，标签总数恒为 8。
+   * 搜索时命中的星优先占位 —— 一次只画 8 个标签之后，命中星如果没有标签，
+   * 用户只能看到"某处亮了一下"，等于搜不到，所以这里必须给命中星让位。
+   */
+  function topLabelIds(selected: string | null): Set<string> {
+    const sorted = [...nodes].sort(
+      (a, b) => (b.memory.importance ?? 0.55) - (a.memory.importance ?? 0.55),
+    )
+    const out = new Set<string>()
+    if (search) {
+      for (const n of sorted) {
+        if (out.size >= TOP_LABELS) break
+        if (n.memory.id === selected || matchesSearch(n.memory)) out.add(n.memory.id)
+      }
+    }
+    for (const n of sorted) {
+      if (out.size >= TOP_LABELS) break
+      out.add(n.memory.id)
+    }
+    if (selected && !out.has(selected)) {
+      // 顶掉集合里最暗的一个：搜索时集合顺序已被命中星打乱，不能直接删"最后一个"
+      let weakest: StarNode | null = null
+      for (const n of nodes) {
+        if (!out.has(n.memory.id)) continue
+        const imp = n.memory.importance ?? 0.55
+        if (!weakest || imp < (weakest.memory.importance ?? 0.55)) weakest = n
+      }
+      if (weakest) out.delete(weakest.memory.id)
+      out.add(selected)
+    }
+    return out
   }
 
   function onPointerDown(e: PointerEvent) {
@@ -552,10 +601,13 @@ export function mountUniverse(
       search = q.trim()
     },
     select(id) {
-      select(id, true)
+      select(id)
     },
     resetView() {
       select(null)
+      // 「回到星空」把镜头也归位：取消选中本身不该动画面，
+      // 但这个按钮的语义就是"我要看全"。
+      focusCamera(null)
       cam.vx = 0
       cam.vy = 0
     },
@@ -564,6 +616,13 @@ export function mountUniverse(
         const p = cam.worldToScreen(n.x, n.y)
         return { id: n.memory.id, title: n.memory.title, x: p.x, y: p.y }
       })
+    },
+    debug() {
+      return {
+        nodes: nodes.length,
+        labels: [...topLabelIds(selectedId)],
+        links: links.map((l) => ({ ...l })),
+      }
     },
     destroy() {
       running = false

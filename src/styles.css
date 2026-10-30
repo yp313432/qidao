@@ -4390,25 +4390,95 @@ html.q-paused * {
       否则会被材质块里的 surface/chip 覆盖。
    ══════════════════════════════════════════════════════════════════ */
 :root[data-scheme="dark"] {
-  --aster-canvas: #14100d;
-  --aster-bg: #1a1613;
+  /**
+   * ⚠️ 2026-10-29 第二版（用户 m01237）：
+   * "液态玻璃和气泡变成黑玻璃不好看了……只要给按钮和弹层加对比就行，
+   *  气泡、卡片、玻璃都保持白色。"
+   *
+   * 所以这一块**不再把表面翻黑**：卡片/气泡仍是白玻璃（透明度压得比浅色模式更实一点，
+   * 因为底色是深色图，太透就发灰），只是里面的字必须换成深色 —— 见下面那条「表面深字」。
+   * 真正翻深的只有"要摸的东西"：按钮、输入条、弹层（靠 `[data-contrast]` 标记）。
+   */
+  --aster-surface: color-mix(in oklab, #fffcf8 58%, transparent);
+  --aster-elevated: color-mix(in oklab, #fffdfa 72%, transparent);
+  --aster-chip: color-mix(in oklab, #fffdfa 50%, transparent);
+  --aster-line: color-mix(in oklab, #fffdfa 76%, transparent);
   --aster-menu: color-mix(in oklab, #241f1b 94%, transparent);
+  --aster-accent: #b96f4e;
+  --aster-accent-fg: #fffcf8;
+  --aster-warn: #c2623a;
+  --aster-ok: #4f8a63;
+  --aster-shadow: 0 16px 40px color-mix(in oklab, #000 38%, transparent);
+  --aster-glass-highlight: color-mix(in oklab, #ffffff 46%, transparent);
+  --aster-sheen: color-mix(in oklab, #ffffff 18%, transparent);
+  --aster-gleam-a: 0.62;
+  --aster-flash-a: 0.1;
+  --aster-bg: #14110f;
+  --aster-ink: #f3ece4;
+  --aster-ink-fg: #14110f;
+}
+
+/**
+ * **表面（气泡 / 卡片 / 玻璃）里的字翻回深色。**
+ *
+ * 它们自己的底色是白玻璃（上面那块给的），字要是还跟着 `--aster-fg`（用户选的浅色）
+ * 就成了白底白字。这里把三个文字 token 按"表面内"重新定成深色。
+ * 只认带 bg-surface / bg-elevated / bg-chip 类的元素 —— 也就是全站那套语义卡片。
+ */
+:root[data-scheme="dark"] :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"], [class*="border-line"], [class*="glass-"]:not([class*="glass-menu"]), [data-surface]) {
+  --aster-fg: #1c1917;
+  --aster-muted: #6f6961;
+  --aster-subtle: #9a948c;
+  color: var(--aster-fg);
+}
+
+/**
+ * **控件翻深**：按钮、输入、弹层（`[data-contrast]` 标记）。
+ *
+ * 必须写在「表面深字」**之后**：按钮也常常带 bg-surface 类，两条规则权重相同，
+ * 后写的这条赢 —— 所以按钮是深底浅字，卡片是白底深字。
+ */
+:root[data-scheme="dark"] :is(button, [role="button"], input, textarea, select, [data-contrast]) {
+  --aster-bg: #1a1613;
+  --aster-surface: color-mix(in oklab, #2a241f 72%, transparent);
+  --aster-elevated: color-mix(in oklab, #322b25 78%, transparent);
+  --aster-chip: color-mix(in oklab, #3a322b 56%, transparent);
+  --aster-line: color-mix(in oklab, #f3ece4 28%, transparent);
+  --aster-fg: #f3ece4;
   --aster-muted: #c6b9a9;
   --aster-subtle: #9c9084;
-  --aster-surface: color-mix(in oklab, #2a241f 58%, transparent);
-  --aster-elevated: color-mix(in oklab, #322b25 66%, transparent);
-  --aster-chip: color-mix(in oklab, #3a322b 46%, transparent);
-  --aster-line: color-mix(in oklab, #f3ece4 26%, transparent);
   --aster-ink: #f3ece4;
   --aster-ink-fg: #1a1613;
   --aster-accent: #d49274;
   --aster-accent-fg: #1a1613;
   --aster-warn: #e8936a;
   --aster-ok: #7dba90;
-  --aster-shadow: 0 16px 40px color-mix(in oklab, #000 45%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 30%, transparent);
-  --aster-sheen: color-mix(in oklab, #ffffff 10%, transparent);
-  --aster-gleam-a: 0.5;
-  --aster-flash-a: 0.12;
+  color: var(--aster-fg);
   color-scheme: dark;
+}
+
+/** 弹层/输入条整体压深（`[data-contrast]` 标记的东西：输入玻璃卡、sheet、menu、对话框）。 */
+:root[data-scheme="dark"] [data-contrast] {
+  background-color: color-mix(in oklab, #17130f 84%, transparent);
+  border-color: color-mix(in oklab, #f3ece4 16%, transparent);
+  color: #f3ece4;
+}
+
+/** 白玻璃卡片里的按钮/链接：字跟着卡片走（深），不能因为「控件翻深」变浅。 */
+:root[data-scheme="dark"] :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"], [class*="border-line"], [class*="glass-"]:not([class*="glass-menu"]), [data-surface]):not([data-contrast]) :is(button, [role="button"], a, span[role="button"]) {
+  --aster-fg: #1c1917;
+  --aster-muted: #6f6961;
+  --aster-subtle: #9a948c;
+  color: var(--aster-fg);
+}
+
+/** 深底里面的「小胶囊」不要还是白玻璃，改成一层淡淡的亮。 */
+:root[data-scheme="dark"] [data-contrast] :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"]) {
+  --aster-surface: color-mix(in oklab, #f3ece4 10%, transparent);
+  --aster-elevated: color-mix(in oklab, #f3ece4 14%, transparent);
+  --aster-chip: color-mix(in oklab, #f3ece4 8%, transparent);
+  --aster-fg: #f3ece4;
+  --aster-muted: #c6b9a9;
+  --aster-subtle: #9c9084;
+  color: var(--aster-fg);
 }

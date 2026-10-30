@@ -1,5 +1,8 @@
-/** 底色：深紫黑（用户 m 要求「不要纯黑，淡紫金色的星空」） */
-export const VOID = "#08060f"
+/**
+ * 底色：深紫黑（用户要求「不要纯黑，淡紫金色的星空」）。
+ * 从 #08060f 提到 #0d0a14：屏角要能看出是"紫黑"而不是"没画东西"。
+ */
+export const VOID = "#0d0a14"
 
 export const GOLD = { r: 201, g: 170, b: 114 }
 export const GOLD_BRIGHT = { r: 232, g: 213, b: 163 }

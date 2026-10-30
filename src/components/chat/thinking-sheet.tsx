@@ -128,7 +128,7 @@ export function ThinkingSheet({
         }}
       />
       <div
-        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]"
+        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]" data-contrast
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : "transform 0.26s cubic-bezier(0.22, 0.8, 0.25, 1)",

@@ -73,7 +73,7 @@ export function MemoryDetail({
     /* z-70：底部导航是 z-60，弹层必须压过它，否则最后一排按钮被导航挡住 */
     <div className="fixed inset-0 z-70 flex flex-col justify-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="关闭" className="absolute inset-0 bg-fg/25" onClick={onClose} />
-      <div className="glass-panel relative z-10 max-h-[86%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="glass-panel relative z-10 max-h-[86%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]" data-contrast>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
         <div className="mb-3 flex items-center justify-between">
           <p className="font-serif text-[15px]">这条记忆</p>

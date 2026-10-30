@@ -35,7 +35,7 @@ export function CoreView() {
   const nameRef = useRef<HTMLSpanElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
   const spacerRef = useRef<HTMLDivElement>(null);
-  /** 滚到底所需的总可滚量：内容贴住 46px 顶栏时刚好用完（挂载时实测） */
+  /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
   const needRef = useRef(0);
 
   const HEAD_H = 352; // 主卡展开高度（行程 = 352-46 = 306px）
@@ -43,6 +43,11 @@ export function CoreView() {
   const AV0 = 80;
   const AV1 = 24;
   const NAME_W = 220;
+  /**
+   * 收起后第一张卡与顶栏之间留的空隙（用户："距离可以没有重叠" —— 宁可留缝，不要压住）。
+   * 这个值只在这里定义一次，need 计算和验收都以它为准。
+   */
+  const GAP = 8;
   const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -92,8 +97,13 @@ export function CoreView() {
   }, []);
 
   /**
-   * 补足可滚量（与「我的」同一套）：让「滚到底」= 主卡收成 46px 顶栏、二级入口贴着它。
+   * 补足可滚量（与「我的」同一套）：让「滚到底」= 主卡收成 46px 顶栏、
+   * 二级入口停在顶栏底边下方 GAP 像素处。
+   *
    * 这一页内容更少，只补「行程」的话滚到底内容还没贴上来，中间会空一大片。
+   * 目标带 GAP 的理由同「我的」：零间距时收起后第一张卡紧贴玻璃条，看着像压住了；
+   * 用户明确说"距离可以没有重叠"。本页的滚动区在 PageHeader 下面，sticky 的 top 就是 0，
+   * 所以这里不用补偿吸顶偏移 / 状态栏（那两项在「我的」里要算）。
    */
   useEffect(() => {
     const el = scrollRef.current;
@@ -105,7 +115,7 @@ export function CoreView() {
       const offset = content
         ? content.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
         : HEAD_H;
-      const need = Math.max(HEAD_H - BAR_H, offset - BAR_H);
+      const need = Math.max(HEAD_H - BAR_H, offset - (BAR_H + GAP));
       needRef.current = need;
       // 增量补（同「我的」）：内容比容器短时 scrollHeight 会被夹成 clientHeight，不能先归零量差值
       for (let i = 0; i < 8; i += 1) {
@@ -151,10 +161,19 @@ export function CoreView() {
         {/* 主卡：他现在的样子 —— 会随滚动塌成顶栏（同一个头像、同一个名字） */}
         {/*
           外层固定 HEAD_H 布局占位、内层只改视觉高度（跟「我的」同一套定稿）：
-          内容位置只由 scrollTop 决定，滚到底正好落在 46px 顶栏下面，
+          内容位置只由 scrollTop 决定，滚到底正好落在顶栏底边 + GAP 处，
           既不会中间留空，也不会被主卡自身的缩小顶飞。可滚量由底部 spacer 补足。
+
+          ⚠️ pointer-events-none：收起后这一层的透明区域仍然盖在「往下看」入口上面（z-20），
+          以前它把点击全挡了（用户："AI 概览缩小时下面那些功能点不进去"）。
+          整层不吃点击，只有头像 / 名字按钮加 pointer-events-auto 顶回来。
+          不能改小 height 来躲：外层高度是内容位置与 1:1 映射的基准。
         */}
-        <div className="sticky z-20 shrink-0" style={{ height: HEAD_H, top: 0 }}>
+        <div
+          className="pointer-events-none sticky z-20 shrink-0"
+          data-surface
+          style={{ height: HEAD_H, top: 0 }}
+        >
           <div
             ref={headRef}
             className="absolute inset-x-0 top-0 overflow-hidden rounded-3xl"
@@ -174,7 +193,8 @@ export function CoreView() {
           />
           <span
             ref={avRef}
-            className="absolute left-0 top-0 block"
+            /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
+            className="pointer-events-auto absolute left-0 top-0 block"
             style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
           >
             <FileButton
@@ -195,7 +215,8 @@ export function CoreView() {
           </span>
           <span
             ref={nameRef}
-            className="absolute left-0 top-0 block"
+            /* 同上：点名字要能进编辑态，得单独顶回可点击 */
+            className="pointer-events-auto absolute left-0 top-0 block"
             style={{ width: NAME_W, transformOrigin: "0 0" }}
           >
             {editingName ? (
