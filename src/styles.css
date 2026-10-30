@@ -4409,3 +4409,14 @@ html.q-paused * {
   --aster-muted: color-mix(in oklab, var(--aster-ink) 74%, transparent) !important;
   --aster-subtle: color-mix(in oklab, var(--aster-ink) 52%, transparent) !important;
 }
+
+/* 选中胶囊：**底与字色反着来**（跟弹层同一套规则）。
+   深字 → 浅胶囊 + 深字；浅字 → 深胶囊 + 浅字。
+   之前写成 bg-ink/text-ink-fg 是"永远黑胶囊"，深字模式下会跟卡片撞色。 */
+[data-pill], .data-pill {
+  /* 选中胶囊 = 字色的反色块：深字 → 深底浅字；浅字 → 浅底深字。
+     两个模式下都是"高对比实心块"，不用靠描边去猜。 */
+  background-color: var(--aster-fg);
+  color: var(--aster-on-fg, #f7f2ea);
+  font-weight: 500;
+}

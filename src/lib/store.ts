@@ -2122,6 +2122,11 @@ export function applyAppearance(settings: Settings) {
   // 文字被强制改色了，弹层底色也得跟着翻，否则白底白字
   root.style.setProperty("--aster-menu", menuFillFor(color));
   /*
+   * 选中胶囊用的「字色的对比色」：深字配浅胶囊、浅字配深胶囊。
+   * 不这么写的话，浅字模式下 bg-fg + text-bg 会变成白底白字（用户实机截图 m01835）。
+   */
+  root.style.setProperty("--aster-on-fg", relativeLum(color) > 0.6 ? "#1c1917" : "#f7f2ea");
+  /*
    * **基调联动**（2026-10-29）：光把字改成浅色还不够 ——
    * 卡片、按钮、选中态还是浅色玻璃，于是"浅字压浅底"，按钮上的字就糊了。
    * 这里让字色定整套基调：浅字 ⇒ 深组件（data-scheme="dark"），深字 ⇒ 浅组件。
