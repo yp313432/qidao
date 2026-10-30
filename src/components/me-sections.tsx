@@ -473,7 +473,7 @@ export function MeHub() {
                   onClick={() => patch({ userGender: opt.v })}
                   className={cn(
                     "rounded-full px-3 py-1 text-[11px] transition",
-                    active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
+                    active ? "bg-ink text-ink-fg" : "bg-chip text-muted active:bg-surface",
                   )}
                 >
                   {opt.label}
@@ -998,7 +998,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ motion: id })}
                 className={cn(
                   "rounded-full py-1.5 text-[11px]",
-                  settings.motion === id ? "bg-fg text-bg font-medium" : "text-muted",
+                  settings.motion === id ? "bg-ink text-ink-fg font-medium" : "text-muted",
                 )}
               >
                 {label}
@@ -1133,7 +1133,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ textTone: t.id })}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[13px]",
-                settings.textTone === t.id ? "bg-fg text-bg" : "bg-chip",
+                settings.textTone === t.id ? "bg-ink text-ink-fg" : "bg-chip",
               )}
             >
               {t.label}
@@ -1246,7 +1246,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               onClick={() => patch({ planetTone: t.id })}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
-                settings.planetTone === t.id ? "bg-fg text-bg" : "bg-chip",
+                settings.planetTone === t.id ? "bg-ink text-ink-fg" : "bg-chip",
               )}
             >
               {t.swatch && (
@@ -2299,7 +2299,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => patch({ wakeLevel: lv.id })}
                 className={cn(
                   "flex-1 rounded-2xl px-2 py-2 text-[12px] transition",
-                  active ? "bg-fg text-bg" : "bg-chip text-muted active:bg-surface",
+                  active ? "bg-ink text-ink-fg" : "bg-chip text-muted active:bg-surface",
                 )}
               >
                 {lv.label}
