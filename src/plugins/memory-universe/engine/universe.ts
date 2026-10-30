@@ -375,7 +375,7 @@ export function mountUniverse(
         if (!a || !b) continue
         const pa = cam.worldToScreen(a.x, a.y)
         const pb = cam.worldToScreen(b.x, b.y)
-        drawEdge(ctx, pa.x, pa.y, pb.x, pb.y, appear, hash32(key))
+        drawEdge(ctx, pa.x, pa.y, pb.x, pb.y, appear, hash32(key), time)
       }
     }
 

@@ -525,7 +525,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           ⭐ 用户 m02163 第 3/4 条 + m02254「然后选B」：形状改**细长**（卡片 p-1.5、输入框 min-h-9、
           两边圆钮 size-9，整块矮约 20px：125px → 101px），玻璃改成 **B 档：82% + 模糊 48px**（见 .glass-float）。
           侧边留白 8px（浮层外壳）+ 6px（这里）= 14px —— 用户要"别贴着侧边栏、也别太局促"。 */}
-      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-1.5 shadow-lg" data-contrast>
+      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-1.5 shadow-lg">
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。
@@ -1083,7 +1083,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 setModelOpen(false);
                 setStickerOpen(false);
               }}
-              className="flex size-9 items-center justify-center rounded-full bg-chip text-fg"
+              className="flex size-9 items-center justify-center rounded-full bg-chip text-ink"
             >
               <Plus className="size-5" strokeWidth={1.75} />
             </button>
