@@ -7,6 +7,8 @@ import type { PromptTool } from "./prompt";
 import type { ActionTool } from "./action-schema";
 import { createDeltaAccumulator, type WireToolCall } from "./tool-calls";
 import { looksLikeToolsUnsupported } from "./tool-wire";
+import { isNativeApp } from "./platform";
+import { looksLikeNetworkBlock, nativeHttp } from "./native-http";
 import type { ToolRoundResult, ToolRoundSend } from "./tool-loop";
 import { estimateTokens } from "./tokens";
 
@@ -162,6 +164,15 @@ export type ChatRequest = {
 };
 
 /** 上游回的错误正文 → 一句人话（JSON 的 error.message 优先，其次原文前 160 字） */
+/** 解析不稳的 JSON；解析不了就当空对象，别把整条链炸掉 */
+function parseJsonSafe(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return {};
+  }
+}
+
 function digestErrorBody(status: number, text: string): string {
   let msg = `上游返回 ${status}`;
   try {
@@ -207,7 +218,21 @@ async function streamDirect(
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
 ): Promise<StreamOutcome> {
-  const base = (req.customBaseUrl ?? "").trim().replace(/\/+$/, "");
+  const rawBase = (req.customBaseUrl ?? "").trim().replace(/\/+$/, "");
+  /**
+   * 用户填自定义上游有两种习惯：填到根（`https://api.lmuai.ai`）或填到 `/v1`。
+   * 真正的 OpenAI 兼容接口在 `/v1` 下面，填到根的话 `/chat/completions`
+   * 会打到网站首页（404/HTML）。这里统一补到 `/v1` —— 只补「根路径」那种，
+   * 带路径的（`.../api/paas/v4`、`.../v1`）原样不动。
+   */
+  const base = (() => {
+    try {
+      const u = new URL(rawBase);
+      return u.pathname === "" || u.pathname === "/" ? `${rawBase}/v1` : rawBase;
+    } catch {
+      return rawBase;
+    }
+  })();
   const key = (req.customApiKey ?? "").trim();
   const model = (req.upstreamModel ?? "").trim();
 
@@ -245,6 +270,16 @@ async function streamDirect(
         }
       : {};
 
+  const payload = {
+    model,
+    messages,
+    stream: true,
+    max_tokens: maxTokens,
+    ...effortBody,
+    // 只有真的要走原生工具调用时才带 tools —— 留空就是老协议（正文里的动作块）
+    ...(req.actionTools && req.actionTools.length > 0 ? { tools: req.actionTools } : {}),
+  };
+
   let res: Response;
   try {
     res = await fetchImpl(`${base}/chat/completions`, {
@@ -253,18 +288,72 @@ async function streamDirect(
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        max_tokens: maxTokens,
-        ...effortBody,
-        // 只有真的要走原生工具调用时才带 tools —— 留空就是老协议（正文里的动作块）
-        ...(req.actionTools && req.actionTools.length > 0 ? { tools: req.actionTools } : {}),
-      }),
+      body: JSON.stringify(payload),
       signal,
     });
   } catch (err) {
+    /**
+     * 「失败才降级」：有些中转/自建网关**没开 CORS**（实测 lmuai 的预检 OPTIONS
+     * 直接 403），WebView 里的 fetch 一定会抛 `Failed to fetch`，跟密钥对不对无关。
+     * 这时在 App 里改用原生 HTTP 再要一次 —— 拿不到流式增量，只能整段回来。
+     *
+     * 能逐字的上游（DeepSeek 官方等）根本走不到这里；网页版没有 CapacitorHttp，
+     * 也不会走。所以这个分支只在「App + 浏览器层被拦」时生效。
+     */
+    if (isNativeApp() && looksLikeNetworkBlock(err)) {
+      const nat = await nativeHttp({
+        url: `${base}/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        data: { ...payload, stream: false },
+      });
+      if (nat) {
+        const raw = typeof nat.data === "string" ? nat.data : JSON.stringify(nat.data ?? {});
+        if (nat.status < 200 || nat.status >= 300) {
+          onDelta({ error: digestErrorBody(nat.status, raw), done: true });
+          return { stalled: false, toolsRejected: looksLikeToolsUnsupported(nat.status, raw) };
+        }
+        onDelta({ meta: { model } });
+        const j = (typeof nat.data === "object" ? nat.data : parseJsonSafe(raw)) as {
+          choices?: {
+            message?: {
+              content?: string | null;
+              reasoning_content?: string | null;
+              tool_calls?: WireToolCall[];
+            };
+          }[];
+          usage?: {
+            prompt_tokens?: number;
+            completion_tokens?: number;
+            total_tokens?: number;
+            prompt_cache_hit_tokens?: number;
+            prompt_tokens_details?: { cached_tokens?: number };
+          } | null;
+        } | null;
+        const msg = j?.choices?.[0]?.message;
+        if (msg?.reasoning_content) onDelta({ thinking: msg.reasoning_content });
+        if (msg?.content) onDelta({ content: msg.content });
+        if (msg?.tool_calls?.length) onDelta({ toolCalls: msg.tool_calls });
+        if (j?.usage) {
+          onDelta({
+            usage: {
+              prompt: j.usage.prompt_tokens,
+              completion: j.usage.completion_tokens,
+              total: j.usage.total_tokens,
+              cached:
+                j.usage.prompt_cache_hit_tokens ??
+                j.usage.prompt_tokens_details?.cached_tokens,
+            },
+          });
+        }
+        if (!msg?.content && !msg?.tool_calls?.length) {
+          onDelta({ error: "上游没返回内容（这条上游可能不支持非流式请求）", done: true });
+          return { stalled: false, toolsRejected: false };
+        }
+        onDelta({ done: true });
+        return { stalled: false, toolsRejected: false };
+      }
+    }
     onDelta({
       error: `连不上上游：${(err as Error).message || "网络错误"}（检查地址、密钥、以及手机能不能上网）`,
       done: true,

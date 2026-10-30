@@ -12,6 +12,7 @@
  * 所以：凡是要区分两种形态的地方，都从这里取判断，别再各写各的。
  */
 import { Capacitor } from "@capacitor/core";
+import { looksLikeNetworkBlock, nativeHttp } from "./native-http";
 
 /** 打包成安卓 App 的那种构建（VITE_DIRECT_UPSTREAM=1）。 */
 export const IS_APP =
@@ -53,26 +54,37 @@ export async function probeUpstreamModels(
   if (!key) return { ok: false, message: "先填密钥" };
 
   if (IS_APP) {
+    /**
+     * 候选地址要试两个，因为用户填的「上游地址」有两种习惯：
+     *   · 填到根 `https://api.lmuai.ai` → 真正的接口在 `/v1`
+     *   · 填到 `https://api.lmuai.ai/v1` → 直接拼 `/models`
+     * 只试一个的话，前者会去请求网站首页（200 的 HTML），报出来的错
+     * 会是「JSON 解析失败」，用户完全看不懂。
+     */
+    const candidates = [`${base}/models`];
     try {
-      const res = await fetch(`${base}/models`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        return { ok: false, message: `上游返回 ${res.status}：${text.slice(0, 200)}` };
-      }
-      const json = JSON.parse(text) as { data?: { id?: unknown }[] };
-      const models = (json.data ?? [])
-        .map((m) => m?.id)
-        .filter((x): x is string => typeof x === "string" && x.length > 0);
-      if (models.length === 0) return { ok: false, message: "上游没列出模型，手动填吧" };
-      return { ok: true, models: models.sort() };
-    } catch (err) {
-      return {
-        ok: false,
-        message: `连不上上游：${(err as Error).message || "网络错误"}（检查地址与密钥）`,
-      };
+      const u = new URL(base);
+      if (u.pathname === "" || u.pathname === "/") candidates.push(`${base}/v1/models`);
+    } catch {
+      /* 不是标准 URL 就只试原来那个 */
     }
+
+    let lastMessage = "";
+    for (const url of candidates) {
+      try {
+        const fetched = await getJson(url, key);
+        if (!fetched.ok) {
+          lastMessage = fetched.message;
+          // 4xx/5xx 是上游明确的答复，换路径也一样，别再试了
+          if (fetched.status && fetched.status >= 400) break;
+          continue;
+        }
+        return { ok: true, models: fetched.models };
+      } catch (err) {
+        lastMessage = `连不上上游：${(err as Error).message || "网络错误"}（检查地址与密钥）`;
+      }
+    }
+    return { ok: false, message: lastMessage || "上游没列出模型，手动填吧" };
   }
 
   try {
@@ -94,5 +106,55 @@ export async function probeUpstreamModels(
     }
   } catch (err) {
     return { ok: false, message: `请求失败：${(err as Error).message || "网络错误"}` };
+  }
+}
+
+/**
+ * 取某一处的模型列表。
+ *
+ * 两条策略叠在一起：
+ *   1. **先 fetch**（网页版 / 开了跨域的上游都走这条，行为不变）
+ *   2. App 里被浏览器拦了（`Failed to fetch`）→ 用原生 HTTP 再要一次，
+ *      否则没开 CORS 的中转永远「连不上上游」
+ */
+async function getJson(
+  url: string,
+  key: string,
+): Promise<{ ok: true; models: string[] } | { ok: false; status?: number; message: string }> {
+  const headers = { Authorization: `Bearer ${key}` };
+  let status = 0;
+  let text = "";
+  try {
+    const res = await fetch(url, { headers });
+    status = res.status;
+    text = await res.text();
+  } catch (err) {
+    if (!looksLikeNetworkBlock(err)) throw err;
+    const nat = await nativeHttp({ url, method: "GET", headers });
+    if (!nat) throw err;
+    status = nat.status;
+    text = typeof nat.data === "string" ? nat.data : JSON.stringify(nat.data ?? {});
+  }
+
+  if (status < 200 || status >= 300) {
+    return { ok: false, status, message: `上游返回 ${status}：${text.slice(0, 200)}` };
+  }
+  // 拿到的是网页（HTML）说明路径不对，让调用方去试下一个候选
+  const json = safeJson(text) as { data?: { id?: unknown }[] } | null;
+  if (!json || !Array.isArray(json.data)) {
+    return { ok: false, status, message: "这个地址返回的不是模型列表，可能是它的网页首页" };
+  }
+  const models = json.data
+    .map((m) => m?.id)
+    .filter((x): x is string => typeof x === "string" && x.length > 0);
+  if (models.length === 0) return { ok: false, status, message: "上游没列出模型，手动填吧" };
+  return { ok: true, models: models.sort() };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
   }
 }
