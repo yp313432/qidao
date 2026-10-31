@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -119,6 +120,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const [modelOpen, setModelOpen] = useState(false);
   /** 第二层：具体模型列表（第一层点「模型」才展开） */
   const [modelPickOpen, setModelPickOpen] = useState(false);
+  useBodyScrollLock(modelPickOpen);
   /** 模型弹层里的搜索词（模型多的时候按名字过滤，不用在长列表里翻） */
   const [modelPickQuery, setModelPickQuery] = useState("");
   /** 第二层：三档推理力度（第一层点「推理等级」才展开） */

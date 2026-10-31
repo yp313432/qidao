@@ -2,6 +2,7 @@ import { DateTimeField } from "@/components/ui/datetime-picker";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -576,6 +577,7 @@ function MeSections({ tab }: { tab: MeTab }) {
    * 聊天页面的模型选择那种"）。`voicePick` 是正在挑哪一格。
    */
   const [voicePick, setVoicePick] = useState<null | "asr" | "tts" | "voice">(null);
+  useBodyScrollLock(!!voicePick);
   /** 我的空间里哪一组是展开的（null = 全收起，一屏能看完） */
   const [openFold, setOpenFold] = useState<null | "material" | "bg" | "font" | "tint" | "more">(
     null,
@@ -3058,16 +3060,25 @@ function MeSections({ tab }: { tab: MeTab }) {
              */
             return createPortal(
               <div
-                className="fixed inset-0 z-[90] flex flex-col justify-end"
+                className="fixed inset-0 z-[120] flex items-center justify-center px-4"
                 onClick={() => setVoicePick(null)}
               >
-                <div className="absolute inset-0 bg-black/40" />
+                <div className="absolute inset-0 bg-black/45" />
                 <div
-                  className="relative max-h-[64%] rounded-t-3xl border-t border-line bg-[rgba(252,248,242,0.99)] px-4 pb-6 pt-2 shadow-[0_-10px_34px_rgba(40,26,18,0.24)]"
+                  className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-line" />
-                  <p className="text-[13px] font-medium text-fg">{title}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[14px] font-semibold text-fg">{title}</p>
+                    <button
+                      type="button"
+                      aria-label="关闭"
+                      onClick={() => setVoicePick(null)}
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
                   <p className="mt-0.5 text-[10.5px] leading-4 text-muted">
                     {voicePick === "voice" && isEL
                       ? "这些是这家 key 底下建过的音色（voice_id）"
@@ -3083,7 +3094,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                     placeholder="搜索…"
                     className="mt-2 h-9 w-full rounded-xl border border-line bg-elevated px-3 text-[12px] outline-none"
                   />
-                  <div className="mt-1.5 max-h-64 overflow-y-auto">
+                  <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto">
                     {shown.length === 0 && (
                       <p className="py-4 text-center text-[11.5px] text-subtle">
                         {list.length === 0 ? "清单是空的" : "没有匹配的"}
