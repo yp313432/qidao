@@ -125,7 +125,23 @@ export function createDeltaAccumulator(): DeltaAccumulator {
     const slot = slots.get(idx) ?? newSlot(idx);
 
     const n = c?.function?.name;
-    if (typeof n === "string") slot.name += n;
+    if (typeof n === "string" && n) {
+      /*
+       * 名字只在第一帧出现（OpenAI 规范），**但有些中转站每帧都重复发同一个名字**。
+       * 老写法 `name += n` 会把它们拼成 "tool_calltool_calltool_call…"，
+       * 于是模型看起来在「反复调一个不存在的动作」（用户 m02473 的实机截图）。
+       */
+      if (!slot.name) slot.name = n;
+      else if (n === slot.name || slot.name.endsWith(n)) {
+        // 重复帧：同一个名字又发了一遍，忽略
+      } else if (n.startsWith(slot.name)) {
+        // 上游把「完整名字」重发了一次，取更长的那个
+        slot.name = n;
+      } else {
+        // 真分片：前几帧只给了前半截
+        slot.name += n;
+      }
+    }
 
     const a = c?.function?.arguments;
     if (typeof a === "string") slot.args += a;

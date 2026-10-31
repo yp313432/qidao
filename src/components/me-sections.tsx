@@ -1735,7 +1735,6 @@ function MeSections({ tab }: { tab: MeTab }) {
       <Section title="上下文与内存">
         <Link
           to="/memory"
-          data-opt=""
           className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
         >
           <span className="min-w-0">

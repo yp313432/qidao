@@ -102,7 +102,7 @@ const defaultSettings: Settings = {
    * 这一轮工具 900~4000 早就把 6000 吃光了 —— 实测长对话稳在 11550 还在涨，
    * 用户却以为自己在 6000 以内。改口径的同时把默认提上来，才装得下正常对话。
    */
-  contextBudget: 12000,
+  contextBudget: 32000,
   keepRecent: 16,
   autoCompact: true,
   summaryEvery: 50,

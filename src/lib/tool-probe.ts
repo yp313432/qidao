@@ -299,7 +299,15 @@ function parseStream(body: string): StreamParse {
         typeof c.index === "number" ? c.index : keys.length > 0 ? keys[keys.length - 1]! : 0;
       const slot = slots.get(idx) ?? { name: "", args: "" };
       const n = c.function?.name;
-      if (typeof n === "string") slot.name += n;
+      if (typeof n === "string" && n) {
+        // 同 tool-calls.ts：有的中转站每帧重发同一个名字，累加会拼出
+        // "tool_calltool_call…"（用户 m02473）
+        if (!slot.name) slot.name = n;
+        else if (n === slot.name || slot.name.endsWith(n)) {
+          // 重复帧，忽略
+        } else if (n.startsWith(slot.name)) slot.name = n;
+        else slot.name += n;
+      }
       const a = c.function?.arguments;
       if (typeof a === "string") slot.args += a;
       else if (a && typeof a === "object") slot.args += JSON.stringify(a);
@@ -308,7 +316,16 @@ function parseStream(body: string): StreamParse {
     // 极老的单调用增量字段
     if (frames.length === 0 && d.function_call) {
       const slot = slots.get(0) ?? { name: "", args: "" };
-      if (typeof d.function_call.name === "string") slot.name += d.function_call.name;
+      {
+        const n = d.function_call.name;
+        if (typeof n === "string" && n) {
+          if (!slot.name) slot.name = n;
+          else if (!(n === slot.name || slot.name.endsWith(n))) {
+            if (n.startsWith(slot.name)) slot.name = n;
+            else slot.name += n;
+          }
+        }
+      }
       const a = d.function_call.arguments;
       if (typeof a === "string") slot.args += a;
       slots.set(0, slot);

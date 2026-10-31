@@ -227,10 +227,12 @@ export function buildAwarenessItems(): AwarenessItem[] {
     out.push({
       id: "memory",
       title: "长期记忆",
+      /* 2026-10-31：原来只塞 6 条，用户反馈「记忆库东西多，他读不完就被截了」
+         → 放宽到 24 条（内容都很短，token 影响可接受） */
       text: st.memories.length
         ? clip(
             st.memories.filter((m) => m.status === "active").map((m) => m.content),
-            6,
+            24,
           )
         : "（还没记过什么）",
     });

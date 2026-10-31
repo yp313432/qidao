@@ -254,7 +254,8 @@ export function activate(
   opts: ActivationOptions = {},
   now = Date.now(),
 ): Activation[] {
-  const limit = opts.limit ?? 6;
+  // 2026-10-31：用户反馈「记忆库东西多，6 条根本读不完」→ 默认召回放宽到 12 条
+  const limit = opts.limit ?? 12;
   // 提问那边扩同义词：说「好累」→ 也去找「躺平 / 精力低 / 不想动」那些记忆
   const words = expandWithSynonyms(keywords(cue));
   const active = list.filter((m) => isLive(m, now));

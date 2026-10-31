@@ -504,11 +504,12 @@ export function perceptionBlock(input: PromptInput): string {
  * （只裁其中的文字部分），这样支持视觉的模型就能直接看到图。
  */
 export function normalizeContent(content: string | unknown[]): string | unknown[] {
-  if (typeof content === "string") return content.slice(0, 8000);
+  // 2026-10-31：8000 会把 MCP 记忆库/长文档结果截断 → 16000（与 MAX_TOOL_TEXT 对齐）
+  if (typeof content === "string") return content.slice(0, 16000);
   if (Array.isArray(content)) {
     return content.map((part) => {
       const p = part as { type?: string; text?: string; image_url?: { url?: string } };
-      if (p?.type === "text") return { type: "text", text: String(p.text ?? "").slice(0, 8000) };
+      if (p?.type === "text") return { type: "text", text: String(p.text ?? "").slice(0, 16000) };
       if (p?.type === "image_url") {
         return { type: "image_url", image_url: { url: p.image_url?.url ?? "" } };
       }

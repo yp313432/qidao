@@ -52,7 +52,8 @@ import type { AppAction, ToolCallRecord } from "@/lib/types";
 export const TOOL_LOOP_MAX = 12;
 
 /** 一整轮（从发出第一条消息到收尾）的墙钟预算：到点必须停下来并如实说明 */
-export const TOOL_LOOP_BUDGET_MS = 150_000;
+// 2026-10-31：150 秒读不完一轮多步的记忆库/文档 → 240 秒
+export const TOOL_LOOP_BUDGET_MS = 240_000;
 
 /**
  * 同一个**不存在**的动作名，最多容忍几次 —— 第二次出现就**抬手停**。

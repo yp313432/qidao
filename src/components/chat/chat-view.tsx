@@ -1610,8 +1610,7 @@ export function ChatView() {
             onClick={() => setMenu(false)}
           />
           <aside
-            className="glass-panel glass-menu relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75"
-            data-contrast=""
+            className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75"
           >
             {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
                 用户："上面那个从顶部开始，不是从我画的框开始" */}
