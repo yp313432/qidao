@@ -82,15 +82,147 @@ function isPunctOnly(s: string | undefined | null): boolean {
  * 这里在挂载后量一次 `innerText`：没有可见文字、也没有图片/视频/画布，
  * 就 `display: none`。用回调 ref（commit 阶段）所以不会闪一下再消失。
  */
+/* ────────────────────────────────────────────────────────────────
+ * **正文清洗与去重**（下面这段全是纯函数、不引用外面的东西 ——
+ * `verify-text-clean.mjs` 会把 `#region body-clean` 到 `#endregion body-clean`
+ * 之间抽出来单独跑断言。改这里记得跑一遍那个脚本。）
+ * ──────────────────────────────────────────────────────────────── */
+// #region body-clean
+
+/** 判断"是不是同一段重说"时比对开头的字数。20 字足够长：正常正文不会巧合撞上。 */
+const DEDUP_HEAD = 20;
+
 /**
- * 渲染前的轻量清理：只处理**空地址**的图片/链接。
+ * ⚠️ **内部标签**（用户 m02108 实机截图：气泡里原样露出
+ * `<thinking_mode>auto</thinking_mode>`，另一条露出 `<answer>`）：
+ * 模型偶尔会把模式自己的标记当正文吐出来。三类分开处理，**只影响画出来，不改数据**：
+ *
+ *   ① `thinking_mode` / `thinking` / `reasoning` —— **整段删掉，连内容一起**：
+ *      那是内部思考，本来该走「思考」那一栏；留在正文里等于把后台的话摆到台面上。
+ *   ② `answer` / `tool_call` / `function_call` / `antml:*` —— **只删标签、保留正文**：
+ *      标签里面包的往往就是他要说的话，一个字都不能吞。
+ *   ③ 兜底：**没闭合的标签**（流被步数/时间上限截断时最常见）只删标签本身 ——
+ *      不知道内容到哪儿结束，宁可多留字也不能把回答删掉。
+ */
+const INTERNAL_DROP_BLOCK =
+  /<(?:thinking_mode|thinking|reasoning)\b[^>]*>[\s\S]*?<\/(?:thinking_mode|thinking|reasoning)\s*>/gi;
+const INTERNAL_LOOSE_TAG =
+  /<\/?(?:thinking_mode|thinking|reasoning|answer|tool_call|tool_calls|function_call|function_calls|antml:[\w:.-]+)[^>]*>/gi;
+
+/** 删掉内部标签（整段删 / 只删标签见上面两条规则的说明） */
+function stripInternalTags(s: string): string {
+  if (!s || s.indexOf("<") < 0) return s;
+  return s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
+}
+
+/** 去重比对用的归一化：内部标签、Markdown 记号、空白都不算数，只留下可读文字 */
+function dedupeNorm(s: string): string {
+  return stripInternalTags(s ?? "")
+    .replace(/[\]*_~`#>`|[()!]/g, "")
+    .replace(/[\s\u200b-\u200f\u2060\ufeff]/g, "");
+}
+
+/** 太短的段不参与去重判定："嗯。"、"我在。" 这种本来就该反复出现 */
+const DEDUP_MIN = 8;
+
+/** 一段的"指纹"：去掉标签/记号/空白后的**开头 20 字**；不足 8 字 → 不判定 */
+function dedupeKey(norm: string): string {
+  return norm.length < DEDUP_MIN ? "" : norm.slice(0, DEDUP_HEAD);
+}
+
+/**
+ * **重复段去重**：同一段被"每轮从头重说"时只留一份（用户截图里的
+ * 「分段气泡 + 后面又一大块重复」）。
+ *
+ * 判据就是"开头 20 字"（去空白、去记号之后算，Markdown 重新排版也认得出来），
+ * 指纹重复的段丢掉。丢掉的是"又说了一遍"的部分，**只出现在最后一轮里的新内容仍然保留**，
+ * 合起来就是最后那份完整正文。
+ *
+ * 另有一条更狠的：某一段**完整包含了前面已经画出来的全部内容** → 它是整段重说，
+ * 直接把前面那些换掉（"最后一次完整版本"胜出，不会前后各一份）。
+ */
+function dedupeByHead(segments: string[]): string[] {
+  const kept: number[] = [];
+  const seen = new Set<string>();
+  let all = "";
+  for (let i = 0; i < segments.length; i += 1) {
+    const norm = dedupeNorm(segments[i] as string);
+    const key = dedupeKey(norm);
+    if (key && all.length >= DEDUP_MIN && norm.includes(all)) {
+      /* ① 整段重说：这一段把前面画过的内容全包住了 → 前面那些是旧版本，作废，只留它 */
+      kept.length = 0;
+      seen.clear();
+      all = "";
+    } else if (key && (seen.has(key) || all.includes(key))) {
+      /* ② 开头 20 字跟前面某段一样（或藏着前面某段里）→ 又说了一遍，丢掉后来这份 */
+      continue;
+    }
+    if (key) seen.add(key);
+    kept.push(i);
+    all += norm;
+  }
+  return kept.map((i) => segments[i] as string);
+}
+
+/**
+ * 分段气泡（`m.parts`）去重：只过滤重复的段，**顺序和结构一点不动**
+ * （段间距、逐条浮现的动画都靠这个数组）。
+ */
+function dedupeParts(parts: string[]): string[] {
+  return parts.length < 2 ? parts : dedupeByHead(parts);
+}
+
+/**
+ * 把正文切成"句子 / 句间空白"的块，拼回去跟原文一字不差。
+ * 切法跟 `lib/segment.ts` 一个口径：只在中文句末标点后切，**不切英文句点**
+ * （小数、网址、缩写会被误伤）。
+ */
+function sentenceTokens(s: string): string[] {
+  const tokens: string[] = [];
+  const re = /[^。！？!?…\n]+[。！？!?…]*[”」』）)]*/g;
+  let last = 0;
+  for (const m of s.matchAll(re)) {
+    const at = m.index ?? 0;
+    if (at > last) tokens.push(s.slice(last, at));
+    tokens.push(m[0]);
+    last = at + m[0].length;
+  }
+  if (last < s.length) tokens.push(s.slice(last));
+  return tokens;
+}
+
+/**
+ * 正文级去重：
+ *   ① 有空行的：按段落比，重复的段只留一份；
+ *   ② 没有空行的（工具循环把几轮正文**直接连在一起**，实际最常见）：按句子比；
+ * 一处都没去掉时**原样返回** —— 不能因为"看起来像重复"就动排版。
+ */
+function dedupeBody(text: string): string {
+  if (!text) return text;
+  let out = text;
+  const paras = out.split(/\n{2,}/);
+  if (paras.length > 1) {
+    const kept = dedupeByHead(paras);
+    const changed = kept.length < paras.length || kept.some((p, i) => p !== paras[i]);
+    if (changed) out = kept.join("\n\n");
+  }
+  const tokens = sentenceTokens(out);
+  if (tokens.length > 1) {
+    const kept = dedupeByHead(tokens);
+    if (kept.length < tokens.length) out = kept.join("");
+  }
+  return out;
+}
+
+/**
+ * 渲染前的轻量清理：内部标签、`|||` 分段符、**空地址**的图片/链接。
  *
  * `[看图]( )` 这种 Markdown 不认（地址是空的），会原样显示成一行括号，
  * 屏幕上就是"一个带括号的空框"。这里把空地址链接压成纯文字、空地址图片直接删掉。
  */
-function cleanForRender(s: string): string {
+function cleanTextForRender(s: string): string {
   return (
-    stripActionLines(s)
+    stripInternalTags(s)
       /**
        * ⚠️ 2026-10-29（用户截图："定时唤醒气泡里出现 III"）：
        * `|||` 是分段分隔符。分段关掉（或老消息没写 parts）时，它会被当成正文
@@ -102,6 +234,17 @@ function cleanForRender(s: string): string {
       .replace(/!\[[^\]]*\](\(\s*\))/g, "")
       .replace(/\[([^\]]+)\]\(\s*\)/g, "$1")
   );
+}
+// #endregion body-clean
+
+/** 整条正文（不分段那一条路）：清洗 + 去重 */
+function cleanForRender(s: string): string {
+  return dedupeBody(cleanTextForRender(stripActionLines(s))).replace(/\n{3,}/g, "\n\n");
+}
+
+/** 分段气泡里的**某一段**：只清洗、不去重（跨段的重复由 `dedupeParts` 负责，别把一段删成半截） */
+function cleanPartForRender(s: string): string {
+  return cleanTextForRender(stripActionLines(s));
 }
 
 function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
@@ -668,8 +811,14 @@ export function ChatView() {
                *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
                *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
                */
-              const visibleParts = (m.parts ?? []).filter(
-                (p) => hasRenderedText(p) && !isPunctOnly(p),
+              /*
+                ⚠️ 用户 m02108 截图：工具循环每轮回来的正文被按轮拼进同一条消息，
+                模型每轮**从头重说**，于是分段气泡 + 后面又一大块重复。
+                这里只做**画之前**的过滤（数据不动、parts 结构不动）：
+                先按"开头 20 字"去掉重说的段，再按老规矩滤掉空壳/纯标点。
+              */
+              const visibleParts = dedupeParts(
+                (m.parts ?? []).filter((p) => hasRenderedText(p) && !isPunctOnly(p)),
               );
               /*
                 ⚠️ 这里原来用 `hasVisibleText`（只认"有没有字"），于是正文只剩 `**`、
@@ -1009,7 +1158,7 @@ export function ChatView() {
                                   <div
                                     key={i}
                                     ref={hideIfRenderedEmpty}
-                                    {...quotePress(m.id, cleanForRender(p))}
+                                    {...quotePress(m.id, cleanPartForRender(p))}
                                     className={cn(
                                       "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-[18px] border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       i === 0 && "rounded-tl-none",
@@ -1017,7 +1166,7 @@ export function ChatView() {
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
                                   >
-                                    <Markdown text={cleanForRender(p)} />
+                                    <Markdown text={cleanPartForRender(p)} />
                                   </div>
                                 ))}
                               </div>
@@ -1039,7 +1188,11 @@ export function ChatView() {
                                 `use-chat` 的 FLUSH_MS 降到 100ms，看起来就是字一条条往外冒。
                               */}
                               {streaming ? (
-                                <p className="whitespace-pre-wrap break-words">{liveText}</p>
+                                /* 流式期间也把内部标签抹掉（它可能一大早就开始吐标签），
+                                   但**不做去重**：中途去重会让字跳来跳去，收尾那一次才去重 */
+                                <p className="whitespace-pre-wrap break-words">
+                                  {stripInternalTags(liveText)}
+                                </p>
                               ) : (
                                 <Markdown text={cleanForRender(liveText)} />
                               )}

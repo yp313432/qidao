@@ -164,6 +164,27 @@ export type ChatRequest = {
 };
 
 /** 上游回的错误正文 → 一句人话（JSON 的 error.message 优先，其次原文前 160 字） */
+/**
+ * 整段文字 → 假装成流式一段段吐。
+ *
+ * 为什么要有：没开 CORS 的上游只能走原生 HTTP（拿不到 SSE），
+ * 若一次性把整段塞进气泡，用户会觉得「卡了半天突然蹦出来一大坨」。
+ * 切成句子高频吐出，视觉上和真流式没区别；调用方仍然只看见 onDelta。
+ */
+async function emitAsStream(
+  text: string,
+  onDelta: (d: ChatDelta) => void,
+  signal?: AbortSignal,
+  delayMs = 40,
+): Promise<void> {
+  const chunks = text.match(/[^。！？!?\n]+[。！？!?]?|\n/g) ?? [text];
+  for (const chunk of chunks) {
+    if (signal?.aborted) return;
+    onDelta({ content: chunk });
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
 /** 解析不稳的 JSON；解析不了就当空对象，别把整条链炸掉 */
 function parseJsonSafe(text: string): unknown {
   try {

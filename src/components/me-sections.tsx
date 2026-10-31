@@ -6,12 +6,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
+  Check,
   ChevronDown,
   ChevronRight,
   Database,
   ImagePlus,
   Lock,
   Palette,
+  Search,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -654,6 +656,23 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [models, setModels] = useState<string[]>([]);
   const [modelMsg, setModelMsg] = useState<string | null>(null);
   const [probing, setProbing] = useState(false);
+  /**
+   * 「拉取可用模型」的结果**不再平铺成一片胶囊**（用户：一次拉出 68 个，
+   * 铺好几屏、滑不动，屏幕外那些点不到）。改成跟聊天页模型选择器一样的
+   * **居中弹层**：搜索过滤 + 列表自己滚 + 当前项反色打勾。
+   */
+  const [modelPickOpen, setModelPickOpen] = useState(false);
+  /** 弹层里的搜索词（几十个名字里一个个翻太累） */
+  const [modelPickQuery, setModelPickQuery] = useState("");
+  // 结果弹层：Esc 关掉（跟聊天页那个模型弹层同一个手感）
+  useEffect(() => {
+    if (!modelPickOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModelPickOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modelPickOpen]);
   // 「这把上游认不认原生 tools」—— 用户点一下，用他自己的地址 + key 直接问
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<ToolProbeResult | null>(null);
@@ -705,7 +724,10 @@ function MeSections({ tab }: { tab: MeTab }) {
       setModels(json.models);
       // 存进设置里 —— 对话框那个模型选择器显示的就是这份列表
       patch({ upstreamModels: json.models });
-      setModelMsg(`上游列了 ${json.models.length} 个模型 —— 点一个就用它`);
+      // 68 个名字平铺在页面上没法用，直接开居中弹层让他挑
+      setModelPickQuery("");
+      setModelPickOpen(true);
+      setModelMsg(null);
     } else {
       setModelMsg(json.message ?? "没拉到模型列表，手动填吧");
     }
@@ -1427,23 +1449,132 @@ function MeSections({ tab }: { tab: MeTab }) {
                   </div>
                   {modelMsg && <p className="mt-1.5 text-[11px] leading-4 text-warn">{modelMsg}</p>}
                   {models.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {models.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => {
-                            patch({ upstreamModel: m });
-                            setModels([]);
-                            setModelMsg(`已选 ${m}`);
-                          }}
-                          className="rounded-full border border-line bg-chip px-3 py-1.5 font-mono text-[11px]"
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelPickQuery("");
+                        setModelPickOpen(true);
+                      }}
+                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-line/70 bg-chip px-3 py-2.5 text-left"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-medium">
+                          拉到 {models.length} 个模型 —— 点这里挑一个
+                        </span>
+                        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted">
+                          当前：{settings.upstreamModel || "还没选"}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-muted" />
+                    </button>
                   )}
+
+                  {/*
+                    结果弹层：**居中模态**（跟聊天页那个模型选择器同一套交互）。
+                    原来是把 68 个名字平铺成胶囊墙 —— 铺满好几屏、滑不动，
+                    屏幕外那些根本点不到。现在：搜索过滤 + 列表自己滚 + 当前项反色打勾。
+                    ⚠️ portal 到 body：这一页的内容区有滚动容器，
+                    fixed 留在里面会跟着滚、也会被祖先的 filter/transform 拽偏。
+                  */}
+                  {modelPickOpen &&
+                    (() => {
+                      const q = modelPickQuery.trim().toLowerCase();
+                      const shown = q ? models.filter((m) => m.toLowerCase().includes(q)) : models;
+                      return createPortal(
+                        <div
+                          className="fixed inset-0 z-[120] flex items-center justify-center px-4"
+                          role="dialog"
+                          aria-modal="true"
+                          aria-label="选择上游模型"
+                        >
+                          <button
+                            type="button"
+                            aria-label="关闭"
+                            onClick={() => setModelPickOpen(false)}
+                            className="absolute inset-0 bg-black/45"
+                          />
+                          <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl">
+                            <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
+                                <p className="mt-0.5 text-[11px] text-muted">
+                                  上游列了 {models.length} 个 · 点一行就用它
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="关闭"
+                                onClick={() => setModelPickOpen(false)}
+                                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+                              >
+                                <X className="size-4" />
+                              </button>
+                            </div>
+
+                            <div className="px-4 pb-2">
+                              <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5">
+                                <Search className="size-3.5 shrink-0 text-muted" />
+                                <input
+                                  value={modelPickQuery}
+                                  onChange={(e) => setModelPickQuery(e.target.value)}
+                                  placeholder="搜索模型名…"
+                                  aria-label="搜索模型"
+                                  className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle"
+                                />
+                                {modelPickQuery.trim() && (
+                                  <button
+                                    type="button"
+                                    aria-label="清空搜索"
+                                    onClick={() => setModelPickQuery("")}
+                                    className="shrink-0 text-muted"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* min-h-0 + flex-1 + overflow-y-auto：只有列表滚，头尾固定 */}
+                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-1">
+                              {shown.length === 0 ? (
+                                <p className="py-6 text-center text-[12px] text-subtle">
+                                  没有匹配「{modelPickQuery.trim()}」的模型
+                                </p>
+                              ) : (
+                                shown.map((m) => {
+                                  const active = m === settings.upstreamModel;
+                                  return (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => {
+                                        patch({ upstreamModel: m });
+                                        setModelPickOpen(false);
+                                        setModelPickQuery("");
+                                        setModels([]);
+                                        setModelMsg(`已选 ${m}`);
+                                      }}
+                                      className={cn(
+                                        "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors",
+                                        active ? "data-pill" : "text-fg active:bg-chip",
+                                      )}
+                                    >
+                                      <span className="truncate font-mono text-[12.5px]">{m}</span>
+                                      {active && <Check className="size-3.5 shrink-0" />}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            <p className="border-t border-line px-4 py-2 text-[10.5px] leading-4 text-muted">
+                              选完会存进设置 —— 聊天页那个模型选择器用的是同一份列表。
+                            </p>
+                          </div>
+                        </div>,
+                        document.body,
+                      );
+                    })()}
 
                   {/*
                     推理强度：**点选**，不是滑杆（用户："要不改成点的，不然不好适配"）。

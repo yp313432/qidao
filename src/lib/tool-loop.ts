@@ -27,6 +27,11 @@ import type { AppAction, ToolCallRecord } from "@/lib/types";
  *     都不能让这一轮无限挂着（原来单笔要等 5 分钟，界面上就是"卡住了"）
  *   · **撞上上限要如实说**（`limitNote`）—— 不许让模型在正文里说"我都做好了"而后面几步没跑
  *   · **降级只认明确信号**（见 `looksLikeToolsUnsupported`）—— 内容报错、限流、超时都不降级
+ *   · **不存在的动作不许一直试**（2026-11 补，两道闸门）——
+ *     ① `UNKNOWN_ACTION_STOP_AFTER`：**同名**出现第二次就抬手停（说得出名字，说法最具体）；
+ *     ② `UNKNOWN_ACTION_TOTAL_STOP`：**换名字也躲不掉**，一轮加起来第 3 个不存在动作就停。
+ *     用户实机截图：模型连着 12 条「想叫一个不存在的动作」直到步数上限才停。
+ *     第一次照旧软提示（给他自纠机会），命中闸门就不再请求模型，并给他一句人话。
  *
  * 还有一条贯穿全文的规矩（用户点名要的 **"执行结果那一栏永远有回话"**）：
  *   每一次调用都必须产出一行 `notice`（✅ 成了 / ❌ 没成 / ⚠️ 没匹配上 / ⏳ 还在等确认），
@@ -48,6 +53,37 @@ export const TOOL_LOOP_MAX = 12;
 
 /** 一整轮（从发出第一条消息到收尾）的墙钟预算：到点必须停下来并如实说明 */
 export const TOOL_LOOP_BUDGET_MS = 150_000;
+
+/**
+ * 同一个**不存在**的动作名，最多容忍几次 —— 第二次出现就**抬手停**。
+ *
+ * 为什么加这一条（用户实机截图）：模型反复调一个根本没有的动作，
+ * 连着 12 条「小克 想叫一个不存在的动作」，直到步数上限才停 —— 那一整轮全是白烧的往返。
+ * 原来 `runOneAction` 对未知名字只回一句「没有这个动作，请只用清单里的名字」，
+ * 属于**软提示**：模型不看，或者换个写法接着编，循环没有任何硬终止条件。
+ *
+ * 现在：**软提示照旧（第一次），硬终止兜底（第二次）** ——
+ * 同一个名字第二次出现就不再请求模型了，直接把这一轮收尾，
+ * 并且给用户一句人话、给模型（以及记录里）一句"这个动作不存在，别再试"。
+ *
+ * 为什么是 2 而不是 1：第一次可能真是笔误/客户端采集抖了（分片拼错名字），
+ * 给他一次自纠的机会；同名的第二次就证明"他没在看回话"，再试只是烧钱。
+ */
+export const UNKNOWN_ACTION_STOP_AFTER = 2;
+
+/**
+ * 一整轮里**所有**不存在的动作名加起来，最多容忍几次 —— 到 3 次就抬手停（**不看名字**）。
+ *
+ * 为什么同名那条不够（Lead 定的）：模型换个写法就绕过了按名字的计数 ——
+ * `deleteEverything` / `delete_all` / `remove_everything` 各来一次，
+ * 同名的第二次永远不发生，用户看到的仍然是「他还是一直在乱试」。
+ * 所以再加一道**总量**闸门：不管叫什么都算数，一轮里凑够 3 笔 `category === "unknown"`
+ * 就收尾。**同名 2 次那条照旧先触发**（更具体的说法优先告诉用户）。
+ *
+ * 为什么是 3 而不是 2：给"第一次笔误 → 改个名字再试一次"留一点余地；
+ * 到第 3 个仍然不存在，就说明他不是在纠错，是在编。
+ */
+export const UNKNOWN_ACTION_TOTAL_STOP = 3;
 
 /** 等"某一笔动作被用户点掉"的单笔上限。用户可能正在犹豫要不要授权，所以给得宽一点。 */
 const RESOLVE_TIMEOUT_MS = 5 * 60_000;
@@ -130,7 +166,14 @@ export type ToolLoopStop =
   /** 撞上墙钟预算 */
   | "budget"
   /** 用户点了停止 */
-  | "aborted";
+  | "aborted"
+  /**
+   * **不存在**的动作命中闸门 → 主动抬手停：
+   *   ① 同名第二次（`UNKNOWN_ACTION_STOP_AFTER`）；
+   *   ② 一轮加起来第 3 个、换名字也算（`UNKNOWN_ACTION_TOTAL_STOP`）。
+   * 跟步数上限是两件不同的事：这不是"我没步数了"，是"换个名字再试也不会成"。
+   */
+  | "unknownAction";
 
 export type RunToolLoopResult = {
   /** 各轮可见正文拼起来（工具轮的"我去查一下"也在这儿） */
@@ -526,6 +569,16 @@ export function limitNoteFor(
   steps: number,
   budgetMs: number,
   maxRounds = TOOL_LOOP_MAX,
+  /**
+   * 只给 `unknownAction` 用：那个**不存在**的动作名（写进用户看到的那句人话）。
+   * 加在末尾而且是可选的 —— 老调用方（验收脚本）少传这个参数照样编译、照样跑。
+   */
+  unknownName?: string,
+  /**
+   * 只给 `unknownAction` 用：**总量闸门**触发时的累计次数（见 `UNKNOWN_ACTION_TOTAL_STOP`）。
+   * 同名那条触发时不用它；两条同时够数时**同名优先**（说法更具体）。
+   */
+  unknownTotal?: number,
 ): string | undefined {
   if (stop === "maxRounds") {
     return (
@@ -542,7 +595,91 @@ export function limitNoteFor(
   if (stop === "aborted") {
     return "\n\n（你按了停止，我就停在这儿了 —— 后面的步骤没再跑。）";
   }
+  if (stop === "unknownAction") {
+    /**
+     * ⚠️ 这一条**不是**步数/时间上限，别套用上面那些「到上限了」的说法 ——
+     * 用户看到的是"他反复试不存在的动作"，得把**那个名字**（或一共试了几次）说出来，
+     * 他才知道该改什么。同名句按用户原话：「他想调 XXX，但没这个动作 · 抬手就停」。
+     */
+    const name = (unknownName ?? "").trim();
+    /**
+     * **总量闸门**（`UNKNOWN_ACTION_TOTAL_STOP`）：名字换着花样来，说不清是哪一个 ——
+     * 那就说次数。有具体名字时仍走下面那句（更具体优先）。
+     */
+    if (!name && typeof unknownTotal === "number" && unknownTotal > 0) {
+      return (
+        `\n\n（他想调几个不存在的动作（共 ${unknownTotal} 次）· 抬手就停：` +
+        `换名字也没用，可用动作只有这一轮的 tools 清单里的那些，我没再让他往下试。）`
+      );
+    }
+    return (
+      `\n\n（他想调 ${name || "那个动作"}，但没这个动作 · 抬手就停：` +
+      `同一个名字已经试过第二次了，再试也不会有别结果，我没再让他往下试。）`
+    );
+  }
   return undefined;
+}
+
+/**
+ * 不存在动作的**两道闸门**：
+ *   ① 同名第二次（`UNKNOWN_ACTION_STOP_AFTER`）—— 说得出名字，说法最具体；
+ *   ② 一整轮加起来第 3 个（`UNKNOWN_ACTION_TOTAL_STOP`）—— 换名字也拦得住。
+ *
+ * 命中任一就把那一笔结果**原地**换成硬话，并返回"该停手了 + 该怎么说"。
+ * 两道同时够数时**同名优先**（`name` 有值就按名字说）。
+ *
+ * 为什么放在循环层、而不是 `runOneAction` 里：`runOneAction` 是**一笔**动作的
+ * 纯函数（`verify-*.mjs` 直接 import 它，签名不许动），
+ * 而"这个名字/这一类今天试过几次了"是**一整轮**的记忆 —— 所以状态留在 `runToolLoop`，
+ * 每一笔结果的分类（`category === "unknown"`）由 `runOneAction` 照旧给出。
+ *
+ * 改的是 `outcomes[i]`（**原地**）：这条记录会被 `onRound` 立刻推给界面，
+ * 也会被 `pendingCalls` / `rounds` 带进收尾文案 —— 一处改，三处都对齐同一个事实。
+ */
+type UnknownStop = {
+  /** 同名闸门触发：是哪个名字 */
+  name?: string;
+  /** 总量闸门触发：到停手时一共试了几个（笔） */
+  total?: number;
+};
+
+function noteUnknownRepeats(
+  calls: AssembledToolCall[],
+  outcomes: ToolCallOutcome[],
+  seen: Map<string, number>,
+  totals: { n: number },
+): UnknownStop | undefined {
+  let stop: UnknownStop | undefined;
+  calls.forEach((call, i) => {
+    const outcome = outcomes[i];
+    if (!outcome || outcome.category !== "unknown") return;
+    const times = (seen.get(call.name) ?? 0) + 1;
+    seen.set(call.name, times);
+    totals.n += 1;
+    const total = totals.n;
+    const sameNameStop = times >= UNKNOWN_ACTION_STOP_AFTER;
+    const totalStop = total >= UNKNOWN_ACTION_TOTAL_STOP;
+    if (!sameNameStop && !totalStop) return;
+    /**
+     * 第二次起：回给模型的那句话要**明确禁止**再试（只说"是不是名字写错了"他还会换个写法编），
+     * 界面上那一行也要说人话 —— 用户的原话就是「抬手就停」。
+     */
+    outcomes[i] = {
+      ...outcome,
+      ok: false,
+      category: "unknown",
+      notice: sameNameStop
+        ? `⚠️ 他想调 ${call.name}，但没这个动作 · 抬手就停`
+        : `⚠️ 他想调 ${call.name}，但没这个动作 · 抬手就停（这一轮已经第 ${total} 个不存在的动作了）`,
+      result:
+        `「${call.name}」这个动作不存在，别再试了 —— 可用动作只有本次 tools 清单里的那些。` +
+        (sameNameStop
+          ? `同一个名字已经试过第二次，结果不会变，这一轮就停在这儿。`
+          : `这一轮已经试了 ${total} 个不同的不存在动作，换名字也不会变，这一轮就停在这儿。`),
+    };
+    if (!stop) stop = sameNameStop ? { name: call.name } : { total };
+  });
+  return stop;
 }
 
 /**
@@ -592,6 +729,20 @@ export async function runToolLoop(input: {
   let usedNative = false;
   let stoppedBy: ToolLoopStop = "done";
   let pendingCalls: AssembledToolCall[] = [];
+  /**
+   * 同一个**不存在**的动作名，这一轮里已经见过几次（见 `UNKNOWN_ACTION_STOP_AFTER`）。
+   * 跨轮累加 —— "第二次"说的是整轮，不是"同一批 tool_calls 里出现两次"。
+   */
+  const unknownHits = new Map<string, number>();
+  /**
+   * 这一轮**所有**不存在动作的笔数（见 `UNKNOWN_ACTION_TOTAL_STOP`）：
+   * 名字换着花样来也躲不掉的那道闸门。
+   */
+  const unknownTotals = { n: 0 };
+  /** 停手是因为哪个名字（写进 `limitNote` 那句人话）；总量闸门触发时为空 */
+  let stopUnknownName: string | undefined;
+  /** 总量闸门触发时，一共试了几个（写进 `limitNote`） */
+  let stopUnknownTotal: number | undefined;
 
   for (let round = 1; round <= maxRounds; round += 1) {
     const r = await input.send({
@@ -642,6 +793,15 @@ export async function runToolLoop(input: {
     /** 界面在这一步**执行之前**就该看到"正在执行 X"（用户："这一轮里我完全看不见"） */
     input.onStep?.({ round, calls: r.toolCalls });
     const outcomes = await exec(r.toolCalls, input.signal, deadline);
+    /**
+     * ⚠️ **硬终止**（这一轮要修的那个 bug）：不存在的动作**同名第二次**，或者
+     * **一轮加起来第 3 个**（换名字也算），都抬手停 —— 不再请求模型。
+     *
+     * 必须在 `record` **之前**改 `outcomes`：`onRound` 会把这一条当场推给界面，
+     * 用户要看到的那句「他想调 XXX，但没这个动作 · 抬手就停」就在 `notice` 里。
+     * 返回值 = 该停手的理由（同名说名字 / 总量说次数），没命中就是 undefined。
+     */
+    const unknownStop = noteUnknownRepeats(r.toolCalls, outcomes, unknownHits, unknownTotals);
     const record: ToolRoundRecord = {
       round,
       calls: r.toolCalls.map((c, i) => ({
@@ -660,6 +820,17 @@ export async function runToolLoop(input: {
     //    （`r.thinking` 一并回传 —— 开了思考模式的上游缺这个字段会 400）
     extra.push(...toolResultMessages(r.toolCalls, outcomes, r.thinking));
 
+    /**
+     * ⭐ 未知动作的闸门命中：**不再请求模型**，这一轮就收尾。
+     * 不再发请求这一点是重点 —— 原来它会一直重试到 12 步上限（用户截图里那 12 条）。
+     */
+    if (unknownStop) {
+      stopUnknownName = unknownStop.name;
+      stopUnknownTotal = unknownStop.total;
+      stoppedBy = "unknownAction";
+      pendingCalls = r.toolCalls;
+      break;
+    }
     if (input.signal?.aborted) {
       stoppedBy = "aborted";
       pendingCalls = r.toolCalls;
@@ -691,6 +862,15 @@ export async function runToolLoop(input: {
     stoppedBy,
     hitLimit,
     elapsedMs: Date.now() - startedAt,
-    limitNote: hitLimit ? limitNoteFor(stoppedBy, rounds.length, budgetMs, maxRounds) : undefined,
+    limitNote: hitLimit
+      ? limitNoteFor(
+          stoppedBy,
+          rounds.length,
+          budgetMs,
+          maxRounds,
+          stopUnknownName,
+          stopUnknownTotal,
+        )
+      : undefined,
   };
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -9,6 +10,7 @@ import {
   Mic,
   Paperclip,
   Plus,
+  Search,
   Smile,
   Square,
   X,
@@ -117,6 +119,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const [modelOpen, setModelOpen] = useState(false);
   /** 第二层：具体模型列表（第一层点「模型」才展开） */
   const [modelPickOpen, setModelPickOpen] = useState(false);
+  /** 模型弹层里的搜索词（模型多的时候按名字过滤，不用在长列表里翻） */
+  const [modelPickQuery, setModelPickQuery] = useState("");
   /** 第二层：三档推理力度（第一层点「推理等级」才展开） */
   const [reasonOpen, setReasonOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -500,11 +504,29 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     setReasonOpen(false);
     setStickerOpen(false);
   }, []);
-  useDismissOutside(
-    cardRef,
-    closeAll,
-    plusOpen || modelOpen || modelPickOpen || reasonOpen || stickerOpen,
-  );
+  /**
+   * ⚠️ 这里**不含** `modelPickOpen`：模型弹层已经不是挂在输入条上的下拉了，
+   * 而是 portal 到 body 的居中模态（遮罩自己负责"点外面关闭"）。
+   * 若还把它算进来，点弹层里任何一行都会被当成"点了对话框外面"而先关掉列表。
+   */
+  useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || reasonOpen || stickerOpen);
+
+  // 模型弹层的 Esc 关闭（模态层该有的手感）
+  useEffect(() => {
+    if (!modelPickOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModelPickOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modelPickOpen]);
+
+  /** 弹层里实际列出来的模型（按搜索词过滤，大小写不敏感） */
+  const modelPickShown = (() => {
+    const q = modelPickQuery.trim().toLowerCase();
+    if (!q) return settings.upstreamModels;
+    return settings.upstreamModels.filter((m) => m.toLowerCase().includes(q));
+  })();
 
   return (
     <div className="px-1.5 pb-composer">
@@ -1185,49 +1207,125 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               </div>
             )}
 
-            {/* 第二层：模型列表 */}
-            {modelPickOpen && (
-              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
-                {settings.upstreamModels.length > 0 ? (
-                  settings.upstreamModels.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => {
-                        patch({ upstreamModel: m });
-                        setModelPickOpen(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left",
-                        m === settings.upstreamModel && "bg-chip",
+            {/*
+              第二层：模型列表 —— **从中间弹出的居中模态弹层**（用户："模型很多时列表铺满
+              页面、滑不动、屏幕外的选不到"；明确否决了底部弹层）。所以：
+                · 遮罩 + 居中卡片，列表自己滚（卡片限高 70vh）
+                · 顶上搜索框按名字过滤，不用在几十个名字里翻
+                · 当前模型整行反色（.data-pill）+ 打勾
+                · 点一行就用它并关掉
+              ⚠️ 必须 portal 到 body：输入条那一层带 backdrop-filter，
+              祖先一旦有 filter/transform，position: fixed 会退化成"相对祖先定位"。
+            */}
+            {modelPickOpen &&
+              createPortal(
+                <div
+                  className="fixed inset-0 z-[120] flex items-center justify-center px-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="选择模型"
+                >
+                  <button
+                    type="button"
+                    aria-label="关闭"
+                    onClick={() => setModelPickOpen(false)}
+                    className="absolute inset-0 bg-black/45"
+                  />
+                  <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl">
+                    <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
+                        <p className="mt-0.5 text-[11px] text-muted">
+                          {settings.upstreamModels.length} 个可选 · 点一行就用它
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="关闭"
+                        onClick={() => setModelPickOpen(false)}
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+
+                    <div className="px-4 pb-2">
+                      <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5">
+                        <Search className="size-3.5 shrink-0 text-muted" />
+                        <input
+                          value={modelPickQuery}
+                          onChange={(e) => setModelPickQuery(e.target.value)}
+                          placeholder="搜索模型名…"
+                          aria-label="搜索模型"
+                          className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle"
+                        />
+                        {modelPickQuery.trim() && (
+                          <button
+                            type="button"
+                            aria-label="清空搜索"
+                            onClick={() => setModelPickQuery("")}
+                            className="shrink-0 text-muted"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* min-h-0 + flex-1 + overflow-y-auto：搜索框和底部说明固定，只有列表滚 */}
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-1">
+                      {settings.upstreamModels.length === 0 ? (
+                        <div className="px-2 py-2.5">
+                          <p className="text-[12px] leading-5 text-muted">
+                            还没配模型 —— 要先告诉栖岛用哪家、用哪个模型。
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModelPickOpen(false);
+                              void navigate({ to: "/me" });
+                            }}
+                            className="mt-2 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium"
+                          >
+                            去「我的 → 自定义上游」配
+                          </button>
+                        </div>
+                      ) : modelPickShown.length === 0 ? (
+                        <p className="py-6 text-center text-[12px] text-subtle">
+                          没有匹配「{modelPickQuery.trim()}」的模型
+                        </p>
+                      ) : (
+                        modelPickShown.map((m) => {
+                          const active = m === settings.upstreamModel;
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                patch({ upstreamModel: m });
+                                setModelPickOpen(false);
+                                setModelPickQuery("");
+                              }}
+                              className={cn(
+                                "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors",
+                                active ? "data-pill" : "text-fg active:bg-chip",
+                              )}
+                            >
+                              <span className="truncate font-mono text-[12.5px]">{m}</span>
+                              {active && <Check className="size-3.5 shrink-0" />}
+                            </button>
+                          );
+                        })
                       )}
-                    >
-                      <span className="truncate font-mono text-[13px]">{m}</span>
-                      {m === settings.upstreamModel && <Check className="size-3.5 text-accent" />}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-2.5">
-                    <p className="text-[12px] leading-5 text-muted">
-                      还没配模型 —— 要先告诉栖岛用哪家、用哪个模型。
+                    </div>
+
+                    <p className="border-t border-line px-4 py-2 text-[10.5px] leading-4 text-muted">
+                      这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModelPickOpen(false);
-                        void navigate({ to: "/me" });
-                      }}
-                      className="mt-2 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium"
-                    >
-                      去「我的 → 自定义上游」配
-                    </button>
                   </div>
-                )}
-                <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
-                  这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。
-                </p>
-              </div>
-            )}
+                </div>,
+                document.body,
+              )}
 
             {/* 第二层：推理等级 */}
             {reasonOpen && (
@@ -1242,14 +1340,14 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     }}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left",
-                      m.id === model && "bg-chip",
+                      m.id === model ? "data-pill" : "text-fg active:bg-chip",
                     )}
                   >
                     <span className="min-w-0">
                       <span className="block text-[13px] font-medium">{m.label}</span>
                       <span className="mt-0.5 block text-[11px] text-subtle">{m.subtitle}</span>
                     </span>
-                    {m.id === model && <Check className="size-3.5 shrink-0 text-accent" />}
+                    {m.id === model && <Check className="size-3.5 shrink-0" />}
                   </button>
                 ))}
                 <p className="border-t border-line px-3 py-2 text-[11px] leading-4 text-muted">
