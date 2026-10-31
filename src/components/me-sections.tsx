@@ -473,10 +473,11 @@ export function MeHub() {
                   key={opt.v || "none"}
                   type="button"
                   aria-pressed={active}
+                  data-opt={active ? undefined : ""}
                   onClick={() => patch({ userGender: opt.v })}
                   className={cn(
                     "rounded-full px-3 py-1 text-[11px] transition",
-                    active ? "data-pill" : "bg-chip text-muted active:bg-surface",
+                    active && "data-pill",
                   )}
                 >
                   {opt.label}
@@ -926,10 +927,11 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={m.id}
                 type="button"
+                data-opt={material === m.id ? undefined : ""}
                 onClick={() => patch({ material: m.id })}
                 className={cn(
                   "rounded-2xl border px-3 py-2.5 text-[13px]",
-                  material === m.id ? "choice-on" : "choice-off",
+                  material === m.id ? "choice-on data-pill" : "choice-off",
                 )}
               >
                 {m.label}
@@ -945,10 +947,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                   <button
                     key={x.id}
                     type="button"
+                    data-opt={palette === x.id ? undefined : ""}
                     onClick={() => patch({ palette: x.id })}
                     className={cn(
                       "flex items-center gap-1.5 rounded-2xl border px-2 py-2 text-[12px]",
-                      palette === x.id ? "choice-on" : "choice-off",
+                      palette === x.id ? "choice-on data-pill" : "choice-off",
                     )}
                   >
                     <span
@@ -1019,10 +1022,11 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={id}
                 type="button"
+                data-opt={settings.motion === id ? undefined : ""}
                 onClick={() => patch({ motion: id })}
                 className={cn(
                   "rounded-full py-1.5 text-[11px]",
-                  settings.motion === id ? "data-pill font-medium" : "text-muted",
+                  settings.motion === id && "data-pill font-medium",
                 )}
               >
                 {label}
@@ -1038,10 +1042,11 @@ function MeSections({ tab }: { tab: MeTab }) {
           <button
             type="button"
             aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
+            data-opt={bgUnlocked ? undefined : ""}
             onClick={() => setBgUnlocked((v) => !v)}
             className={cn(
               "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium",
-              bgUnlocked ? "bg-warn/20 text-warn" : "bg-surface text-muted",
+              bgUnlocked && "bg-warn/20 text-warn",
             )}
           >
             {bgUnlocked ? <Lock className="size-3.5" /> : <SlidersHorizontal className="size-3.5" />}
@@ -1116,9 +1121,10 @@ function MeSections({ tab }: { tab: MeTab }) {
               type="button"
               onClick={() => patch({ font: f.id })}
               style={{ fontFamily: f.stack }}
+              data-opt={settings.font === f.id ? undefined : ""}
               className={cn(
                 "rounded-2xl border px-3 py-2.5 text-left",
-                settings.font === f.id ? "choice-card-on" : "choice-card-off",
+                settings.font === f.id ? "choice-card-on data-pill" : "choice-card-off",
               )}
             >
               <span className="block text-[13px] font-medium">{f.label}</span>
@@ -1136,10 +1142,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             <button
               key={s.id}
               type="button"
+              data-opt={settings.chatFontSize === s.id ? undefined : ""}
               onClick={() => patch({ chatFontSize: s.id })}
               className={cn(
                 "flex-1 rounded-2xl border px-2 py-2.5 text-center",
-                settings.chatFontSize === s.id ? "choice-card-on" : "choice-card-off",
+                settings.chatFontSize === s.id ? "choice-card-on data-pill" : "choice-card-off",
               )}
             >
               <span className="block text-[13px] font-medium">{s.label}</span>
@@ -1154,10 +1161,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             <button
               key={t.id}
               type="button"
+              data-opt={settings.textTone === t.id ? undefined : ""}
               onClick={() => patch({ textTone: t.id })}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[13px]",
-                settings.textTone === t.id ? "data-pill" : "bg-chip",
+                settings.textTone === t.id && "data-pill",
               )}
             >
               {t.label}
@@ -1204,10 +1212,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                 key={p.id}
                 type="button"
                 aria-pressed={active}
+                data-opt={active ? undefined : ""}
                 onClick={() => patch({ composerTint: [...p.colors] })}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
-                  active ? "border-accent text-fg" : "border-line text-muted",
+                  active ? "border-accent text-fg data-pill" : "border-line",
                 )}
               >
                 <span
@@ -1267,10 +1276,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             <button
               key={t.id}
               type="button"
+              data-opt={settings.planetTone === t.id ? undefined : ""}
               onClick={() => patch({ planetTone: t.id })}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
-                settings.planetTone === t.id ? "data-pill" : "bg-chip",
+                settings.planetTone === t.id && "data-pill",
               )}
             >
               {t.swatch && (
@@ -1444,7 +1454,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                       type="button"
                       disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
                       onClick={probeModels}
-                      className="h-11 shrink-0 rounded-2xl border border-line/70 bg-transparent px-3.5 text-[12px] font-medium disabled:opacity-40"
+                      data-opt=""
+                      className="h-11 shrink-0 rounded-2xl border border-line/70 px-3.5 text-[12px] font-medium disabled:opacity-40"
                     >
                       {probing ? "问上游…" : "拉取可用模型"}
                     </button>
@@ -1457,7 +1468,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                         setModelPickQuery("");
                         setModelPickOpen(true);
                       }}
-                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-line/70 bg-chip px-3 py-2.5 text-left"
+                      data-opt=""
+                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-line/70 px-3 py-2.5 text-left"
                     >
                       <span className="min-w-0">
                         <span className="block text-[12px] font-medium">
@@ -1495,7 +1507,10 @@ function MeSections({ tab }: { tab: MeTab }) {
                             onClick={() => setModelPickOpen(false)}
                             className="absolute inset-0 bg-black/45"
                           />
-                          <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl">
+                          <div
+                            data-contrast=""
+                            className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
+                          >
                             <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
                               <div className="min-w-0">
                                 <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
@@ -1507,14 +1522,18 @@ function MeSections({ tab }: { tab: MeTab }) {
                                 type="button"
                                 aria-label="关闭"
                                 onClick={() => setModelPickOpen(false)}
-                                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+                                data-opt=""
+                                className="flex size-7 shrink-0 items-center justify-center rounded-full"
                               >
                                 <X className="size-4" />
                               </button>
                             </div>
 
                             <div className="px-4 pb-2">
-                              <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5">
+                              <div
+                                data-opt=""
+                                className="flex h-9 items-center gap-1.5 rounded-xl border border-line px-2.5"
+                              >
                                 <Search className="size-3.5 shrink-0 text-muted" />
                                 <input
                                   value={modelPickQuery}
@@ -1589,10 +1608,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                       <button
                         key={m.id}
                         type="button"
+                        data-opt={modelNow === m.id ? undefined : ""}
                         onClick={() => setModel(m.id)}
                         className={cn(
                           "rounded-2xl border py-2.5 text-[13px] font-medium transition-colors",
-                          modelNow === m.id ? "choice-on" : "choice-off",
+                          modelNow === m.id ? "choice-on data-pill" : "choice-off",
                         )}
                       >
                         {m.label}
@@ -1715,7 +1735,8 @@ function MeSections({ tab }: { tab: MeTab }) {
       <Section title="上下文与内存">
         <Link
           to="/memory"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+          data-opt=""
+          className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
         >
           <span className="min-w-0">
             <span className="block text-[13px] font-medium">预算 · 缓存 · 存储</span>
@@ -1762,10 +1783,11 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={id}
                 type="button"
+                data-opt={(settings.toolProtocol ?? "auto") === id ? undefined : ""}
                 onClick={() => patch({ toolProtocol: id })}
                 className={cn(
                   "rounded-full px-3 py-2 text-[12px] font-medium",
-                  (settings.toolProtocol ?? "auto") === id ? "data-pill" : "bg-elevated",
+                  (settings.toolProtocol ?? "auto") === id && "data-pill",
                 )}
               >
                 {label}
@@ -1796,12 +1818,16 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={id}
                 type="button"
+                data-opt={
+                  ((settings.toolCatalog ?? "auto") === "auto" ? "auto" : "all") === id
+                    ? undefined
+                    : ""
+                }
                 onClick={() => patch({ toolCatalog: id })}
                 className={cn(
                   "rounded-full px-3 py-2 text-[12px] font-medium",
-                  ((settings.toolCatalog ?? "auto") === "auto" ? "auto" : "all") === id
-                    ? "data-pill"
-                    : "bg-elevated",
+                  ((settings.toolCatalog ?? "auto") === "auto" ? "auto" : "all") === id &&
+                    "data-pill",
                 )}
               >
                 {label}
@@ -1818,7 +1844,8 @@ function MeSections({ tab }: { tab: MeTab }) {
             probeBusy
           }
           onClick={runToolProbe}
-          className="h-11 w-full rounded-2xl bg-chip px-3.5 text-[13px] font-medium disabled:opacity-40"
+          data-opt=""
+          className="h-11 w-full rounded-2xl px-3.5 text-[13px] font-medium disabled:opacity-40"
         >
           {probeBusy ? "正在问上游，稍等…（最多 20 秒）" : "测一测这个上游支不支持工具调用"}
         </button>
@@ -1899,10 +1926,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             <button
               key={o.v}
               type="button"
+              data-opt={settings.maxTokens === o.v ? undefined : ""}
               onClick={() => patch({ maxTokens: o.v })}
               className={cn(
                 "rounded-2xl border px-3 py-2 text-[12px]",
-                settings.maxTokens === o.v ? "choice-on" : "choice-off",
+                settings.maxTokens === o.v ? "choice-on data-pill" : "choice-off",
               )}
             >
               {o.label}
@@ -1920,10 +1948,11 @@ function MeSections({ tab }: { tab: MeTab }) {
             <button
               key={s.id}
               type="button"
+              data-opt={settings.replyStyle === s.id ? undefined : ""}
               onClick={() => patch({ replyStyle: s.id })}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[13px]",
-                settings.replyStyle === s.id ? "data-pill" : "bg-chip",
+                settings.replyStyle === s.id && "data-pill",
               )}
             >
               {s.label}
@@ -1961,10 +1990,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <button
                   key={v}
                   type="button"
+                  data-opt={(settings.segmentMaxParts ?? 3) === v ? undefined : ""}
                   onClick={() => patch({ segmentMaxParts: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxParts ?? 3) === v ? "choice-on" : "choice-off",
+                    (settings.segmentMaxParts ?? 3) === v ? "choice-on data-pill" : "choice-off",
                   )}
                 >
                   {v} 条
@@ -1978,10 +2008,13 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <button
                   key={v}
                   type="button"
+                  data-opt={(settings.segmentMaxSentences ?? 2) === v ? undefined : ""}
                   onClick={() => patch({ segmentMaxSentences: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxSentences ?? 2) === v ? "choice-on" : "choice-off",
+                    (settings.segmentMaxSentences ?? 2) === v
+                      ? "choice-on data-pill"
+                      : "choice-off",
                   )}
                 >
                   {v} 句
@@ -1995,10 +2028,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <button
                   key={v}
                   type="button"
+                  data-opt={(settings.segmentDelayMs ?? 1200) === v ? undefined : ""}
                   onClick={() => patch({ segmentDelayMs: v })}
                   className={cn(
                     "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentDelayMs ?? 1200) === v ? "choice-on" : "choice-off",
+                    (settings.segmentDelayMs ?? 1200) === v ? "choice-on data-pill" : "choice-off",
                   )}
                 >
                   {(v / 1000).toFixed(1)} 秒
@@ -2053,7 +2087,7 @@ function MeSections({ tab }: { tab: MeTab }) {
           }}
         />
 
-        <div className="mb-2 rounded-2xl bg-chip px-3.5 py-3 text-[11px] leading-5 text-muted">
+        <div data-opt="" className="mb-2 rounded-2xl px-3.5 py-3 text-[11px] leading-5">
           <p>
             系统权限：
             <span className={perm === "granted" ? "text-ok" : "text-warn"}>
@@ -2135,7 +2169,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                这样最少四小时也会说一次对吧"
             → 两个 50%，各自"没中就下次必定" → 最坏 4 小时一定有一句。他算的是对的。
           */}
-          <div className="mt-2 rounded-2xl bg-elevated px-3 py-2.5">
+          <div data-opt="" className="mt-2 rounded-2xl px-3 py-2.5">
             <p className="text-[11px] leading-5 text-muted">
               <strong>他多久会开口</strong>
             </p>
@@ -2251,10 +2285,11 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={v}
                 type="button"
+                data-opt={(settings.wakeMinGapMin ?? 40) === v ? undefined : ""}
                 onClick={() => patch({ wakeMinGapMin: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeMinGapMin ?? 40) === v ? "choice-on" : "choice-off",
+                  (settings.wakeMinGapMin ?? 40) === v ? "choice-on data-pill" : "choice-off",
                 )}
               >
                 {v} 分钟
@@ -2268,10 +2303,11 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={v}
                 type="button"
+                data-opt={(settings.wakeDailyMax ?? 8) === v ? undefined : ""}
                 onClick={() => patch({ wakeDailyMax: v })}
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeDailyMax ?? 8) === v ? "choice-on" : "choice-off",
+                  (settings.wakeDailyMax ?? 8) === v ? "choice-on data-pill" : "choice-off",
                 )}
               >
                 {v} 条
@@ -2298,7 +2334,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                   .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
                   .finally(() => setWakePinging(false));
               }}
-              className="rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+              data-opt=""
+              className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
             >
               {wakePinging ? "正在试…" : "通道自检"}
             </button>
@@ -2311,7 +2348,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               type="button"
               disabled={wakeResetBusy}
               onClick={() => void doWakeReset()}
-              className="rounded-full bg-elevated px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+              data-opt=""
+              className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
             >
               {wakeResetBusy ? "正在清…" : wakeResetArmed ? "再点一下，确认清空" : "清空后台状态，重新来"}
             </button>
@@ -2343,7 +2381,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
           </button>
           {wakeLogOpen && (
-            <div className="mt-1.5 rounded-2xl bg-elevated px-3 py-2">
+            <div data-opt="" className="mt-1.5 rounded-2xl px-3 py-2">
               {wakeLogLines === undefined ? (
                 <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
               ) : wakeLogLines && wakeLogLines.length > 0 ? (
@@ -2376,14 +2414,16 @@ function MeSections({ tab }: { tab: MeTab }) {
           <button
             type="button"
             onClick={() => void testNotify()}
-            className="rounded-full bg-chip px-4 py-2.5 text-[13px]"
+            data-opt=""
+            className="rounded-full px-4 py-2.5 text-[13px]"
           >
             发一条测试通知
           </button>
           <button
             type="button"
             onClick={() => void doSubscribe()}
-            className="rounded-full bg-chip px-4 py-2.5 text-[13px]"
+            data-opt=""
+            className="rounded-full px-4 py-2.5 text-[13px]"
           >
             订阅后台推送
           </button>
@@ -2429,10 +2469,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                 key={lv.id}
                 type="button"
                 aria-pressed={active}
+                data-opt={active ? undefined : ""}
                 onClick={() => patch({ wakeLevel: lv.id })}
                 className={cn(
                   "flex-1 rounded-2xl px-2 py-2 text-[12px] transition",
-                  active ? "data-pill" : "bg-chip text-muted active:bg-surface",
+                  active && "data-pill",
                 )}
               >
                 {lv.label}
@@ -2579,7 +2620,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                     });
                   }}
                   disabled={geoBusy}
-                  className="shrink-0 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-medium text-fg shadow-sm disabled:opacity-50"
+                  data-opt=""
+                  className="shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium shadow-sm disabled:opacity-50"
                 >
                   {geoBusy ? "刷新中…" : "刷新"}
                 </button>
@@ -2620,6 +2662,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               <button
                 key={tab.k}
                 type="button"
+                aria-pressed={tab.k === voiceProvider}
+                data-opt=""
                 onClick={() => {
                   if (tab.k === voiceProvider) return;
                   patch({
@@ -2647,9 +2691,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 }}
                 className={cn(
                   "flex-1 rounded-[11px] py-1.5 text-center text-[12px]",
-                  tab.k === voiceProvider
-                    ? "bg-surface font-medium text-fg shadow-sm"
-                    : "text-muted",
+                  tab.k === voiceProvider && "font-medium shadow-sm",
                 )}
               >
                 {tab.label}
@@ -2687,11 +2729,12 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
                 <button
                   type="button"
+                  data-opt=""
                   onClick={() => {
                     setVoicePick(f.pick);
                     setVoicePickQuery("");
                   }}
-                  className="flex h-10 w-full items-center gap-2 rounded-2xl bg-surface px-3 text-left text-[12px] text-fg"
+                  className="flex h-10 w-full items-center gap-2 rounded-2xl px-3 text-left text-[12px] text-fg"
                 >
                   <span className="flex-1 truncate font-mono text-[11px]">
                     {cur || "（点这里选）"}
@@ -2721,7 +2764,8 @@ function MeSections({ tab }: { tab: MeTab }) {
 
           <button
             type="button"
-            className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
+            data-opt=""
+            className="mt-2 h-9 w-full rounded-2xl border border-line text-[12px]"
             onClick={async () => {
               setVoiceMsg(
                 voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…",
@@ -2843,7 +2887,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                           voiceAsrModel: "FunAudioLLM/SenseVoiceSmall",
                         })
                       }
-                      className="h-8 flex-1 rounded-xl border border-line bg-surface text-[11.5px] text-fg"
+                      data-opt=""
+                      className="h-8 flex-1 rounded-xl border border-line text-[11.5px]"
                     >
                       填硅基流动的推荐值
                     </button>
@@ -2852,7 +2897,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                       onClick={() =>
                         patch({ voiceAsrApiKey: "", voiceAsrBaseUrl: "", voiceAsrModel: "" })
                       }
-                      className="h-8 w-16 rounded-xl border border-line bg-surface text-[11.5px] text-muted"
+                      data-opt=""
+                      className="h-8 w-16 rounded-xl border border-line text-[11.5px]"
                     >
                       清空
                     </button>
@@ -2952,7 +2998,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                     <button
                       type="button"
                       onClick={() => void new Audio(designUrl).play()}
-                      className="mt-2 h-9 w-full rounded-2xl border border-line bg-surface text-[12px]"
+                      data-opt=""
+                      className="mt-2 h-9 w-full rounded-2xl border border-line text-[12px]"
                     >
                       ▶ 再听一遍刚造的那个
                     </button>
@@ -3011,7 +3058,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               const r = await speakTextAsync("你好，我是" + resolveAiName(settings.aiName) + "。", {});
               setVoiceMsg(r.ok ? "" : `没读出来：${r.reason}`);
             }}
-            className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-fg"
+            data-opt=""
+            className="rounded-full px-3.5 py-2 text-[12px]"
           >
             试听一句
           </button>
@@ -3065,7 +3113,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               >
                 <div className="absolute inset-0 bg-black/45" />
                 <div
-                  className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
+                  data-contrast=""
+                  className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -3074,7 +3123,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                       type="button"
                       aria-label="关闭"
                       onClick={() => setVoicePick(null)}
-                      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip text-muted"
+                      data-opt=""
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full"
                     >
                       <X className="size-4" />
                     </button>
@@ -3092,7 +3142,8 @@ function MeSections({ tab }: { tab: MeTab }) {
                     value={voicePickQuery}
                     onChange={(e) => setVoicePickQuery(e.target.value)}
                     placeholder="搜索…"
-                    className="mt-2 h-9 w-full rounded-xl border border-line bg-elevated px-3 text-[12px] outline-none"
+                    data-opt=""
+                    className="mt-2 h-9 w-full rounded-xl border border-line px-3 text-[12px] outline-none"
                   />
                   <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto">
                     {shown.length === 0 && (
@@ -3141,7 +3192,8 @@ function MeSections({ tab }: { tab: MeTab }) {
         <div className="space-y-2">
           <Link
             to="/env"
-            className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+            data-opt=""
+            className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
           >
             <span className="min-w-0">
               <span className="block text-[13px] font-medium">环境自检</span>
@@ -3177,7 +3229,8 @@ function MeSections({ tab }: { tab: MeTab }) {
       <Section title="AI 权限" hidden>
         <Link
           to="/permissions"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
+          data-opt=""
+          className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
         >
           <span className="min-w-0">
             <span className="block text-[13px] font-medium">权限与感知</span>
@@ -3245,7 +3298,8 @@ function ImageRow({
           type="button"
           aria-label={`移除${label}`}
           onClick={onClear}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-muted"
+          data-opt=""
+          className="flex size-8 shrink-0 items-center justify-center rounded-full"
         >
           <X className="size-3.5" />
         </button>

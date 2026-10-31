@@ -1233,7 +1233,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     onClick={() => setModelPickOpen(false)}
                     className="absolute inset-0 bg-black/45"
                   />
-                  <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line bg-elevated shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl">
+                  <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl" data-contrast="">
                     <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
@@ -1252,7 +1252,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     </div>
 
                     <div className="px-4 pb-2">
-                      <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5">
+                      <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line px-2.5" data-opt="">
                         <Search className="size-3.5 shrink-0 text-muted" />
                         <input
                           value={modelPickQuery}

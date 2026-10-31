@@ -151,7 +151,8 @@ export function PermissionsView() {
                     "试一试",
                   )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：请求换主题
             </button>
@@ -160,14 +161,16 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "navigate", path: "/play/listen" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：请求切到音乐页
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "media.next" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：请求下一首
             </button>
@@ -176,7 +179,8 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "ui.highlight", text: "内容写入" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：高亮「内容写入」
             </button>
@@ -185,7 +189,8 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "ui.panel", panel: "lyrics" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：打开歌词面板
             </button>
@@ -194,7 +199,8 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "ui.style", style: "concise" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：改成简洁风格
             </button>
@@ -205,7 +211,8 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "ui.toggle", feature: "thinking", on: false }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：关掉思考链显示
             </button>
@@ -216,7 +223,8 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "appearance.font", font: "kai" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：换成楷体
             </button>
@@ -227,14 +235,16 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "chat.rename", title: "玻璃质感笔记" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：把当前对话改名
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "docs.archive" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：把当前对话存档
             </button>
@@ -254,7 +264,8 @@ export function PermissionsView() {
                   "试一试",
                 )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：加个生词
             </button>
@@ -268,7 +279,8 @@ export function PermissionsView() {
                     "试一试",
                   )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：记住一件事
             </button>
@@ -279,7 +291,8 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "reminder.add", text: "起来走两步", time: "15:00" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：设个提醒
             </button>
@@ -293,7 +306,8 @@ export function PermissionsView() {
                     "试一试",
                   )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：改他自己的设定
             </button>
@@ -304,7 +318,8 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "learn.speak", text: "serendipity" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：朗读 serendipity
             </button>
@@ -313,7 +328,8 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "learn.openReading", index: 1 }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：挑第二篇阅读
             </button>
@@ -324,21 +340,24 @@ export function PermissionsView() {
                   .getState()
                   .requestAction({ kind: "play.recordResult", result: "win" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：记一笔胜局
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "play.truth" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：抽一个真心话
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "garden.cesta.look" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：看看竹篮里有什么
             </button>
@@ -347,21 +366,24 @@ export function PermissionsView() {
               onClick={() =>
                 useApp.getState().requestAction({ kind: "diary.deleteLast" }, "试一试")
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-warn"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]" text-warn
             >
               试一试：删掉最近一条日记（L3，会二次确认）
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "media.clear" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-warn"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]" text-warn
             >
               试一试：清空音乐库（L3）
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "data.reset" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-warn"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]" text-warn
             >
               试一试：重置全部数据（L3）
             </button>
@@ -375,14 +397,16 @@ export function PermissionsView() {
                     "试一试",
                   )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-warn"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]" text-warn
             >
               试一试：改上游密钥（L4，应当被直接拒绝）
             </button>
             <button
               type="button"
               onClick={() => useApp.getState().requestAction({ kind: "ambience.play" }, "试一试")}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：播一段氛围音
             </button>
@@ -396,7 +420,8 @@ export function PermissionsView() {
                     "试一试",
                   )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：从网址导入一首
             </button>
@@ -411,7 +436,8 @@ export function PermissionsView() {
                   "试一试",
                 )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：发一条动态
             </button>
@@ -427,7 +453,8 @@ export function PermissionsView() {
                   "试一试",
                 )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：写一封信
             </button>
@@ -449,7 +476,8 @@ export function PermissionsView() {
                   "试一试",
                 )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：记一个重要日子
             </button>
@@ -464,7 +492,8 @@ export function PermissionsView() {
                   "试一试",
                 )
               }
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px]"
+              data-opt=""
+              className="rounded-full px-3.5 py-2 text-[12px]"
             >
               试一试：帮我记一件待办
             </button>
@@ -562,12 +591,11 @@ export function PermissionsView() {
                           <button
                             key={m.id}
                             type="button"
+                            data-opt={mode === m.id ? undefined : ""}
                             onClick={() => useApp.getState().setPermission(p.id, m.id)}
                             className={cn(
                               "rounded-full py-1.5 text-[11px]",
-                              mode === m.id
-                                ? "data-pill font-medium"
-                                : "text-muted",
+                              mode === m.id && "data-pill font-medium",
                             )}
                           >
                             {m.label}

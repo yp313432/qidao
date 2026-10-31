@@ -4420,3 +4420,44 @@ html.q-paused * {
   color: var(--aster-on-fg, #f7f2ea);
   font-weight: 500;
 }
+
+/*
+ * 控件反色（用户 m02333 / m02394 确认的方案）
+ *
+ * 玻璃（气泡 / 卡片 / 输入条 / 导航）永远白，不在这条规则的范围内。
+ * 这里只管两类"可以反色的控件"：
+ *   [data-opt]      选项胶囊（未选中）：浅字 → 深半透明胶囊 + 浅字；深字 → 浅胶囊 + 深字
+ *   [data-contrast] 浮层 / 菜单容器：浅字 → 深底浅字；深字 → 浅底深字
+ * 选中态沿用 .data-pill（底 = 字色、字 = 反色）。
+ */
+[data-opt] {
+  background-color: color-mix(in oklab, var(--aster-menu) 74%, transparent);
+  color: var(--aster-fg);
+}
+
+[data-opt][aria-pressed="true"],
+[data-opt][data-on="true"] {
+  background-color: var(--aster-menu);
+}
+
+[data-contrast] {
+  background-color: var(--aster-menu);
+  color: var(--aster-fg);
+}
+
+[data-contrast] :is(button, [role="button"], a, label, span, p) {
+  color: inherit;
+}
+
+/*
+ * 纯色材质（solid）= 不透明浅纸：字、弹层、胶囊三套必须一起翻。
+ * --aster-menu / --aster-on-fg 是 store.ts 按「用户选的浅色字」算的 inline style，
+ * 不在这层覆盖的话，纯色白纸下会出现「深底 + 深字」（用户 m02440 实机截图）。
+ */
+[data-material="solid"] {
+  --aster-fg: var(--aster-ink) !important;
+  --aster-muted: color-mix(in oklab, var(--aster-ink) 74%, transparent) !important;
+  --aster-subtle: color-mix(in oklab, var(--aster-ink) 52%, transparent) !important;
+  --aster-menu: color-mix(in oklab, #fffcf8 94%, transparent) !important;
+  --aster-on-fg: #f7f2ea !important;
+}

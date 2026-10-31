@@ -1283,7 +1283,8 @@ export function ChatView() {
                             onClick={() => setMsgMenu(null)}
                           >
                             <div
-                              className="w-full max-w-[16rem] rounded-3xl border border-line bg-bg p-2 shadow-xl"
+                              className="glass-menu w-full max-w-[16rem] rounded-3xl border border-line p-2 shadow-xl"
+                              data-contrast=""
                               onClick={(e) => e.stopPropagation()}
                             >
                               
@@ -1399,7 +1400,8 @@ export function ChatView() {
               }}
               /* 贴在消息区底部、**悬浮对话框的上面**（不然会压在输入框上） */
               style={{ bottom: padBottom + 6 }}
-              className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full border border-line bg-surface/92 px-3.5 py-2 text-[12px] text-fg shadow-sm backdrop-blur"
+              className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full border border-line px-3.5 py-2 text-[12px] shadow-sm backdrop-blur"
+              data-contrast=""
             >
               ↓ 回到最新
             </button>
@@ -1413,7 +1415,8 @@ export function ChatView() {
           onClick={() => setRowMenu(null)}
         >
           <div
-            className="w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line bg-bg p-1.5 text-[13px] shadow-xl"
+            className="glass-menu w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line p-1.5 text-[13px] shadow-xl"
+            data-contrast=""
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1458,7 +1461,8 @@ export function ChatView() {
           onClick={() => setRenameFor(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl"
+            className="glass-menu w-full max-w-sm rounded-3xl border border-line p-4 shadow-xl"
+            data-contrast=""
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
@@ -1466,7 +1470,7 @@ export function ChatView() {
               autoFocus
               value={renameFor.text}
               onChange={(e) => setRenameFor({ id: renameFor.id, text: e.target.value })}
-              className="h-10 w-full rounded-2xl bg-chip px-3 text-[13px] outline-none"
+              className="h-10 w-full rounded-2xl border border-line bg-fg/10 px-3 text-[13px] outline-none"
             />
             <div className="mt-3 flex justify-end gap-2">
               <button
@@ -1478,7 +1482,8 @@ export function ChatView() {
               </button>
               <button
                 type="button"
-                className="rounded-full bg-fg px-4 py-1.5 text-[12px] text-bg"
+                className="rounded-full bg-fg px-4 py-1.5 text-[12px]"
+                style={{ color: "var(--aster-on-fg, #f7f2ea)" }}
                 onClick={() => {
                   const name = renameFor.text.trim();
                   if (name) useApp.getState().renameChat(renameFor.id, name);
@@ -1604,7 +1609,10 @@ export function ChatView() {
             className="absolute inset-0 bg-fg/20"
             onClick={() => setMenu(false)}
           />
-          <aside className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75">
+          <aside
+            className="glass-panel glass-menu relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75"
+            data-contrast=""
+          >
             {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
                 用户："上面那个从顶部开始，不是从我画的框开始" */}
             <DrawerSky />
@@ -1841,7 +1849,7 @@ function VoiceBubble({
   };
 
   const item =
-    "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px] text-fg";
+    "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px]";
 
   return (
     <div className={cn("flex max-w-full flex-col gap-1", mine ? "items-end" : "items-start")}>
@@ -1941,7 +1949,8 @@ function VoiceBubble({
         ? createPortal(
             <div className="fixed inset-0 z-[97] bg-black/10" onPointerDown={() => setMenu(null)}>
               <div
-                className="absolute w-[168px] rounded-[13px] border border-line bg-[rgba(253,250,245,0.99)] py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]"
+                className="glass-menu absolute w-[168px] rounded-[13px] border border-line py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]"
+                data-contrast=""
                 style={{
                   left: menu.left,
                   ...(menu.up
@@ -2001,7 +2010,7 @@ function VoiceBubble({
                 <span
                   aria-hidden
                   className={cn(
-                    "absolute size-3 rotate-45 border-line bg-[rgba(253,250,245,0.99)]",
+                    "absolute size-3 rotate-45 border-line bg-[var(--aster-menu)]",
                     menu.up
                       ? "-bottom-[6.5px] border-b border-r"
                       : "-top-[6.5px] border-t border-l",
