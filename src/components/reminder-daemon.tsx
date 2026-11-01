@@ -137,8 +137,12 @@ export function ReminderDaemon() {
         if (kvGet(key) === today) continue;
         kvSet(key, today);
         st.fireReminder(r.id);
-        // 一次性闹钟响过就标完成，免得明天又来一次
-        if (r.date) st.patchReminder(r.id, { done: true });
+        // 一次性闹钟：只弹通知的那种直接删；全屏响铃的先标完成，
+        // 等用户在响铃界面点"关掉"再删（见 alarm-overlay.tsx，用户 2026-11-01）
+        if (r.date) {
+          if (isAlarm) st.patchReminder(r.id, { done: true });
+          else st.removeReminder(r.id);
+        }
         // 闹钟：通知 + **全屏响铃**（只发通知人会睡过去）
         void localNotify(isAlarm ? "栖岛 · 闹钟" : "栖岛 · 提醒", r.text);
         if (isAlarm) st.setRinging({ id: r.id, text: r.text, time: r.time });

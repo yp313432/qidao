@@ -140,7 +140,7 @@ export function createDeltaAccumulator(): DeltaAccumulator {
     // 否则每帧都会新建一个槽、拼不出完整调用。
     const idx =
       typeof c?.index === "number" ? c.index : keys.length > 0 ? keys[keys.length - 1] : 0;
-    const slot = slots.get(idx) ?? newSlot(idx);
+    let slot = slots.get(idx) ?? newSlot(idx);
 
     const n = c?.function?.name;
     if (typeof n === "string" && n) {
@@ -156,8 +156,32 @@ export function createDeltaAccumulator(): DeltaAccumulator {
         // 上游把「完整名字」重发了一次，取更长的那个
         slot.name = n;
       } else {
-        // 真分片：前几帧只给了前半截
-        slot.name += n;
+        /*
+         * 真分片 vs 两个动作粘在一起。
+         *
+         * 用户 m04458 的实机截图里出现了 `reminder_addemotion_report` ——
+         * 上游在同一个 index（或者干脆不给 index）里塞了第二个动作，
+         * 老逻辑 `slot.name += n` 就把两个完整名字粘成一个不存在的动作，
+         * 于是模型看起来在「反复调不存在的动作」。
+         *
+         * 判据：真分片都很短（`tool_` + `call`），而且发生在参数还没开始时；
+         * 如果上一个名字已经完整、参数已经在流了，又来一个完整名字 → 新开一个槽。
+         */
+        const newId = typeof c?.id === "string" && c.id ? c.id : "";
+        const differentId = Boolean(newId && slot.id && newId !== slot.id);
+        // 上一个调用的参数已经收尾（以 } 结尾）又来一个完整名字 → 是第二个动作
+        // （用户 m04458 看到 `reminder_addemotion_report` 就是这么粘出来的）
+        const argsClosed = slot.args.trim().endsWith("}");
+        const twoFullNames = n.length >= 6 && slot.name.length >= 6 && argsClosed;
+        if (differentId || twoFullNames) {
+          // 新开一个槽：这一帧的 name / id / args 都归新槽
+          const nextIndex = keys.length ? Math.max(...keys) + 1 : 0;
+          slot = newSlot(nextIndex);
+          slot.name = n;
+          if (newId) slot.id = newId;
+        } else {
+          slot.name += n;
+        }
       }
     }
 

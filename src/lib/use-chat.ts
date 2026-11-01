@@ -914,6 +914,29 @@ export function useChatStream(opts: UseChatOpts = {}) {
           unknownNames.push(String(action.kind));
           continue;
         }
+        /**
+         * 保底路径（上游不要 tools，改走文本协议）也要在过程线里留一笔。
+         *
+         * 用户 2026-11-01 实机："它设闹钟，我没看到他调用工具，但是定上了" +
+         * "你自己看，是不是没有动手次数" —— 文本协议执行的动作以前**不写 steps**，
+         * 于是「想了 N 秒 · 动了 N 次手」里永远没有后半句。
+         * 这里按原生那条路的同一个形状（`{ kind: "call", call: … }`）补上。
+         */
+        const rest: Record<string, unknown> = { ...(action as unknown as Record<string, unknown>) };
+        delete rest.kind;
+        state.steps.push({
+          kind: "call",
+          call: {
+            name: action.kind.replace(/\./g, "_"),
+            kind: action.kind,
+            args: JSON.stringify(rest),
+            // result 是给模型看的；这条路径的动作结果由闸门异步回填，这里先记"提交了"
+            result: "（文本协议）已提交给权限闸门执行",
+            notice: `✅ ${action.kind} · 已提交执行`,
+            category: "pending",
+            ok: true,
+          },
+        });
         useApp.getState().requestAction(action, "AI");
       }
       if (unknownNames.length > 0) {

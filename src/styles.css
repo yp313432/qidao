@@ -4620,17 +4620,17 @@ html.q-paused * {
  * 玻璃（气泡 / 入口卡 / 输入条 / 导航，带 glass-* 类）→ 字跟用户字色（白字也不糊）
  * 卡片（实色 bg-surface / bg-elevated / bg-chip）→ 白字会糊，这里把字固定深色
  */
-:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"]) {
+:root :is([class*="bg-surface"], [class*="bg-elevated"]) {
   --aster-fg: var(--aster-ink);
   --aster-muted: color-mix(in oklab, var(--aster-ink) 74%, transparent);
   --aster-subtle: color-mix(in oklab, var(--aster-ink) 52%, transparent);
   color: var(--aster-fg);
 }
 
-:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"]) :is(.text-muted, .text-faint) {
+:root :is([class*="bg-surface"], [class*="bg-elevated"]) :is(.text-muted, .text-faint) {
   color: var(--aster-muted);
 }
-:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"]) .text-subtle {
+:root :is([class*="bg-surface"], [class*="bg-elevated"]) .text-subtle {
   color: var(--aster-subtle);
 }
 /*
@@ -4647,4 +4647,20 @@ html.q-paused * {
 .chat-meta {
   color: color-mix(in oklab, var(--aster-fg) 46%, var(--aster-ink));
   text-shadow: 0 0 6px color-mix(in oklab, var(--aster-bg) 55%, transparent);
+}
+/*
+ * 气泡是玻璃，不是卡片（用户 2026-11-01 截图："我发的消息字还是黑色的"）。
+ * 气泡用的是 bg-chip —— 上面那条卡片规则原本把 bg-chip 也算进去了，
+ * 结果气泡里的字被强制改深。这里把 bg-chip 明确排除，让气泡跟字色走。
+ */
+:root :is([class*="bg-chip"]) {
+  color: var(--aster-user-fg, var(--aster-fg));
+}
+/* 纯色模式：聊天页顶栏也要实底。
+   用户 2026-11-01："纯色模式底部导航栏变实，但是上面导航栏没有，还是虚的。"
+   顶栏本来靠透明让背景图透出来；纯色模式下整套都该是"纸"，这里补上。 */
+[data-material="solid"] .chat-topbar {
+  background-color: var(--aster-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }

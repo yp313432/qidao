@@ -614,7 +614,7 @@ export function ChatView() {
         这里只要再留一点点呼吸感 —— 原来是 0.75rem(12px)，加上状态栏那 30~44px 就显得空。
         ⚠️ 网页版没有外壳 inset，env() 也是 0，所以这里仍留 0.25rem 兜底，别把它删成 0。
       */}
-      <header className="flex items-center gap-1 px-4 inset-top-25 pb-2">
+      <header className="chat-topbar flex items-center gap-1 px-4 inset-top-25 pb-2">
         <button
           type="button"
           aria-label="对话列表"
@@ -1257,7 +1257,12 @@ export function ChatView() {
                               ? `输入 ${m.usage.prompt}${
                                   typeof m.usage.tools === "number" && m.usage.tools > 0
                                     ? `（工具 ${m.usage.tools}）`
-                                    : ""
+                                    : (() => {
+                                        const n =
+                                          (m.steps ?? []).filter((s) => s.kind === "call").length ||
+                                          (m.rounds ?? []).reduce((k, r) => k + r.calls.length, 0);
+                                        return n > 0 ? `（动过 ${n} 次手）` : "";
+                                      })()
                                 }`
                               : ""}
                             {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}

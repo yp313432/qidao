@@ -37,6 +37,7 @@ import {
 } from "@/lib/notify";
 import { getModel, MODELS } from "@/lib/models";
 import { probeEffortSupport, type EffortProbeResult } from "@/lib/effort-probe";
+import { probeUpstreamModel, type UpstreamProbeResult } from "@/lib/upstream-probe";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { IS_APP, probeUpstreamModels } from "@/lib/platform";
 import { failedProbeResult, probeToolCalling, type ToolProbeResult } from "@/lib/tool-probe";
@@ -693,6 +694,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   /** 「检测强度支持」的进行中 / 结果（跟工具探测一个套路，见 lib/effort-probe） */
   const [effortBusy, setEffortBusy] = useState(false);
   const [effortResult, setEffortResult] = useState<EffortProbeResult | null>(null);
+  /** 「体检这个上游」：五项（模型名/分词指纹/思考开关/tools/流式） */
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<UpstreamProbeResult | null>(null);
   /** 「他主动找你」的通道自检（见 lib/wake-sync）—— 安全：只 fetch Worker，不碰原生 */
   const [wakePinging, setWakePinging] = useState(false);
   const [wakePingMsg, setWakePingMsg] = useState("");
@@ -1655,6 +1659,70 @@ function MeSections({ tab }: { tab: MeTab }) {
                   <p className="mt-2 text-[11px] leading-4 text-subtle">
                     密钥只存在这台设备里，不进代码、不进仓库。
                   </p>
+
+                  {/*
+                    体检这个上游（用户 2026-11-01："我比较害怕这种，比如我接 Claude opus
+                    他给我用其他模型代替了"）。五项检查，结果直接列出来。
+                    「看签名」不靠得住（model 字段、system_fingerprint 都是字符串，代理想抄就抄），
+                    真正难抄的是分词指纹。
+                  */}
+                  <button
+                    type="button"
+                    disabled={!chanCustom || verifyBusy}
+                    onClick={async () => {
+                      setVerifyBusy(true);
+                      setVerifyResult(null);
+                      try {
+                        const result = await probeUpstreamModel({
+                          base: settings.customBaseUrl ?? "",
+                          key: settings.customApiKey ?? "",
+                          model: settings.upstreamModel ?? "",
+                        });
+                        setVerifyResult(result);
+                      } catch (err) {
+                        setVerifyResult({
+                          ok: false,
+                          items: [],
+                          verdict: [],
+                          error: (err as Error).message,
+                        });
+                      } finally {
+                        setVerifyBusy(false);
+                      }
+                    }}
+                    className="mt-2 h-11 w-full rounded-2xl border border-line text-[13px] font-medium text-fg disabled:border-line/70 disabled:text-subtle"
+                  >
+                    {verifyBusy ? "正在体检，会连发几个请求，稍等…" : "体检这个上游（五项）"}
+                  </button>
+                  {verifyResult && !verifyBusy && (
+                    <div className="mt-2 rounded-2xl border border-line/60 px-3 py-2.5">
+                      {verifyResult.items.map((it) => (
+                        <div key={it.key} className="flex items-start gap-2 py-0.5">
+                          <span
+                            className={cn(
+                              "mt-[5px] size-1.5 shrink-0 rounded-full",
+                              it.pass === true ? "bg-ok" : it.pass === false ? "bg-warn" : "bg-subtle",
+                            )}
+                          />
+                          <span className="min-w-0 flex-1 text-[11.5px] leading-4">
+                            <span className="block text-fg">{it.label}</span>
+                            <span className="block break-all text-subtle">{it.detail}</span>
+                          </span>
+                        </div>
+                      ))}
+                      {verifyResult.verdict.map((v) => (
+                        <p key={v} className="mt-1.5 text-[11px] leading-4 text-warn">
+                          {v}
+                        </p>
+                      ))}
+                      {verifyResult.error && (
+                        <p className="mt-1.5 text-[11px] leading-4 text-warn">{verifyResult.error}</p>
+                      )}
+                      <p className="mt-1.5 text-[10.5px] leading-4 text-subtle">
+                        「分词指纹」这一行请记下来：换站或换模型时再跑一次，数一样才说明是同一个模型。
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

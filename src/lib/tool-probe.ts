@@ -407,6 +407,14 @@ async function postChat(
         transportError: `等了 ${secs} 秒上游也没回（超时）—— 换条线路或别用这家吧`,
       };
     }
+    /**
+     * App 里 fetch 会被跨域拦（中转站没开 CORS 时必然 Failed to fetch）。
+     * 这时候不算"上游不支持工具"，改用原生 HTTP 再发一次 —— 跟聊天那条降级
+     * 同一个思路（见 lib/native-http.ts）。这里不 import，直接从全局拿插件，
+     * 因为这个文件要保持"零依赖、能被 node 直接测"。
+     */
+    const native = await postChatNative(base, key, payload, timeoutMs);
+    if (native) return native;
     const msg = (err as Error)?.message || "网络错误";
     return {
       ok: false,
@@ -416,6 +424,52 @@ async function postChat(
     };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** 用 Capacitor 的原生请求再发一次；不是 App 或拿不到插件就返回 null */
+async function postChatNative(
+  base: string,
+  key: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<Attempt | null> {
+  type NativeHttp = {
+    request?: (o: {
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+      data: unknown;
+      connectTimeout?: number;
+      readTimeout?: number;
+    }) => Promise<{ status: number; data: unknown }>;
+  };
+  type CapGlobal = {
+    isNativePlatform?: () => boolean;
+    Plugins?: { CapacitorHttp?: NativeHttp };
+  };
+  const cap = (globalThis as { Capacitor?: CapGlobal }).Capacitor;
+  const http = cap?.Plugins?.CapacitorHttp;
+  if (!cap?.isNativePlatform?.() || !http?.request) return null;
+  try {
+    const res = await http.request({
+      url: `${base}/chat/completions`,
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      data: payload,
+      connectTimeout: 20000,
+      readTimeout: timeoutMs,
+    });
+    const body = typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "");
+    return { ok: res.status >= 200 && res.status < 300, status: res.status, body };
+  } catch (err) {
+    const msg = (err as Error)?.message || "原生请求失败";
+    return {
+      ok: false,
+      status: 0,
+      body: "",
+      transportError: `连不上上游（原生请求也没成功）：${msg}`,
+    };
   }
 }
 

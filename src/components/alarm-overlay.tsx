@@ -16,6 +16,10 @@ export function AlarmOverlay() {
   const ringing = useApp((s) => s.ringing);
   const setRinging = useApp((s) => s.setRinging);
   const snoozeReminder = useApp((s) => s.snoozeReminder);
+  const removeReminder = useApp((s) => s.removeReminder);
+  const ringingId = useApp((s) => s.ringing?.id);
+  /** 一次性闹钟（带了 date）关掉之后要删掉，否则列表里越攒越多（用户 2026-11-01） */
+  const oneOffDate = useApp((s) => (ringingId ? s.reminders.find((r) => r.id === ringingId)?.date : undefined));
   const fireReminder = useApp((s) => s.fireReminder);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
 
@@ -52,6 +56,7 @@ export function AlarmOverlay() {
           onClick={() => {
             stopRinging();
             fireReminder(ringing.id);
+            if (oneOffDate) removeReminder(ringing.id);
             setRinging(null);
           }}
           className="h-12 rounded-2xl bg-ink-fg text-[15px] font-medium text-ink"
