@@ -651,6 +651,14 @@ export type AppState = {
   ) => { conversationId: string; user: ChatMessage; assistant: ChatMessage };
   patchMessage: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
   finalizeAssistant: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
+  /**
+   * 撤掉一条消息（只给"定时唤醒让路"用）。
+   *
+   * 用户 m02731 第 3 条：他正在回消息，突然冒出来一句"定时 · 他自己说的"，很割裂。
+   * 生成要几十秒，开始生成时用户可能不在对话页、生成期间又切回来了 ——
+   * 落库前再判一次，还在对话页就把占位消息撤掉，这一条不落。
+   */
+  dropMessage: (conversationId: string, messageId: string) => void;
   /** 写入/更新这条对话的「更早的对话摘要」（用户也能手改，所以是 patch 语义） */
   patchSummary: (conversationId: string, patch: Partial<NonNullable<Conversation["summary"]>>) => void;
   /** 丢掉摘要（回到"整条丢"的老行为）—— 摘错了他可以一键撤 */
@@ -1610,6 +1618,15 @@ export const useApp = create<AppState>()(
           };
         });
       },
+      dropMessage: (conversationId, messageId) => {
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id !== conversationId
+              ? c
+              : { ...c, messages: c.messages.filter((m) => m.id !== messageId), updatedAt: Date.now() },
+          ),
+        }));
+      },
       bumpQuota: () => {
         /**
          * **按模式决定拦不拦**（用户提的："用 API 就算 token，用订阅就显示额度"）。
@@ -2103,6 +2120,7 @@ export function applyAppearance(settings: Settings) {
   const tone = settings.textTone ?? "auto";
   if (tone === "auto") {
     root.style.removeProperty("--aster-fg");
+    root.style.removeProperty("--aster-user-fg");
     root.style.removeProperty("--aster-muted");
     root.style.removeProperty("--aster-subtle");
     // 弹层底色回到主题自带的那份
@@ -2117,6 +2135,14 @@ export function applyAppearance(settings: Settings) {
 
   const color = tone === "custom" ? settings.textColor || TONE_COLORS.dark : TONE_COLORS[tone];
   root.style.setProperty("--aster-fg", color);
+  /**
+   * **用户选的字色原值**（另一份拷贝）。
+   *
+   * 白玻璃（气泡/卡片/输入条/导航）里的字要固定用深色（用户 m02995：白玻璃配浅字看不清），
+   * 玻璃容器会把 `--aster-fg` 覆盖成深色；但弹层、选项胶囊还得用"用户原本选的那个颜色"，
+   * 所以这里另存一份，别让玻璃那层把原色吃掉。
+   */
+  root.style.setProperty("--aster-user-fg", color);
   root.style.setProperty("--aster-muted", `color-mix(in oklab, ${color} 76%, transparent)`);
   root.style.setProperty("--aster-subtle", `color-mix(in oklab, ${color} 55%, transparent)`);
   // 文字被强制改色了，弹层底色也得跟着翻，否则白底白字

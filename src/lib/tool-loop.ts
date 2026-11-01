@@ -724,6 +724,14 @@ export async function runToolLoop(input: {
   const rounds: ToolRoundRecord[] = [];
   let content = "";
   let thinking = "";
+  /**
+   * 「最后一轮有正文的那段」—— 工具循环里模型常常是**先说一段 → 调工具 → 拿到结果又重说一遍**。
+   * 老写法把每轮正文都 `content +=` 拼起来，用户就看到同一段说了两遍（m02726 的截图）。
+   * 现在只把**最后一轮有正文的**当作最终回答，中间轮次只用来推进工具调用。
+   */
+  let lastRoundText = "";
+  /** 当前这一轮攒的正文 */
+  let roundText = "";
   let usage: RunToolLoopResult["usage"];
   let stalled = false;
   let error: string | undefined;
@@ -750,12 +758,20 @@ export async function runToolLoop(input: {
       messages: [...input.baseMessages, ...extra],
       tools: input.tools,
       onDelta: (d) => {
-        if (d.content) content += d.content;
+        if (d.content) {
+          content += d.content;
+          roundText += d.content;
+        }
         if (d.thinking) thinking += d.thinking;
         input.onDelta?.(d);
       },
       signal: input.signal,
     });
+    /** 这一轮说完了：把它记成"最近一次有正文的回答"，然后清空，准备下一轮 */
+    if (roundText.trim()) {
+      lastRoundText = roundText.trim();
+      roundText = "";
+    }
     if (r.toolsRejected) {
       // 这一轮的正文没有任何意义（对方是因为 tools 才报的错），交给调用方降级重来
       return {
@@ -851,7 +867,8 @@ export async function runToolLoop(input: {
 
   const hitLimit = stoppedBy !== "done";
   return {
-    content,
+    // 只留最后一轮有正文的那段（中间轮次的"先说一段"不再拼进同一条消息）
+    content: lastRoundText || content,
     thinking,
     pendingCalls,
     usage,

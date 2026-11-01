@@ -180,6 +180,19 @@ function argsText(fn: WireFunctionCall | undefined): string {
 }
 
 /**
+ * 累加参数文本 —— 与 `tool-calls.ts` 的 `mergeArgsText` 同规则（那边是流式用的主路径）。
+ * 有些上游每帧重发整段 arguments，无脑 `+=` 会拼成 `{"a":1}{"a":1}` → 「参数不是合法的 JSON」。
+ */
+function mergeArgsText(cur: string, next: string): string {
+  if (!next) return cur;
+  if (!cur) return next;
+  if (next === cur) return cur;
+  if (cur.endsWith(next)) return cur;
+  if (next.startsWith(cur)) return next;
+  return cur + next;
+}
+
+/**
  * 从一条 assistant 消息里读结构化工具调用。
  *
  * 要求**必须有函数名**才算数：`tool_calls: [{}]` 这种空壳看起来"有 tool_calls"，
@@ -309,8 +322,8 @@ function parseStream(body: string): StreamParse {
         else slot.name += n;
       }
       const a = c.function?.arguments;
-      if (typeof a === "string") slot.args += a;
-      else if (a && typeof a === "object") slot.args += JSON.stringify(a);
+      if (typeof a === "string") slot.args = mergeArgsText(slot.args, a);
+      else if (a && typeof a === "object") slot.args = mergeArgsText(slot.args, JSON.stringify(a));
       slots.set(idx, slot);
     }
     // 极老的单调用增量字段
@@ -327,7 +340,7 @@ function parseStream(body: string): StreamParse {
         }
       }
       const a = d.function_call.arguments;
-      if (typeof a === "string") slot.args += a;
+      if (typeof a === "string") slot.args = mergeArgsText(slot.args, a);
       slots.set(0, slot);
     }
   }

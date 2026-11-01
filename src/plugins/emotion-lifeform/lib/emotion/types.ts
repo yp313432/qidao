@@ -28,6 +28,8 @@ export type EmotionEvent = {
   timestamp: string;
   title: string;
   primaryEmotion: string;
+  /** 上报时选的组别（bright/calm/…，十个之一）；演示数据可能没有 */
+  group?: string;
   secondaryEmotions: string[];
   intensity: number;
   confidence: number;

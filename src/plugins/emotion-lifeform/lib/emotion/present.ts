@@ -42,6 +42,7 @@ function previewEvent(term: string, groupId: string): EmotionEvent {
     timestamp: new Date().toISOString(),
     title: term,
     primaryEmotion: primary,
+    group: groupId,
     secondaryEmotions,
     intensity: 56,
     confidence: 38,

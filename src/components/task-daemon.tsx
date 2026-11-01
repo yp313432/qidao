@@ -338,6 +338,21 @@ export function TaskDaemon() {
         maxParts: settings.segmentMaxParts ?? 3,
         maxSentences: settings.segmentMaxSentences ?? 2,
       });
+      /**
+       * ⚠️ **最后一道让路**（用户 m02731 第 3 条："正在回我消息，突然冒出来一句，很割裂"）。
+       *
+       * 生成要几十秒：开始生成时他可能不在对话页（`tick` 开头那道判过了），
+       * 但**生成期间他又切回对话页** —— 这时消息一落库，就正好插在他和 AI 说话中间。
+       * 所以落库前再判一次：还在对话页，就把这条占位消息撤掉，这一条不落。
+       * 任务已经标记过"跑过"（见上面 `markTaskRun`），今天不会为这一条再补一次，
+       * 明天照常 —— 宁可少说一句，也不在他说话时插嘴。
+       */
+      if (isSystemWake(due) && wakeShouldYield()) {
+        useApp.getState().dropMessage(conversationId, messageId);
+        busy.current = false;
+        return;
+      }
+
       useApp.getState().finalizeAssistant(conversationId, messageId, {
         content: shown,
         parts,

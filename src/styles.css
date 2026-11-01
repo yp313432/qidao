@@ -4432,7 +4432,8 @@ html.q-paused * {
  */
 [data-opt] {
   background-color: color-mix(in oklab, var(--aster-menu) 74%, transparent);
-  color: var(--aster-fg);
+  /* 胶囊底是「反色底」，字用用户原本选的字色（不是玻璃里被改深的那个） */
+  color: var(--aster-user-fg, var(--aster-fg));
 }
 
 [data-opt][aria-pressed="true"],
@@ -4442,7 +4443,7 @@ html.q-paused * {
 
 [data-contrast] {
   background-color: var(--aster-menu);
-  color: var(--aster-fg);
+  color: var(--aster-user-fg, var(--aster-fg));
 }
 
 [data-contrast] :is(button, [role="button"], a, label, span, p) {
@@ -4460,4 +4461,105 @@ html.q-paused * {
   --aster-subtle: color-mix(in oklab, var(--aster-ink) 52%, transparent) !important;
   --aster-menu: color-mix(in oklab, #fffcf8 94%, transparent) !important;
   --aster-on-fg: #f7f2ea !important;
+  --aster-user-fg: var(--aster-ink) !important;
 }
+
+/*
+ * 白玻璃里的字固定用深色（用户 m02995 拍板）。
+ *
+ * 玻璃（气泡 / 卡片 / 输入条 / 底部导航）永远是浅色白玻璃，配用户选的浅字就是"白底白字"。
+ * 所以：**玻璃容器自己把 --aster-fg 覆盖成深色**，玻璃上的字一律深色，跟字色设置无关。
+ *
+ * 不影响：
+ *   · 背景图上的字（不在玻璃里）—— 还是跟用户字色
+ *   · 弹层 [data-contrast] / 选项胶囊 [data-opt] / 选中胶囊 .data-pill —— 它们自己用 --aster-user-fg
+ */
+:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"], [class*="border-line"], [class*="glass-"]:not([class*="glass-menu"])) {
+  --aster-fg: var(--aster-ink);
+  --aster-muted: color-mix(in oklab, var(--aster-ink) 74%, transparent);
+  --aster-subtle: color-mix(in oklab, var(--aster-ink) 52%, transparent);
+  /* 必须显式写：color 是继承来的已解析值，只改变量不会让容器自己的字变深 */
+  color: var(--aster-fg);
+}
+
+/* 弹层：把"用户原字色"还回来（玻璃容器里的弹层会被上面的规则改深，这里必须用 !important 压回去） */
+
+/* 玻璃里那些「次要/更淡」的字也要跟着深，否则主标题深了、说明文字还是浅的 */
+:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"], [class*="border-line"], [class*="glass-"]:not([class*="glass-menu"])) :is(.text-muted, .text-faint, .text-subtle) {
+  color: var(--aster-muted);
+}
+
+:root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"], [class*="border-line"], [class*="glass-"]:not([class*="glass-menu"])) .text-subtle {
+  color: var(--aster-subtle);
+}
+
+/* 弹层里的字恢复成「用户选的字色」—— 必须写在所有玻璃规则之后 + !important，
+   否则嵌在玻璃容器里的弹层（比如世界书「改内容」）会被玻璃那条规则改成深底深字。 */
+[data-contrast] {
+  --aster-fg: var(--aster-user-fg, #f7f2ea) !important;
+  --aster-muted: color-mix(in oklab, var(--aster-user-fg, #f7f2ea) 76%, transparent) !important;
+  --aster-subtle: color-mix(in oklab, var(--aster-user-fg, #f7f2ea) 55%, transparent) !important;
+  color: var(--aster-user-fg, #f7f2ea);
+}
+/* 弹层里的输入框 / 选项胶囊：字色必须是「用户选的字色」。
+   它们身上常带 border-line 之类的类，会被上面的玻璃规则改成深字 → 深底深字，看不见。 */
+[data-contrast] :is(textarea, input),
+[data-opt] {
+  color: var(--aster-user-fg, #f7f2ea) !important;
+}
+
+/* ================= 抽屉底部：像素小螃蟹（情绪） ================= */
+/* 十种情绪共用同一只橙色蟹，只换动作；强度只调幅度（--crab-amp），不换色。 */
+.crab-shell { position: relative; display: block; margin: 0 auto; }
+.crab-fx {
+  position: absolute; right: -4px; top: -8px;
+  font: 700 13px/1 ui-monospace, monospace;
+  color: #ffb08a;
+  animation: crab-fx-float 1.8s steps(6, end) infinite;
+}
+@keyframes crab-fx-float {
+  0% { opacity: 0; transform: translateY(3px); }
+  30% { opacity: .95; }
+  100% { opacity: 0; transform: translateY(-9px); }
+}
+
+@keyframes crab-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(calc(var(--crab-amp, 1) * -6px)); } }
+.crab-bob { animation: crab-bob 1.05s steps(2, end) infinite; }
+
+@keyframes crab-breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.crab-breathe { animation: crab-breathe 4.2s ease-in-out infinite; }
+
+@keyframes crab-sink { 0%,100% { transform: translateY(3px); } 50% { transform: translateY(7px); } }
+.crab-sink { animation: crab-sink 5s ease-in-out infinite; }
+
+@keyframes crab-shake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(calc(var(--crab-amp, 1) * -1.5px)); }
+  75% { transform: translateX(calc(var(--crab-amp, 1) * 1.5px)); }
+}
+.crab-shake { animation: crab-shake .32s steps(2, end) infinite; }
+
+@keyframes crab-sway { 0%,100% { transform: translateX(-2px); } 50% { transform: translateX(2px); } }
+.crab-sway { animation: crab-sway 2.8s ease-in-out infinite; }
+
+@keyframes crab-lean { 0%,100% { transform: scale(1); } 50% { transform: scale(calc(1 + .05 * var(--crab-amp, 1))); } }
+.crab-lean { animation: crab-lean 4s ease-in-out infinite; }
+
+@keyframes crab-hop {
+  0%,100% { transform: translateY(0); }
+  30% { transform: translateY(calc(var(--crab-amp, 1) * -12px)); }
+  55% { transform: translateY(0); }
+}
+.crab-hop { animation: crab-hop 1.6s steps(4, end) infinite; }
+
+@keyframes crab-puff { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(calc(1 + .1 * var(--crab-amp, 1))); } }
+.crab-puff { animation: crab-puff 3.2s ease-in-out infinite; }
+
+@keyframes crab-idle { 0%,92%,100% { transform: translateY(0); } 96% { transform: translateY(1px); } }
+.crab-idle { animation: crab-idle 6s steps(1, end) infinite; }
+
+@keyframes crab-peek { 0%,100% { transform: translateX(-3px) rotate(-3deg); } 50% { transform: translateX(3px) rotate(3deg); } }
+.crab-peek { animation: crab-peek 2.6s ease-in-out infinite; }
+
+/* 「减少动态」：全部停住，只靠眼睛和姿势区分 */
+.crab-still { animation: none; }

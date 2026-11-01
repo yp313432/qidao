@@ -46,6 +46,7 @@ export function toEmotionEvent(record: EmotionEventRecord): EmotionEvent {
     timestamp: new Date(record.at).toISOString(),
     title: shortTitle(record),
     primaryEmotion: record.primaryEmotion,
+    group: record.group,
     secondaryEmotions: record.secondaryEmotions,
     intensity,
     confidence,

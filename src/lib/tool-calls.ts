@@ -97,6 +97,24 @@ function argsText(fn: WireFunctionCall | undefined): string {
   return "";
 }
 
+/**
+ * 累加参数文本 —— 跟 `name` 同一个坑（用户 m02731：调工具老报「参数不是合法的 JSON」）。
+ *
+ * OpenAI 规范里 `arguments` 是**逐片增量**给的（`{"a":` + `1}`），所以要拼；
+ * 但有些中转站**每帧重发整段 JSON**，无脑 `+=` 就拼成 `{"a":1}{"a":1}` → 解析失败。
+ *
+ * 判据：新片段是"重复的同名内容 / 已经结尾的一部分"就忽略；
+ * 是"更长的完整版"（以已拼内容开头）就替换；否则才当作真分片拼接。
+ */
+function mergeArgsText(cur: string, next: string): string {
+  if (!next) return cur;
+  if (!cur) return next;
+  if (next === cur) return cur;
+  if (cur.endsWith(next)) return cur;
+  if (next.startsWith(cur)) return next;
+  return cur + next;
+}
+
 /* ────────────────────────────── 累加器（增量拼装） ────────────────────────────── */
 
 /**
@@ -144,8 +162,8 @@ export function createDeltaAccumulator(): DeltaAccumulator {
     }
 
     const a = c?.function?.arguments;
-    if (typeof a === "string") slot.args += a;
-    else if (a && typeof a === "object") slot.args += JSON.stringify(a);
+    if (typeof a === "string") slot.args = mergeArgsText(slot.args, a);
+    else if (a && typeof a === "object") slot.args = mergeArgsText(slot.args, JSON.stringify(a));
 
     // id 只认第一次拿到的非空值（后面几帧重复给同一个 id 不算变化）
     if (typeof c?.id === "string" && c.id && !slot.id) slot.id = c.id;
@@ -163,8 +181,8 @@ export function createDeltaAccumulator(): DeltaAccumulator {
         const n = d.function_call.name;
         if (typeof n === "string") slot.name += n;
         const a = d.function_call.arguments;
-        if (typeof a === "string") slot.args += a;
-        else if (a && typeof a === "object") slot.args += JSON.stringify(a);
+        if (typeof a === "string") slot.args = mergeArgsText(slot.args, a);
+        else if (a && typeof a === "object") slot.args = mergeArgsText(slot.args, JSON.stringify(a));
       }
     },
 

@@ -78,7 +78,10 @@ export function PromptDialog({
         onClick={onCancel}
         className="absolute inset-0 bg-black/45"
       />
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-line bg-[rgba(252,248,242,0.99)] shadow-[0_20px_60px_rgba(30,20,12,.35)]">
+      <div
+        data-contrast=""
+        className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]"
+      >
         <div className="px-4 pt-4">
           <p className="text-[14px] font-semibold text-fg">{title}</p>
           {hint ? <p className="mt-1 text-[11.5px] leading-4 text-muted">{hint}</p> : null}
@@ -91,7 +94,8 @@ export function PromptDialog({
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
               rows={6}
-              className="w-full resize-y rounded-2xl border border-line bg-surface px-3 py-2.5 text-[13px] leading-[1.7] text-fg outline-none placeholder:text-subtle"
+              data-opt=""
+              className="w-full resize-y rounded-2xl border border-line px-3 py-2.5 text-[13px] leading-[1.7] outline-none placeholder:opacity-60"
             />
           ) : (
             <input
@@ -103,7 +107,8 @@ export function PromptDialog({
                 if (e.key === "Enter") confirm();
                 if (e.key === "Escape") onCancel();
               }}
-              className="w-full rounded-2xl border border-line bg-surface px-3 py-2.5 text-[13px] text-fg outline-none placeholder:text-subtle"
+              data-opt=""
+              className="w-full rounded-2xl border border-line px-3 py-2.5 text-[13px] outline-none placeholder:opacity-60"
             />
           )}
         </div>
@@ -111,14 +116,18 @@ export function PromptDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full bg-chip px-4 py-2 text-[13px] text-muted"
+            data-opt=""
+            className="rounded-full px-4 py-2 text-[13px]"
           >
             取消
           </button>
           <button
             type="button"
             onClick={confirm}
-            className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-ink-fg"
+            /** 实心按钮：底色是 --aster-ink（永远是深的），所以字也用那支浅色。
+             *  必须 inline —— `[data-contrast] :is(button) { color: inherit }` 会把类名压掉 */
+            style={{ color: "var(--aster-ink-fg, #f7f2ea)" }}
+            className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium"
           >
             {confirmText}
           </button>

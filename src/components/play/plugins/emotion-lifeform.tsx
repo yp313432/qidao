@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
 import { EmotionApp } from "@/plugins/emotion-lifeform/components/app/EmotionApp";
 import { toEmotionEvents } from "@/plugins/emotion-lifeform/lib/emotion/qidao-scenes";
 import { useApp } from "@/lib/store";
@@ -37,7 +35,6 @@ import "@/plugins/emotion-lifeform/emotion-lifeform.css";
  * `z-20` 跟记忆宇宙那一页同一个值（插件内部浮层是 z-2~5）。
  */
 export function EmotionLifeformPluginView() {
-  const navigate = useNavigate();
   /**
    * **真数据是这里喂进去的**（跟记忆宇宙那一页同一个套路）：
    * 宿主 store 里 `emotionEvents`（AI 用 `emotion.report` 上报的，见 `lib/actions.ts`）
@@ -57,18 +54,11 @@ export function EmotionLifeformPluginView() {
         <EmotionApp realScenes={realScenes} />
       </div>
 
-      {/* 本页唯一加在插件外面的东西：返回钮 */}
-      <button
-        type="button"
-        aria-label="返回插件"
-        onClick={() => {
-          if (window.history.length > 1) window.history.back();
-          else void navigate({ to: "/play/plugins" });
-        }}
-        className="absolute right-3 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-20 flex size-8 items-center justify-center rounded-full bg-white/10 text-[#e6e1d6] backdrop-blur-sm active:bg-white/20"
-      >
-        <ChevronLeft className="size-4" strokeWidth={2} />
-      </button>
+      {/*
+        返回钮已经挪进插件的页头里了（用户 2026-11：情绪页改成
+        "‹ 情绪 …… [今天][轨迹] ⚙" 一行），所以这里不再叠一个悬浮钮 ——
+        留着会变成页面中下部的一个黑圆点，既重复又挡内容。
+      */}
     </div>
   );
 }
