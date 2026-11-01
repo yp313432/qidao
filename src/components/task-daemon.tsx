@@ -1,14 +1,16 @@
 import { useEffect, useRef } from "react";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
-import { wakeShouldYield } from "@/lib/chat-presence";
+import { isChatPageActive, wakeShouldYield } from "@/lib/chat-presence";
+import { pushChatNotice } from "@/lib/inapp-notice";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { partsFor, stripInvisible } from "@/lib/segment";
 import { stripActions } from "@/lib/use-chat";
-import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf } from "@/lib/wake-schedule";
+import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf, COOLDOWN_MS, DAILY_PROACTIVE_CAP, msSinceLastMessage, proactiveCountToday } from "@/lib/wake-schedule";
+import { buildProactiveInstruction, readSilent } from "@/lib/wake-prompt";
 import { useApp } from "@/lib/store";
 import { syncTaskNotifications } from "@/lib/task-notify";
 
@@ -191,10 +193,37 @@ export function TaskDaemon() {
        * 或把 App 收起来，下一轮 tick 照常补上。
        *
        * 用户自己定的定时任务**不拦**：那是他明确要的提醒。
+       * （下面还有**冷却 / 每日上限**两道闸，那两道对用户定的任务同样生效 —— 见紧接的一段。）
        */
       if (isSystemWake(due) && wakeShouldYield()) return;
 
       busy.current = true;
+      /**
+       * ⭐ **冷场才开口**：刚有人说过话就让路，今天说够了也让路（2026-11）。
+       *
+       * "正在聊着突然冒一句"那道闸（生成期间切回对话页）只管得住**生成那几十秒**；
+       * 更常见的是另一种：**她两分钟前刚回过他，他自己到点又开口** —— 每隔一条任务
+       * 就冒一句"在吗"，比不说话更伤。所以这里两道：
+       *
+       *   ① `COOLDOWN_MS`（5 分钟）内有过消息 → 这一轮不说
+       *   ② 今天他已经主动说过 `DAILY_PROACTIVE_CAP` 条 → 这一轮不说
+       *
+       * ⚠️ 两道闸都是**让路**，不是放弃：**不删任务、不标记跑过**，
+       * 30 秒后下一轮 `tick` 再来 —— 等真安静了、或者明天，照样补上。
+       */
+      const liveConversationId = st.activeId ?? st.conversations[0]?.id ?? null;
+      const liveMessages = (
+        st.conversations.find((c) => c.id === liveConversationId)?.messages ?? []
+      ).filter((m) => m.content.trim());
+      const sinceLast = msSinceLastMessage(liveMessages, now.getTime());
+      if (sinceLast != null && sinceLast < COOLDOWN_MS) {
+        busy.current = false;
+        return;
+      }
+      if (proactiveCountToday(liveMessages, now) >= DAILY_PROACTIVE_CAP) {
+        busy.current = false;
+        return;
+      }
       /**
        * ⭐ **一次性任务（带 `at` = 某一个具体时刻）说完就删**（用户 m01498 第 2 条：
        * "一次性任务做完自动删，别留着"）—— 不然定时任务列表里会永远挂着一张
@@ -227,18 +256,48 @@ export function TaskDaemon() {
       const settings = s.settings;
       const aiName = resolveAiName(settings.aiName);
       const conv = s.conversations.find((c) => c.id === conversationId);
-      const history = historyForApi(
-        (conv?.messages ?? []).filter((m) => m.id !== messageId),
-        { budget: settings.contextBudget },
-      );
+      /** 真实历史（把刚建的占位消息排除掉）；下面"她上一句 / 你上一句"也从这份里取 */
+      const realMessages = (conv?.messages ?? []).filter((m) => m.id !== messageId);
+      const history = historyForApi(realMessages, { budget: settings.contextBudget });
+      const lastUserText =
+        [...realMessages].reverse().find((m) => m.role === "user" && m.content.trim())?.content ?? "";
+      const lastAssistantText =
+        [...realMessages].reverse().find((m) => m.role === "assistant" && m.content.trim())?.content ?? "";
+      /**
+       * ⭐ **注入内容换成"环境事实 + 允许沉默"**（2026-11）。
+       *
+       * 以前这里是一条**命令**：
+       *   "【定时任务 · 用户此刻不在场】现在是 …。请你主动说一句话：…
+       *    （这是你自己按时醒来的，不是用户在问你。别解释"我收到了定时任务"。）"
+       * 结果就是反效果 —— 你在括号里否认什么，模型偏偏要解释什么，于是真说出
+       * "我收到了定时任务"，用户原话："很割裂"。
+       *
+       * 现在只给**事实**（几点、隔了多久、上一句是谁说的、他本来想说什么），
+       * 让他接着话往下说；没有话就允许沉默（`<silent>`，那条不会发出去）。
+       * 拼装见 `lib/wake-prompt.ts` 的 `buildProactiveInstruction`。
+       */
       const messages: ApiMessage[] = [
         ...history,
         {
           role: "user",
-          content:
-            `【定时任务 · 用户此刻不在场】现在是 ${now.toLocaleString("zh-CN", { hour12: false })}。\n` +
-            `请你主动说一句话：${due.prompt}\n` +
-            `（这是你自己按时醒来的，不是用户在问你。直接说，别复述这条指令、别解释"我收到了定时任务"。）`,
+          content: buildProactiveInstruction({
+            now,
+            msSinceLast: msSinceLastMessage(
+              realMessages.filter((m) => m.content.trim()),
+              now.getTime(),
+            ),
+            lastUser: lastUserText,
+            lastAssistant: lastAssistantText,
+            /**
+             * ⚠️ `actionFeedback` 返回的是 `string[]`（一条动作一行），不是一整段字符串 ——
+             * 这里拼成一行给提示词用（`buildProactiveInstruction` 的 `actions` 是 string）。
+             */
+            actions: recentActions.join("；"),
+            intent: due.prompt,
+            /** 他自己排的三类（自由活动/日记/回响）里写着动作写法，不能截断 */
+            intentKeepFull: isSystemWake(due),
+            displayName: settings.displayName,
+          }),
         },
       ];
 
@@ -250,7 +309,14 @@ export function TaskDaemon() {
           window.clearTimeout(timer);
           timer = 0;
         }
-        useApp.getState().patchMessage(conversationId, messageId, { content, thinking });
+        /**
+         * ⚠️ 流式时**别把沉默标记抖到气泡上**：模型吐 `<silent>` 是一字一字来的，
+         * 前几帧会先收到 `<`、`<sil` 这种半截。这些一律当空内容推，
+         * 免得用户盯着一闪而过的 `<sil` 猜是什么。
+         */
+        const preview = readSilent(content);
+        const visible = preview.silent || /^<[a-z/]*$/i.test(preview.text) ? "" : preview.text;
+        useApp.getState().patchMessage(conversationId, messageId, { content: visible, thinking });
       };
       const schedule = () => {
         if (!timer) timer = window.setTimeout(flush, 150);
@@ -309,11 +375,26 @@ export function TaskDaemon() {
       }
       flush();
       /**
+       * ⭐ **允许沉默**（2026-11）：真没什么想说的，他就只输出 `<silent>` ——
+       * 这一条不该落成"（他自己开了口，但没说出什么）"那种占位废话。
+       *
+       * 判定见 `readSilent`（`<silent>` / `<silent/>` / `[silent]` 三种写法都算）：
+       * 洗掉标记后**没有正文** → 撤掉占位消息（`dropMessage`）、**不 finalizeAssistant**、
+       * 不弹通知，直接收工。标记后面还有正文（他先说了一句、又顺手补个标记）
+       * → 标记洗掉，正文照发，绝不把标记显示给她。
+       */
+      const spoken = readSilent(content);
+      if (spoken.silent) {
+        useApp.getState().dropMessage(conversationId, messageId);
+        busy.current = false;
+        return;
+      }
+      /**
        * **他自己的时间 → 回复里那串动作要真的执行**（用户真机："说要写日记实际没写"）：
        * 先抠出来按白名单执行，再把动作块从**看得见的正文**里去掉。
        * ⚠️ 一条唤醒里可能有**多个**动作（写日记 + 报情绪），所以要循环执行、全部抠干净。
        */
-      const { actions: draftActions, rest: draftRest } = splitActions(content);
+      const { actions: draftActions, rest: draftRest } = splitActions(spoken.text);
       for (const a of draftActions) {
         try {
           await runAction(a as never, { navigate: () => {} });
@@ -363,6 +444,21 @@ export function TaskDaemon() {
       });
       if (due.notify) {
         void localNotify(aiName, shown.slice(0, 60));
+      }
+      /**
+       * **App 内横幅**（用户 2026-11-01："我在其它页面，他发了消息我其实不知道，
+       * 要进入聊天才知道……要自然有动效那种"）。
+       *
+       * 只在"不在聊天页"时弹：在聊天页消息就直接落进对话，再弹一条横幅是多余的。
+       * 系统通知（`localNotify`）仍然照发 —— 那个是 App 在后台时用的，两者不冲突。
+       */
+      if (isSystemWake(due) && !isChatPageActive()) {
+        pushChatNotice({
+          name: aiName,
+          avatar: useApp.getState().settings.aiAvatar || "",
+          body: shown,
+          conversationId,
+        });
       }
       busy.current = false;
     };

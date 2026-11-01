@@ -17,7 +17,7 @@
  */
 
 import { kvGetJSON, kvSetJSON } from "@/lib/data/local-kv";
-import type { Moment, Settings, ScheduledTask } from "@/lib/types";
+import type { ChatMessage, Moment, Settings, ScheduledTask } from "@/lib/types";
 
 /* ───────────────────────── 档位 ───────────────────────── */
 
@@ -85,9 +85,68 @@ export const DIARY_MINUTE = 30;
 const FREE_FROM_HOUR = 9;
 const FREE_TO_HOUR = 22;
 
+/* ─────────────── 主动说话的护栏：冷却 + 每日上限 ─────────────── */
+
+/**
+ * **冷却**：`COOLDOWN_MS` 之内刚有人说过话，这一轮就**让路**。
+ *
+ * 为什么要有这道：主动发消息最容易"割裂"的地方不是说了什么，而是**刚说完又来一句** ——
+ * 她 18:02 刚回过他，18:04 他到点又冒一句"在吗"，看起来就像复读机。
+ * 让路 ≠ 丢任务：**不删任务、不标记跑过**，30 秒后下一轮 tick 再来，等真安静了再说。
+ * （见 `components/task-daemon.tsx` 的 `tick()`）
+ */
+export const COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * **每天最多几条他主动说的话**（只数 `origin === "cron"` 的消息）。
+ *
+ * 为什么是模块常量而不是设置项：`Settings` 里**没有**这个字段（`wakeLevel` 那三档管的是
+ * 他自己排的自由活动/日记/回响，不是这里），所以先按常量走；以后要变成可调，
+ * 把它挪进 `Settings` 再从这里读一次即可。
+ *
+ * ⚠️ 这道闸跟 `task-daemon` 里的 `DAILY_CAP`（用户给他定的一天几条任务）**不是一回事**，
+ * 两道都会算：那道管"任务跑了几条"，这道管"他真的开口说了几条"。
+ */
+export const DAILY_PROACTIVE_CAP = 6;
+
+/** 本地一天的口径（跟 `task-daemon` 里的 `dayKey` 同一个写法：按本机时区切日） */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/**
+ * 最近一条消息距今多少毫秒（一条消息都没有 = null）。
+ *
+ * 用 `createdAt` 的最大值而不是数组最后一项：历史消息**不保证**严格按时间排
+ * （补发的唤醒是追加在后面的）。
+ */
+export function msSinceLastMessage(messages: readonly ChatMessage[], nowMs: number): number | null {
+  let last = 0;
+  for (const m of messages) if (m.createdAt > last) last = m.createdAt;
+  return last ? Math.max(0, nowMs - last) : null;
+}
+
+/**
+ * 今天他已经主动说过几条 —— 只数 `origin === "cron"`（定时任务这条路落的）。
+ *
+ * ⚠️ 占位消息**没有** `origin`（`beginScheduledReply` 只写 `scheduled: true`，
+ * `origin` 是 `finalizeAssistant` 落库那一刻才补的），所以正在生成的那条天然不计数。
+ */
+export function proactiveCountToday(messages: readonly ChatMessage[], now: Date): number {
+  const today = dayKey(now);
+  return messages.filter((m) => m.origin === "cron" && dayKey(new Date(m.createdAt)) === today).length;
+}
+
 /* ───────────────────────── 指令文案 ───────────────────────── */
 
-const COMMON = `（这是你自己的时间，不是用户在问你。做完就直接说话，**别复述这条指令**、别说"我收到了定时任务"。）`;
+/**
+ * 三类指令共用的尾巴。
+ *
+ * ⚠️ 2026-11：原来是"这是你自己的时间，**不是用户在问你**" —— 那是**解释**，
+ * 模型会顺着解释往下解释（"我收到了定时任务"）。改成只讲**在场**：
+ * 这一轮是他的、没人在跟他说话；要做就直接做，做完直接说，别交代流程。
+ */
+const COMMON = `（这一轮是你的，没人在跟你说话。要做就直接做，做完直接说 —— 别复述这条指令，也别解释你为什么开这个头。）`;
 
 /** 自由活动：让他按心情自己挑一件事（也可以什么都不做，但不许硬凑） */
 export function buildFreeWakePrompt(): string {

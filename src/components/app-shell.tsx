@@ -10,6 +10,7 @@ import { McpOAuthListener } from "@/components/mcp-oauth-listener";
 import { LetterAlert } from "@/components/letter-alert";
 import { GiftAlert } from "@/components/gift-alert";
 import { GlobalToast } from "@/components/global-toast";
+import { ChatNoticeBanner } from "@/components/chat-notice-banner";
 import { GlassHighlight } from "@/components/glass-highlight";
 import { PlayerHost } from "@/components/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
@@ -233,6 +234,8 @@ export function AppShell() {
       <GiftAlert />
       {/* 全局轻提示：替代 window.alert（安卓原生的白卡片跟这个 App 不搭） */}
       <GlobalToast />
+      {/* 他主动发消息、而你不在聊天页时，从顶部滑下一条横幅（点了直接进聊天） */}
+      <ChatNoticeBanner />
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </div>
