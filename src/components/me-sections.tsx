@@ -3189,9 +3189,9 @@ function MeSections({ tab }: { tab: MeTab }) {
         {/* Section 里的子元素是直接堆叠的，多张卡片必须自己包一层间距，
             否则半透明圆角卡片贴在一起会看起来像「重合」。 */}
         <div className="space-y-2">
+          {/* 入口卡 = 玻璃，不是选项胶囊：2026-11-01 用户 "环境自建改回白色" */}
           <Link
             to="/env"
-            data-opt=""
             className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
           >
             <span className="min-w-0">

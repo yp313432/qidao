@@ -311,15 +311,25 @@ const SPARK_WIDTH = 340;
 const SPARK_HEIGHT = 110;
 const SPARK_FLOOR = 104;
 
-/** 把每笔按"一天里的第几分钟"铺到 24 小时光带上，y 由强度决定 */
+/**
+ * 把每笔铺到光带上，y 由强度决定。
+ *
+ * x 不再是"24 小时里的第几分钟"——那样当天的记录全挤在晚上几个小时里，
+ * 曲线会在右边一小段扭成一团（用户 2026-11-01 实机截图）。
+ * 现在按当天最早到最晚这一段时间自适应铺满整条光带。
+ */
 function buildSpark(events: EmotionEvent[]): {
   points: SparkPoint[];
   line: string;
   area: string;
 } {
-  const points: SparkPoint[] = events.map((event) => {
-    const minutes = clockMinutes(event.timestamp);
-    const x = (minutes / 1440) * SPARK_WIDTH;
+  const minutes = events.map((event) => clockMinutes(event.timestamp));
+  const earliest = Math.min(...minutes);
+  const latest = Math.max(...minutes);
+  const span = Math.max(1, latest - earliest);
+  const PAD = 12;
+  const points: SparkPoint[] = events.map((event, index) => {
+    const x = PAD + ((minutes[index] - earliest) / span) * (SPARK_WIDTH - PAD * 2);
     const intensity = Math.max(4, Math.min(100, event.intensity));
     const y = SPARK_FLOOR - (intensity / 100) * (SPARK_FLOOR - 10);
     return {
