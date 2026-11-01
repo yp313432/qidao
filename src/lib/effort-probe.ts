@@ -63,22 +63,24 @@ async function probeOnce(args: {
   let thinking = "";
   let content = "";
 
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${args.apiKey.trim()}`,
+  };
+  const payloadBase = {
+    model: args.model.trim(),
+    messages: [{ role: "user", content: QUESTION }],
+    // 探测只花几十个 token，别让思考链把额度吃光
+    max_tokens: 96,
+    thinking: { type: args.thinking ? "enabled" : "disabled" },
+    ...(args.thinking && args.effort ? { reasoning_effort: args.effort } : {}),
+  };
+
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${args.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        model: args.model.trim(),
-        messages: [{ role: "user", content: QUESTION }],
-        stream: true,
-        // 探测只花几十个 token，别让思考链把额度吃光
-        max_tokens: 96,
-        thinking: { type: args.thinking ? "enabled" : "disabled" },
-        ...(args.thinking && args.effort ? { reasoning_effort: args.effort } : {}),
-      }),
+      headers,
+      body: JSON.stringify({ ...payloadBase, stream: true }),
       signal: ctrl.signal,
     });
 
@@ -142,6 +144,15 @@ async function probeOnce(args: {
     return { httpOk: true, status: res.status, thinking, content, text: raw.slice(0, SNIPPET_CHARS) };
   } catch (err) {
     const msg = (err as Error)?.message || "未知错误";
+    /**
+     * App 里浏览器 fetch 会被中转站的 CORS 拦掉（报 Failed to fetch，其实是连接没建立），
+     * 于是"三档强度"永远测不出来、用户点的「均衡/深思」也就一直没真发出去。
+     * 这里跟 `tool-probe.ts` 一样：网络类失败再用原生请求重试一次（非流式，整段返回）。
+     */
+    if (!ctrl.signal.aborted && /failed to fetch|networkerror|load failed|network request failed|connect|timed out|timeout/i.test(msg)) {
+      const native = await probeOnceNative(url, headers, payloadBase, args.timeoutMs);
+      if (native) return native;
+    }
     return {
       httpOk: false,
       status: 0,
@@ -152,6 +163,60 @@ async function probeOnce(args: {
     };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * 原生请求兜底（只在 App 里、且浏览器 fetch 被跨域拦掉时走）。
+ *
+ * 不能 import `@capacitor/core` —— 这个文件要能在纯 node 里被测试脚本直接跑，
+ * 所以从全局 `Capacitor` 取；拿不到就返回 null，让调用方走原来的错误分支。
+ */
+async function probeOnceNative(
+  url: string,
+  headers: Record<string, string>,
+  payloadBase: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<{ httpOk: boolean; status: number; thinking: string; content: string; text: string; error?: string } | null> {
+  const cap = (globalThis as unknown as {
+    Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { CapacitorHttp?: { request?: (o: unknown) => Promise<{ status: number; data?: unknown }> } } };
+  }).Capacitor;
+  const Http = cap?.Plugins?.CapacitorHttp;
+  if (!cap?.isNativePlatform?.() || !Http?.request) return null;
+
+  try {
+    // 原生请求不支持逐片流，所以这里用非流式；思考内容从 message.reasoning_content 取
+    const res = await Http.request({
+      url,
+      method: "POST",
+      headers,
+      data: { ...payloadBase, stream: false },
+      connectTimeout: 20_000,
+      readTimeout: timeoutMs,
+    });
+    const raw = res.data;
+    const body = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const msg = ((body as { choices?: { message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null } }[] })
+      ?.choices?.[0]?.message ?? {}) as { content?: string | null; reasoning_content?: string | null; reasoning?: string | null };
+    const thinking = msg.reasoning_content ?? msg.reasoning ?? "";
+    const content = msg.content ?? "";
+    return {
+      httpOk: res.status >= 200 && res.status < 300,
+      status: res.status,
+      thinking,
+      content,
+      text: JSON.stringify(body ?? {}).slice(0, SNIPPET_CHARS),
+      error: res.status >= 200 && res.status < 300 ? undefined : `上游返回 ${res.status}：${JSON.stringify(body ?? {}).slice(0, ERROR_BODY_CHARS)}`,
+    };
+  } catch (err) {
+    return {
+      httpOk: false,
+      status: 0,
+      thinking: "",
+      content: "",
+      text: "",
+      error: `连不上上游：${(err as Error)?.message || "未知错误"}`,
+    };
   }
 }
 

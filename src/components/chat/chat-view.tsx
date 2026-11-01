@@ -939,15 +939,14 @@ export function ChatView() {
                             );
                           })()}
                           {/*
-                            来源徽章：定时任务和主动唤醒**共用** `scheduled` 这个标记，
-                            所以要看 `origin` 分开说（用户要求）：
-                              · origin === "wake" → 「他主动说的」
-                              · 其余（"cron" 或老消息没这个字段）→ 「定时 · 他自己说的」
-                            ⚠️ 老消息没有 origin，必须保持原样显示，不能因为"读不到来源"就不显示。
+                            来源徽章：定时任务和主动唤醒共用 `scheduled` 这个标记。
+                            2026-11-01 用户实机截图："这个定时还在呀，你改了吗" ——
+                            「定时 · 他自己说的」这个徽章会让他看着像定时播报，去掉；
+                            只保留「他主动说的」（主动唤醒那条本来就是他自己的话）。
                           */}
-                          {m.scheduled && (
+                          {m.scheduled && m.origin === "wake" && (
                             <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
-                              {m.origin === "wake" ? "他主动说的" : "定时 · 他自己说的"}
+                              他主动说的
                             </span>
                           )}
                           <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
