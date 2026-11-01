@@ -1094,7 +1094,14 @@ export function ChatView() {
                             .filter((x) => x.kind === "call").length ||
                             (m.rounds ?? []).reduce((n, r) => n + r.calls.length, 0);
                           const thinkable = Boolean(m.thinking) || callCount > 0;
-                          if (!streaming && !(settings.showThinking && thinkable)) return null;
+                          /*
+                           * 2026-11-01 用户：「动作没有了，比如它设闹钟，我没看到他调用工具，但是定上了」。
+                           * 原来这行整块受「显示思考过程」开关控制 —— 关掉后连「动了 N 次手」也一起没了。
+                           * 改：**只要它真的动过手就显示这一行**，跟思考链开关解耦；
+                           * 只有「想但没动手」的情况才听那个开关。
+                           */
+                          const hasCalls = callCount > 0;
+                          if (!streaming && !((settings.showThinking && Boolean(m.thinking)) || hasCalls)) return null;
                           const secs = m.thinkingDurationMs
                             ? Math.max(1, Math.round(m.thinkingDurationMs / 1000))
                             : 0;
@@ -1113,7 +1120,7 @@ export function ChatView() {
                                   live: Boolean(streaming && !m.content),
                                 })
                               }
-                              className="mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] text-muted [-webkit-tap-highlight-color:transparent]"
+                              className="chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]"
                             >
                               {/* 一根细竖线领着这一行，跟弹层里那条线同一个语汇（用户 m12711） */}
                               <span aria-hidden className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25" />
@@ -1245,7 +1252,7 @@ export function ChatView() {
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
                             现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
                         {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
-                          <p className="mt-1 px-1 text-[10px] text-subtle">
+                          <p className="chat-meta mt-1 px-1 text-[10px]">
                             {m.usage.prompt
                               ? `输入 ${m.usage.prompt}${
                                   typeof m.usage.tools === "number" && m.usage.tools > 0

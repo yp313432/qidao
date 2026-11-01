@@ -4633,3 +4633,18 @@ html.q-paused * {
 :root :is([class*="bg-surface"], [class*="bg-elevated"], [class*="bg-chip"]) .text-subtle {
   color: var(--aster-subtle);
 }
+/*
+ * 消息下面那些"辅助小字"（想了 6 秒 / 动了 N 次手 / 输入·输出·缓存命中率）。
+ *
+ * 用户 2026-11-01："动作没有了，就连下面的工具消耗也没有了，就是比如它设闹钟，
+ * 我没看到他调用工具，但是定上了" —— 不是没渲染，是**看不见**：
+ * 这两行分别是 11.5px 和 10px，颜色跟字样走（浅字模式下 = 白 76% / 白 55%），
+ * 压在浅色背景图上几乎没对比。
+ *
+ * 处理：这类小字不跟字色走，用「字色与墨色各一半」混出一个中灰 ——
+ * 浅字模式落在灰白（浅底上看得见），深字模式落在深灰（深底上也看得见）。
+ */
+.chat-meta {
+  color: color-mix(in oklab, var(--aster-fg) 46%, var(--aster-ink));
+  text-shadow: 0 0 6px color-mix(in oklab, var(--aster-bg) 55%, transparent);
+}
