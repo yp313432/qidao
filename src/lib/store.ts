@@ -472,6 +472,10 @@ export type AppState = {
    * 拟标题之类的映射在插件侧的 `lib/emotion/qidao-scenes.ts` 里做。
    */
   emotionEvents: EmotionEventRecord[];
+  /** 删掉一笔（用户在情绪页里长按 / 详情里删） */
+  removeEmotionEvent: (id: string) => void;
+  /** 清空：scope=today 只清今天，all 全清 */
+  clearEmotionEvents: (scope: "today" | "all") => void;
   addEmotionEvent: (e: Omit<EmotionEventRecord, "id" | "at"> & { at?: number }) => string;
   /** 世界书 / 思考引导（默认只留几条关着的预设，用户自己开） */
   worldBook: WorldEntry[];
@@ -1226,6 +1230,18 @@ export const useApp = create<AppState>()(
           emotionEvents: [{ ...e, id, at }, ...st.emotionEvents].slice(0, 60),
         }));
         return id;
+      },
+      removeEmotionEvent: (id) =>
+        set((st) => ({ emotionEvents: st.emotionEvents.filter((e) => e.id !== id) })),
+      clearEmotionEvents: (scope) => {
+        if (scope === "all") {
+          set({ emotionEvents: [] });
+          return;
+        }
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const from = start.getTime();
+        set((st) => ({ emotionEvents: st.emotionEvents.filter((e) => e.at < from) }));
       },
       setKeyboardUp: (v) => set((s) => (s.keyboardUp === v ? {} : { keyboardUp: v })),
       addTask: ({ prompt, time, at, notify }) => {

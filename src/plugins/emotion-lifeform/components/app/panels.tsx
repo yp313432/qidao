@@ -9,9 +9,10 @@
  * 设计稿：仓库根 `preview-emotion-glow3.html`（第 1 屏今天 / 第 2 屏详情 / 第 3 屏轨迹）。
  * 数据全部来自 `useEmotionView()` 与 `useEmotionStore()`，不自己造。
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
+import { useApp } from "@/lib/store";
 import { LEXICON } from "@/plugins/emotion-lifeform/lib/emotion/lexicon";
 import { DIMENSIONS, type EmotionEvent, type Settings } from "@/plugins/emotion-lifeform/lib/emotion/types";
 import { useEmotionView } from "@/plugins/emotion-lifeform/lib/emotion/present";
@@ -392,6 +393,29 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
   const sceneId = useEmotionStore((store) => store.sceneId);
   const settings = useEmotionStore((store) => store.settings);
   const reduced = settings.reducedMotion;
+  const removeEmotionEvent = useApp((store) => store.removeEmotionEvent);
+
+  /* 长按删单条：按住 550ms 弹确认。
+     演示场景（eventId 不带 `qidao:` 前缀）不是真数据，不给删。 */
+  const holdRef = useRef<number | null>(null);
+  const firedRef = useRef(false);
+  const beginHold = (eventId: string) => {
+    if (!eventId.startsWith("qidao:")) return;
+    firedRef.current = false;
+    holdRef.current = window.setTimeout(() => {
+      holdRef.current = null;
+      firedRef.current = true;
+      if (window.confirm("删掉这一笔情绪？删了就找不回来了。")) {
+        removeEmotionEvent(eventId.slice("qidao:".length));
+      }
+    }, 550);
+  };
+  const endHold = () => {
+    if (holdRef.current !== null) {
+      window.clearTimeout(holdRef.current);
+      holdRef.current = null;
+    }
+  };
 
   const ordered = useMemo(
     () => [...scenes].sort((left, right) => Date.parse(left.timestamp) - Date.parse(right.timestamp)),
@@ -478,7 +502,25 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
               </span>
               <button
                 type="button"
-                onClick={() => onOpenDetail(event.eventId)}
+                onClick={() => {
+                  // 长按删除之后别再顺带打开详情
+                  if (firedRef.current) {
+                    firedRef.current = false;
+                    return;
+                  }
+                  onOpenDetail(event.eventId);
+                }}
+                onPointerDown={() => beginHold(event.eventId)}
+                onPointerUp={endHold}
+                onPointerLeave={endHold}
+                onContextMenu={(e) => {
+                  // 安卓长按会走 contextmenu：拦掉系统菜单，同一个确认
+                  e.preventDefault();
+                  if (!event.eventId.startsWith("qidao:")) return;
+                  if (window.confirm("删掉这一笔情绪？删了就找不回来了。")) {
+                    removeEmotionEvent(event.eventId.slice("qidao:".length));
+                  }
+                }}
                 className="rounded-[12px] border px-2.5 py-2 text-left"
                 style={{
                   background: active ? "rgba(255,255,255,.075)" : "rgba(255,255,255,.045)",
@@ -735,6 +777,71 @@ function LexiconFold() {
   );
 }
 
+/* ────────────────────────────── 记录管理 ────────────────────────────── */
+
+/**
+ * 设置里的「情绪记录」区：显示多少笔 + 清空今天 / 全部清空。
+ * 单条删除在轨迹页长按（那里才有"这一条是哪个"的上下文）。
+ */
+function RecordTools() {
+  const total = useApp((store) => store.emotionEvents.length);
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+  const todayCount = useApp(
+    (store) => store.emotionEvents.filter((e) => e.at >= todayStart).length,
+  );
+  const clearEmotionEvents = useApp((store) => store.clearEmotionEvents);
+  const [confirm, setConfirm] = useState<"today" | "all" | null>(null);
+
+  const run = (scope: "today" | "all") => {
+    if (confirm !== scope) {
+      setConfirm(scope);
+      return;
+    }
+    clearEmotionEvents(scope);
+    setConfirm(null);
+  };
+
+  return (
+    <div className="mt-3 border-t pt-3" style={{ borderColor: PAPER.panelBorder }}>
+      <div className="flex items-baseline justify-between">
+        <p className="text-[12px] font-medium" style={{ color: PAPER.cream }}>
+          情绪记录
+        </p>
+        <p className="text-[11px] tabular-nums" style={{ color: PAPER.faint }}>
+          共 {total} 笔
+        </p>
+      </div>
+      <p className="mt-1 text-[11px] leading-snug" style={{ color: PAPER.faint }}>
+        删了就找不回来。轨迹里长按某一条，可以只删那一笔。
+      </p>
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => run("today")}
+          disabled={todayCount === 0}
+          className="flex-1 rounded-full px-2 py-1.5 text-[11px] disabled:opacity-40"
+          style={{ background: "rgba(255,255,255,.08)", color: PAPER.cream }}
+        >
+          {confirm === "today" ? "再点一次确认" : `清空今天（${todayCount}）`}
+        </button>
+        <button
+          type="button"
+          onClick={() => run("all")}
+          disabled={total === 0}
+          className="flex-1 rounded-full px-2 py-1.5 text-[11px] disabled:opacity-40"
+          style={{ background: "rgba(255,255,255,.08)", color: "#f0b8a6" }}
+        >
+          {confirm === "all" ? "再点一次确认" : "全部清空"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const settings = useEmotionStore((store) => store.settings);
   const updateSettings = useEmotionStore((store) => store.updateSettings);
@@ -797,6 +904,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             onChange={(reducedMotion) => updateSettings({ reducedMotion })}
           />
         </div>
+        <RecordTools />
         <LexiconFold />
       </div>
     </div>
