@@ -347,11 +347,13 @@ export function EmotionGlowStyle() {
   return (
     <style>{`
       /* 用户 2026-11-01："情绪光球只在第一下有动效，后面就没有了，看起来呆在那里"
-         → 原来 8s、幅度 4%，太慢太小，容易被当成静止。改 4.6s、幅度 7%、
-           再叠一层很慢的"光心位移"，肉眼能看出在呼吸。 */
+         → 原来 8s、幅度 4%，太慢太小，容易被当成静止。改 4.6s、幅度 7% + 位移。
+         ⚠️ 这里绝对不能写 filter：这层元素本身带 blur(13px)，
+           关键帧里一旦出现 filter，整条 filter 会被覆盖掉 → 模糊没了、变成一颗实心球
+           （用户 2026-11-01 当场发现：怎么变成一颗实心球了）。 */
       @keyframes emo-breathe {
-        0%, 100% { transform: scale(.97) translateY(2px); opacity: .82; filter: brightness(.97); }
-        50% { transform: scale(1.07) translateY(-4px); opacity: 1; filter: brightness(1.1); }
+        0%, 100% { transform: scale(.95) translateY(3px); opacity: .82; }
+        50% { transform: scale(1.08) translateY(-5px); opacity: 1; }
       }
       @keyframes emo-land {
         0% { transform: scale(1.13); }

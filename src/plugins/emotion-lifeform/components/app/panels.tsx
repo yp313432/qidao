@@ -290,41 +290,8 @@ export function TodayScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
         </>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        <p className="text-[11px]" style={{ color: PAPER.faint }}>
-          最近的几笔
-        </p>
-        {recent.map((event) => {
-          const active = event.eventId === view.event.eventId;
-          return (
-            <button
-              key={event.eventId}
-              type="button"
-              onClick={() => onOpenDetail(event.eventId)}
-              className="grid grid-cols-[40px_8px_1fr_auto] items-center gap-2.5 rounded-[13px] px-2.5 py-2 text-left"
-              style={{
-                background: active ? "rgba(255,255,255,.075)" : "rgba(255,255,255,.045)",
-                border: "1px solid rgba(255,255,255,.06)",
-              }}
-            >
-              <span className="text-[11px] tabular-nums" style={{ color: "#7f7688" }}>
-                {formatClock(event.timestamp)}
-              </span>
-              <span
-                className="size-2 rounded-full"
-                style={{ background: groupOf(event).tint }}
-                aria-hidden
-              />
-              <span className="truncate text-[12px]" style={{ color: "#ded4e4" }}>
-                {event.primaryEmotion}
-              </span>
-              <span className="text-[10.5px] tabular-nums" style={{ color: "#8b8294" }}>
-                {event.intensity}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* 用户 2026-11-01："把下面那个最近几笔情绪给删了，把地方挪出来，那个在轨迹里看就行了"
+          —— 今天屏只留一张光团和它自己这一笔，列表交给「轨迹」。 */}
 
       <ScriptLine size={16} opacity={0.62} rotate={-1} className="mt-6 text-right">
         And I keep every one of them.

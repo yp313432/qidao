@@ -4586,3 +4586,51 @@ html.q-paused * {
   46%, 84% { opacity: 1; }
   92%, 100% { opacity: 0; }
 }
+/* ── 抽屉里的像素蟹：桌宠行为 ───────────────────────────────────────
+   用户 2026-11-01："它不需要呼吸感，不需要像情绪球那样一缩一放的，
+   他就改成动画……就跟桌宠类似，是可以动的那种"。
+   所以这里全部是位移/换帧，没有任何缩放。 */
+
+/* 待机时自己溜达：慢慢左右挪，偶尔往边上走两步再回来 */
+.crab-roam { animation: crab-roam 19s ease-in-out infinite; }
+@keyframes crab-roam {
+  0%, 54%, 100% { transform: translate(0, 0); }
+  60%, 66% { transform: translate(-14px, -1px); }
+  70%, 76% { transform: translate(-14px, 0); }
+  82%, 88% { transform: translate(9px, -1px); }
+  93% { transform: translate(9px, 0); }
+}
+
+/* 点一下头顶冒出来的情绪气泡（只写情绪词） */
+.crab-bubble {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: #1a1512;
+  color: #f7f2ea;
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .16), 0 8px 20px rgba(0, 0, 0, .38);
+  animation: crab-bubble-in 160ms ease-out;
+}
+.crab-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1a1512;
+}
+@keyframes crab-bubble-in {
+  from { opacity: 0; transform: translate(-50%, 4px) scale(.92); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crab-roam { animation: none; }
+}

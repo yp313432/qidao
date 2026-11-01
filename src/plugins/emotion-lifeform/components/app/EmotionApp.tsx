@@ -92,7 +92,18 @@ export function EmotionApp({ realScenes = [] }: { realScenes?: EmotionEvent[] })
       : `pointer-events-none absolute inset-x-0 top-0 ${reduced ? "opacity-0" : "scale-[.86] opacity-0 transition-all duration-300"}`;
 
   return (
-    <div className="relative min-h-dvh" style={{ background: PAPER.bg, color: PAPER.cream }}>
+    <div
+      className="relative min-h-dvh"
+      style={{
+        background: PAPER.bg,
+        color: PAPER.cream,
+        /**
+         * 顶部留出星空：用户 2026-11-01 "还是贴着顶边栏，往下挪，你下面不还有空地吗"。
+         * 顶栏不再从 y=0 开始，上面露出背景，视觉上就不"贴"了。
+         */
+        paddingTop: "max(38px, calc(var(--q-inset-top, env(safe-area-inset-top, 0px)) + 28px))",
+      }}
+    >
       <GlowBackdrop
         hue={group.hue}
         intensity={settings.showLifeform ? view.event.intensity : 30}
@@ -103,6 +114,14 @@ export function EmotionApp({ realScenes = [] }: { realScenes?: EmotionEvent[] })
       <header
         className="sticky top-0 z-30 flex items-center gap-2 px-4 pb-2"
         style={{
+          /**
+           * 让开手机状态栏。用户实机两条反馈：
+           *   ① "上面导航栏太高了，已经和我手机的时间、电量糊在一起了"；
+           *   ② "返回、轨迹和设置按钮完全没反应" —— 贴顶时按钮正好压在
+           *      状态栏那条区域上，看着在、点不到。
+           * `--q-inset-top` 是原生推进来的；浏览器里没有，就退回 env()。
+           */
+          paddingTop: 0,
           background:
             "linear-gradient(180deg, rgba(13,10,20,.96) 0%, rgba(13,10,20,.82) 68%, rgba(13,10,20,0) 100%)",
         }}
