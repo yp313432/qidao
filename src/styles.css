@@ -4563,3 +4563,26 @@ html.q-paused * {
 
 /* 「减少动态」：全部停住，只靠眼睛和姿势区分 */
 .crab-still { animation: none; }
+
+/* 眼睛轮流换：横线眼 → 情绪眼 → 横线眼，能肉眼看见表情在变 */
+.crab-eyes-mood { animation: crab-eyes-swap 4.4s ease-in-out infinite; }
+@keyframes crab-eyes-swap {
+  0%, 38% { opacity: 0; }
+  48%, 82% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+
+/* 像素蟹的眼睛切换：横线眼常驻 + 情绪眼周期性长出来。
+   用户 2026-11-01："这个螃蟹能不能做成动态的，就是能看出动画……比如高兴从横线眼睛变成笑脸" */
+.crab-eyes-base { animation: crab-eyes-base-swap 4.4s linear infinite; }
+.crab-eyes-mood { opacity: 0; animation: crab-eyes-mood-swap 4.4s linear infinite; }
+@keyframes crab-eyes-base-swap {
+  0%, 38% { opacity: 1; }
+  46%, 84% { opacity: 0; }
+  92%, 100% { opacity: 1; }
+}
+@keyframes crab-eyes-mood-swap {
+  0%, 38% { opacity: 0; }
+  46%, 84% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}

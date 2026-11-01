@@ -39,53 +39,253 @@
   right: 0;
   z-index: 2;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: max(20px, env(safe-area-inset-top)) 24px 0;
   pointer-events: none;
 }
 
-.mu-brand {
+/**
+ * 返回键（用户 2026-11：「把返回键也放到左上角统一一下」）。
+ *
+ * 底色 / 尺寸 / 图标跟情绪页的页头按钮、以及插件外壳那个悬浮钮是同一套：
+ * 32px 圆、白色 10% 底、1px 边、毛玻璃、`<ChevronLeft size-4 strokeWidth=2>`。
+ * 视觉全交给 JSX 里的 Tailwind 类，这里只补一件 CSS 才能表达的事：
+ * 页头整体 `pointer-events: none`（怕挡住画布的拖动），按钮必须自己收回点击。
+ */
+.mu-back {
+  pointer-events: auto;
+}
+
+/* ── 那句英文诗（用户 2026-11：从左上角挪到画面下方、跟星空融为一体）─────
+ *
+ * 用户原话：「把句子放在下面比较空白的地方吧，最重要的一点是，我想要这个句子
+ * 是跟背景融为一体的那种」「句子周围有星光粒子，句子能够有动效，
+ * 一个一个字的自然涌现。」
+ *
+ * 所以这里**没有**卡片、没有描边、没有标题字号：
+ *   · 暖白 + 0.6 左右的透明度 + 一圈很淡的暖光（像是被星光烘亮的，不是印上去的）
+ *   · 位置在星空下 1/4、底部中文说明（`.mu-verse`，72~120px）**上方一点**，两段隔 26px
+ *   · 周围 5 颗小十字星（`.mu-poem-spark`）：很慢地闪，不抢字
+ *   · 每个字自己淡入 + 上浮（`animation-delay` 由 JSX 按 62ms 递增写进 inline style）
+ *
+ * ⚠️ **只播一次，不循环**：这是"入场"，不是环境动效。循环会让视线每隔几秒被拽回
+ * 左下角一次，跟星图那种极慢的漂移打架，页面上"待一会儿"反而变吵；
+ * 而且这页会长时间开着（重复重播 = 白烧电量）。播完之后靠一层 9s 的呼吸微光
+ * 保持"活着"——不动的字会显得像图片，会呼吸的字才像飘在星空里。
+ * 从一颗星的记忆回到星空时这句诗会重新涌现一次（选中态整句让位），
+ * 所以用户隔一会儿还是能看到那个过程。
+ * ------------------------------------------------------------------- */
+.mu-poem {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  /* 74→88：`.mu-verse` 那两行中文顶在 76，诗的下沿留到 116 —— 中间 40px 的呼吸，
+     免得手写体的下伸（kept. 的 p）跟中文贴在一起。 */
+  bottom: calc(max(28px, env(safe-area-inset-bottom)) + 88px);
+  z-index: 2;
+  text-align: center;
   pointer-events: none;
 }
 
-.mu-brand-kicker {
+.mu-poem-inner {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.mu-poem-line {
   margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--mu-muted);
-}
-
-.mu-brand-title {
-  margin: 6px 0 0;
-  font-size: clamp(1.35rem, 2vw, 1.75rem);
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  line-height: 1.2;
-  text-wrap: balance;
-}
-
-/* ── 手写斜体标题（用户 2026-10：换成一句契合星空的英文诗） ───────────── */
-.mu-brand-script {
-  margin: 4px 0 0;
   font-family: "Segoe Script", "Lucida Handwriting", Gabriola, "Brush Script MT", cursive;
   font-style: italic;
-  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
-  letter-spacing: 0.1em;
-  line-height: 1.45;
-  color: #efe6d4;
-  text-shadow: 0 0 20px rgba(230, 214, 180, 0.32), 0 0 2px rgba(255, 248, 235, 0.4);
+  white-space: nowrap;
+  color: rgba(240, 231, 214, 0.62);
+  text-shadow: 0 0 18px rgba(230, 214, 180, 0.34), 0 0 2px rgba(255, 248, 235, 0.3);
+  animation: mu-poem-breathe 9s ease-in-out 2600ms infinite;
 }
 
-.mu-brand-script-sub {
-  margin: 0;
-  font-family: "Segoe Script", "Lucida Handwriting", Gabriola, cursive;
-  font-style: italic;
-  font-size: 12px;
+.mu-poem-line-1 {
+  font-size: clamp(0.98rem, 2.6vw, 1.12rem);
+  letter-spacing: 0.09em;
+  line-height: 1.5;
+}
+
+.mu-poem-line-2 {
+  margin-top: 2px;
+  font-size: 12.5px;
   letter-spacing: 0.08em;
-  color: var(--mu-muted);
+  line-height: 1.65;
+  color: rgba(226, 214, 194, 0.5);
+}
+
+/* 每个字：一开始不可见、往下压着、有点糊 —— 像一个字刚从星尘里浮出来 */
+.mu-poem-char {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  transform: translateY(0.42em);
+  filter: blur(1.1px);
+  animation: mu-poem-char-in 1000ms var(--mu-ease) both;
+}
+
+@keyframes mu-poem-char-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.42em);
+    filter: blur(1.1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* 播完之后那口气：只动发光，不动位置（位置一动就成了"抖"，会廉价） */
+@keyframes mu-poem-breathe {
+  0%,
+  100% {
+    text-shadow: 0 0 18px rgba(230, 214, 180, 0.32), 0 0 2px rgba(255, 248, 235, 0.28);
+  }
+  50% {
+    text-shadow: 0 0 22px rgba(235, 220, 186, 0.46), 0 0 3px rgba(255, 250, 240, 0.4);
+  }
+}
+
+/* 星星粒子：3px 的圆点 + 两根 12px 的十字光臂（用渐变把臂尖吃掉，才不像加号） */
+.mu-poem-spark {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgba(255, 249, 238, 0.92);
+  box-shadow: 0 0 6px 1px rgba(233, 217, 184, 0.5), 0 0 16px 5px rgba(201, 170, 114, 0.14);
+  opacity: 0;
+  animation: mu-poem-twinkle 5.4s ease-in-out infinite;
+}
+
+.mu-poem-spark::before,
+.mu-poem-spark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.mu-poem-spark::before {
+  width: 1px;
+  height: 12px;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 249, 238, 0.85) 50%, transparent 100%);
+}
+
+.mu-poem-spark::after {
+  width: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 249, 238, 0.85) 50%, transparent 100%);
+}
+
+@keyframes mu-poem-twinkle {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.78);
+  }
+  40% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0.42;
+    transform: scale(0.9);
+  }
+}
+
+/* ⚠️ 这一块必须写在星星那几条 `:nth-of-type` 之前：
+   `animation` 简写会把 `animation-delay` 一起重置，写在后面会把每颗星的相位刷掉，
+   五颗就变成一起闪了。 */
+[data-motion="on"] .mu-poem-char {
+  animation: mu-poem-char-in 1000ms var(--mu-ease) both;
+}
+
+[data-motion="on"] .mu-poem-line {
+  animation: mu-poem-breathe 9s ease-in-out 2600ms infinite;
+}
+
+[data-motion="on"] .mu-poem-spark {
+  animation: mu-poem-twinkle 5.4s ease-in-out infinite;
+}
+
+/* 五颗星的位置 + 各自不同的相位（负延迟 = 一进场就已经在闪到一半） */
+.mu-poem-spark:nth-of-type(1) {
+  left: -16px;
+  top: -9px;
+  animation-delay: -0.4s;
+}
+
+.mu-poem-spark:nth-of-type(2) {
+  left: calc(100% + 12px);
+  top: 7px;
+  animation-delay: -2.1s;
+}
+
+.mu-poem-spark:nth-of-type(3) {
+  left: calc(100% + 20px);
+  top: 60%;
+  animation-delay: -3.6s;
+}
+
+.mu-poem-spark:nth-of-type(4) {
+  left: -12px;
+  top: 58%;
+  animation-delay: -1.3s;
+}
+
+.mu-poem-spark:nth-of-type(5) {
+  left: 56%;
+  top: calc(100% + 12px);
+  animation-delay: -4.4s;
+}
+
+/* 动效听宿主的（规则：`qidao-docs/规则-插件的动效要听宿主的.md`）——
+   宿主 `data-motion="off"` 或系统开着减弱动效时：不涌现、不呼吸、星星不闪，
+   但**字必须是看得见的**（不能停在 `opacity: 0` 那一帧，那样整句就没了）。 */
+[data-motion="off"] .mu-poem-char,
+[data-motion="off"] .mu-poem-line,
+[data-motion="off"] .mu-poem-spark {
+  animation: none;
+}
+
+[data-motion="off"] .mu-poem-char {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+[data-motion="off"] .mu-poem-spark {
+  opacity: 0.55;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mu-poem-char,
+  .mu-poem-line,
+  .mu-poem-spark {
+    animation: none;
+  }
+
+  .mu-poem-char {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  .mu-poem-spark {
+    opacity: 0.55;
+    transform: none;
+  }
 }
 
 .mu-search {
@@ -380,6 +580,14 @@
     left: 28px;
     right: auto;
     max-width: 360px;
+  }
+
+  /* 宽屏时跟底部中文说明同一条左基线，别一个居中一个靠左 */
+  .mu-poem {
+    left: 28px;
+    right: auto;
+    max-width: 420px;
+    text-align: left;
   }
 }
 

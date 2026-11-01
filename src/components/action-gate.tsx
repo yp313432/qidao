@@ -89,7 +89,11 @@ export function ActionGate() {
     /** 自动执行中：不挡操作，只让用户知道"正在跑哪一个"（见上面 slowRun 的说明） */
     if (!slowRun) return null;
     return (
-      <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-6">
+      <div
+        /* 让开手机状态栏：top-3 会跟时间/电量糊在一起（用户实机截图指出） */
+        className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-6"
+        style={{ top: "calc(var(--q-inset-top, 0px) + 10px)" }}
+      >
         <div className="glass-menu pointer-events-auto rounded-full px-3.5 py-1.5 text-[11px] text-muted shadow-lg">
           ⏳ 正在执行：{current.title}
         </div>

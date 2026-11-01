@@ -276,7 +276,7 @@ export function EmotionOrb({
   const core = Math.round(size * 0.52);
   const animations: string[] = [];
   if (!reduced && !dimmed) {
-    animations.push("emo-breathe 8s ease-in-out infinite");
+    animations.push("emo-breathe 4.6s ease-in-out infinite");
     if (landing) animations.push("emo-land .6s cubic-bezier(.22,1.2,.36,1)");
   }
 
@@ -346,9 +346,12 @@ export function EmotionOrb({
 export function EmotionGlowStyle() {
   return (
     <style>{`
+      /* 用户 2026-11-01："情绪光球只在第一下有动效，后面就没有了，看起来呆在那里"
+         → 原来 8s、幅度 4%，太慢太小，容易被当成静止。改 4.6s、幅度 7%、
+           再叠一层很慢的"光心位移"，肉眼能看出在呼吸。 */
       @keyframes emo-breathe {
-        0%, 100% { transform: scale(1); opacity: .86; }
-        50% { transform: scale(1.04); opacity: 1; }
+        0%, 100% { transform: scale(.97) translateY(2px); opacity: .82; filter: brightness(.97); }
+        50% { transform: scale(1.07) translateY(-4px); opacity: 1; filter: brightness(1.1); }
       }
       @keyframes emo-land {
         0% { transform: scale(1.13); }

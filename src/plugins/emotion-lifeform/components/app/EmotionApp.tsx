@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * 「情绪」插件页 —— 按设计稿 `preview-emotion-glow3.html` 的 3 屏重写。
@@ -101,7 +101,7 @@ export function EmotionApp({ realScenes = [] }: { realScenes?: EmotionEvent[] })
       <EmotionGlowStyle />
 
       <header
-        className="sticky top-0 z-30 flex items-center gap-2 px-4 pb-2 pt-3"
+        className="sticky top-0 z-30 flex items-center gap-2 px-4 pb-2"
         style={{
           background:
             "linear-gradient(180deg, rgba(13,10,20,.96) 0%, rgba(13,10,20,.82) 68%, rgba(13,10,20,0) 100%)",

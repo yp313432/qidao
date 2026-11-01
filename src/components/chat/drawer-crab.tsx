@@ -2,6 +2,9 @@
 
 import { useMemo } from "react";
 import { LEXICON } from "@/plugins/emotion-lifeform/lib/emotion/lexicon";
+import { activeScenes } from "@/plugins/emotion-lifeform/lib/emotion/scenes";
+import { toEmotionEvents } from "@/plugins/emotion-lifeform/lib/emotion/qidao-scenes";
+import { useApp } from "@/lib/store";
 import { useEmotionStore } from "@/plugins/emotion-lifeform/lib/store";
 
 /**
@@ -14,14 +17,17 @@ import { useEmotionStore } from "@/plugins/emotion-lifeform/lib/store";
  *    根据我们的十个组别，设计十个动态效果"
  * 后来又补：
  *   "我想要像素风格的，能画出来吗，然后能不能就用橙色的，然后靠动画区分情绪"
+ * 再后来对着自己的参考图又提了一条：
+ *   "螃蟹按照这个标准来，之前那个有点身子有点扁，手和脚太细长了"
+ *   → 身体从 14×7 改成 **14×11（接近方形）**，腿从 1×4 的细长条改成 **2×3 的短粗腿**，
+ *     眼睛从 2×3 改成 **2×4 的高眼睛**，侧钳加到 4×4 —— 整体比上一版"敦"很多。
  *
  * 所以这文件里只有一只**永远橙色**的像素蟹：
- *   · 22×16 的整数格，硬边（crispEdges），放大不糊；
+ *   · 24×18 的整数格，硬边（crispEdges），放大不糊；
  *   · 颜色只有三个：主体 #ff8a5c、暗部 #d8653c、眼睛 #3a241d；
- *   · 十种情绪靠**动作 + 眼睛/嘴的形状 + 一个小符号**区分，不换色。
- *
- * 组别 → 形态的映射刻意不写死成十份 SVG：
- * 身体（壳+腿+钳）是同一份，只有眼睛和嘴在变，这样十种之间不会"长得不像一家人"。
+ *   · 十种情绪靠**动作 + 眼睛/嘴的形状 + 一个小符号**区分，不换色；
+ *   · 眼睛是**两层**：横线眼常驻，情绪眼按周期淡入淡出 ——
+ *     用户要"能看出动画"，所以能真的看到"横线眼 → 弯眼 → 横线眼"的切换。
  */
 
 const SHELL = "#ff8a5c";
@@ -48,42 +54,43 @@ const GROUP_LOOK: Record<string, { eye: EyeKind; act: string; fx?: string }> = {
 /** 没有情绪时的样子：不跳不动，眼睛就是两条竖线 */
 const NEUTRAL: { eye: EyeKind; act: string; fx?: string } = { eye: "flat", act: "crab-still" };
 
+/** 眼睛都以「左眼 x=8、右眼 x=15」为基准画（2 格宽） */
 function Eyes({ kind }: { kind: EyeKind }) {
   switch (kind) {
     case "happy":
       return (
         <g fill={EYE}>
-          <rect x="8" y="6" width="1" height="1" />
-          <rect x="9" y="5" width="1" height="1" />
-          <rect x="10" y="6" width="1" height="1" />
-          <rect x="15" y="6" width="1" height="1" />
-          <rect x="16" y="5" width="1" height="1" />
-          <rect x="17" y="6" width="1" height="1" />
+          <rect x="8" y="7" width="1" height="1" />
+          <rect x="9" y="6" width="1" height="1" />
+          <rect x="10" y="7" width="1" height="1" />
+          <rect x="15" y="7" width="1" height="1" />
+          <rect x="16" y="6" width="1" height="1" />
+          <rect x="17" y="7" width="1" height="1" />
         </g>
       );
     case "half":
       return (
         <g fill={EYE}>
-          <rect x="8" y="7" width="2" height="1" />
-          <rect x="16" y="7" width="2" height="1" />
+          <rect x="8" y="10" width="2" height="1" />
+          <rect x="15" y="10" width="2" height="1" />
         </g>
       );
     case "squint":
       return (
         <g fill={EYE}>
-          <rect x="8" y="6" width="1" height="1" />
-          <rect x="9" y="7" width="1" height="1" />
-          <rect x="10" y="6" width="1" height="1" />
-          <rect x="15" y="6" width="1" height="1" />
-          <rect x="16" y="7" width="1" height="1" />
-          <rect x="17" y="6" width="1" height="1" />
+          <rect x="8" y="7" width="1" height="1" />
+          <rect x="9" y="8" width="1" height="1" />
+          <rect x="10" y="7" width="1" height="1" />
+          <rect x="15" y="7" width="1" height="1" />
+          <rect x="16" y="8" width="1" height="1" />
+          <rect x="17" y="7" width="1" height="1" />
         </g>
       );
     case "look":
       return (
         <g fill={EYE}>
-          <rect x="7" y="6" width="2" height="3" />
-          <rect x="16" y="6" width="2" height="3" />
+          <rect x="7" y="6" width="2" height="4" />
+          <rect x="16" y="6" width="2" height="4" />
         </g>
       );
     case "heart":
@@ -91,31 +98,31 @@ function Eyes({ kind }: { kind: EyeKind }) {
         <g fill={EYE}>
           <rect x="8" y="6" width="1" height="1" />
           <rect x="10" y="6" width="1" height="1" />
-          <rect x="9" y="7" width="1" height="1" />
+          <rect x="9" y="7" width="1" height="2" />
           <rect x="15" y="6" width="1" height="1" />
           <rect x="17" y="6" width="1" height="1" />
-          <rect x="16" y="7" width="1" height="1" />
+          <rect x="16" y="7" width="1" height="2" />
         </g>
       );
     case "wide":
       return (
         <g fill={EYE}>
-          <rect x="8" y="5" width="2" height="4" />
-          <rect x="15" y="5" width="2" height="4" />
+          <rect x="8" y="5" width="2" height="6" />
+          <rect x="15" y="5" width="2" height="6" />
         </g>
       );
     case "blink":
       return (
         <g fill={EYE}>
-          <rect x="8" y="7" width="2" height="1" />
-          <rect x="15" y="7" width="2" height="1" />
+          <rect x="8" y="9" width="2" height="1" />
+          <rect x="15" y="9" width="2" height="1" />
         </g>
       );
     default:
       return (
         <g fill={EYE}>
-          <rect x="8" y="6" width="2" height="3" />
-          <rect x="15" y="6" width="2" height="3" />
+          <rect x="8" y="6" width="2" height="4" />
+          <rect x="15" y="6" width="2" height="4" />
         </g>
       );
   }
@@ -150,33 +157,60 @@ export function CrabPixels({
       style={{
         ["--crab-amp" as string]: amp.toFixed(2),
         width: size,
-        height: Math.round((size / 22) * 16),
+        height: Math.round((size / 24) * 18),
       }}
       aria-hidden="true"
     >
       {look.fx ? <span className="crab-fx">{look.fx}</span> : null}
-      <svg viewBox="0 0 22 16" width="100%" height="100%" shapeRendering="crispEdges">
-        {/* 侧钳 */}
+      <svg viewBox="0 0 24 18" width="100%" height="100%" shapeRendering="crispEdges">
+        {/* 侧钳：4×4，贴在壳的中部 */}
         <g fill={SHELL}>
-          <rect x="0" y="6" width="4" height="3" />
-          <rect x="18" y="6" width="4" height="3" />
+          <rect x="1" y="8" width="4" height="4" />
+          <rect x="19" y="8" width="4" height="4" />
         </g>
-        {/* 壳 */}
-        <rect x="4" y="4" width="14" height="7" fill={SHELL} />
-        {/* 壳上一道浅暗边，让它有点体积 */}
-        <rect x="4" y="4" width="14" height="1" fill={SHELL_DARK} opacity="0.45" />
-        {/* 四条腿 */}
+        {/* 壳：14×11，接近方形（用户："之前那个身子有点扁"） */}
+        <rect x="5" y="3" width="14" height="11" fill={SHELL} />
+        <rect x="5" y="3" width="14" height="1" fill={SHELL_DARK} opacity="0.45" />
+        {/* 四条短粗腿：2 宽 3 高（用户："手和脚太细长"） */}
         <g fill={SHELL}>
-          <rect x="6" y="11" width="1" height="4" />
-          <rect x="9" y="11" width="1" height="4" />
-          <rect x="13" y="11" width="1" height="4" />
-          <rect x="16" y="11" width="1" height="4" />
+          <rect x="6" y="14" width="2" height="3" />
+          <rect x="10" y="14" width="2" height="3" />
+          <rect x="14" y="14" width="2" height="3" />
+          <rect x="18" y="14" width="2" height="3" />
         </g>
-        <Eyes kind={look.eye} />
-        <rect x="10" y="10" width="3" height="1" fill={MOUTH} />
+        <g className={look.eye !== "flat" ? "crab-eyes-base" : undefined}>
+          <Eyes kind="flat" />
+        </g>
+        {look.eye !== "flat" ? (
+          <g className="crab-eyes-mood">
+            <Eyes kind={look.eye} />
+          </g>
+        ) : null}
+        <rect x="11" y="12" width="3" height="1" fill={MOUTH} />
       </svg>
     </div>
   );
+}
+
+/**
+ * 组别推导：真实上报里 `group` 可能没填（演示场景就没有），
+ * 所以再按主情绪 / 次情绪去 lexicon 的词表里认一下，认不出来就当没有。
+ */
+function groupOfEvent(e?: {
+  group?: string;
+  primaryEmotion?: string;
+  secondaryEmotions?: string[];
+}): string | undefined {
+  if (!e) return undefined;
+  if (e.group) return e.group;
+  const byPrimary = e.primaryEmotion
+    ? LEXICON.find((g) => g.terms.includes(e.primaryEmotion as string))
+    : undefined;
+  if (byPrimary) return byPrimary.id;
+  const bySecond = LEXICON.find((g) =>
+    (e.secondaryEmotions ?? []).some((tag) => g.terms.includes(tag)),
+  );
+  return bySecond?.id;
 }
 
 /** 组别的中文名（去掉 lexicon 里 "A. " 这种前缀） */
@@ -195,27 +229,33 @@ export function DrawerMood() {
   const sceneId = useEmotionStore((s) => s.sceneId);
   const settings = useEmotionStore((s) => s.settings);
 
-  const current = useMemo(
-    () => scenes.find((s) => s.eventId === sceneId) ?? scenes[0],
-    [scenes, sceneId],
-  );
+  // 真数据从宿主 store 拿：抽屉可能比情绪插件先挂载，插件的 store 那时还是空的，
+  // 所以不能只依赖 useEmotionStore().scenes（那样会一直显示演示场景里的"平静"）。
+  const events = useApp((s) => s.emotionEvents);
+  const current = useMemo(() => {
+    const real = toEmotionEvents(events ?? []);
+    if (real.length) {
+      return [...real].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))[0];
+    }
+    const list = scenes.length ? scenes : activeScenes();
+    return list.find((s) => s.eventId === sceneId) ?? list[0];
+  }, [events, scenes, sceneId]);
 
   const reduced = Boolean(settings.reducedMotion);
-  const label = current ? groupName(current.group) : "";
+  const gid = groupOfEvent(current);
+  const label = current ? groupName(gid) : "";
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-16 flex flex-col items-center">
-      <CrabPixels
-        group={current?.group}
-        intensity={current?.intensity ?? 55}
-        reduced={reduced}
-        size={118}
-      />
+      <CrabPixels group={gid} intensity={current?.intensity ?? 55} reduced={reduced} size={126} />
       {current && label ? (
         <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted">
           他现在的情绪
-          <span className="rounded-full border border-line bg-bg-elev px-2 py-0.5 text-[11px] text-fg">
-            {current.group ? `${current.group[0].toUpperCase()} · ${label}` : label}
+          <span
+            className="rounded-full px-2 py-0.5 text-[11px]"
+            style={{ background: "rgba(20,17,15,.86)", color: "#f7f2ea" }}
+          >
+            {gid ? `${gid[0].toUpperCase()} · ${label}` : label}
           </span>
         </p>
       ) : null}
