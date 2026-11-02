@@ -9,8 +9,18 @@
  *   · **界面（组件 / 引擎 / CSS / 数据示例）不许动** —— 那是他"好不容易跑出来的效果"
  *   · **数据可以动** —— 我们的接入只许发生在**适配层**（`adapter/qidao-memory.ts`）
  *
- * 这个脚本就是盯第一句的：拿插件目录里每个文件跟**原始 zip 解出来的那份**逐字节比。
+ * 这个脚本就是盯第一句的：拿插件目录里每个文件跟**基线**逐字节比。
  * 唯一的豁免是 `adapter/qidao-integration.ts`（它只是一张说明便条，不参与渲染）。
+ *
+ * ⚠️ 基线（`qidao-docs/_review-jiyiyuzhou/`）不是永远不动的"原始 zip"：
+ *   用户明确要求改插件界面时（2026-11-01：「返回键挪左上角 / 诗句挪到画面下方 /
+ *   跟星空融为一体 / 逐字涌现」），基线必须跟着走一轮，否则这条校验永远红着。
+ *   同步用 `node rebaseline-plugin.mjs`（它会先把旧基线整棵树备份到
+ *   `qidao-docs/_review-jiyiyuzhou-<时间戳>-before-rebaseline/`，再对齐）。
+ *   **2026-11-01 那次对齐之前，这条校验其实已经红了**：`engine/universe.ts`、
+ *   `engine/star-field.ts`、`components/MemoryDetail.tsx`、`types.ts` 等 9 个文件
+ *   自 `87ccfd2 记忆宇宙 3D 紫金星云` 起就没再同步过（跟这一轮的改动无关）。
+ *   也就是说：这个脚本守的是"**从现在起**别再漂"，不是"跟 zip 一模一样"。
  *
  * 跑法（纯 node，不用浏览器）：
  *   node verify-plugin-untouched.mjs

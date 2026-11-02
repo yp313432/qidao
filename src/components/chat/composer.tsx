@@ -150,6 +150,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const navigate = useNavigate();
   const model = useApp((s) => s.model);
   const settings = useApp((s) => s.settings);
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
+  const solidPaper = (settings.material ?? "frost") === "solid";
   const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
@@ -549,7 +551,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           ⭐ 用户 m02163 第 3/4 条 + m02254「然后选B」：形状改**细长**（卡片 p-1.5、输入框 min-h-9、
           两边圆钮 size-9，整块矮约 20px：125px → 101px），玻璃改成 **B 档：82% + 模糊 48px**（见 .glass-float）。
           侧边留白 8px（浮层外壳）+ 6px（这里）= 14px —— 用户要"别贴着侧边栏、也别太局促"。 */}
-      <div ref={cardRef} className="glass-float rounded-3xl border border-line p-1.5 shadow-lg">
+      <div ref={cardRef} className={cn("glass-float rounded-3xl border border-line p-1.5 shadow-lg", solidPaper && "paper-env")}>
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。
@@ -1112,7 +1114,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               <Plus className="size-5" strokeWidth={1.75} />
             </button>
             {plusOpen && (
-              <div className="glass-menu absolute bottom-13 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-line py-1">
+              <div
+                className={cn(
+                  "glass-menu absolute bottom-13 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-line py-1",
+                  solidPaper && "paper-card",
+                )}
+              >
                 <FileButton
                   ariaLabel="选择图片"
                   accept="image/*"
@@ -1177,7 +1184,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               模型 / 推理等级，各自右侧一个 ›。点哪一项才展开第二层。
             */}
             {modelOpen && (
-              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
+              <div
+                className={cn(
+                  "glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1",
+                  solidPaper && "paper-card",
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1233,7 +1245,13 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     onClick={() => setModelPickOpen(false)}
                     className="absolute inset-0 bg-black/45"
                   />
-                  <div className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl" data-contrast="">
+                  <div
+                    className={cn(
+                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                      solidPaper && "paper-card",
+                    )}
+                    data-contrast=""
+                  >
                     <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
@@ -1331,7 +1349,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
 
             {/* 第二层：推理等级 */}
             {reasonOpen && (
-              <div className="glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1">
+              <div
+                className={cn(
+                  "glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1",
+                  solidPaper && "paper-card",
+                )}
+              >
                 {MODELS.map((m) => (
                   <button
                     key={m.id}
@@ -1388,14 +1411,23 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             className={cn(
               "flex size-9 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
               recMs !== null && "bg-warn",
+              // 纸世界 Step4：发送钮=邮票（虚线齿孔+陶色票面「寄」），仅纯色材质
+              solidPaper && "paper-stamp",
             )}
           >
+            {solidPaper && <span className="pm-postmark" aria-hidden />}
             {streaming ? (
               <span className="size-3.5 rounded-sm bg-ink-fg" />
             ) : recMs !== null ? (
               <Square className="size-4 fill-current" />
             ) : value.trim() || pending.length ? (
-              <ArrowUp className="size-5" strokeWidth={2.2} />
+              solidPaper ? (
+                <span className="paper-stamp-glyph" aria-hidden>
+                  寄
+                </span>
+              ) : (
+                <ArrowUp className="size-5" strokeWidth={2.2} />
+              )
             ) : (
               <Mic className="size-5" />
             )}

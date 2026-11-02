@@ -24,11 +24,20 @@ import { hidesNav } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
 import { installBreadcrumbs } from "@/lib/breadcrumbs";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
+import { NavEtch } from "@/components/nav-icons";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
 import { useApp } from "@/lib/store";
 
 const TABS = MAIN_TABS;
+
+/** 纸世界 Step5：四枚票图的拉丁小注（概念稿 TABS 第二列，塞 label 行）。 */
+const NAV_LATIN: Record<string, string> = {
+  "/": "PARLA",
+  "/tools": "STRUMENTI",
+  "/play": "SVAGO",
+  "/me": "IO",
+};
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -65,6 +74,8 @@ export function AppShell() {
   /** 这次启动是不是靠"安全带镜子"把设置救回来的（是的话界面要如实说一句） */
   const [restoredFromMirror, setRestoredFromMirror] = useState(false);
   const hydrated = useApp((s) => s.hydrated);
+  /** 纸世界（qidao-docs/纸世界-落地清单.md）：纯色材质下底部导航换 F 邮票版。 */
+  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。
@@ -288,22 +299,41 @@ export function AppShell() {
                     className={cn(
                       "flex min-w-0 flex-1 flex-col items-center pt-1 pb-1 text-[10px] font-medium tracking-wide transition-colors",
                       active ? "text-fg" : "text-muted",
+                      solidPaper && "paper-tab",
                     )}
                   >
-                    {/* 圆形：激活时这个圆变成一块玻璃高亮，图标变实 */}
-                    <span
-                      className={cn(
-                        "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-                        active ? "glass-active" : "",
-                      )}
-                    >
-                      <Icon
-                        className="size-[1.3rem]"
-                        strokeWidth={active ? 2.2 : 1.7}
-                        aria-hidden="true"
-                      />
-                    </span>
-                    {tab.label}
+                    {solidPaper ? (
+                      /* 纸世界 Step5：F 邮票版 —— 素态是铜版画票图，贴上虚线票框＝选中。
+                       * 高亮仍走 aria-current（tabOwning 一行没动）。 */
+                      <>
+                        <span className="nav-stamp">
+                          <NavEtch name={tab.to} />
+                        </span>
+                        <span className="nav-label">
+                          {tab.label}
+                          <span className="nav-la" aria-hidden="true">
+                            {NAV_LATIN[tab.to]}
+                          </span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {/* 圆形：激活时这个圆变成一块玻璃高亮，图标变实 */}
+                        <span
+                          className={cn(
+                            "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+                            active ? "glass-active" : "",
+                          )}
+                        >
+                          <Icon
+                            className="size-[1.3rem]"
+                            strokeWidth={active ? 2.2 : 1.7}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        {tab.label}
+                      </>
+                    )}
                   </Link>
                 );
               })}

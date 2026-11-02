@@ -297,6 +297,22 @@ function QuoteBar({ text }: { text: string }) {
   );
 }
 
+/**
+ * 纸世界 · Step2 刊头用：电讯行空态的「D+N」——认识第几天。
+ * 与玩乐页「同行的日子」（play-hub.tsx daysSince）同一口径：按本地日期算，
+ * 没填「认识的日子」就返回 null，不编数字。
+ */
+function mastDayCount(dateStr: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const start = new Date(y!, m! - 1, d!);
+  if (Number.isNaN(start.getTime())) return null;
+  const today = new Date();
+  const a = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const b = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
 export function ChatView() {
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
@@ -379,6 +395,18 @@ export function ChatView() {
     const t = s.tracks.find((x) => x.id === s.currentId);
     return t ? `${t.name}${s.playing ? " · 播放中" : " · 暂停"}` : "";
   });
+
+  /*
+    纸世界 · Step2 刊头（qidao-docs/纸世界-落地清单.md）：纯色材质下顶部
+    这一行的壳换成「纸刊头」。frost / liquid 的渲染路径一个字节不变——
+    新 DOM 只走 solidPaper 分支；.mast-btn 是惰性挂钩类，玻璃下没有样式。
+  */
+  const solidPaper = (settings.material ?? "frost") === "solid";
+  const wireText = `${
+    activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""
+  }${nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}`;
+  const hasWire = Boolean(activity || nowPlaying);
+  const togetherDays = mastDayCount(settings.togetherSince);
 
   // 他请求「打开对话列表」时，落到这一页
   const openPanel = useApp((s) => s.openPanel);
@@ -615,13 +643,63 @@ export function ChatView() {
         ⚠️ 网页版没有外壳 inset，env() 也是 0，所以这里仍留 0.25rem 兜底，别把它删成 0。
       */}
       <header className="chat-topbar flex items-center gap-1 px-4 inset-top-25 pb-2">
+        {/*
+          纸世界 · Step2：垂枝 C（qidao-docs/概念-纸刊头装饰-v1.html 的"标本枝"）。
+          背景装饰层：z:-1 + pointer-events:none，画在实底纸上、按钮后面——
+          压不到功能也盖不着点击。只在纯色材质渲染（frost/liquid 没有这个 DOM）。
+        */}
+        {solidPaper && (
+          <div className="mast-deco" aria-hidden="true">
+            <svg
+              viewBox="0 0 90 130"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1}
+              strokeOpacity={0.3}
+            >
+              <path d="M45 126 C42 96 44 70 47 48" strokeLinecap="round" />
+              <path d="M45 104 C32 98 24 100 18 108 C26 114 36 113 45 104Z" />
+              <path d="M46 84 C60 78 68 80 74 88 C66 95 55 94 46 84Z" />
+              <path d="M45 66 C34 60 27 62 22 69 C29 75 38 74 45 66Z" />
+              <g transform="translate(48 36)">
+                <circle r="7" fill="currentColor" stroke="none" fillOpacity={0.05} />
+                <ellipse cx={0} cy={-10} rx={3.2} ry={6} strokeOpacity={0.4} />
+                <ellipse cx={9.5} cy={-3} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(72 9.5 -3)" />
+                <ellipse cx={6} cy={8.5} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(144 6 8.5)" />
+                <ellipse cx={-6} cy={8.5} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(216 -6 8.5)" />
+                <ellipse cx={-9.5} cy={-3} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(288 -9.5 -3)" />
+                <circle cx={0} cy={0} r={1.2} fill="currentColor" stroke="none" fillOpacity={0.35} />
+                <circle cx={3} cy={-2} r={0.9} fill="currentColor" stroke="none" fillOpacity={0.3} />
+                <circle cx={-3} cy={1.5} r={0.9} fill="currentColor" stroke="none" fillOpacity={0.3} />
+                <circle cx={1} cy={3} r={0.8} fill="currentColor" stroke="none" fillOpacity={0.28} />
+              </g>
+            </svg>
+          </div>
+        )}
+
         <button
           type="button"
           aria-label="对话列表"
-          className="flex size-11 shrink-0 items-center justify-center"
+          className="mast-btn flex size-11 shrink-0 items-center justify-center"
           onClick={() => setMenu(true)}
         >
-          <Menu className="size-6" strokeWidth={1.6} />
+          {/* 纸世界：目录符 = 三道递减横线（16/11/6，刊物的目录符号）；玻璃材质仍是 lucide Menu */}
+          {solidPaper ? (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 8h16" />
+              <path d="M4 14h11" />
+              <path d="M4 20h6" />
+            </svg>
+          ) : (
+            <Menu className="size-6" strokeWidth={1.6} />
+          )}
         </button>
 
         {/*
@@ -630,21 +708,37 @@ export function ChatView() {
                 这样显得界面更宽阔一点"
           放不下就自己往左滚（Ticker），不用点。
         */}
-        {(activity || nowPlaying) && (
-          <Ticker
-            className="min-w-0 flex-1 px-1"
-            prefix={`${aiName} 知道`}
-            text={`${activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""}${
-              nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""
-            }`}
-          />
+        {solidPaper ? (
+          /* 纸刊头·电讯行：「讯」小印 + 等宽小字 + 底部点线；空态是「与他的信笺 · D+认识天数」 */
+          <div className="mast-wire">
+            <span className="mast-stamp" aria-hidden="true">讯</span>
+            {hasWire ? (
+              <Ticker
+                className="mast-wire-ticker min-w-0 flex-1"
+                prefix={`${aiName} 知道`}
+                text={wireText}
+              />
+            ) : (
+              <span className="mast-wire-text">
+                {togetherDays !== null ? `与他的信笺 · D+${togetherDays}` : "与他的信笺"}
+              </span>
+            )}
+          </div>
+        ) : (
+          hasWire && (
+            <Ticker
+              className="min-w-0 flex-1 px-1"
+              prefix={`${aiName} 知道`}
+              text={wireText}
+            />
+          )
         )}
 
         <div className="flex shrink-0 items-center">
           <button
             type="button"
             aria-label="搜索对话内容"
-            className="flex size-11 items-center justify-center"
+            className="mast-btn flex size-11 items-center justify-center"
             onClick={() => {
               setFindOpen((v) => !v);
               if (findOpen) {
@@ -658,7 +752,7 @@ export function ChatView() {
           <button
             type="button"
             aria-label="语音模式"
-            className="flex size-11 items-center justify-center"
+            className="mast-btn flex size-11 items-center justify-center"
             onClick={() => void navigate({ to: "/voice" })}
           >
             <Mic className="size-6" strokeWidth={1.6} />
@@ -666,7 +760,7 @@ export function ChatView() {
           <button
             type="button"
             aria-label="临时对话"
-            className="flex size-11 items-center justify-center"
+            className="mast-btn flex size-11 items-center justify-center"
             onClick={() => useApp.getState().newChat({ incognito: true })}
           >
             <Ghost className="size-6" strokeWidth={1.6} />
@@ -1013,6 +1107,7 @@ export function ChatView() {
                                     mine
                                     convId={conv!.id}
                                     msgId={m.id}
+                                    solid={solidPaper}
                                   />
                                 ))}
                               </div>
@@ -1023,6 +1118,8 @@ export function ChatView() {
                                 className={cn(
                                   "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tr-none bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                   pics.length > 0 && "mt-1",
+                                  /* 纸世界 Step3：我的浮签（壳类只在纯色材质挂，frost 路径字节不变） */
+                                  solidPaper && "paper-slip paper-slip-me",
                                 )}
                               >
                                 {rest.length > 0 && (
@@ -1065,6 +1162,7 @@ export function ChatView() {
                                   att={a}
                                   convId={conv!.id}
                                   msgId={m.id}
+                                  solid={solidPaper}
                                 />
                               ))}
                           </div>
@@ -1119,7 +1217,11 @@ export function ChatView() {
                                   live: Boolean(streaming && !m.content),
                                 })
                               }
-                              className="chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]"
+                              className={cn(
+                                "chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]",
+                                /* 纸世界 Step3 补：思考入口换电文行小字（mono+墨淡+橘竖线） */
+                                solidPaper && "paper-meta",
+                              )}
                             >
                               {/* 一根细竖线领着这一行，跟弹层里那条线同一个语汇（用户 m12711） */}
                               <span aria-hidden className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25" />
@@ -1169,6 +1271,8 @@ export function ChatView() {
                                       "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-[18px] border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
                                       i === 0 && "rounded-tl-none",
                                       fresh && "bubble-in",
+                                      /* 纸世界 Step3：他的浮签（分段渲染逻辑不动，只挂壳类） */
+                                      solidPaper && "paper-slip paper-slip-him",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
                                   >
@@ -1184,7 +1288,11 @@ export function ChatView() {
                             <div
                               ref={hideIfRenderedEmpty}
                               {...quotePress(m.id, cleanForRender(liveText))}
-                              className="w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tl-none border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]"
+                              className={cn(
+                                "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tl-none border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                /* 纸世界 Step3：他的浮签（流式同壳） */
+                                solidPaper && "paper-slip paper-slip-him",
+                              )}
                             >
                               {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
@@ -1204,7 +1312,10 @@ export function ChatView() {
                               )}
                             </div>
                           ) : pendingPlaceholder ? (
-                            <p className="thinking-shimmer text-sm">正在写回复…</p>
+                            /* 纸世界 Step3：虚线签（选样卡 F 的 .slip.typing） */
+                            <p className={solidPaper ? "paper-slip-typing" : "thinking-shimmer text-sm"}>
+                              正在写回复…
+                            </p>
                           ) : null;
                         })()}
                         {/*
@@ -1294,7 +1405,11 @@ export function ChatView() {
                             onClick={() => setMsgMenu(null)}
                           >
                             <div
-                              className="glass-menu w-full max-w-[16rem] rounded-3xl border border-line p-2 shadow-xl"
+                              className={cn(
+                                "glass-menu w-full max-w-[16rem] rounded-3xl border border-line p-2 shadow-xl",
+                                /* 纸世界 Step3 补：长按菜单换纸卡壳（用户点名适配） */
+                                solidPaper && "paper-card",
+                              )}
                               data-contrast=""
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -1426,7 +1541,11 @@ export function ChatView() {
           onClick={() => setRowMenu(null)}
         >
           <div
-            className="glass-menu w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line p-1.5 text-[13px] shadow-xl"
+            className={cn(
+              "glass-menu w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line p-1.5 text-[13px] shadow-xl",
+              /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
+              solidPaper && "paper-card",
+            )}
             data-contrast=""
             onClick={(e) => e.stopPropagation()}
           >
@@ -1472,7 +1591,11 @@ export function ChatView() {
           onClick={() => setRenameFor(null)}
         >
           <div
-            className="glass-menu w-full max-w-sm rounded-3xl border border-line p-4 shadow-xl"
+            className={cn(
+              "glass-menu w-full max-w-sm rounded-3xl border border-line p-4 shadow-xl",
+              /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
+              solidPaper && "paper-card",
+            )}
             data-contrast=""
             onClick={(e) => e.stopPropagation()}
           >
@@ -1621,7 +1744,12 @@ export function ChatView() {
             onClick={() => setMenu(false)}
           />
           <aside
-            className="glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75"
+            className={cn(
+              "glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75",
+              /* 纸世界 Step3 补：纯色材质下抽屉换纸壳（用户 m00405 点名）。
+                 星野装饰 DrawerSky 保留 —— 低对比丝线星点在纸底上不抢，先返图看效果。 */
+              solidPaper && "paper-drawer",
+            )}
           >
             {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
                 用户："上面那个从顶部开始，不是从我画的框开始" */}
@@ -1730,11 +1858,14 @@ function VoiceBubble({
   mine,
   convId,
   msgId,
+  solid,
 }: {
   att: Attachment;
   mine?: boolean;
   convId?: string;
   msgId?: string;
+  /** 纸世界 Step3：纯色材质下语音气泡同步套浮签壳 */
+  solid?: boolean;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -1885,6 +2016,8 @@ function VoiceBubble({
             : "border-line bg-surface text-fg",
           "border",
           gone && "opacity-60",
+          /* 纸世界 Step3：纯色材质下语音气泡也是浮签 */
+          solid && (mine ? "paper-slip paper-slip-me" : "paper-slip paper-slip-him"),
         )}
       >
         <audio
@@ -1959,7 +2092,11 @@ function VoiceBubble({
         ? createPortal(
             <div className="fixed inset-0 z-[97] bg-black/10" onPointerDown={() => setMenu(null)}>
               <div
-                className="glass-menu absolute w-[168px] rounded-[13px] border border-line py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]"
+                className={cn(
+                  "glass-menu absolute w-[168px] rounded-[13px] border border-line py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]",
+                  /* 纸世界 Step3 补：语音菜单同步纸卡壳 */
+                  solid && "paper-card",
+                )}
                 data-contrast=""
                 style={{
                   left: menu.left,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBackdropDismiss } from "./use-backdrop-dismiss";
+import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -222,6 +223,8 @@ export function DateTimeField({
   /** 点空白处返回（统一规则；滚轮拖完松手不会误关） */
   const backdrop = useBackdropDismiss(() => setOpen(false));
   const [draft, setDraft] = useState(value);
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
+  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
   const openIt = () => {
     setDraft(value);
     setOpen(true);
@@ -244,7 +247,10 @@ export function DateTimeField({
           {...backdrop}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl"
+            className={cn(
+              "w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl",
+              solidPaper && "paper-card",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-3 text-[13px] font-medium">{label ?? (mode === "date" ? "选个日子" : "选个时间")}</p>

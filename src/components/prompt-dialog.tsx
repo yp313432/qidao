@@ -14,6 +14,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useApp } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export type PromptDialogProps = {
   open: boolean;
@@ -43,6 +45,8 @@ export function PromptDialog({
 }: PromptDialogProps) {
   const [value, setValue] = useState(defaultValue);
   const box = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
+  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
 
   // 每次打开都重新填一遍原文（这是"不重新打"的关键）
   useEffect(() => {
@@ -80,7 +84,10 @@ export function PromptDialog({
       />
       <div
         data-contrast=""
-        className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]"
+        className={cn(
+          "relative w-full max-w-sm overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]",
+          solidPaper && "paper-card",
+        )}
       >
         <div className="px-4 pt-4">
           <p className="text-[14px] font-semibold text-fg">{title}</p>

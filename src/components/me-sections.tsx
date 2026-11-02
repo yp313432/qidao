@@ -603,6 +603,8 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [designMsg, setDesignMsg] = useState("");
   const [designUrl, setDesignUrl] = useState("");
   const settings = useApp((s) => s.settings);
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
+  const solidPaper = (settings.material ?? "frost") === "solid";
   /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
   /** 有没有填密钥 —— 没填就等于没配，朗读不会有声音（系统 TTS 已删） */
@@ -1513,7 +1515,10 @@ function MeSections({ tab }: { tab: MeTab }) {
                           />
                           <div
                             data-contrast=""
-                            className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
+                            className={cn(
+                              "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                              solidPaper && "paper-card",
+                            )}
                           >
                             <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
                               <div className="min-w-0">
@@ -3181,7 +3186,10 @@ function MeSections({ tab }: { tab: MeTab }) {
                 <div className="absolute inset-0 bg-black/45" />
                 <div
                   data-contrast=""
-                  className="aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl"
+                  className={cn(
+                    "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                    solidPaper && "paper-card",
+                  )}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-2">

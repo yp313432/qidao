@@ -309,6 +309,558 @@
   opacity: var(--aster-bg-paper, 0);
 }
 
+/* ——— 纸世界 · 底纸（水彩晕染 + 纸纹） ———
+   2026-11 用户定稿（qidao-docs/纸世界-落地清单.md Step1，概念稿
+   qidao-docs/概念-水彩纸光球-v2.html）：纯色材质的底不再是三团玻璃
+   光斑，换成一张水彩纸——晕染三团 + 水痕圈 + 印刷网点 + 纸纹颗粒 +
+   纤维。晕染色全部从主题 --aster-accent 派生，换 [data-palette]
+   时色相自动跟着变。选择器全部锁在 [data-material="solid"]，
+   frost / liquid 一行不碰。 */
+
+/* 换纸色时晕染要"化开"而不是硬跳：自定义属性注册成 <color> 才能
+   transition。不支持 @property 的老 WebView 自动退回硬切换（=现状），
+   不坏事。 */
+@property --paper-wash-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --paper-wash-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --paper-wash-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --paper-ring {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+[data-material="solid"] {
+  /* 晕染三档 + 水痕圈，同一个公式吃四个纸色主题：
+     A = 主色 30%（右上大团）／B = 主色兑白再降透明度（左上小团）／
+     C = 主色 10%（底部）／ring = 主色 10%（水痕）。 */
+  --paper-wash-a: color-mix(in srgb, var(--aster-accent) 30%, transparent);
+  --paper-wash-b: color-mix(in srgb, color-mix(in srgb, var(--aster-accent) 60%, #fff) 30%, transparent);
+  --paper-wash-c: color-mix(in srgb, var(--aster-accent) 10%, transparent);
+  --paper-ring: color-mix(in srgb, var(--aster-accent) 10%, transparent);
+  /* 只过渡这四个晕染色（换纸色时化开），别的属性照旧瞬切 */
+  transition:
+    --paper-wash-a 0.35s ease,
+    --paper-wash-b 0.35s ease,
+    --paper-wash-c 0.35s ease,
+    --paper-ring 0.35s ease;
+}
+
+/* 底纸本体（顶掉 .background-canvas 默认的三团玻璃光斑）：
+   水痕圈 ×3 → 晕染 ×3 → 印刷网点（4px 一粒、墨 5%）→ 主题纸色垫底。 */
+[data-material="solid"] .background-canvas {
+  background:
+    radial-gradient(circle at 24% 31%, transparent 9px, var(--paper-ring) 10px, transparent 12px),
+    radial-gradient(circle at 79% 63%, transparent 13px, var(--paper-ring) 14px, transparent 16px),
+    radial-gradient(circle at 47% 86%, transparent 6px, var(--paper-ring) 7px, transparent 9px),
+    radial-gradient(360px 280px at 76% 16%, var(--paper-wash-a), transparent 72%),
+    radial-gradient(240px 200px at 18% 8%, var(--paper-wash-b), transparent 78%),
+    radial-gradient(320px 240px at 50% 110%, var(--paper-wash-c), transparent 76%),
+    radial-gradient(color-mix(in srgb, var(--aster-fg) 5%, transparent) 0.6px, transparent 0.6px)
+      0 0 / 4px 4px,
+    var(--aster-bg);
+}
+
+/* 纸纹（::before 铺在 z-0 背景层里，永远垫在内容下面，挡不到任何点击）：
+   一张 320px 平铺 SVG = feTurbulence 颗粒 + 几笔暖灰纤维（#6b5f52，
+   5–9% 透明度，两头收在瓦片内避免切边）。multiply 让颗粒只往下压
+   不提亮，整体 0.17——概念稿 v2 的实测浓度。 */
+[data-material="solid"] .background-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.17;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='320' height='320' filter='url(%23n)'/><g stroke='%236b5f52' stroke-width='0.5' fill='none'><path d='M28 44 C110 38 210 52 292 46' stroke-opacity='0.08'/><path d='M40 118 C130 126 220 108 300 122' stroke-opacity='0.06'/><path d='M18 210 C90 198 190 220 280 206' stroke-opacity='0.07'/><path d='M60 268 C150 276 240 258 312 272' stroke-opacity='0.05'/><path d='M120 84 C160 82 200 88 236 84' stroke-opacity='0.09'/><path d='M150 240 C190 236 226 244 260 240' stroke-opacity='0.08'/><path d='M70 160 C100 156 128 162 156 158' stroke-opacity='0.06'/><path d='M210 130 C240 128 270 134 298 130' stroke-opacity='0.05'/><path d='M96 292 C126 288 156 294 186 290' stroke-opacity='0.07'/></g></svg>");
+  background-size: 320px 320px;
+}
+
+/* ——— 纸世界 · Step2 刊头（纸刊头 + 双细线 + 垂枝 C） ———
+   2026-11 用户定稿（qidao-docs/纸世界-落地清单.md Step2；概念稿
+   qidao-docs/概念-纸刊头-v1.html + 概念-纸刊头装饰-v1.html 的 C 标本枝）。
+   规格照概念稿，色值换成主题变量：线/墨字用 --aster-ink，纸底用
+   --aster-bg，「讯」印用 --aster-accent。五个控件的 onClick/aria/44px
+   热区一个不动——34px 方钮是 ::before 画的视觉框，热区还是整个 44px。
+   frost / liquid 一行不碰：新 DOM 只在 solid 分支渲染（chat-view.tsx），
+   这里的选择器全部锁在 [data-material="solid"]。 */
+
+/* 刊头容器：定位锚 + 自成 stacking context（垂枝 z:-1 画在实底纸上、
+   按钮下面；isolate 不改变它和兄弟层（横幅/抽屉）的相对层序） */
+[data-material="solid"] .chat-topbar {
+  position: relative;
+  isolation: isolate;
+}
+
+/* 目录/找/声/幽：34px 墨线方钮（1px 墨线 28%、9px 圆角、88% 纸底——
+   C 变体给按钮垫纸底，垂枝压在后面也清晰）。图标收到 17px、墨色。 */
+[data-material="solid"] .chat-topbar .mast-btn {
+  position: relative;
+  isolation: isolate;
+  color: var(--aster-ink);
+}
+[data-material="solid"] .chat-topbar .mast-btn::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 5px;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 28%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--aster-bg) 88%, transparent);
+}
+[data-material="solid"] .chat-topbar .mast-btn > svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* 电讯行：「讯」小印 + 等宽小字 + 底部点线（5px 一循环的墨 25% 点）。 */
+[data-material="solid"] .mast-wire {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 0%;
+  padding: 0 4px 6px;
+}
+[data-material="solid"] .mast-wire::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--aster-ink) 25%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 5px 1px;
+  pointer-events: none;
+}
+[data-material="solid"] .mast-stamp {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  background: var(--aster-accent);
+  color: var(--aster-ink-fg);
+  border-radius: 3px;
+  font-family: var(--font-serif);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--aster-bg) 90%, transparent);
+}
+/* 电文/空态文案：等宽 9px、墨 66%（非分层样式直接压过 text-subtle/text-[10px]） */
+[data-material="solid"] .mast-wire-ticker span,
+[data-material="solid"] .mast-wire-text {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: color-mix(in srgb, var(--aster-ink) 66%, transparent);
+}
+[data-material="solid"] .mast-wire-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 双细线：刊头与信文的分界（刊头高度的 pb-2 区里，不增高一行 44px）。 */
+[data-material="solid"] .chat-topbar::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 1px;
+  height: 5px;
+  border-top: 1px solid color-mix(in srgb, var(--aster-ink) 32%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--aster-ink) 12%, transparent);
+  pointer-events: none;
+}
+
+/* 垂枝 C（"标本枝"）：线稿小花枝从顶上垂进来，墨 30%，压在按钮后面。
+   z:-1 + pointer-events:none —— 盖不着、点不到。SVG 尺寸即定位框。 */
+[data-material="solid"] .mast-deco {
+  position: absolute;
+  z-index: -1;
+  right: 4px;
+  top: -8px;
+  width: 54px;
+  height: 92px;
+  pointer-events: none;
+}
+[data-material="solid"] .mast-deco svg {
+  width: 100%;
+  height: 100%;
+  transform: scaleY(-1);
+  color: var(--aster-ink);
+}
+
+/* ——— 纸世界 · Step3 消息区 F 浮签（选样卡-消息区-v2 定稿） ———
+   2026-11 用户定稿（qidao-docs/纸世界-落地清单.md Step3）。
+   只换壳：分段渲染、长按菜单、图片裸摆、引用条、方案丁头像行全部不动。
+   纪律：rotate 是纯视觉 transform（不加 padding 不改热区）；
+   胶带是 ::before 绝对定位装饰（.slip-tape 不进 DOM）；
+   概念稿色值按红线换主题变量（ink→--aster-ink、accent→--aster-accent）。
+   未加 layer，优先级高于 utilities（Step1 已证），frost/liquid 一行不碰。 */
+
+/* 浮签基底：纸底 + 墨细线 + 轻投影 + 正文衬线墨字（字色红线：纯色强制墨字） */
+[data-material="solid"] .paper-slip {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 28%, transparent);
+  background: var(--aster-bg);
+  padding: 11px 12px 7px;
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--aster-ink) 6%, transparent),
+    0 8px 18px color-mix(in srgb, var(--aster-ink) 10%, transparent);
+  font-family: var(--font-serif);
+  line-height: 1.85;
+  color: color-mix(in srgb, var(--aster-ink) 94%, transparent);
+}
+
+/* 他的浮签：暖底（accent 6% 掺纸）、角 3/3/12/3、斜 -0.8deg、左上暖胶带 */
+[data-material="solid"] .paper-slip-him {
+  transform: rotate(-0.8deg);
+  background: color-mix(in srgb, var(--aster-accent) 6%, var(--aster-bg));
+  border-radius: 3px 3px 12px 3px;
+}
+[data-material="solid"] .paper-slip-him::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  width: 46px;
+  height: 13px;
+  background: color-mix(in srgb, var(--aster-accent) 30%, transparent);
+  transform: rotate(-3.5deg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--aster-ink) 8%, transparent);
+  pointer-events: none;
+}
+
+/* 我的浮签：灰白纸（掺 6% 墨，比他的暖纸冷一档）、角 3/3/3/12、斜 +0.5deg、右上墨胶带
+   —— 2026-11-02 用户：「我的气泡和他做个区分，底不一样；形式是一样的」 */
+[data-material="solid"] .paper-slip-me {
+  transform: rotate(0.5deg);
+  border-radius: 3px 3px 3px 12px;
+  background: color-mix(in srgb, var(--aster-ink) 6%, var(--aster-bg));
+}
+[data-material="solid"] .paper-slip-me::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 20px;
+  width: 46px;
+  height: 13px;
+  background: color-mix(in srgb, var(--aster-ink) 16%, transparent);
+  transform: rotate(2.5deg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--aster-ink) 8%, transparent);
+  pointer-events: none;
+}
+
+/* 分段浮现动画与浮签斜度的冲突：bubbleIn 以 `both` 收尾在
+   `transform: none`，会把浮签的旋转**永久按死**。solid 下改成只淡入
+   （translate 5px 对斜纸签不构成信息），旋转永续。 */
+[data-material="solid"] .paper-slip.bubble-in {
+  animation: bubbleInSlip 0.3s ease-out both;
+}
+@keyframes bubbleInSlip {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 「正在写回复…」= 虚线签（概念稿 .slip.typing），替代 shimmer */
+[data-material="solid"] .paper-slip-typing {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px dashed color-mix(in srgb, var(--aster-ink) 28%, transparent);
+  background: transparent;
+  box-shadow: none;
+  padding: 9px 12px 5px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: color-mix(in srgb, var(--aster-ink) 42%, transparent);
+}
+
+/* ── 纸世界 Step3 补：弹层与思考链的纸卡壳 ──────────────────────
+   2026-11-02 用户点名：「长按气泡弹层和思考链，也做成适配的」。
+   纸卡 = 实底纸（无 blur）+ 墨线边 + 浮签同款轻影 + 衬线字；
+   按下态 = 墨底白字（选中胶囊红线）；思考入口 = 电文行小字。 */
+
+/* 长按菜单 / 语音菜单卡片：玻璃卡 → 纸卡 */
+[data-material="solid"] .paper-card {
+  background-color: var(--aster-bg);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 28%, transparent);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--aster-ink) 6%, transparent),
+    0 12px 28px color-mix(in srgb, var(--aster-ink) 14%, transparent);
+  font-family: var(--font-serif);
+  color: var(--aster-ink);
+}
+[data-material="solid"] .paper-card button {
+  color: var(--aster-ink);
+}
+/* 按下（触屏）= 墨底白字胶囊 */
+[data-material="solid"] .paper-card button:active {
+  background-color: var(--aster-ink);
+  color: var(--aster-ink-fg);
+}
+/* 菜单内的分区线（MessageActions 那条 border-t）→ 点线 */
+[data-material="solid"] .paper-card > div[class*="border-t"] {
+  border-top: 1px dashed color-mix(in srgb, var(--aster-ink) 22%, transparent);
+}
+
+/* 思考链底部弹层：实底纸 + 墨顶线 + 上投纸影 + 衬线 */
+[data-material="solid"] .paper-sheet {
+  background: var(--aster-bg);
+  border-top: 1px solid color-mix(in srgb, var(--aster-ink) 32%, transparent);
+  box-shadow: 0 -8px 28px color-mix(in srgb, var(--aster-ink) 12%, transparent);
+  font-family: var(--font-serif);
+  color: var(--aster-ink);
+}
+/* 抓手横条 → 短墨线（跟纸的语汇走） */
+[data-material="solid"] .paper-sheet [class*="bg-line"][class*="rounded-full"] {
+  background: color-mix(in srgb, var(--aster-ink) 32%, transparent);
+}
+/* 关闭钮：chip → 纸底墨线小方钮 */
+[data-material="solid"] .paper-sheet [class*="bg-chip-flat"] {
+  background: color-mix(in srgb, var(--aster-ink) 5%, var(--aster-bg));
+  color: color-mix(in srgb, var(--aster-ink) 62%, transparent);
+}
+
+/* 思考入口（chat-meta）：电文行小字 —— mono 小字 + 墨淡色 + 橘竖线（呼应「讯」印） */
+[data-material="solid"] .paper-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: color-mix(in srgb, var(--aster-ink) 48%, transparent);
+}
+[data-material="solid"] .paper-meta > span:first-child {
+  background: color-mix(in srgb, var(--aster-accent) 55%, transparent);
+}
+
+/* ── 纸世界 Step3 补（续）：纯色模式下其余弹层全面纸化 ──────────────
+   2026-11-02 用户 m00405「纯色模式下的弹层都适配一下吧」。
+   全部挂 [data-material="solid"] scope（用户 m00432 口径：弹层跟材质模式绑定，
+   磨砂/液态保持各自的玻璃/液态样式，一行不碰）：
+     · 对话抽屉 → 纸抽屉（实底纸 + 右缘墨线 + 右向纸影 + 衬线）；
+     · 会话菜单 / 重命名 / 模型选择 / 推理等级 / 日期时间选择 / prompt-dialog
+       → 复用上面的 .paper-card（specificity (0,2,0) 压过 .glass-menu/.aster-pop）；
+     · 记忆库详情 / 归档 → 复用 .paper-sheet（底部抽纸）。 */
+
+/* 对话列表抽屉：玻璃面板 → 纸抽屉（星野装饰 DrawerSky 保留，低对比不抢） */
+[data-material="solid"] .paper-drawer {
+  background: var(--aster-bg);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, var(--aster-ink) 28%, transparent),
+    8px 0 28px color-mix(in srgb, var(--aster-ink) 16%, transparent);
+  font-family: var(--font-serif);
+  color: var(--aster-ink);
+}
+/* 抽屉里的「新对话」胶囊 → 纸底墨线小卡（墨字红线） */
+[data-material="solid"] .paper-drawer > button[class*="bg-chip"] {
+  background: color-mix(in srgb, var(--aster-ink) 5%, var(--aster-bg));
+  color: var(--aster-ink);
+}
+
+/* ==================== 纸世界 Step4：输入区 E 邮票 + E3 双章 ==================== */
+/* 输入外壳=信封：solid 底纸（.glass-float 的实底覆盖已打底）上摘渐变光泽、方角、墨线、衬线 */
+[data-material="solid"] .paper-env {
+  background-image: none;
+  border-radius: 4px;
+  border-color: color-mix(in srgb, var(--aster-ink) 26%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--aster-ink) 5%, transparent),
+    0 8px 18px color-mix(in srgb, var(--aster-ink) 9%, transparent);
+  font-family: var(--font-serif);
+  color: var(--aster-ink);
+}
+/* 信封 V 形封口线（左上，ink 22% 淡线，文字层之下） */
+[data-material="solid"] .paper-env::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  width: 24px;
+  height: 16px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><path d="M1 1 L12 11 L23 1" fill="none" stroke="%231c1917" stroke-opacity="0.22" stroke-width="1"/></svg>')
+    no-repeat center / contain;
+  pointer-events: none;
+}
+/* E3 双章之一：火漆章盖在 V 尖上（13px 不规则圆 + 「栖」） */
+[data-material="solid"] .paper-env::after {
+  content: "栖";
+  position: absolute;
+  left: 18px;
+  top: 5px;
+  width: 13px;
+  height: 13px;
+  background: radial-gradient(circle at 36% 30%, #cf8a63, #b5673f 55%, #9c5531);
+  border-radius: 46% 54% 52% 48% / 55% 47% 53% 45%;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 240, 225, 0.45),
+    inset 0 -1.5px 2px rgba(90, 40, 15, 0.35),
+    0 1px 2px rgba(28, 25, 23, 0.22);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-serif);
+  font-size: 6px;
+  line-height: 1;
+  color: #fdf0e3;
+  transform: rotate(-6deg);
+  z-index: 1;
+  pointer-events: none;
+}
+/* 输入正文：衬线族（字号行高 utility 不动，16px 保输入可读性） */
+[data-material="solid"] .paper-env textarea {
+  font-family: var(--font-serif);
+}
+/* 发送钮=邮票：白票面 + 虚线齿孔 + 微斜贴（44px 热区不变，纯视觉） */
+[data-material="solid"] .paper-stamp {
+  background: var(--aster-bg);
+  color: var(--aster-ink);
+  border: 1.5px dashed color-mix(in srgb, var(--aster-ink) 38%, transparent);
+  border-radius: 3px;
+  box-shadow:
+    0 2px 6px color-mix(in srgb, var(--aster-ink) 12%, transparent),
+    0 8px 16px color-mix(in srgb, var(--aster-ink) 10%, transparent);
+  transform: rotate(-2deg);
+  position: relative;
+}
+/* 陶色票面（虚线框内的色块） */
+[data-material="solid"] .paper-stamp::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  background: var(--aster-accent);
+  border-radius: 1px;
+  pointer-events: none;
+}
+/* 「80分」面值角标（票面右下，陶底白字） */
+[data-material="solid"] .paper-stamp::after {
+  content: "80分";
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 5px;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--aster-ink-fg) 80%, transparent);
+  pointer-events: none;
+}
+/* 票面主字「寄」（JSX solid 分支渲染，替代发送箭头） */
+[data-material="solid"] .paper-stamp .paper-stamp-glyph {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--aster-ink-fg);
+}
+/* E3 双章之二：邮戳注销章，斜盖邮票左上（56px 双圈 + 11·02 + QIDAO） */
+[data-material="solid"] .pm-postmark {
+  position: absolute;
+  top: -16px;
+  left: -12px;
+  width: 56px;
+  height: 56px;
+  transform: rotate(-11deg);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" fill="none" stroke="%231c1917" stroke-opacity="0.5" stroke-width="1.6"/><circle cx="30" cy="30" r="21.5" fill="none" stroke="%231c1917" stroke-opacity="0.42" stroke-width="1.1" stroke-dasharray="1 3.5"/><text x="30" y="28" text-anchor="middle" font-family="monospace" font-size="10" fill="%231c1917" fill-opacity="0.55">11·02</text><text x="30" y="39" text-anchor="middle" font-family="monospace" font-size="6" letter-spacing="1.5" fill="%231c1917" fill-opacity="0.45">QIDAO</text></svg>')
+    no-repeat center / contain;
+}
+
+/* ——— 纸世界 · Step5 底部导航 F 邮票版 ———
+   选样卡-导航-v2.html tb-f：四枚铜版画票图（nav-icons.tsx），素态淡墨；
+   贴上虚线邮票框＋微斜＝选中。高亮仍走 aria-current（tabOwning 不动），
+   拉丁小注按落地清单口径塞进原 label 行——nav 高度（--aster-nav-h）不变。 */
+
+/* 导航条本体：纸条替玻璃 —— 直角 + 顶上一条淡墨分界线（box-shadow 往上投，
+   不占布局高度：nav 总高保持和 frost 一致，--aster-nav-h 一行没动） */
+[data-material="solid"] .glass-nav-bar {
+  border-radius: 0;
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--aster-ink) 13%, transparent);
+}
+
+/* tab 本体（Link）：衬线字距墨 50%，选中全墨。盖掉 text-muted/text-fg。 */
+[data-material="solid"] .paper-tab {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: 2.5px;
+  color: color-mix(in srgb, var(--aster-ink) 50%, transparent);
+}
+[data-material="solid"] .paper-tab[aria-current="page"] {
+  color: var(--aster-ink);
+}
+
+/* 邮票位：素＝票图裸排（淡墨）；选中＝贴上 36px 虚线票框＋微斜。 */
+[data-material="solid"] .paper-tab .nav-stamp {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 2px;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--aster-ink) 42%, transparent);
+}
+[data-material="solid"] .paper-tab .nav-stamp svg {
+  width: 18px;
+  height: 18px;
+}
+[data-material="solid"] .paper-tab[aria-current="page"] .nav-stamp {
+  border: 1.5px dashed color-mix(in srgb, var(--aster-ink) 45%, transparent);
+  border-radius: 3px;
+  transform: rotate(-3deg);
+  color: var(--aster-ink);
+  background: color-mix(in srgb, var(--aster-accent) 5%, var(--aster-bg));
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--aster-ink) 12%, transparent);
+}
+
+/* label 行：中文衬线 + 拉丁 mono 小注同行（8px，选中转橘）。 */
+[data-material="solid"] .paper-tab .nav-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-left: 2.5px;
+}
+[data-material="solid"] .paper-tab .nav-la {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: color-mix(in srgb, var(--aster-ink) 32%, transparent);
+}
+[data-material="solid"] .paper-tab[aria-current="page"] .nav-la {
+  color: var(--aster-accent);
+}
+
 /* 正文字体族：在「我的 → 个性化 → 正文字体」里切换。 */
 :root[data-font="serif"] {
   --font-sans: "Source Serif 4", "Songti SC", "SimSun", "Iowan Old Style", Georgia, serif;

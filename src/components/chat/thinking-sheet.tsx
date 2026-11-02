@@ -59,6 +59,8 @@ export function ThinkingSheet({
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startY = useRef(0);
+  /* 纸世界 Step3 补：纯色材质下思考链这层换纸卡壳（用户点名适配） */
+  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
 
   // Esc 关闭（桌面端顺手）
   useEffect(() => {
@@ -128,7 +130,12 @@ export function ThinkingSheet({
         }}
       />
       <div
-        className="relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]" data-contrast
+        className={cn(
+          "relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]",
+          /* 纸世界 Step3 补：实底纸+墨顶线+纸影+衬线 */
+          solidPaper && "paper-sheet",
+        )}
+        data-contrast
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : "transform 0.26s cubic-bezier(0.22, 0.8, 0.25, 1)",
