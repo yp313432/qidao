@@ -373,6 +373,11 @@ export function useChatStream(opts: UseChatOpts = {}) {
       let content = "";
       /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
       let hadContent = false;
+      /**
+       * 上游给的结束原因。`length` = **被 max_tokens 砍断**（不是"说完了"）——
+       * 抗截断靠它判断；以前这个字段没读，两种情况长得一模一样。
+       */
+      let finishReason: string | undefined;
       /** 面包屑用：思考/正文"刚开始"各记一次就够，别每帧都记 */
       let hadThinking = false;
       let usage: ChatMessage["usage"];
@@ -587,6 +592,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           flush();
           return;
         }
+        if (d.finishReason) finishReason = d.finishReason;
         if (d.meta) meta = d.meta;
         if (d.usage) usage = d.usage;
         if (d.thinking) {
@@ -773,6 +779,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       let rejectedToText = false;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         hadContent = false;
+        finishReason = undefined;
         state.pendingCalls = [];
         state.rounds = [];
         state.steps = [];
@@ -818,6 +825,52 @@ export function useChatStream(opts: UseChatOpts = {}) {
         flush();
         await new Promise((r) => window.setTimeout(r, 350));
       }
+      /**
+       * ⭐ 抗截断（2026-11）：上游因为 `max_tokens` 把回复砍断时**接着写**，
+       * 而不是重发整条 —— 重发会卡好几秒、还会把已经看到的内容换掉。
+       *
+       * 三条同时成立才动手：
+       *   ① `finish_reason === "length"`（真被砍断，不是正常结束）
+       *   ② 已经有正文（没正文的话，"自动重试"那条路更合适）
+       *   ③ 这一轮不是原生工具轮（工具轮续写会打乱 tool_calls 的配对）
+       * 只续一次；失败就当没发生，已经写出来的一个字都不丢。
+       */
+      if (finishReason === "length" && hadContent && !state.usedNative && !ac.signal.aborted) {
+        try {
+          const base = buildReq(false);
+          let extra = "";
+          await streamChat(
+            {
+              ...base,
+              messages: [
+                ...base.messages,
+                { role: "assistant", content } as (typeof base.messages)[number],
+                {
+                  role: "user",
+                  content:
+                    "（接着上面写到一半的地方往下写，不要重复已经说过的内容，不要重新开头，也不要解释。）",
+                } as (typeof base.messages)[number],
+              ],
+            },
+            (d) => {
+              if (d.content) {
+                extra += d.content;
+                schedule();
+              }
+            },
+            ac.signal,
+          );
+          const tail = stripOverlap(content, extra);
+          if (tail.trim()) {
+            content += tail;
+            dirty = true;
+            flush();
+          }
+        } catch {
+          /* 续写失败不影响已经拿到的内容 */
+        }
+      }
+
       /**
        * 收尾：把最后那一段思考也切进过程线。
        * 没有工具调用时（对话型回答）这里就是整段思考 —— 弹层里照样能看到。
@@ -1166,4 +1219,16 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
   /** `step` 给界面显示"第 N 步 · 正在执行 X"（agent loop 的进度，见 runToolLoop 的 onStep） */
   return { busy, liveId, step, send, regenerate, stop, aiName };
+}
+
+/**
+ * 续写常会把上一句重复一遍：砍掉与旧文本尾部重叠的部分。
+ * 只在重叠 ≥ 12 个字符时才算"重复"（短的重叠可能真的是巧合）。
+ */
+function stripOverlap(prev: string, next: string): string {
+  const max = Math.min(120, prev.length, next.length);
+  for (let n = max; n >= 12; n -= 1) {
+    if (prev.slice(-n) === next.slice(0, n)) return next.slice(n);
+  }
+  return next;
 }
