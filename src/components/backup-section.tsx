@@ -61,8 +61,8 @@ export function BackupSection({ bare = false }: { bare?: boolean } = {}) {
     };
   }, [hydrated]);
 
-  function doExport() {
-    const r = downloadBackup();
+  async function doExport() {
+    const r = await downloadBackup();
     setFlash(
       `已导出 ${r.filename}（${prettySize(r.bytes)}${r.redacted > 0 ? `，顺手清掉了 ${r.redacted} 处密钥` : ""}）`,
     );

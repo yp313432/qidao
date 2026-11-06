@@ -116,8 +116,8 @@ export function countOf(items: Record<string, unknown>, ...keys: string[]): numb
 }
 
 /** 生成备份文件内容。 */
-export function buildBackup(): { json: string; filename: string; bytes: number; redacted: number; counts: Counts } {
-  const state = currentData();
+export async function buildBackup(): Promise<{ json: string; filename: string; bytes: number; redacted: number; counts: Counts }> {
+  const state = await currentData();
   const hits: string[] = [];
   const clean = scrub(state, hits) as Record<string, unknown>;
 
@@ -143,8 +143,8 @@ export function buildBackup(): { json: string; filename: string; bytes: number; 
 }
 
 /** 触发浏览器下载。 */
-export function downloadBackup() {
-  const r = buildBackup();
+export async function downloadBackup() {
+  const r = await buildBackup();
   const url = URL.createObjectURL(new Blob([r.json], { type: "application/json" }));
   const a = document.createElement("a");
   a.href = url;
