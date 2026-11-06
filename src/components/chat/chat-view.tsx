@@ -117,11 +117,23 @@ const INTERNAL_LOOSE_TAG =
  *   ③ 英文工具宣告句（`I'm going to call ...` / `Let's call the tool ...`）→ 删
  */
 const NOISE_RUN = /([}\]|)]|\\|\/|=|_|~|\^|\*|-)\1{3,}/g;
+
+/**
+ * **工具调用 JSON 漏进正文**（2026-11，Gemini 中转）：
+ * 上游把 functionCall 直接序列化成文本塞进 content，屏幕上就是
+ * `[{"name":"default_api:emotion_report","arguments":{...}}]` 一大坨。
+ * 这种内容一个字符都不该出现在对话里 —— 整段删掉（"动了 1 次手"那行还在）。
+ * 先删 JSON、再折叠符号：反过来的话 `}}` 会先被折成「…」，就匹配不到了。
+ */
+const TOOL_CALL_JSON_ARRAY = /\[\s*\{\s*"name"\s*:\s*"[^"]*"[\s\S]*?\}\s*\]/g;
+const TOOL_CALL_JSON_OBJ = /\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"[\s\S]*?\}\s*\}/g;
 const TOOL_ANNOUNCE = /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (?:going to|about to) (?:call|invoke)|Let'?s call (?:the )?tool)[^.!?\n]*[.!?]?)/gi;
 
 function cleanUpstreamNoise(s: string): string {
   if (!s) return s;
   const out = s
+    .replace(TOOL_CALL_JSON_ARRAY, "")
+    .replace(TOOL_CALL_JSON_OBJ, "")
     .replace(NOISE_RUN, "…")
     .replace(TOOL_ANNOUNCE, "")
     .replace(/[ \t]{2,}/g, " ")
