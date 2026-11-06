@@ -121,11 +121,14 @@ const TOOL_ANNOUNCE = /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (
 
 function cleanUpstreamNoise(s: string): string {
   if (!s) return s;
-  return s
+  const out = s
     .replace(NOISE_RUN, "…")
     .replace(TOOL_ANNOUNCE, "")
     .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n");
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^[ \t]+/, "");
+  /* 全删空了就退回原文：宁可留着怪东西，也不能把整条回复清没 */
+  return out.trim() ? out : s;
 }
 
 /** 删掉内部标签（整段删 / 只删标签见上面两条规则的说明） */
