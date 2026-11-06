@@ -687,7 +687,7 @@ export function ChatView() {
           /* 装饰层：水彩花枝斜横着搭在顶栏右角（用户 m01956：向左斜一点、斜横着放，
              画在按钮下面但枝头要露出来）。素材在 public/decor/，按文件名替换即可。 */
           <div className="mast-deco" aria-hidden="true">
-            <img className="mast-flower" src="/decor/cherry-branch.png" alt="" draggable={false} />
+            <img className="mast-flower" src="/decor/cherry-branch.webp" alt="" draggable={false} />
           </div>
         )}
 

@@ -127,7 +127,7 @@ function PaperPlayHub({ aiName, myName }: { aiName: string; myName: string }) {
       <div className="min-h-0 flex-1 overflow-y-auto pb-above-nav">
         {/* 窗景：整张生成图，1:1 不裁；两个热区叠在留声机和书上 */}
         <div className="pp-scene inset-top-75">
-          <img src="/play/window-sill.png" alt="" draggable={false} />
+          <img src="/play/window-sill.webp" alt="" draggable={false} />
           <Link to="/play/listen" className="pp-hot pp-hot-horn" aria-label="音乐" />
           <Link to="/play/learn" className="pp-hot pp-hot-book" aria-label="英语" />
         </div>
@@ -182,7 +182,7 @@ function PaperPlayHub({ aiName, myName }: { aiName: string; myName: string }) {
 
             {/* 插件：齿轮月亮小卡 */}
             <Link to="/play/plugins" className="pp-card" aria-label="插件">
-              <img src="/play/gear-moon.png" alt="" draggable={false} />
+              <img src="/play/gear-moon.webp" alt="" draggable={false} />
               <span className="pp-card-t">插件</span>
               <span className="pp-card-e">PLUGINS</span>
             </Link>
