@@ -26,6 +26,12 @@ export type ChatDelta = {
   usage?: { prompt?: number; completion?: number; cached?: number; total?: number };
   /** 服务端第一帧报回来的提示词指纹（用于判断前缀有没有变） */
   meta?: { promptHash?: string; systemTokens?: number; model?: string };
+  /**
+   * 上游给的结束原因（`stop` / `length` / `tool_calls` / `content_filter` …）。
+   * `length` 表示**被 max_tokens 砍断** —— 抗截断（增量续写）靠它判断，
+   * 以前这个字段根本没读，所以"砍断了"和"说完了"在客户端看来一模一样。
+   */
+  finishReason?: string;
 };
 
 /** 文本，或多模态的 content parts（OpenAI 风格）。 */
@@ -436,6 +442,8 @@ async function readSseStream(
     try {
       const j = JSON.parse(payload) as {
         choices?: {
+          /** 结束原因（`stop` / `length` / `tool_calls` …） */
+          finish_reason?: string | null;
           delta?: {
             content?: string | null;
             reasoning_content?: string | null;
@@ -460,7 +468,9 @@ async function readSseStream(
         finished = true;
         return;
       }
-      const d = j.choices?.[0]?.delta;
+      const choice = j.choices?.[0];
+      if (choice?.finish_reason) onDelta({ finishReason: choice.finish_reason });
+      const d = choice?.delta;
       // 思考链：DeepSeek 用 reasoning_content，个别实现用 reasoning
       const think = d?.reasoning_content ?? d?.reasoning;
       if (think) onDelta({ thinking: think });

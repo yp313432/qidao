@@ -125,8 +125,11 @@ const NOISE_RUN = /([}\]|)]|\\|\/|=|_|~|\^|\*|-)\1{3,}/g;
  * 这种内容一个字符都不该出现在对话里 —— 整段删掉（"动了 1 次手"那行还在）。
  * 先删 JSON、再折叠符号：反过来的话 `}}` 会先被折成「…」，就匹配不到了。
  */
-const TOOL_CALL_JSON_ARRAY = /\[\s*\{\s*"name"\s*:\s*"[^"]*"[\s\S]*?\}\s*\]/g;
-const TOOL_CALL_JSON_OBJ = /\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"[\s\S]*?\}\s*\}/g;
+/* 引号可能是单引号也可能是双引号（不同中转拼得不一样），字符类里直接写两种 */
+const TOOL_CALL_JSON_ARRAY = /\[\s*\{\s*["']name["']\s*:\s*["'][^"']*["'][\s\S]*?\}\s*\]/g;
+const TOOL_CALL_JSON_OBJ = /\{\s*["']name["']\s*:\s*["'][^"']*["']\s*,\s*["']arguments["'][\s\S]*?\}\s*\}/g;
+/* 被截断的（只写到一半就被 length 砍了）：从 JSON 起点一路删到结尾 —— 后面不可能还有正文 */
+const TOOL_CALL_JSON_CUT = /(?:\[\s*)?\{\s*["']name["']\s*:\s*["'][^"']*["'][\s\S]*$/g;
 const TOOL_ANNOUNCE = /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (?:going to|about to) (?:call|invoke)|Let'?s call (?:the )?tool)[^.!?\n]*[.!?]?)/gi;
 
 function cleanUpstreamNoise(s: string): string {
@@ -134,8 +137,12 @@ function cleanUpstreamNoise(s: string): string {
   const out = s
     .replace(TOOL_CALL_JSON_ARRAY, "")
     .replace(TOOL_CALL_JSON_OBJ, "")
+    /* 截断版放在完整版之后：完整的先删掉，剩下的才是"写到一半"的 */
+    .replace(TOOL_CALL_JSON_CUT, "")
     .replace(NOISE_RUN, "…")
     .replace(TOOL_ANNOUNCE, "")
+    /* 折叠出来的孤零零一行「…」删掉（那是 JSON 残片被压扁，不是正文） */
+    .replace(/^[ \t]*…[ \t]*$/gm, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^[ \t]+/, "");
@@ -280,6 +287,58 @@ function cleanForRender(s: string): string {
 /** 分段气泡里的**某一段**：只清洗、不去重（跨段的重复由 `dedupeParts` 负责，别把一段删成半截） */
 function cleanPartForRender(s: string): string {
   return cleanTextForRender(stripActionLines(s));
+}
+
+/**
+ * Gemini 系中转会把「思考」直接拼进正文（`I'm deep in thought…` 那一大段），
+ * 结果思考摆在正文里、还占满一屏。这里做**保守切分**：
+ *   · 只在开头出现明显思考特征时动手
+ *   · 必须有明确的分隔（`---` / `## ` / `回复：` / 英文思考段 + 中文正文）
+ *   · 拿不准就不切 —— 宁可留一段怪文字，也不能把正文切走
+ */
+const THOUGHT_OPEN =
+  /^(?:#{1,3}\s*(?:thinking|reasoning|thought)|<\s*thought\s*>|\*\*\s*(?:thinking|reasoning)\s*\*\*|i(?:'m| am) (?:deep )?in thought|let me think|thinking process|分析一下|思考过程)/i;
+
+function splitLeadingThought(s: string): { thought: string; body: string } {
+  const text = s ?? "";
+  const head = text.slice(0, 400).trimStart();
+  if (!head || !THOUGHT_OPEN.test(head)) return { thought: "", body: text };
+
+  // ① 明确分隔符
+  const sep = text.search(
+    /\n{2,}(?:-{3,}|\*{3,}|#{1,3}\s|(?:回复|回答|答案|Answer|Response)\s*[:：])/i,
+  );
+  if (sep > 0) {
+    const thought = text.slice(0, sep).trim();
+    const body = text
+      .slice(sep)
+      .replace(/^\s*(?:-{3,}|\*{3,})?\s*/, "")
+      .replace(/^(?:回复|回答|答案|Answer|Response)\s*[:：]\s*/i, "")
+      .trim();
+    if (thought.length >= 20 && body.length > 0) return { thought, body };
+  }
+
+  // ② 英文思考 + 中文正文：在第一处中文之前切（用户截图就是这种）
+  const firstCjk = text.search(/[\u4e00-\u9fff]/);
+  if (firstCjk > 200) {
+    let cut = text.lastIndexOf("\n", firstCjk);
+    if (cut < 100) cut = firstCjk;
+    const thought = text.slice(0, cut).trim();
+    const body = text.slice(cut).trim();
+    if (thought.length >= 200 && body.length > 0) return { thought, body };
+  }
+  return { thought: "", body: text };
+}
+
+/** 渲染前把「混在正文里的思考」挪回 thinking —— 下游一行都不用改 */
+function splitThoughtMsg<T extends { content?: string; thinking?: string }>(m: T): T {
+  const r = splitLeadingThought(m.content ?? "");
+  if (!r.thought) return m;
+  return {
+    ...m,
+    content: r.body,
+    thinking: [r.thought, m.thinking].filter(Boolean).join("\n\n"),
+  };
 }
 
 function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
@@ -902,7 +961,8 @@ export function ChatView() {
               上面的消息翻不到了。其实原文一条都没删，只是线站错地方了。
               现在它插在"摘要覆盖的最后一条之后"，跟着数据走。
             */}
-            {conv!.messages.map((m, i) => {
+            {conv!.messages.map((raw, i) => {
+              const m = splitThoughtMsg(raw);
               const mine = m.role === "user";
               const streaming = liveId === m.id;
               /**
