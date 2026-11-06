@@ -79,13 +79,11 @@ export type ChatRequest = {
   messages: ApiMessage[];
   style: ReplyStyle;
   /**
-   * 分段回复的旋钮（客户端拼系统提示词时用，见 `prompt.ts` 的 `segmentRule`）。
+   * 要不要在系统提示词里加「可以分段说」这条规矩（见 `prompt.ts` 的 `segmentRule`）。
    *
-   * ⚠️ 以前只有 `use-chat` 的 `buildReq` 里偷偷带着（类型里没有），
-   * 于是定时任务/花园这些"自己发的请求"根本拿不到分段规矩 ——
-   * 用户 m02156 报的"定时唤醒发的消息不能分段回复"就是这个漏。
+   * 2026-11：条数/句数不再由旋钮定，交给模型自己按语气判断；设置页只留段间延迟。
    */
-  segment?: { maxParts: number; maxSentences: number };
+  segmentEnabled?: boolean;
   tools: PromptTool[];
   /**
    * **原生 `tools`（function calling）** —— 61 个内部动作的定义，见 `action-schema.ts`。

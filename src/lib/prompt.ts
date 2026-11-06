@@ -83,10 +83,11 @@ export type PromptContext = {
 export type PromptInput = {
   style: ReplyStyle;
   /**
-   * 分段回复的旋钮（不填 = 不写这条规矩）。
-   * 数字来自 `settings.segmentMaxParts` / `segmentMaxSentences`（用户在设置页可调）。
+   * 要不要把「可以分段说」这条规矩写进提示词（用户在设置页开关）。
+   * 2026-11 用户：分几条、每条几句不再由旋钮定 —— 交给模型自己按语气判断，
+   * 设置页只留一个「段间延迟」（那是客户端行为，跟提示词无关）。
    */
-  segment?: { maxParts: number; maxSentences: number };
+  segmentEnabled?: boolean;
   tools: PromptTool[];
   /**
    * 这一轮是不是走原生 `tools`（function calling）。
@@ -182,11 +183,11 @@ const STYLE: Record<ReplyStyle, string> = {
  * —— 界面上写"最多 3 条"，提示词里就得是 3。同一个数只有一处来源，
  * 不然用户在设置里改成 5 条，他还在按 3 条说，用户只会以为设置坏了。
  */
-export function segmentRule(n: { maxParts: number; maxSentences: number }): string {
+export function segmentRule(): string {
   return `
 你说话的方式（这条挺重要）：把用户当在手机上聊天的人，可以像真人那样连着发几条。
 · 想把话分开说时，在两条之间单独写一行 ${SEGMENT_SEP}（三个竖线）—— 客户端会把它变成两个气泡，一条接一条地冒出来（段间有打字感）。
-· 最多 ${n.maxParts} 条，每条最多 ${n.maxSentences} 句。
+· 分几条、每条多长，你自己按语气判断 —— 一句话能说完就只发一条；话多、有停顿、想换话题时再分，一般别超过 5 条。
 · 一句能说完的就别分段 —— 短回复被切成两条会显得很奇怪；只有"确实有几句话想分开说"时才用。
 · 分隔符只写在两条中间，最后一条后面不要写；不要用它来分点（分点照旧用列表）。`;
 }
@@ -425,7 +426,7 @@ export function systemPrompt(input: PromptInput): string {
   return `${manual}${worldAlways}
 
 你在「栖岛」里 —— 这是用户一个人的私人空间。用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
-    input.segment ? segmentRule(input.segment) : ""
+    input.segmentEnabled ? segmentRule() : ""
   }
 思考在内部完成；正文不要重复「让我思考」之类的套话。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""

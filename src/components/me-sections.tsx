@@ -2054,44 +2054,6 @@ function MeSections({ tab }: { tab: MeTab }) {
 
         {settings.segmentReply !== false && (
           <>
-            <p className="mt-4 mb-2 text-[12px] text-muted">一次最多几条</p>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4, 5, 6].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  data-opt={(settings.segmentMaxParts ?? 3) === v ? undefined : ""}
-                  onClick={() => patch({ segmentMaxParts: v })}
-                  className={cn(
-                    "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxParts ?? 3) === v ? "choice-on data-pill" : "choice-off",
-                  )}
-                >
-                  {v} 条
-                </button>
-              ))}
-            </div>
-
-            <p className="mt-4 mb-2 text-[12px] text-muted">每条最多几句</p>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  data-opt={(settings.segmentMaxSentences ?? 2) === v ? undefined : ""}
-                  onClick={() => patch({ segmentMaxSentences: v })}
-                  className={cn(
-                    "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentMaxSentences ?? 2) === v
-                      ? "choice-on data-pill"
-                      : "choice-off",
-                  )}
-                >
-                  {v} 句
-                </button>
-              ))}
-            </div>
-
             <p className="mt-4 mb-2 text-[12px] text-muted">段间延迟</p>
             <div className="flex flex-wrap gap-2">
               {[400, 800, 1200, 1800, 2500].map((v) => (

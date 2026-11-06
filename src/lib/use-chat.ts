@@ -527,17 +527,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           model,
           messages: history,
           style: settings.replyStyle,
-          /**
-           * 分段回复：把"最多几条 / 每条最多几句"交给提示词（数字只有这一处来源）。
-           * 关掉时**不传** —— 那段规矩就不会出现，模型也就不会写分隔符。
-           */
-          segment:
-            settings.segmentReply === false
-              ? undefined
-              : {
-                  maxParts: settings.segmentMaxParts ?? 3,
-                  maxSentences: settings.segmentMaxSentences ?? 2,
-                },
+          /** 分段回复：只传开关（分几条、每条几句由模型自己判断） */
+          segmentEnabled: settings.segmentReply !== false,
           tools,
           customBaseUrl: settings.customBaseUrl || undefined,
           customApiKey: settings.customApiKey || undefined,

@@ -329,13 +329,7 @@ export function TaskDaemon() {
             messages,
             style: settings.replyStyle,
             /** 分段规矩也要给到 —— 不然他不知道可以分几条说，用户 m02156 报过"不能分段回复" */
-            segment:
-              settings.segmentReply === false
-                ? undefined
-                : {
-                    maxParts: settings.segmentMaxParts ?? 3,
-                    maxSentences: settings.segmentMaxSentences ?? 2,
-                  },
+            segmentEnabled: settings.segmentReply !== false,
             /*
               定时任务也要拿到工具清单 —— 不然提示词里会写"暂时没有外部工具"，
               那是假话（用户可能明明配了 MCP / HTTP），模型就会说"你没配工具"。
