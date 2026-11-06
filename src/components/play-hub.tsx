@@ -50,6 +50,10 @@ export function PlayHub() {
   const settings = useApp((s) => s.settings);
   const aiName = resolveAiName(settings.aiName);
   const myName = settings.displayName || "你";
+  const solidPaper = (settings.material ?? "frost") === "solid";
+
+  // 纸世界（纯色）：窗台静物版。磨砂/液态保持原来的橱窗版。
+  if (solidPaper) return <PaperPlayHub aiName={aiName} myName={myName} />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -77,6 +81,116 @@ export function PlayHub() {
             <NowNote />
           </div>
           <Phrases className="pt-4 pb-2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- 纸世界 · 窗台静物 */
+
+/** 今天的中文周几 / 英文月名，供日历卡用。 */
+const MONTHS_EN = [
+  "JANUARY",
+  "FEBRUARY",
+  "MARCH",
+  "APRIL",
+  "MAY",
+  "JUNE",
+  "JULY",
+  "AUGUST",
+  "SEPTEMBER",
+  "OCTOBER",
+  "NOVEMBER",
+  "DECEMBER",
+];
+const WEEKDAYS_CN = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+/**
+ * 纯色材质下的玩乐区：一扇窗 + 窗台上的留声机与书 + 四块纸片。
+ *
+ * 入口对应：留声机→音乐；书→英语；Diary 便签→动态；日历卡→小日子；
+ * 齿轮月亮小卡→插件。热区叠在图上（图本身是带帘的整张生成图，不裁）。
+ */
+function PaperPlayHub({ aiName, myName }: { aiName: string; myName: string }) {
+  const since = useApp((s) => s.settings.togetherSince);
+  const days = daysSince(since);
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const month = MONTHS_EN[now.getMonth()]!;
+  const weekday = WEEKDAYS_CN[now.getDay()]!;
+  const stamp = `${mm}.${dd}`;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-above-nav">
+        {/* 窗景：整张生成图，1:1 不裁；两个热区叠在留声机和书上 */}
+        <div className="pp-scene inset-top-75">
+          <img src="/play/window-sill.png" alt="" draggable={false} />
+          <Link to="/play/listen" className="pp-hot pp-hot-horn" aria-label="音乐" />
+          <Link to="/play/learn" className="pp-hot pp-hot-book" aria-label="英语" />
+        </div>
+
+        <div className="pp-body">
+          <div className="pp-row">
+            {/* 动态：Diary 便签 */}
+            <Link to="/play/space" className="pp-diary" aria-label="动态空间">
+              <span className="pp-tape" aria-hidden="true" />
+              <span className="pp-diary-head">
+                <em>Diary</em>
+                <i>{stamp}</i>
+              </span>
+              <span className="pp-diary-body">其实平平淡淡的幸福也挺好的，对不对？</span>
+              <span className="pp-diary-foot">
+                <span>{stamp} · {myName}写的</span>
+                <span>1/12</span>
+              </span>
+            </Link>
+
+            {/* 小日子：日历卡 */}
+            <Link to="/play/tools" className="pp-cal" aria-label="小日子">
+              <span className="pp-rings" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="pp-cal-top">
+                <span className="pp-cal-left">
+                  <b className="pp-cal-days">{dd}</b>
+                  <i className="pp-cal-month">{month}</i>
+                </span>
+                <span className="pp-cal-meta">
+                  <b>{weekday}</b>
+                  <i>{stamp}</i>
+                </span>
+              </span>
+              <span className="pp-cal-hint">
+                {days !== null ? `在一起 ${days} 天 · 今天也要开心呀` : "今天也要开心呀 ♡"}
+              </span>
+            </Link>
+          </div>
+
+          <div className="pp-row pp-row-2">
+            {/* 花体一句话 */}
+            <div className="pp-script" aria-hidden="true">
+              <span className="pp-script-main">stay a while</span>
+              <span className="pp-script-sub">in our quiet hours</span>
+            </div>
+
+            {/* 插件：齿轮月亮小卡 */}
+            <Link to="/play/plugins" className="pp-card" aria-label="插件">
+              <img src="/play/gear-moon.png" alt="" draggable={false} />
+              <span className="pp-card-t">插件</span>
+              <span className="pp-card-e">PLUGINS</span>
+            </Link>
+          </div>
+
+          <p className="pp-quote" aria-hidden="true">
+            {aiName} & {myName} · quiet hours, softly kept
+          </p>
         </div>
       </div>
     </div>

@@ -257,7 +257,7 @@ export function MeHub() {
       const scale = lerp(1, AV1 / AV0, e);
       const x = lerp((W - AV0) / 2, 16, e);
       // 始终留在容器可见范围内（高度在收缩，别让它被 overflow 裁掉）
-      const y = Math.min(lerp(24, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
+      const y = Math.min(lerp(56, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
       avRef.current.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
     if (nameRef.current) {
@@ -393,10 +393,14 @@ export function MeHub() {
           className="absolute inset-x-0 top-0 overflow-hidden"
           style={{ height: HEAD_H }}
         >
-        <div ref={cardRef} className="absolute inset-0 rounded-3xl border border-line bg-surface" />
+        <div ref={cardRef} className="me-head-card absolute inset-0 rounded-3xl border border-line bg-surface" />
+        <p className="me-exlibris">EX LIBRIS · 栖岛</p>
+        <p className="me-rule" />
+        <p className="me-rule2" />
+        <p className="me-vol">VOL.02 · 2026.11</p>
         <div
           ref={barRef}
-          className="absolute inset-x-0 top-0 h-[46px] rounded-3xl"
+          className="me-bar absolute inset-x-0 top-0 h-[46px] rounded-3xl"
           style={{
             opacity: 0,
             backgroundColor: "var(--aster-surface)",
@@ -411,6 +415,7 @@ export function MeHub() {
           className="pointer-events-auto absolute left-0 top-0 block"
           style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
         >
+          <span className="me-av-ring" aria-hidden="true" />
           <FileButton
             ariaLabel="更换我的头像"
             accept="image/*"
@@ -426,7 +431,7 @@ export function MeHub() {
         <p
           ref={hintRef}
           className="absolute inset-x-0 text-center text-[11px] text-subtle"
-          style={{ top: 116 }}
+          style={{ top: 180 }}
         >
           {settings.userAvatar ? "点头像可以换一张" : "点头像上传一张"}
         </p>
@@ -446,10 +451,7 @@ export function MeHub() {
             className="w-full bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
           />
         </span>
-        <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 186 }}>
-          <p className="text-center text-[11px] text-subtle">
-            他会用这个名字称呼你 · AI 的头像和名字在「AI 概览」里改
-          </p>
+        <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 196 }}>
           {/*
             称呼（性别）—— 2026-10 用户点名要的：
             "我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
@@ -477,7 +479,7 @@ export function MeHub() {
                   data-opt={active ? undefined : ""}
                   onClick={() => patch({ userGender: opt.v })}
                   className={cn(
-                    "rounded-full px-3 py-1 text-[11px] transition",
+                    "me-call-btn rounded-full px-3 py-1 text-[11px] transition",
                     active && "data-pill",
                   )}
                 >
@@ -494,23 +496,18 @@ export function MeHub() {
         5 个入口 —— 点进去才是细节，首页不再平铺一长串
         （文档：「我的」= AI 控制中枢，先分类再进二级 ✅ 纯入口整理）
       */}
-      <nav className="mt-6 space-y-2 px-4">
-        {ME_CARDS.map((c) => {
+      <p className="me-index-ttl">CONTENTS · 目录</p>
+      <nav className="me-index mt-2 px-5">
+        {ME_CARDS.map((c, i) => {
           const Icon = c.icon;
           return (
-            <Link
-              key={c.to}
-              to={c.to}
-              className="flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5"
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
-                <Icon className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-serif text-[15px]">{c.label}</span>
-                <span className="mt-1 block text-[11px] leading-4 text-subtle">{c.hint}</span>
-              </span>
-              <ChevronRight className="size-4 shrink-0 text-muted" />
+            <Link key={c.to} to={c.to} className="me-index-row">
+              <Icon className="me-index-ic" strokeWidth={1.5} aria-hidden="true" />
+              <span className="me-index-no">{String(i + 1).padStart(2, "0")}</span>
+              <span className="me-index-name">{c.label}</span>
+              <span className="me-index-hint">{c.hint}</span>
+              <span className="me-index-lead" />
+              <ChevronRight className="me-index-arrow" aria-hidden="true" />
             </Link>
           );
         })}
@@ -1971,8 +1968,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   /* ── 系统 ── */
 
   const systemSections = (
-    <>
-      <Section title="思考链">
+    <div className="sys-list">
+        <Group title="聊天" value="思考链 · 说话方式 · 表情包" order={4}>
+        <Sub title="思考链">
         {/* 只留「显示」—— 「保存思考链」已去掉：
             思考过程回复时你当场就能看到，再存一份纯占地方（用户明确要求删）。 */}
         <Row
@@ -2031,7 +2029,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             </button>
           ))}
         </div>
-      </Section>
+        </Sub>
 
       {/*
         ── 说话方式：**分段回复**（2026-11 用户要的）─────────────────────
@@ -2042,7 +2040,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         所以四个旋钮都摆在这儿，**不写死在代码里** —— 效果不对他自己拧，
         不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
       */}
-      <Section title="说话方式">
+        <Sub title="说话方式">
         <Row
           label="分段回复"
           hint="像真人那样连着发几条"
@@ -2116,7 +2114,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             </p>
           </>
         )}
-      </Section>
+        </Sub>
 
       {/*
         ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
@@ -2124,7 +2122,7 @@ function MeSections({ tab }: { tab: MeTab }) {
              ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
         "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
       */}
-      <Section title="表情包">
+        <Sub title="表情包">
         <Row
           label="传表情时自动去白底"
           hint="照片/白底截图 → 透明表情"
@@ -2140,9 +2138,10 @@ function MeSections({ tab }: { tab: MeTab }) {
           他**可以自己发表情**（不用你问）：想发的时候会从你的表情库里挑一张，
           而且会避开上一次那张。想加表情就走输入框的「＋ → 表情包」。
         </p>
-      </Section>
+        </Sub>
+        </Group>
 
-      <Section title="通知">
+      <Group title="通知" value="本地通知 · 测试通知" order={1}>
         <Row
           label="允许通知"
           hint="打开时向系统申请权限"
@@ -2565,9 +2564,9 @@ function MeSections({ tab }: { tab: MeTab }) {
                  然后我的区里面就删掉就不用重复了"）。
           这里只留上面那个"日记提醒时间"的开关 —— 它属于通知设置，不是闹钟。
         */}
-      </Section>
+      </Group>
 
-      <Section title="天气与定位">
+      <Group title="天气与定位" value="自动定位 · 城市 · 单位" order={3}>
         <Row
           label="让他知道你在哪、外面什么天气"
           hint="默认关。开了之后地点和天气会进「此刻的情况」—— 也就是说会发给你接的那家 AI"
@@ -2705,9 +2704,9 @@ function MeSections({ tab }: { tab: MeTab }) {
             </div>
           </>
         )}
-      </Section>
+      </Group>
 
-      <Section title="语音">
+      <Group title="语音" value="服务商 · 模型 · 音色" order={2}>
         <Row
           label="朗读回复"
           hint={voiceConfigured ? `用 ${voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"} 的音色念` : "还没配语音服务，配好才会有声音"}
@@ -3253,7 +3252,7 @@ function MeSections({ tab }: { tab: MeTab }) {
               document.body,
             );
           })()}
-      </Section>
+      </Group>
 
       {/*
         「定时任务」那一段**已挪到「玩乐 → 小日子 → 定时任务」**
@@ -3261,7 +3260,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         这一页不再重复。
       */}
 
-      <Section title="开发与纠错">
+      <Group title="开发与纠错" value="环境自检" order={5}>
         {/* Section 里的子元素是直接堆叠的，多张卡片必须自己包一层间距，
             否则半透明圆角卡片贴在一起会看起来像「重合」。 */}
         <div className="space-y-2">
@@ -3282,7 +3281,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             <ChevronRight className="size-4 shrink-0 text-muted" />
           </Link>
         </div>
-      </Section>
+      </Group>
 
       {/*
         这块**已经不显示了**（`hidden`）—— 它的内容搬到「AI 概览」里了：
@@ -3319,7 +3318,7 @@ function MeSections({ tab }: { tab: MeTab }) {
           <ChevronRight className="size-4 shrink-0 text-muted" />
         </Link>
       </Section>
-    </>
+    </div>
   );
 
   if (tab === "space") return <>{spaceSections}</>;
@@ -3421,6 +3420,51 @@ function Section({
  * 用户定的版式（m14333）：我的空间就是"几行字"，点哪行展哪行；
  * 不再一页全是常驻卡片 —— 那样每加一项就更长一截。
  */
+
+
+/**
+ * 系统页的折叠组：平时收起，点标题展开。
+ * （用户 2026-11：系统页先做二级区，平时也是收起来的，点击再展开）
+ */
+function Group({
+  title,
+  value,
+  order,
+  children,
+}: {
+  title: string;
+  value: string;
+  order?: number;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="me-group" style={order ? { order } : undefined}>
+      <button
+        type="button"
+        className="me-group-h"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="me-group-t">{title}</span>
+        <span className="me-group-v">{value}</span>
+        <ChevronDown className={cn("me-group-ic", open && "rotate-180")} aria-hidden="true" />
+      </button>
+      {open && <div className="me-group-body bubble-in">{children}</div>}
+    </section>
+  );
+}
+
+/** 折叠组里的二级小标题 */
+function Sub({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="me-sub">
+      <h3 className="me-sub-t">{title}</h3>
+      <div className="me-sub-body">{children}</div>
+    </div>
+  );
+}
+
 function Fold({
   title,
   value,

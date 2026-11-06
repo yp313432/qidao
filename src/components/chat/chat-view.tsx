@@ -109,10 +109,30 @@ const INTERNAL_DROP_BLOCK =
 const INTERNAL_LOOSE_TAG =
   /<\/?(?:thinking_mode|thinking|reasoning|answer|tool_call|tool_calls|function_call|function_calls|antml:[\w:.-]+)[^>]*>/gi;
 
+/**
+ * 上游噪音清洗（2026-11，Gemini 中转）：只处理三种"绝不可能是正文"的东西，
+ * 其余一律不动 —— 宁可漏，不可误删。
+ *   ① 连续 4 个以上的同一种符号（`}}}}` `||||` `====`）→ 一个省略号
+ *   ② 日语的工具宣告句（`ツールを実行します`）→ 删
+ *   ③ 英文工具宣告句（`I'm going to call ...` / `Let's call the tool ...`）→ 删
+ */
+const NOISE_RUN = /([}\]|)]|\\|\/|=|_|~|\^|\*|-)\1{3,}/g;
+const TOOL_ANNOUNCE = /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (?:going to|about to) (?:call|invoke)|Let'?s call (?:the )?tool)[^.!?\n]*[.!?]?)/gi;
+
+function cleanUpstreamNoise(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(NOISE_RUN, "…")
+    .replace(TOOL_ANNOUNCE, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 /** 删掉内部标签（整段删 / 只删标签见上面两条规则的说明） */
 function stripInternalTags(s: string): string {
-  if (!s || s.indexOf("<") < 0) return s;
-  return s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
+  if (!s) return s;
+  const t = s.indexOf("<") < 0 ? s : s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
+  return cleanUpstreamNoise(t);
 }
 
 /** 去重比对用的归一化：内部标签、Markdown 记号、空白都不算数，只留下可读文字 */
@@ -649,31 +669,10 @@ export function ChatView() {
           压不到功能也盖不着点击。只在纯色材质渲染（frost/liquid 没有这个 DOM）。
         */}
         {solidPaper && (
+          /* 装饰层：水彩花枝斜横着搭在顶栏右角（用户 m01956：向左斜一点、斜横着放，
+             画在按钮下面但枝头要露出来）。素材在 public/decor/，按文件名替换即可。 */
           <div className="mast-deco" aria-hidden="true">
-            <svg
-              viewBox="0 0 90 130"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1}
-              strokeOpacity={0.3}
-            >
-              <path d="M45 126 C42 96 44 70 47 48" strokeLinecap="round" />
-              <path d="M45 104 C32 98 24 100 18 108 C26 114 36 113 45 104Z" />
-              <path d="M46 84 C60 78 68 80 74 88 C66 95 55 94 46 84Z" />
-              <path d="M45 66 C34 60 27 62 22 69 C29 75 38 74 45 66Z" />
-              <g transform="translate(48 36)">
-                <circle r="7" fill="currentColor" stroke="none" fillOpacity={0.05} />
-                <ellipse cx={0} cy={-10} rx={3.2} ry={6} strokeOpacity={0.4} />
-                <ellipse cx={9.5} cy={-3} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(72 9.5 -3)" />
-                <ellipse cx={6} cy={8.5} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(144 6 8.5)" />
-                <ellipse cx={-6} cy={8.5} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(216 -6 8.5)" />
-                <ellipse cx={-9.5} cy={-3} rx={3.2} ry={6} strokeOpacity={0.4} transform="rotate(288 -9.5 -3)" />
-                <circle cx={0} cy={0} r={1.2} fill="currentColor" stroke="none" fillOpacity={0.35} />
-                <circle cx={3} cy={-2} r={0.9} fill="currentColor" stroke="none" fillOpacity={0.3} />
-                <circle cx={-3} cy={1.5} r={0.9} fill="currentColor" stroke="none" fillOpacity={0.3} />
-                <circle cx={1} cy={3} r={0.8} fill="currentColor" stroke="none" fillOpacity={0.28} />
-              </g>
-            </svg>
+            <img className="mast-flower" src="/decor/cherry-branch.png" alt="" draggable={false} />
           </div>
         )}
 
@@ -1304,7 +1303,7 @@ export function ChatView() {
                               {streaming ? (
                                 /* 流式期间也把内部标签抹掉（它可能一大早就开始吐标签），
                                    但**不做去重**：中途去重会让字跳来跳去，收尾那一次才去重 */
-                                <p className="whitespace-pre-wrap break-words">
+                                <p className="bubble-text whitespace-pre-wrap break-words">
                                   {stripInternalTags(liveText)}
                                 </p>
                               ) : (

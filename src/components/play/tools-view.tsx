@@ -29,6 +29,7 @@ export function ToolsView() {
   const todos = useApp((s) => s.todos);
   const reminders = useApp((s) => s.reminders);
   const tasks = useApp((s) => s.tasks);
+  const solidPaper = (settings.material ?? "frost") === "solid";
 
   const openTodos = todos.filter((t) => !t.done).length;
   const next = sortDates(dates)[0] ?? null;
@@ -61,6 +62,7 @@ export function ToolsView() {
             —— 两个 hub 各列各的，才叫"一处归属"。
           */}
           <ToolCard
+            solid={solidPaper}
             to="/play/days"
             title="重要日子"
             desc={nextLabel}
@@ -69,6 +71,7 @@ export function ToolsView() {
           />
 
           <ToolCard
+            solid={solidPaper}
             to="/play/todo"
             title="待办"
             desc={openTodos > 0 ? `${openTodos} 件没做` : todos.length > 0 ? "都做完了" : "还没有待办"}
@@ -77,6 +80,7 @@ export function ToolsView() {
           />
 
           <ToolCard
+            solid={solidPaper}
             to="/play/tools/alarms"
             title="闹钟"
             desc={
@@ -87,6 +91,7 @@ export function ToolsView() {
           />
 
           <ToolCard
+            solid={solidPaper}
             to="/play/tools/tasks"
             title="定时任务"
             desc={tasks.length > 0 ? `${onTasks} 个开着` : "还没设过"}
@@ -110,6 +115,7 @@ function ToolCard({
   icon,
   tone,
   wide = false,
+  solid = false,
 }: {
   to: string;
   title: string;
@@ -117,6 +123,7 @@ function ToolCard({
   icon: React.ReactNode;
   tone: string;
   wide?: boolean;
+  solid?: boolean;
 }) {
   return (
     <Link
@@ -124,6 +131,7 @@ function ToolCard({
       className={cn(
         "aster-card relative overflow-hidden rounded-[1.6rem] border border-line px-4 py-4",
         wide && "col-span-2",
+        solid && "pp-entry pp-entry-grid",
       )}
     >
       <span className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br", tone)} />

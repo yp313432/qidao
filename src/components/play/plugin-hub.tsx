@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
  * 点进**具体某个插件**才整页铺满（跟时感一样，见 `pluginBySlug` 那条路由）。
  */
 export function PluginHub() {
+  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
   const customs = useApp((s) => s.settings.customPlugins);
   const plugins = catalogOf(customs);
 
@@ -39,6 +40,7 @@ export function PluginHub() {
                   params={{ slug: p.slug }}
                   className={cn(
                     "flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5",
+                    solidPaper && "pp-entry",
                     off && "opacity-45",
                   )}
                 >
@@ -65,7 +67,7 @@ export function PluginHub() {
         <Link
           to="/play/plugins/edit"
           search={{}}
-          className="mt-3 flex items-center gap-3 rounded-3xl border border-dashed border-line px-4 py-3.5 text-muted"
+          className={cn("mt-3 flex items-center gap-3 rounded-3xl border border-dashed border-line px-4 py-3.5 text-muted", solidPaper && "pp-entry pp-entry-add")}
         >
           <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
             <Plus className="size-[1.15rem]" strokeWidth={1.7} aria-hidden="true" />

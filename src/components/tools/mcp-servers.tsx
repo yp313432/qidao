@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { KeyRound, Loader2, Pencil, Plus, ShieldCheck, Trash2, Wifi } from "lucide-react";
+import {
+  ChevronDown,
+  KeyRound,
+  Loader2,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  Wifi,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { probeServer } from "@/lib/mcp";
 import { isAuthorized, planAuthorize } from "@/lib/mcp-oauth";
@@ -9,8 +18,20 @@ import { useApp } from "@/lib/store";
 import type { McpOAuth, McpServer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+function hostOf(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url || "(未填地址)";
+  }
+}
+
 /**
  * MCP 服务器**列表**。
+ *
+ * 2026-11 用户嫌"每个都好大一块、全是解释性话语"——改成一行一个服务器，
+ * 点行展开：授权状态、拿到的工具、测试/授权/断开/编辑/删除都收进展开区。
+ * 原来压在最前面的说明收进底部「说明」折叠。
  *
  * 新建 / 编辑跳到独立页面 `/tools/mcp`（编辑某一条带 `?id=`）——
  * 原来的底部弹层是 `z-40`，被 `z-60` 的底部导航压住，最后那栏「请求头」
@@ -30,6 +51,7 @@ export function McpServers() {
   const [testing, setTesting] = useState<string | null>(null);
   const [authing, setAuthing] = useState<string | null>(null);
   const [authError, setAuthError] = useState<{ id: string; message: string } | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   async function test(server: McpServer) {
     setTesting(server.id);
@@ -97,46 +119,58 @@ export function McpServers() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-dashed border-line px-4 py-3">
-        <p className="text-[13px] font-medium">填你自己的 MCP 服务器地址</p>
-        <p className="mt-1 text-[12px] leading-5 text-muted">
-          「测试连接」会真的走一遍 MCP 握手，并把它到底有哪些工具列出来 ——
-          看到<span className="font-medium text-fg">「拿到 N 个工具」</span>才算连上。
-          对方要认证时：如果是标准 OAuth 服务，会给一个
-          <span className="font-medium text-fg">「去授权」</span>
-          按钮，跳浏览器授权完就能用；不是的话只能在「请求头」里手填令牌。
-          目前只支持 HTTP（Streamable HTTP）地址。
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1 pb-0.5">
+        <p className="font-mono text-[9px] tracking-[0.14em] text-subtle">
+          MCP · {servers.length} 个
         </p>
+        <Link to="/tools/mcp" search={{}} className="text-[11px] text-muted">
+          ＋ 添加
+        </Link>
       </div>
 
       {servers.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted">还没有 MCP 服务器，点下面添加</p>
+        <p className="py-8 text-center text-[12px] text-muted">还没有 MCP 服务器，点右上角添加</p>
       )}
 
-      {servers.map((s) => {
+      <div className="tool-stack space-y-2">
+        {servers.map((s, i) => {
         const authorized = isAuthorized(s);
         const needsAuth = Boolean(s.status?.needsAuth) && !authorized;
+        const open = openId === s.id;
         return (
-          <article key={s.id} className="rounded-3xl border border-line bg-surface px-4 py-3">
-            <div className="flex items-start gap-3">
-              <span
-                className={cn(
-                  "mt-0.5 shrink-0 rounded-full px-2.5 py-1 font-mono text-[11px] uppercase",
-                  s.transport === "http" ? "bg-chip" : "bg-chip text-warn",
-                )}
+          <article
+            key={s.id}
+            data-method="MCP"
+            className={cn("overflow-hidden rounded-xl border border-line bg-surface p-3", "tool-card", open && "open", !s.enabled && "off")}
+          >
+            <span className="tool-tab" aria-hidden />
+            <span className="tool-fold" aria-hidden />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setOpenId(open ? null : s.id)}
+                aria-expanded={open}
+                className="tool-hit min-w-0 flex-1"
               >
-                {s.transport}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{s.name}</p>
-                <p className="mt-0.5 truncate font-mono text-[11px] text-muted">
-                  {s.url || "(未填地址)"}
-                </p>
-                {s.description && (
-                  <p className="mt-1 text-[12px] leading-5 text-muted">{s.description}</p>
-                )}
-              </div>
+                <span className="tool-r1">
+                  <span className="tool-name">{s.name}</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-3.5 shrink-0 text-subtle transition-transform duration-200",
+                      open && "rotate-180",
+                    )}
+                  />
+                  <span className="tool-host">{hostOf(s.url)}</span>
+                </span>
+                <span className="tool-r2">
+                  <span className="tool-mk uppercase">{s.transport}</span>
+                  <span className={cn("tool-st", s.enabled && "on")}>
+                    {s.enabled ? "已启用" : "已停用"}
+                  </span>
+                  <span className="tool-no">No.{String(i + 1).padStart(2, "0")}</span>
+                </span>
+              </button>
               <Switch
                 checked={s.enabled}
                 label={s.name}
@@ -144,119 +178,159 @@ export function McpServers() {
               />
             </div>
 
-            {/* 授权状态：一句话说清"现在能不能用" */}
-            {authorized && (
-              <p className="mt-2 flex items-center gap-1.5 text-[12px] text-ok">
-                <ShieldCheck className="size-3.5 shrink-0" />
-                已授权（令牌存在本机）
-                {s.oauth?.expiresAt
-                  ? `，${new Date(s.oauth.expiresAt).toLocaleString("zh-CN", { hour12: false })} 过期，会自动续`
-                  : ""}
-              </p>
-            )}
-
-            {/* 握手真的问到了工具，就摆出来 —— 这才是"能用"的样子 */}
-            {s.tools.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {s.tools.map((t) => (
-                  <span
-                    key={t.name}
-                    className="rounded-full bg-chip px-2.5 py-1 font-mono text-[11px] text-muted"
-                  >
-                    {t.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void test(s)}
-                disabled={testing === s.id}
-                className="flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[13px] font-medium text-ink-fg disabled:opacity-60"
-              >
-                {testing === s.id ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Wifi className="size-3.5" />
+            {open && (
+              <div className="tool-zone">
+                <div className="tool-row">
+                  <i>地址</i>
+                  <span>{s.url || "(未填地址)"}</span>
+                </div>
+                {s.description && (
+                  <div className="tool-row">
+                    <i>说明</i>
+                    <span>{s.description}</span>
+                  </div>
                 )}
-                {testing === s.id ? "正在握手…" : "测试连接"}
-              </button>
 
-              {/* 对方要认证、而且它是标准 OAuth 服务 → 给主要入口 */}
-              {needsAuth && (
-                <button
-                  type="button"
-                  onClick={() => void authorize(s)}
-                  disabled={authing === s.id}
-                  className="flex items-center gap-1.5 rounded-full border border-fg px-3.5 py-2 text-[13px] font-medium disabled:opacity-60"
-                >
-                  {authing === s.id ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <KeyRound className="size-3.5" />
+                {/* 授权状态：一句话说清"现在能不能用" */}
+                {authorized && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-ok">
+                    <ShieldCheck className="size-3 shrink-0" />
+                    已授权（令牌存在本机）
+                    {s.oauth?.expiresAt
+                      ? `，${new Date(s.oauth.expiresAt).toLocaleString("zh-CN", { hour12: false })} 过期`
+                      : ""}
+                  </p>
+                )}
+
+                {/* 握手真的问到了工具，就摆出来 —— 这才是"能用"的样子 */}
+                {s.tools.length > 0 && (
+                  <div className="mt-1.5 flex max-h-24 flex-wrap gap-1 overflow-y-auto">
+                    {s.tools.map((t) => (
+                      <span
+                        key={t.name}
+                        className="tool-chip rounded border border-line px-1.5 py-0.5 font-mono text-[9px] text-muted"
+                      >
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void test(s)}
+                    disabled={testing === s.id}
+                    className="flex items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ink-fg disabled:opacity-60"
+                  >
+                    {testing === s.id ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Wifi className="size-3" />
+                    )}
+                    {testing === s.id ? "握手中…" : "测试连接"}
+                  </button>
+
+                  {/* 对方要认证、而且它是标准 OAuth 服务 → 给主要入口 */}
+                  {needsAuth && (
+                    <button
+                      type="button"
+                      onClick={() => void authorize(s)}
+                      disabled={authing === s.id}
+                      className="flex items-center gap-1 rounded-full border border-fg px-3 py-1.5 text-[12px] font-medium disabled:opacity-60"
+                    >
+                      {authing === s.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <KeyRound className="size-3" />
+                      )}
+                      {authing === s.id ? "准备授权…" : "去授权"}
+                    </button>
                   )}
-                  {authing === s.id ? "准备授权…" : "去授权"}
-                </button>
-              )}
 
-              {authorized && (
-                <button
-                  type="button"
-                  onClick={() => disconnect(s)}
-                  className="rounded-full bg-chip px-3.5 py-2 text-[13px] text-muted"
-                >
-                  断开授权
-                </button>
-              )}
+                  {authorized && (
+                    <button
+                      type="button"
+                      onClick={() => disconnect(s)}
+                      className="rounded-full bg-chip px-3 py-1.5 text-[12px] text-muted"
+                    >
+                      断开授权
+                    </button>
+                  )}
 
-              <Link
-                to="/tools/mcp"
-                search={{ id: s.id }}
-                aria-label="编辑"
-                className="rounded-full bg-chip p-2 text-muted"
-              >
-                <Pencil className="size-3.5" />
-              </Link>
-              <button
-                type="button"
-                aria-label="删除"
-                onClick={() => useApp.getState().removeMcp(s.id)}
-                className="rounded-full bg-chip p-2 text-muted"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </div>
+                  <Link
+                    to="/tools/mcp"
+                    search={{ id: s.id }}
+                    aria-label="编辑"
+                    className="flex size-8 items-center justify-center rounded-full bg-chip text-muted"
+                  >
+                    <Pencil className="size-3.5" />
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label="删除"
+                    onClick={() => useApp.getState().removeMcp(s.id)}
+                    className="flex size-8 items-center justify-center rounded-full bg-chip text-muted"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                  {!s.enabled && (
+                    <span className="tool-off-stamp" aria-hidden>
+                      停用
+                    </span>
+                  )}
+                </div>
 
-            {authError?.id === s.id && (
-              <pre className="mt-2.5 max-h-52 overflow-auto rounded-2xl bg-chip px-3 py-2.5 font-mono text-[11px] leading-5 break-all whitespace-pre-wrap text-warn">
-                {authError.message}
-              </pre>
-            )}
+                {authError?.id === s.id && (
+                  <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-chip px-2.5 py-2 font-mono text-[10px] leading-[1.6] break-all whitespace-pre-wrap text-warn">
+                    {authError.message}
+                  </pre>
+                )}
 
-            {s.status && (
-              <div className="mt-2.5 rounded-2xl bg-chip px-3 py-2.5">
-                <p className={cn("text-[12px] font-medium", s.status.ok ? "text-ok" : "text-warn")}>
-                  {s.status.ok ? "连通" : "未连通"}
-                </p>
-                <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[11px] leading-5 break-all whitespace-pre-wrap text-muted">
-                  {s.status.message}
-                </pre>
+                {s.status && (
+                  <div className="mt-2 rounded-lg bg-chip px-2.5 py-2">
+                    <p
+                      className={cn(
+                        "text-[11px] font-medium",
+                        s.status.ok ? "text-ok" : "text-warn",
+                      )}
+                    >
+                      {s.status.ok ? "连通" : "未连通"}
+                    </p>
+                    <pre className="mt-1 max-h-32 overflow-auto font-mono text-[10px] leading-[1.6] break-all whitespace-pre-wrap text-muted">
+                      {s.status.message}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
           </article>
         );
-      })}
+        })}
+      </div>
 
       <Link
         to="/tools/mcp"
         search={{}}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted"
+        className="tool-add flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line py-2 text-[12px] text-muted"
       >
-        <Plus className="size-4" />
+        <Plus className="size-3.5" />
         添加 MCP 服务器
       </Link>
+
+      <details className="px-1 pt-1">
+        <summary className="cursor-pointer text-[11px] text-subtle">说明 · 怎么填、怎么连</summary>
+        <div className="space-y-1.5 pt-1.5 text-[11px] leading-[1.6] text-subtle">
+          <p>
+            「测试连接」会真的走一遍 MCP 握手，并把它到底有哪些工具列出来 —— 看到「拿到 N
+            个工具」才算连上。
+          </p>
+          <p>
+            对方要认证时：如果是标准 OAuth 服务，会给一个「去授权」按钮，跳浏览器授权完就能用；不是的话只能在「请求头」里手填令牌。目前只支持
+            HTTP（Streamable HTTP）地址。
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

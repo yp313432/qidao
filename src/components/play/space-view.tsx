@@ -3,6 +3,7 @@ import { BookHeart, ChevronRight, Mail, NotebookPen } from "lucide-react";
 import { SceneBackdrop } from "@/components/background-layer";
 import { PlayHeader } from "@/components/play-header";
 import { useApp } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 /**
  * 动态空间 —— 现在是**目录**，不是三个页签。
@@ -26,6 +27,8 @@ export function SpaceView() {
   const moments = useApp((s) => s.moments);
   const diary = useApp((s) => s.diary);
   const letters = useApp((s) => s.letters);
+  // 纸世界（纯色）：三颗胶囊换成三张错落的纸片；磨砂/液态保持原样。
+  const solidPaper = (settings.material ?? "frost") === "solid";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -42,18 +45,21 @@ export function SpaceView() {
 
         <ul className="mt-4 space-y-2.5">
           <Entry
+            solid={solidPaper}
             to="/play/space/moments"
             title="动态"
             hint={moments.length > 0 ? `朋友圈 · ${moments.length} 条` : "朋友圈：发一条、点赞、评论"}
             icon={<BookHeart className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />}
           />
           <Entry
+            solid={solidPaper}
             to="/play/space/diary"
             title="日记"
             hint={diary.length > 0 ? `共 ${diary.length} 篇` : "一天至少给自己留一篇"}
             icon={<NotebookPen className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />}
           />
           <Entry
+            solid={solidPaper}
             to="/play/space/letters"
             title="信"
             hint={letters.length > 0 ? `共 ${letters.length} 封` : "他写给你的信"}
@@ -75,17 +81,22 @@ function Entry({
   title,
   hint,
   icon,
+  solid,
 }: {
   to: string;
   title: string;
   hint: string;
   icon: React.ReactNode;
+  solid?: boolean;
 }) {
   return (
     <li>
       <Link
         to={to as never}
-        className="flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5"
+        className={cn(
+          "flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5",
+          solid && "pp-entry",
+        )}
       >
         <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
           {icon}

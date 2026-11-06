@@ -490,22 +490,30 @@
   pointer-events: none;
 }
 
-/* 垂枝 C（"标本枝"）：线稿小花枝从顶上垂进来，墨 30%，压在按钮后面。
-   z:-1 + pointer-events:none —— 盖不着、点不到。SVG 尺寸即定位框。 */
+/* 顶栏水彩花枝（m01956）：斜横着搭在右角，画在按钮下面但枝头露出来。
+   素材 public/decor/cherry-branch.png，按文件名替换即可；
+   z:-1 + pointer-events:none —— 盖不着、点不到。 */
 [data-material="solid"] .mast-deco {
   position: absolute;
   z-index: -1;
-  right: 4px;
-  top: -8px;
-  width: 54px;
-  height: 92px;
+  right: -24px;
+  top: -14px;
+  width: 290px;
+  height: 180px;
   pointer-events: none;
 }
-[data-material="solid"] .mast-deco svg {
+/* png 本体是 45° 的斜枝，rotate(+40deg) 把它放平成向左斜的横枝；
+   multiply 让水彩纸底融进纸面，不被按钮的纸底割开。 */
+[data-material="solid"] .mast-flower {
   width: 100%;
   height: 100%;
-  transform: scaleY(-1);
-  color: var(--aster-ink);
+  object-fit: contain;
+  object-position: right top;
+  transform: rotate(40deg);
+  transform-origin: 86% 14%;
+  mix-blend-mode: multiply;
+  opacity: 0.95;
+  filter: saturate(1.3) contrast(1.04) drop-shadow(0 1px 2px rgba(28, 25, 23, 0.2));
 }
 
 /* ——— 纸世界 · Step3 消息区 F 浮签（选样卡-消息区-v2 定稿） ———
@@ -691,6 +699,9 @@
 /* ==================== 纸世界 Step4：输入区 E 邮票 + E3 双章 ==================== */
 /* 输入外壳=信封：solid 底纸（.glass-float 的实底覆盖已打底）上摘渐变光泽、方角、墨线、衬线 */
 [data-material="solid"] .paper-env {
+  /* 用户 m01399：V 线与火漆章原来锚在外层悬浮层上、整条探出卡片上沿——
+     position:relative 把锚点收回到信封卡片本身 */
+  position: relative;
   background-image: none;
   border-radius: 4px;
   border-color: color-mix(in srgb, var(--aster-ink) 26%, transparent);
@@ -784,6 +795,45 @@
   font-weight: 600;
   line-height: 1;
   color: var(--aster-ink-fg);
+}
+/* 票面上的一切图标/符号统一白显（麦克风、停止方块……）：墨色图标压在陶色票面上对比度不足，看不见 */
+[data-material="solid"] .paper-stamp > svg {
+  color: var(--aster-ink-fg);
+  position: relative;
+  z-index: 1;
+}
+/* 语音键独立（用户 m01399：语音/发送拆成两枚，语音键放在表情后面）：
+   淡纸小方键 + 墨色麦克风；按住录音时转陶色提示 */
+[data-material="solid"] .paper-voice {
+  background: color-mix(in srgb, var(--aster-ink) 4%, var(--aster-bg));
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 22%, transparent);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--aster-ink) 68%, transparent);
+}
+[data-material="solid"] .paper-voice.paper-voice-rec {
+  background: color-mix(in srgb, var(--aster-accent) 16%, var(--aster-bg));
+  border-color: color-mix(in srgb, var(--aster-accent) 55%, transparent);
+  color: var(--aster-accent);
+}
+/* 空态邮票不可发：整枚浅一档（保留票面完整观感，不做成半透明"褪色"） */
+[data-material="solid"] .paper-stamp:disabled {
+  opacity: 0.82;
+}
+/* 模型选择胶囊：纯色下纸签化（轻纸底+墨细线），并收窄一档给输入行留白 */
+[data-material="solid"] .paper-env .paper-model {
+  max-width: 200px;
+  background: color-mix(in srgb, var(--aster-ink) 4%, var(--aster-bg));
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 22%, transparent);
+  border-radius: 4px;
+}
+[data-material="solid"] .paper-env .paper-model > span:first-child > span:first-child {
+  color: color-mix(in srgb, var(--aster-ink) 72%, transparent);
+}
+[data-material="solid"] .paper-env .paper-model > span:first-child > svg {
+  color: color-mix(in srgb, var(--aster-ink) 40%, transparent);
+}
+[data-material="solid"] .paper-env .paper-model > span:last-child {
+  color: color-mix(in srgb, var(--aster-ink) 46%, transparent);
 }
 /* E3 双章之二：邮戳注销章，斜盖邮票左上（56px 双圈 + 11·02 + QIDAO） */
 [data-material="solid"] .pm-postmark {
@@ -5216,3 +5266,814 @@ html.q-paused * {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+/* ============================================================================
+   纸世界 · Step7：工具页标签 → 吊牌绳（2026-11-03，用户 m01676「动手吧」）
+   ----------------------------------------------------------------------------
+   纯色材质下，工具页那排四格标签（HTTP / MCP / 摘要 / 文档）换成
+   「一根绳串四张吊牌」：绳微微下垂、两头打结；左端垂一缕流苏、右段夹一片
+   干叶、绳头贴一截纸胶带。四张牌吊线长短不一、各自微斜；选中那张被拽低
+   一截、票面转暖。牌本体仍是原来的 button（点击/记忆/无障碍不动），
+   装饰层全部 pointer-events:none。
+
+   动效：吊牌绕绳上支点轻轻摆（±1.3°，周期错开）；流苏/干叶慢半拍。
+   系统开「减少动态效果」时全部静止，只保留选中牌的静态落差。
+   ========================================================================== */
+[data-material="solid"] .tool-tabs {
+  position: relative;
+  height: 110px;
+  margin: 2px 0 4px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+[data-material="solid"] .tool-rope {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 0;
+  height: 44px;
+  pointer-events: none;
+  color: var(--aster-ink);
+}
+[data-material="solid"] .tool-rope > svg {
+  display: block;
+  width: 100%;
+  height: 44px;
+}
+[data-material="solid"] .tool-knot {
+  position: absolute;
+  top: 18px;
+  width: 7px;
+  height: 7px;
+  border: 1.3px solid color-mix(in srgb, var(--aster-ink) 42%, transparent);
+  border-radius: 50%;
+  background: var(--aster-bg);
+}
+[data-material="solid"] .tool-knot.left {
+  left: -3px;
+}
+[data-material="solid"] .tool-knot.right {
+  right: -3px;
+}
+/* 流苏：绳左端垂下来的一小把线 */
+[data-material="solid"] .tool-tassel {
+  position: absolute;
+  left: 5px;
+  top: 11px;
+  width: 14px;
+  height: 34px;
+  transform-origin: 50% 0;
+  animation: tool-sway-alt 4.2s ease-in-out infinite alternate;
+}
+[data-material="solid"] .tool-tassel > i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 11px;
+  background: color-mix(in srgb, var(--aster-ink) 35%, transparent);
+}
+[data-material="solid"] .tool-tassel > b {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 40%, transparent);
+  border-radius: 50%;
+  background: var(--aster-bg);
+}
+[data-material="solid"] .tool-tassel > em {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  width: 10px;
+  height: 16px;
+  margin-left: -5px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--aster-accent) 55%, transparent) 0 1px,
+    transparent 1px 3px
+  );
+  border-top: 1px solid color-mix(in srgb, var(--aster-ink) 28%, transparent);
+}
+/* 纸夹 + 干叶：绳右段夹着的一片叶子 */
+[data-material="solid"] .tool-clip {
+  position: absolute;
+  left: 73%;
+  top: 9px;
+  width: 11px;
+  height: 24px;
+  transform: rotate(8deg);
+}
+[data-material="solid"] .tool-clip > i {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 1.4px;
+  height: 20px;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 42%, transparent);
+  border-radius: 6px;
+  border-bottom: none;
+}
+[data-material="solid"] .tool-clip > b {
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 1.4px;
+  height: 16px;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 30%, transparent);
+  border-radius: 6px;
+  border-bottom: none;
+}
+[data-material="solid"] .tool-leaf {
+  position: absolute;
+  left: calc(73% + 2px);
+  top: 31px;
+  width: 14px;
+  height: 22px;
+  transform-origin: 50% 0;
+  animation: tool-sway-alt 5.6s ease-in-out infinite alternate;
+  animation-delay: -1.6s;
+}
+[data-material="solid"] .tool-leaf > svg {
+  display: block;
+  width: 14px;
+  height: 22px;
+}
+/* 绳头纸胶带 */
+[data-material="solid"] .tool-tape {
+  position: absolute;
+  right: 2px;
+  top: 15px;
+  width: 28px;
+  height: 10px;
+  background: color-mix(in srgb, var(--aster-accent) 26%, transparent);
+  transform: rotate(14deg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--aster-ink) 12%, transparent);
+}
+/* 吊牌本体：一张打孔纸牌 + 吊线 */
+[data-material="solid"] .tool-tag {
+  position: relative;
+  width: 74px;
+  height: 104px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-material="solid"] .tool-tag-str {
+  position: absolute;
+  left: 50%;
+  top: var(--ropeY, 16px);
+  width: 1px;
+  height: calc(var(--drop, 26px) - var(--ropeY, 16px));
+  transform: translateX(-0.5px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--aster-ink) 38%, transparent),
+    color-mix(in srgb, var(--aster-ink) 26%, transparent)
+  );
+  pointer-events: none;
+}
+[data-material="solid"] .tool-tag-card {
+  position: absolute;
+  left: 0;
+  top: calc(var(--drop, 26px) + var(--pull, 0px));
+  width: 74px;
+  padding: 7px 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 30%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--aster-bg) 96%, var(--aster-ink) 4%);
+  font-family: var(--font-serif);
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+  color: color-mix(in srgb, var(--aster-ink) 72%, transparent);
+  box-shadow:
+    0 2px 5px color-mix(in srgb, var(--aster-ink) 10%, transparent),
+    0 8px 14px color-mix(in srgb, var(--aster-ink) 6%, transparent);
+  transform-origin: 50% -36px;
+  transform: rotate(var(--rot, 0deg));
+  animation: tool-sway var(--sway, 5s) ease-in-out infinite alternate;
+}
+/* 打孔 + 铜眼圈 */
+[data-material="solid"] .tool-tag-card::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border: 1.4px solid color-mix(in srgb, var(--aster-ink) 30%, transparent);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--aster-ink) 14%, transparent);
+}
+[data-material="solid"] .tool-tag-card::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--aster-bg);
+}
+[data-material="solid"] .tool-tag-no {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  font-family: var(--font-mono);
+  font-size: 5px;
+  letter-spacing: 0.5px;
+  color: color-mix(in srgb, var(--aster-ink) 28%, transparent);
+  font-weight: 400;
+}
+[data-material="solid"] .tool-tag-en {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 5.5px;
+  letter-spacing: 1.2px;
+  color: color-mix(in srgb, var(--aster-ink) 34%, transparent);
+  font-weight: 400;
+}
+/* 选中：被拽低一截、票面转暖 */
+[data-material="solid"] .tool-tag.on {
+  --pull: 7px;
+}
+[data-material="solid"] .tool-tag.on .tool-tag-card {
+  border-color: color-mix(in srgb, var(--aster-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--aster-accent) 13%, var(--aster-bg));
+  color: var(--aster-ink);
+  font-weight: 600;
+  box-shadow:
+    0 3px 7px color-mix(in srgb, var(--aster-ink) 16%, transparent),
+    0 12px 18px color-mix(in srgb, var(--aster-ink) 8%, transparent);
+}
+[data-material="solid"] .tool-tag.on .tool-tag-en {
+  color: color-mix(in srgb, var(--aster-accent) 80%, var(--aster-ink));
+}
+[data-material="solid"] .tool-tag:hover .tool-tag-card {
+  box-shadow:
+    0 3px 7px color-mix(in srgb, var(--aster-ink) 14%, transparent),
+    0 10px 18px color-mix(in srgb, var(--aster-ink) 9%, transparent);
+}
+@keyframes tool-sway {
+  from {
+    transform: rotate(var(--rot, 0deg));
+  }
+  to {
+    transform: rotate(calc(var(--rot, 0deg) + 1.3deg));
+  }
+}
+@keyframes tool-sway-alt {
+  from {
+    transform: rotate(-1.2deg);
+  }
+  to {
+    transform: rotate(2.4deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-material="solid"] .tool-tag-card,
+  [data-material="solid"] .tool-tassel,
+  [data-material="solid"] .tool-leaf {
+    animation: none;
+  }
+}
+
+
+/* ============================================================
+   工具区卡片 D 版 · 索引卡 × 收据排版（2026-11）
+   基础布局对三材质通用；纸感/装饰只在 [data-material="solid"] 生效。
+   ============================================================ */
+.tool-stack {
+  position: relative;
+}
+.tool-hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+.tool-r1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.tool-r2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tool-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-host {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.2px;
+  color: var(--color-muted, rgba(28, 25, 23, 0.45));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-mk {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 1.2px;
+  line-height: 1;
+  color: var(--color-muted, rgba(28, 25, 23, 0.55));
+  border: 1px solid var(--color-line, rgba(28, 25, 23, 0.34));
+  border-radius: 2px;
+  padding: 2px 4px 1px;
+  transform: rotate(-1.5deg);
+}
+.tool-st {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 0.8px;
+  color: var(--color-muted, rgba(28, 25, 23, 0.42));
+}
+.tool-no {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.8px;
+  color: var(--color-muted, rgba(28, 25, 23, 0.42));
+  opacity: 0.65;
+}
+.tool-zone {
+  margin-top: 8px;
+  padding-top: 5px;
+}
+.tool-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3.5px 0;
+}
+.tool-row > i {
+  font-style: normal;
+  flex: none;
+  width: 30px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 1px;
+  color: var(--color-muted, rgba(28, 25, 23, 0.4));
+}
+.tool-row > span {
+  font-size: 10.5px;
+  line-height: 1.55;
+  word-break: break-all;
+}
+.tool-sum {
+  display: flex;
+  align-items: baseline;
+  margin-top: 5px;
+  padding-top: 6px;
+  font-size: 10.5px;
+}
+.tool-sum b {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 9px;
+}
+.tool-acts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+/* ---------- 纯色：纸感 + 装饰 ---------- */
+[data-material="solid"] .tool-stack {
+  padding: 2px 0 8px;
+}
+[data-material="solid"] .tool-stack::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: -11px;
+  top: 14px;
+  bottom: -2px;
+  background: color-mix(in srgb, var(--aster-bg) 92%, var(--aster-ink) 8%);
+  border: 1px solid color-mix(in srgb, var(--aster-ink) 12%, transparent);
+  border-radius: 2px;
+  transform: rotate(1.1deg);
+  pointer-events: none;
+}
+[data-material="solid"] .tool-stack::after {
+  content: "QIDAO · TOOLS";
+  position: absolute;
+  right: 0;
+  bottom: -14px;
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  letter-spacing: 2px;
+  color: color-mix(in srgb, var(--aster-ink) 20%, transparent);
+  pointer-events: none;
+}
+[data-material="solid"] .tool-card {
+  position: relative;
+  padding: 8px 11px 9px;
+  background: color-mix(in srgb, var(--aster-bg) 97%, var(--aster-ink) 3%);
+  border-radius: 2px;
+  border-color: color-mix(in srgb, var(--aster-ink) 24%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--aster-ink) 6%, transparent),
+    3px 3px 0 -1px color-mix(in srgb, var(--aster-bg) 90%, var(--aster-ink) 10%);
+  transition: transform 0.22s ease, margin-left 0.22s ease;
+}
+[data-material="solid"] .tool-stack > .tool-card:nth-child(odd) {
+  transform: rotate(-0.8deg);
+}
+[data-material="solid"] .tool-stack > .tool-card:nth-child(even) {
+  transform: rotate(0.7deg);
+  margin-left: 10px;
+}
+[data-material="solid"] .tool-stack > .tool-card + .tool-card {
+  margin-top: 13px;
+}
+[data-material="solid"] .tool-stack > .tool-card.open {
+  transform: none !important;
+  margin-left: 0 !important;
+}
+[data-material="solid"] .tool-card .tool-tab {
+  position: absolute;
+  left: -2px;
+  top: 8px;
+  width: 3.5px;
+  height: 17px;
+  border-radius: 1.5px;
+  background: color-mix(in srgb, var(--aster-ink) 42%, transparent);
+  pointer-events: none;
+}
+[data-material="solid"] .tool-card[data-method="GET"] .tool-tab {
+  background: #5a6b4a;
+}
+[data-material="solid"] .tool-card[data-method="POST"] .tool-tab {
+  background: #b5673f;
+}
+[data-material="solid"] .tool-card[data-method="PUT"] .tool-tab {
+  background: #a8803f;
+}
+[data-material="solid"] .tool-card[data-method="DELETE"] .tool-tab {
+  background: #8f4a3f;
+}
+[data-material="solid"] .tool-card.off .tool-tab {
+  background: color-mix(in srgb, var(--aster-ink) 28%, transparent);
+}
+[data-material="solid"] .tool-card .tool-fold {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 9px;
+  height: 9px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--aster-ink) 9%, transparent) 0 46%,
+    color-mix(in srgb, var(--aster-bg) 90%, var(--aster-ink) 10%) 50% 100%
+  );
+  border-left: 1px solid color-mix(in srgb, var(--aster-ink) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--aster-ink) 8%, transparent);
+  border-top-right-radius: 2px;
+  transform-origin: top right;
+  transition: transform 0.22s ease;
+  pointer-events: none;
+}
+[data-material="solid"] .tool-card.open .tool-fold {
+  transform: scaleY(-1);
+}
+[data-material="solid"] .tool-card .tool-name {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--aster-ink);
+}
+[data-material="solid"] .tool-card .tool-host {
+  color: color-mix(in srgb, var(--aster-ink) 45%, transparent);
+}
+[data-material="solid"] .tool-card .tool-mk {
+  color: color-mix(in srgb, var(--aster-ink) 58%, transparent);
+  border-color: color-mix(in srgb, var(--aster-ink) 34%, transparent);
+}
+[data-material="solid"] .tool-card .tool-st {
+  color: color-mix(in srgb, var(--aster-ink) 42%, transparent);
+}
+[data-material="solid"] .tool-card .tool-st.on {
+  color: color-mix(in srgb, var(--aster-accent) 82%, var(--aster-ink) 14%);
+}
+[data-material="solid"] .tool-card .tool-no {
+  color: color-mix(in srgb, var(--aster-ink) 30%, transparent);
+}
+[data-material="solid"] .tool-card.off .tool-no {
+  opacity: 0.16;
+}
+[data-material="solid"] .tool-card.off {
+  background: color-mix(in srgb, var(--aster-bg) 94%, var(--aster-ink) 6%);
+}
+[data-material="solid"] .tool-card.off .tool-name {
+  color: color-mix(in srgb, var(--aster-ink) 55%, transparent);
+}
+.tool-off-stamp {
+  display: none;
+}
+[data-material="solid"] .tool-add {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--aster-ink) 26%, transparent);
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--aster-ink) 62%, transparent);
+  background: color-mix(in srgb, var(--aster-bg) 97%, var(--aster-ink) 3%);
+}
+[data-material="solid"] .tool-chip {
+  border-color: color-mix(in srgb, var(--aster-ink) 26%, transparent);
+  background: color-mix(in srgb, var(--aster-bg) 96%, var(--aster-ink) 4%);
+  color: color-mix(in srgb, var(--aster-ink) 62%, transparent);
+  padding: 2px 6px;
+}
+[data-material="solid"] .tool-off-stamp {
+  display: inline-block;
+  margin-left: auto;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 2.6px;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--aster-accent) 66%, transparent);
+  border: 1px solid color-mix(in srgb, var(--aster-accent) 50%, transparent);
+  border-radius: 2px;
+  padding: 1.5px 4px 1.5px 6px;
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+[data-material="solid"] .tool-card button[role="switch"] {
+  height: 22px;
+  width: 38px;
+  background: color-mix(in srgb, var(--aster-ink) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aster-ink) 26%, transparent);
+}
+[data-material="solid"] .tool-card button[role="switch"][aria-checked="true"] {
+  background: color-mix(in srgb, var(--aster-accent) 72%, var(--aster-ink) 8%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aster-accent) 58%, transparent);
+}
+[data-material="solid"] .tool-card button[role="switch"] > span {
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  translate: none;
+  transform: none;
+  transition: left 0.2s ease;
+  background: color-mix(in srgb, var(--aster-bg) 94%, var(--aster-ink) 6%);
+  box-shadow: 0 1px 1px color-mix(in srgb, var(--aster-ink) 20%, transparent);
+}
+[data-material="solid"] .tool-card button[role="switch"][aria-checked="true"] > span {
+  left: 18px;
+  background: #fdfaf4;
+}
+[data-material="solid"] .tool-card .tool-zone {
+  border-top: 1px dashed color-mix(in srgb, var(--aster-ink) 30%, transparent);
+}
+[data-material="solid"] .tool-card .tool-row {
+  border-bottom: 1px dotted color-mix(in srgb, var(--aster-ink) 14%, transparent);
+}
+[data-material="solid"] .tool-card .tool-row:last-of-type {
+  border-bottom: none;
+}
+[data-material="solid"] .tool-card .tool-row > i {
+  color: color-mix(in srgb, var(--aster-ink) 40%, transparent);
+}
+[data-material="solid"] .tool-card .tool-row > span {
+  color: color-mix(in srgb, var(--aster-ink) 82%, transparent);
+}
+[data-material="solid"] .tool-card .tool-sum {
+  border-top: 1px solid color-mix(in srgb, var(--aster-ink) 30%, transparent);
+  color: color-mix(in srgb, var(--aster-ink) 82%, transparent);
+}
+[data-material="solid"] .tool-card .tool-sum b {
+  color: color-mix(in srgb, var(--aster-ink) 70%, transparent);
+}
+/* ================= 玩乐区 · 纸世界窗台（纯色模式专用） ================= */
+.pp-scene{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden}
+.pp-scene img{width:100%;height:100%;object-fit:cover;display:block}
+.pp-hot{position:absolute;display:block;border-radius:14px;-webkit-tap-highlight-color:transparent}
+.pp-hot:active{background:rgba(255,250,240,.26)}
+.pp-hot-horn{left:2%;top:58%;width:44%;height:40%}
+.pp-hot-book{left:46%;top:62%;width:50%;height:34%}
+
+.pp-body{padding:2px 14px 0}
+.pp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.pp-row-2{grid-template-columns:1.5fr 1fr}
+
+.pp-diary{position:relative;display:flex;flex-direction:column;padding:16px 14px 12px;min-height:150px;
+  background:#fffdf8;border:1px solid rgba(120,100,75,.14);border-radius:3px;transform:rotate(-1.2deg);
+  box-shadow:0 2px 6px rgba(70,55,35,.08),0 14px 24px rgba(70,55,35,.06);text-decoration:none}
+.pp-tape{position:absolute;left:50%;top:-9px;width:54px;height:16px;margin-left:-27px;
+  background:rgba(240,200,196,.7);transform:rotate(-2deg);box-shadow:0 1px 2px rgba(70,55,35,.08)}
+.pp-diary-head{display:flex;align-items:baseline;justify-content:space-between}
+.pp-diary-head em{font-family:var(--font-script);font-style:normal;font-size:26px;line-height:1;color:rgba(42,36,29,.8)}
+.pp-diary-head i{font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;color:rgba(42,36,29,.38);font-style:normal}
+.pp-diary-body{margin-top:9px;font-size:11.5px;line-height:1.8;color:rgba(42,36,29,.64);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pp-diary-foot{margin-top:auto;padding-top:10px;display:flex;justify-content:space-between;
+  font-family:var(--font-mono);font-size:7px;letter-spacing:.06em;color:rgba(42,36,29,.3)}
+
+.pp-cal{position:relative;display:flex;flex-direction:column;padding:16px 13px 12px;min-height:150px;
+  background:#fffdf8;border:1px solid rgba(120,100,75,.14);border-radius:4px;transform:rotate(1.2deg);
+  box-shadow:0 2px 6px rgba(70,55,35,.08),0 14px 24px rgba(70,55,35,.06);text-decoration:none}
+.pp-rings{position:absolute;left:12px;right:12px;top:-8px;display:flex;justify-content:center;gap:10px}
+.pp-rings i{width:9px;height:14px;border:1.5px solid #cfc2ab;border-radius:5px}
+.pp-cal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.pp-cal-left{display:flex;flex-direction:column}
+.pp-cal-days{font-size:40px;line-height:.86;letter-spacing:-.02em;color:rgba(42,36,29,.86);font-weight:400}
+.pp-cal-meta{display:flex;flex-direction:column;gap:3px;align-items:flex-end;padding-top:6px}
+.pp-cal-meta b{font-size:10px;font-weight:400;color:rgba(42,36,29,.5)}
+.pp-cal-meta i{font-family:var(--font-mono);font-size:8px;letter-spacing:.06em;color:rgba(42,36,29,.34);font-style:normal}
+.pp-cal-month{margin-top:5px;font-size:8.5px;letter-spacing:.16em;color:rgba(42,36,29,.4);font-style:normal}
+.pp-cal-hint{margin-top:auto;padding-top:8px;border-top:1px dashed rgba(120,100,75,.22);
+  font-family:var(--font-script);font-size:10.5px;line-height:1.5;color:rgba(42,36,29,.46)}
+
+.pp-script{display:flex;flex-direction:column;justify-content:center;padding:14px 10px;
+  border:1px solid rgba(120,100,75,.1);border-radius:3px;background:rgba(255,253,247,.4);
+  transform:rotate(-.6deg)}
+.pp-script-main{font-family:var(--font-script);font-size:34px;line-height:1;color:rgba(58,50,42,.6);
+  transform:rotate(-5deg) skewX(-3deg);display:block;text-align:center}
+.pp-script-sub{margin-top:8px;font-family:var(--font-mono);font-size:6.5px;letter-spacing:.3em;
+  text-transform:uppercase;color:rgba(42,36,29,.28);text-align:center;display:block}
+
+.pp-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  padding:12px 8px;background:linear-gradient(165deg,#fdfaf3,#f2e8d6);
+  border:1px solid rgba(120,100,75,.24);border-radius:14px;transform:rotate(1.6deg);
+  box-shadow:0 3px 8px rgba(70,55,35,.09),0 12px 20px rgba(70,55,35,.06);text-decoration:none}
+.pp-card img{width:54px;height:54px;object-fit:contain}
+.pp-card-t{font-size:10px;letter-spacing:.06em;color:rgba(42,36,29,.62)}
+.pp-card-e{font-family:var(--font-mono);font-size:6px;letter-spacing:.18em;color:rgba(42,36,29,.3)}
+
+.pp-quote{margin:16px 0 6px;text-align:center;font-family:var(--font-script);
+  font-size:10.5px;color:rgba(42,36,29,.28)}
+
+/* 动态空间入口 · 纯色下的纸片（三张错落） */
+.pp-entry{border-radius:3px;border-color:rgba(120,100,75,.16);background:#fffdf8;
+  box-shadow:0 2px 6px rgba(70,55,35,.08),0 12px 22px rgba(70,55,35,.06);transform-origin:50% 50%}
+li:nth-child(1) .pp-entry{transform:rotate(-.8deg)}
+li:nth-child(2) .pp-entry{transform:rotate(.6deg) translateX(7px)}
+li:nth-child(3) .pp-entry{transform:rotate(-.4deg)}
+.pp-entry:active{transform:scale(.995)}
+.pp-entry > span:first-child{border-radius:50%;border-color:rgba(120,100,75,.2);background:rgba(255,253,247,.72)}
+
+/* 小日子 / 插件的入口卡：同样纸片 */
+.pp-entry-grid{border-radius:3px !important}
+.pp-entry-grid > span[class*="bg-gradient"]{display:none}
+.pp-entry-grid .rounded-2xl{border-radius:50%}
+div.grid > .pp-entry:nth-child(odd){transform:rotate(-.7deg)}
+div.grid > .pp-entry:nth-child(even){transform:rotate(.6deg)}
+
+/* 英语学习：分段纸签 + 纸片卡（仅纯色） */
+[data-material="solid"] .pp-note{border-radius:2px;border-color:rgba(120,100,75,.18);background:#fffdf8;
+  box-shadow:0 2px 6px rgba(70,55,35,.07),0 10px 20px rgba(70,55,35,.05)}
+[data-material="solid"] .pp-seg{border-radius:6px;background:transparent;padding:0;gap:7px}
+[data-material="solid"] .pp-seg .pp-seg-btn{border-radius:2px;border:1px solid rgba(120,100,75,.16);
+  background:#fffdf8;color:rgba(42,36,29,.58);transform:rotate(-.5deg);box-shadow:0 1px 3px rgba(70,55,35,.06)}
+[data-material="solid"] .pp-seg .pp-seg-btn:nth-child(2){transform:rotate(.4deg)}
+[data-material="solid"] .pp-seg .pp-seg-btn:nth-child(3){transform:rotate(-.3deg)}
+[data-material="solid"] .pp-seg .pp-seg-btn.pp-seg-on{border-color:rgba(120,100,75,.4);color:rgba(42,36,29,.9);
+  box-shadow:0 2px 6px rgba(70,55,35,.1)}
+[data-material="solid"] .pp-chip-btn{border-radius:2px;border:1px solid rgba(120,100,75,.22);background:#fffdf8}
+[data-material="solid"] .pp-tag{border-radius:2px;border:1px solid rgba(120,100,75,.18);background:#fffdf8}
+
+
+/* 我的 · 目录版 */
+.me-exlibris{position:absolute;left:auto;right:16px;top:12px;text-align:right;
+  font-family:var(--font-mono);font-size:7.5px;letter-spacing:.34em;
+  color:color-mix(in srgb,var(--aster-ink) 36%,transparent);pointer-events:none}
+.me-av-ring{position:absolute;left:-7px;top:-7px;right:-7px;bottom:-7px;border-radius:50%;
+  border:1px dashed color-mix(in srgb,var(--aster-ink) 22%,transparent);pointer-events:none}
+.me-rule{position:absolute;left:34px;right:34px;top:252px;height:1px;
+  background:color-mix(in srgb,var(--aster-ink) 24%,transparent);pointer-events:none}
+.me-rule2{position:absolute;left:34px;right:34px;top:255px;height:1px;
+  background:color-mix(in srgb,var(--aster-ink) 10%,transparent);pointer-events:none}
+.me-vol{position:absolute;left:auto;right:16px;top:262px;text-align:right;font-family:var(--font-mono);
+  font-size:7px;letter-spacing:.26em;color:color-mix(in srgb,var(--aster-ink) 32%,transparent);pointer-events:none}
+.me-index-ttl{font-family:var(--font-mono);font-size:7.5px;letter-spacing:.3em;
+  color:color-mix(in srgb,var(--aster-ink) 34%,transparent);margin:0 0 8px 2px}
+.me-index-row{display:flex;align-items:baseline;gap:9px;padding:12px 2px 11px;
+  border-bottom:1px dotted color-mix(in srgb,var(--aster-ink) 24%,transparent)}
+.me-index-no{font-family:var(--font-mono);font-size:8px;width:17px;flex:none;
+  color:color-mix(in srgb,var(--aster-ink) 36%,transparent)}
+.me-index-name{font-family:var(--font-serif);font-size:14.5px;flex:none;color:var(--aster-ink)}
+.me-index-hint{flex:0 1 auto;min-width:0;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:10px;color:color-mix(in srgb,var(--aster-ink) 42%,transparent)}
+.me-index-lead{flex:1 1 12px;min-width:8px;border-bottom:1px dotted color-mix(in srgb,var(--aster-ink) 18%,transparent);
+  margin:0 4px 3px}
+.me-index-arrow{width:12px;height:12px;flex:none;align-self:center;
+  color:color-mix(in srgb,var(--aster-ink) 40%,transparent)}
+
+/* 我的 · 头卡纸化 */
+[data-material="solid"] .me-head-card{border-radius:2px;background:#fffdf8;
+  border-color:color-mix(in srgb,var(--aster-ink) 18%,transparent);
+  box-shadow:0 2px 8px color-mix(in srgb,var(--aster-ink) 7%,transparent),0 18px 36px color-mix(in srgb,var(--aster-ink) 5%,transparent)}
+[data-material="solid"] .me-head-card:before{content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+  background-image:radial-gradient(color-mix(in srgb,var(--aster-ink) 14%,transparent) .7px,transparent 1px);
+  background-size:8px 8px}
+
+/* 我的 · 称呼纸签 */
+.me-call-btn{border-radius:2px !important;border:1px solid color-mix(in srgb,var(--aster-ink) 20%,transparent);
+  color:color-mix(in srgb,var(--aster-ink) 66%,transparent);background:#fffdf8;padding:6px 11px}
+.me-call-btn.data-pill{background:color-mix(in srgb,var(--aster-ink) 88%,transparent) !important;
+  color:var(--aster-ink-fg) !important;border-color:transparent}
+
+/* 我的 · 塌缩条纸化 */
+[data-material="solid"] .me-bar{border-radius:2px !important;backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;background:#fffdf8 !important;
+  border-bottom-color:color-mix(in srgb,var(--aster-ink) 22%,transparent) !important}
+
+/* 我的 · 系统页折叠分组（m03499） */
+.me-group-h{background:color-mix(in srgb,var(--aster-surface) 94%,transparent);
+  border:1px solid var(--aster-line);border-radius:22px;padding:12px 14px;
+  backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);}
+.me-sub-body{border:1px solid var(--aster-line);border-radius:20px;background:color-mix(in srgb,var(--aster-surface) 88%,transparent);}
+[data-material="solid"] .me-group-h{
+  border:1px solid color-mix(in srgb,var(--aster-ink) 18%,transparent);
+  border-radius:2px;background:#fffdf8;padding:11px 13px;
+  box-shadow:0 1px 2px color-mix(in srgb,var(--aster-ink) 6%,transparent),
+             0 7px 16px color-mix(in srgb,var(--aster-ink) 5%,transparent);
+}
+[data-material="solid"] .me-group-body{padding-top:9px}
+[data-material="solid"] .me-sub-body{
+  background:#fffdf8;border:1px solid color-mix(in srgb,var(--aster-ink) 15%,transparent);
+  border-radius:2px;
+}
+[data-material="solid"] .me-sub-t{letter-spacing:.16em;font-family:var(--font-mono);font-size:7.5px}
+
+/* 系统 · 展开区纸化（m03562 通知先行） */
+[data-material="solid"] .me-group-body > .flex.items-center.justify-between{
+  border-bottom:1px dotted color-mix(in srgb,var(--aster-ink) 16%,transparent);
+  padding:12px 4px 11px;
+}
+[data-material="solid"] .me-group-body > .flex.items-center.justify-between:last-child{border-bottom:none}
+[data-material="solid"] .me-group-body p.text-sm{font-family:var(--font-serif);font-size:13.5px;font-weight:400}
+[data-material="solid"] .me-group-body p.text-\[12px\].text-muted{font-size:10.5px;line-height:1.55;
+  color:color-mix(in srgb,var(--aster-ink) 52%,transparent)}
+[data-material="solid"] .me-group-body [data-opt]{
+  background:#fffdf8;border:1px solid color-mix(in srgb,var(--aster-ink) 15%,transparent);
+  border-radius:2px;box-shadow:0 1px 2px color-mix(in srgb,var(--aster-ink) 5%,transparent);
+}
+[data-material="solid"] .me-group-body [data-opt] p,
+[data-material="solid"] .me-group-body [data-opt] li{
+  font-family:var(--font-mono);font-size:9.5px;letter-spacing:.02em;
+}
+[data-material="solid"] .me-group-body .bg-chip{
+  background:#fffdf8;border:1px solid color-mix(in srgb,var(--aster-ink) 15%,transparent);
+  border-radius:2px;box-shadow:0 1px 2px color-mix(in srgb,var(--aster-ink) 5%,transparent);
+}
+[data-material="solid"] .me-group-body select{
+  border-radius:2px;background:#fffdf8;
+  border:1px solid color-mix(in srgb,var(--aster-ink) 18%,transparent);
+  font-family:var(--font-mono);font-size:10px;
+}
+[data-material="solid"] .me-group-body strong{font-weight:600;color:color-mix(in srgb,var(--aster-ink) 82%,transparent)}
+[data-material="solid"] .me-group-body .text-warn{color:#a5522f}
+[data-material="solid"] .me-group-body .text-ok{color:#5a6b4a}
+
+/* 系统页展开区：正文小字档 */
+[data-material="solid"] .me-group-body p[class*="text-[12px]"]{font-size:10.5px;line-height:1.62}
+[data-material="solid"] .me-group-body p[class*="text-[11px]"]{font-size:10px;line-height:1.55}
+[data-material="solid"] .me-group-body li{font-size:10.5px;line-height:1.55}
+[data-material="solid"] .me-group-body .me-sub-body{padding:11px 12px}
+
+/* 我的 · 系统页小标题 */
+.me-cap{margin:16px 0 7px;font-family:var(--font-mono);font-size:7.5px;
+  letter-spacing:.18em;text-transform:uppercase;
+  color:color-mix(in srgb,var(--aster-ink) 42%,transparent)}
+[data-material="solid"] .me-cap{color:color-mix(in srgb,var(--aster-ink) 40%,transparent)}
+/* 系统页：折叠组的排列容器（order 控制顺序） */
+.sys-list{display:flex;flex-direction:column;gap:14px;padding:0 16px}
+/* 系统页折叠组 · 排版（m03499 补） */
+.me-group{display:block;width:100%}
+.me-group-h{display:flex !important;align-items:center;gap:10px;width:100%;text-align:left;
+  color:var(--aster-ink);font-size:15px;line-height:1.35}
+.me-group-t{font-family:var(--font-serif);font-size:15px;letter-spacing:.02em;
+  color:var(--aster-ink)}
+.me-group-v{margin-left:auto;font-size:10.5px;letter-spacing:.02em;
+  color:color-mix(in srgb,var(--aster-ink) 46%,transparent);white-space:nowrap}
+.me-group-ic{width:13px;height:13px;flex:none;color:color-mix(in srgb,var(--aster-ink) 40%,transparent);
+  transition:transform .2s ease}
+.me-group-body{display:block;margin-top:10px}
+.me-sub{margin-top:12px}
+.me-sub:first-child{margin-top:2px}
+
+/* 气泡正文：连续无空格长串（如 JSON 残片 / 乱码）也要能断行，禁止撑破布局 */
+.bubble-text{overflow-wrap:anywhere;word-break:break-word}

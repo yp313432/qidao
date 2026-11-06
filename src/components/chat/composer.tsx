@@ -417,12 +417,15 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     }
   }
 
+  /**
+   * 按住说话（用户 m11313："直接发语音气泡…跟微信发语音一样"）。
+   *
+   * 用户 m01399：语音和发送原来是**同一枚钮**（空态长按录音、有字点了发送，
+   * 手指落下去到底会发生哪个，全靠猜）。现在拆成两枚：这枚只管录音，
+   * 邮票只管发送——所以这里不再有"有字就提交"的分支。
+   */
   function micDown(e: React.PointerEvent) {
-    if (disabled || recMs !== null) return;
-    if (value.trim() || pending.length) {
-      submit();
-      return;
-    }
+    if (disabled || streaming || recMs !== null) return;
     downAt.current = Date.now();
     downY.current = e.clientY;
     setRecCancel(false);
@@ -1166,7 +1169,11 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 setStickerOpen(false);
               }}
               aria-label="模型与推理等级"
-              className="flex h-9 w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip px-3 text-left"
+              className={cn(
+                "flex h-9 w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip px-3 text-left",
+                // 纸世界修正：纯色下模型胶囊纸签化（轻纸底+墨细线+收窄一档）
+                solidPaper && "paper-model",
+              )}
             >
               <span className="flex w-full items-center gap-1">
                 <span className="truncate font-mono text-[10.5px] leading-none text-fg">
@@ -1398,19 +1405,37 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           >
             <Smile className="size-5" strokeWidth={1.7} />
           </button>
+          {/* 语音键（用户 m01399：从发送钮里拆出来，放在表情后面）：
+              按住录音、松手发语音；上滑取消。纯色下是一枚淡纸小方键 */}
           <button
             type="button"
-            aria-label={
-              recOn.current ? "松开发送语音" : value.trim() || pending.length ? "发送" : "按住说话"
-            }
+            aria-label={recOn.current ? "松开发送语音" : "按住说话"}
             disabled={disabled}
             onPointerDown={micDown}
             onPointerMove={micMove}
             onPointerUp={micUp}
             onPointerCancel={() => void stopRec(false)}
             className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink",
+              // 纸世界输入行修正：语音键独立（仅纯色上纸）
+              recMs !== null && "paper-voice-rec",
+              solidPaper && "paper-voice",
+            )}
+          >
+            {recMs !== null ? (
+              <Square className="size-4 fill-current" />
+            ) : (
+              <Mic className="size-5" strokeWidth={1.9} />
+            )}
+          </button>
+          {/* 发送=邮票（用户 m01399：只管发送，不再兼语音）：有字可点；没字压下去不动作 */}
+          <button
+            type="button"
+            aria-label="发送"
+            disabled={disabled || (!streaming && !value.trim() && !pending.length)}
+            onClick={() => submit()}
+            className={cn(
               "flex size-9 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
-              recMs !== null && "bg-warn",
               // 纸世界 Step4：发送钮=邮票（虚线齿孔+陶色票面「寄」），仅纯色材质
               solidPaper && "paper-stamp",
             )}
@@ -1418,18 +1443,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             {solidPaper && <span className="pm-postmark" aria-hidden />}
             {streaming ? (
               <span className="size-3.5 rounded-sm bg-ink-fg" />
-            ) : recMs !== null ? (
-              <Square className="size-4 fill-current" />
-            ) : value.trim() || pending.length ? (
-              solidPaper ? (
-                <span className="paper-stamp-glyph" aria-hidden>
-                  寄
-                </span>
-              ) : (
-                <ArrowUp className="size-5" strokeWidth={2.2} />
-              )
+            ) : solidPaper ? (
+              <span className="paper-stamp-glyph" aria-hidden>
+                寄
+              </span>
             ) : (
-              <Mic className="size-5" />
+              <ArrowUp className="size-5" strokeWidth={2.2} />
             )}
           </button>
         </div>

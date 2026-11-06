@@ -45,7 +45,7 @@ export function LearnView() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PlayHeader title="英语学习" />
       <div className="px-4">
-        <div className="grid grid-cols-3 gap-1 rounded-full bg-chip p-1">
+        <div className="pp-seg grid grid-cols-3 gap-1 rounded-full bg-chip p-1">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -54,8 +54,8 @@ export function LearnView() {
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-full py-2 text-[12px] font-medium",
-                  tab === t.id ? "bg-elevated text-fg shadow-sm" : "text-muted",
+                  "pp-seg-btn flex items-center justify-center gap-1.5 rounded-full py-2 text-[12px] font-medium",
+                  tab === t.id ? "pp-seg-on bg-elevated text-fg shadow-sm" : "text-muted",
                 )}
               >
                 <Icon className="size-3.5" strokeWidth={1.9} />
@@ -130,7 +130,7 @@ function WordsTab() {
         className="relative mt-2 w-full max-w-sm cursor-pointer select-none text-left"
       >
         <div
-          className="rounded-3xl border border-line bg-surface px-6 py-10 shadow-[var(--aster-shadow)] transition-transform duration-300"
+          className="pp-note rounded-3xl border border-line bg-surface px-6 py-10 shadow-[var(--aster-shadow)] transition-transform duration-300"
           style={{ minHeight: 220 }}
         >
           <div className="flex items-center justify-between">
@@ -231,7 +231,7 @@ function TranslateTab() {
         <button
           type="button"
           onClick={() => setEn2zh((v) => !v)}
-          className="flex items-center gap-2 rounded-full bg-chip px-4 py-2 text-[13px] font-medium"
+          className="pp-chip-btn flex items-center gap-2 rounded-full bg-chip px-4 py-2 text-[13px] font-medium"
         >
           <ArrowLeftRight className="size-4" strokeWidth={1.7} />
           {en2zh ? "英 → 中" : "中 → 英"}
@@ -245,7 +245,7 @@ function TranslateTab() {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={en2zh ? "输入英文单词或短语…" : "输入中文词语…"}
-        className="mt-3 h-12 w-full rounded-2xl border border-line bg-surface px-4 text-[15px] outline-none placeholder:text-subtle"
+        className="pp-note mt-3 h-12 w-full rounded-2xl border border-line bg-surface px-4 text-[15px] outline-none placeholder:text-subtle"
         autoCapitalize="none"
         autoCorrect="off"
       />
@@ -253,14 +253,14 @@ function TranslateTab() {
       {text.trim() && (
         <ul className="mt-3 space-y-2">
           {results.length === 0 ? (
-            <li className="rounded-2xl border border-line bg-surface px-4 py-5 text-center text-sm text-muted">
+            <li className="pp-note rounded-2xl border border-line bg-surface px-4 py-5 text-center text-sm text-muted">
               词库未收录这个词，可以到「对话」里让{aiName}帮你翻。
             </li>
           ) : (
             results.map((d) => (
               <li
                 key={d.en}
-                className="flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3"
+                className="pp-note flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3"
               >
                 <span className="font-medium">{en2zh ? d.en : d.zh}</span>
                 <span className="text-muted">{en2zh ? d.zh : d.en}</span>
@@ -301,7 +301,7 @@ function ReadingTab({ jump }: { jump: { index: number; at: number } | null }) {
           <button
             type="button"
             onClick={() => setOpenId(r.id)}
-            className="flex w-full items-center justify-between rounded-3xl border border-line bg-surface px-4 py-4 text-left"
+            className="pp-note flex w-full items-center justify-between rounded-3xl border border-line bg-surface px-4 py-4 text-left"
           >
             <span>
               <span className="block font-medium">{r.title}</span>
@@ -332,14 +332,14 @@ function ReadingDetail({ passage, onBack }: { passage: (typeof READINGS)[number]
         <button
           type="button"
           onClick={() => setShowZh((v) => !v)}
-          className="flex items-center gap-1.5 rounded-full bg-chip px-3.5 py-1.5 text-[13px] font-medium"
+          className="pp-chip-btn flex items-center gap-1.5 rounded-full bg-chip px-3.5 py-1.5 text-[13px] font-medium"
         >
           {showZh ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           {showZh ? "隐藏译文" : "显示译文"}
         </button>
       </div>
 
-      <div className="rounded-3xl border border-line bg-surface px-5 py-6">
+      <div className="pp-note rounded-3xl border border-line bg-surface px-5 py-6">
         <p className="text-[12px] tracking-wide text-muted">阅读 · {passage.level}</p>
         <h2 className="mt-1 font-serif text-2xl font-medium">{passage.title}</h2>
         <div className="mt-4 space-y-4">
@@ -355,7 +355,7 @@ function ReadingDetail({ passage, onBack }: { passage: (typeof READINGS)[number]
             <p className="mb-2 text-[12px] text-muted">重点词汇</p>
             <div className="flex flex-wrap gap-2">
               {passage.glossary.map((g) => (
-                <span key={g.w} className="rounded-full bg-chip px-3 py-1 text-[12px]">
+                <span key={g.w} className="pp-tag rounded-full bg-chip px-3 py-1 text-[12px]">
                   {g.w} <span className="text-muted">· {g.zh}</span>
                 </span>
               ))}
