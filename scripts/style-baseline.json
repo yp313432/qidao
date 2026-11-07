@@ -1,0 +1,14 @@
+{
+  "$comment": "样式守卫基线：这些计数只许降不许升。清掉一些旧账后运行 npm run style:guard:update 收紧基线。",
+  "updatedAt": "2026-11-07T04:44:49.608Z",
+  "counts": {
+    "colorLiterals": 590,
+    "materialRules": 175,
+    "important": 34,
+    "typescriptArbitraryClasses": 1319,
+    "typescriptColorLiterals": 402,
+    "stylesCssLines": 6117,
+    "largestComponentLines": 2863,
+    "componentsRootFiles": 0
+  }
+}

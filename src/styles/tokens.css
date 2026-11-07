@@ -1,0 +1,117 @@
+/*
+  层：tokens —— 全项目唯一允许写「数字」的地方。
+
+  这个文件只有三个任务：
+    1. 把尺度钉死（间距 / 字号 / 圆角 / 动效 / 层级），谁都从这里取数；
+    2. 把语义色接到主题上（颜色仍然由 [data-theme] 和 [data-palette] 决定，
+       这里不出现任何色值 —— 换配色时只有那几个块要动）；
+    3. 声明「材质槽位」（--k-border-w / --k-card-shadow / --k-backdrop …）。
+       槽位的默认值只在这里给一次，真正按模式改值的地方只有一个目录：
+       src/styles/modes/*.css。
+
+  规矩（scripts/guard-styles.mjs 会检查）：
+    · 这里不许出现 hex / rgb() / hsl() 字面色值；
+    · 这里不许出现 [data-material=...] 选择器；
+    · 新增数字 = 新增一个 token，不许在组件里写 13px、0.2s 这种字面量。
+*/
+
+:root {
+  /* ── 间距：4 的倍数，8 档封顶 ───────────────────────────────── */
+  --k-s-1: 2px;
+  --k-s-2: 4px;
+  --k-s-3: 8px;
+  --k-s-4: 12px;
+  --k-s-5: 16px;
+  --k-s-6: 20px;
+  --k-s-7: 24px;
+  --k-s-8: 32px;
+
+  /* ── 字号：6 档，够用就别加 ────────────────────────────────── */
+  --k-t-1: 10px; /* 角标 / 单位 */
+  --k-t-2: 11.5px; /* 辅助信息 */
+  --k-t-3: 13px; /* 正文 */
+  --k-t-4: 15px; /* 行标题 */
+  --k-t-5: 19px; /* 区块标题 */
+  --k-t-6: 25px; /* 页面标题 */
+
+  /* ── 行高 ──────────────────────────────────────────────────── */
+  --k-lh-1: 1.25;
+  --k-lh-2: 1.5;
+
+  /* ── 布局 ──────────────────────────────────────────────────── */
+  --k-tap: 44px; /* 最小触控目标（设计规范硬要求） */
+  --k-page-x: 16px; /* 页面左右内边距 */
+  --k-nav-h: 56px; /* 底部导航内容高度（不含安全区） */
+  --k-safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* ── 动效：4 档时长 + 3 条曲线，不许临时加第四条 ──────────── */
+  --k-d-1: 120ms; /* 按下 / 悬停反馈 */
+  --k-d-2: 180ms; /* 开关、勾选、位移 */
+  --k-d-3: 260ms; /* 展开、收起 */
+  --k-d-4: 380ms; /* 进页、退页 */
+  --k-e-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --k-e-move: cubic-bezier(0.3, 0.7, 0.4, 1);
+  --k-e-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+
+  /* ── 层级 ──────────────────────────────────────────────────── */
+  --k-z-nav: 30;
+  --k-z-sheet: 60;
+  --k-z-toast: 90;
+
+  /* ── 语义色：只从主题派生，这里是唯一入口 ──────────────────── */
+  --k-bg: var(--aster-bg);
+  --k-fg: var(--aster-fg);
+  --k-muted: var(--aster-muted);
+  --k-subtle: var(--aster-subtle);
+  --k-surface: var(--aster-surface);
+  --k-accent: var(--aster-accent);
+  --k-accent-fg: var(--aster-accent-fg);
+  --k-ink: var(--aster-ink);
+  --k-ok: var(--aster-ok);
+  --k-warn: var(--aster-warn);
+
+  /* ── 字族：字体本身由 @theme 提供（本地 woff2 已自托管） ───── */
+  --k-font-sans: var(--font-sans);
+  --k-font-serif: var(--font-serif);
+  --k-font-mono: var(--font-mono);
+
+  /*
+    ── 材质槽位 ────────────────────────────────────────────────
+    下面这一组是**唯一**由 modes/*.css 覆盖的东西。
+    默认值 = 半磨砂的安全值，任何一个模式没写全也不会崩。
+
+    为什么收成槽位而不是让模式去覆盖选择器：
+    槽位改的是"值"，改一个值全线生效；覆盖选择器改的是"规则"，
+    改一处就要在几千行里追其它规则 —— 那正是这次要断掉的病根。
+  */
+  --k-font-ui: var(--k-font-sans);
+  --k-font-num: var(--k-font-mono);
+  --k-line: var(--aster-line);
+  --k-line-soft: color-mix(in oklab, var(--aster-fg) 12%, transparent);
+  --k-border-w: 1px;
+  --k-card-radius: 16px;
+  --k-ctl-radius: 999px;
+  --k-card-shadow: 0 4px 18px color-mix(in oklab, var(--aster-fg) 10%, transparent);
+  --k-card-shadow-press: 0 2px 8px color-mix(in oklab, var(--aster-fg) 10%, transparent);
+  --k-press-shift: 0px; /* 按下时整块下沉的距离（硬阴影风格会用到） */
+  /*
+    模糊这档给的是**整条声明**，不是 blur 半径。
+
+    为什么：`backdrop-filter: blur(0px)` 不会"关掉"效果 —— 它照样建一层
+    合成层，全屏几十张卡片叠上去就是掉帧。纯色模式要的是一层都不要，
+    所以纯色给的是 `none`，磨砂/液态给的才是 `blur(...) saturate(...)`。
+  */
+  --k-backdrop: none;
+  --k-ctl-on-bg: var(--aster-accent);
+  --k-ctl-on-fg: var(--aster-accent-fg);
+  --k-ctl-off-bg: color-mix(in oklab, var(--aster-fg) 14%, transparent);
+  --k-ctl-off-knob: var(--aster-bg);
+  --k-chip-bg: color-mix(in oklab, var(--aster-fg) 10%, transparent);
+  --k-chip-fg: var(--aster-fg);
+  /* 控件（开关）几何 */
+  --k-track-w: 40px;
+  --k-track-h: 22px;
+  --k-knob: 16px;
+  --k-dur-move: var(--k-d-2);
+  --k-ease-move: var(--k-e-move);
+}

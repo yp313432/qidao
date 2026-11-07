@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Download, Upload } from "lucide-react";
-import { FileButton } from "@/components/file-button";
+import { FileButton } from "@/components/shared/file-button";
 import {
   applyBackup,
   countData,

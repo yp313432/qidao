@@ -31,12 +31,9 @@ import { kindLabel, parseMusicLink } from "./music-embed";
 import { startOfDay } from "@/lib/days";
 import {
   autoLinks,
-  closeFact,
   confirmMemory as confirmMem,
-  conflictOf,
   fromLegacy,
   guessKind,
-  isLive,
   reinforce,
   sweepMemories as sweepMem,
 } from "@/lib/memory";
@@ -75,7 +72,6 @@ import type {
   ScheduledTask,
   Settings,
   WorldEntry,
-  TextTone,
   ThemeId,
 } from "./types";
 import { uid } from "./utils";
@@ -1603,9 +1599,6 @@ export const useApp = create<AppState>()(
         })),
       finalizeAssistant: (conversationId, messageId, patch) => {
         set((s) => {
-          const conv = s.conversations.find((c) => c.id === conversationId);
-          const msg = conv?.messages.find((m) => m.id === messageId);
-          const thinking = patch.thinking ?? msg?.thinking ?? "";
           // 思考链**不再归档**：回复时当场就能看到，再存一份纯占地方。
           // 老版本存下的那些会在迁移里清掉（见 persist 的 migrate）。
           return {

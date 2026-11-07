@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Archive, Clock, LayoutGrid, Network, Plus, Search, X } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { MemoryCard } from "@/components/memory/memory-card";
 import { MemoryDetail } from "@/components/memory/memory-detail";
 import { MemoryGraph } from "@/components/memory/memory-graph";

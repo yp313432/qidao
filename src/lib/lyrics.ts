@@ -93,6 +93,7 @@ function decodeUslt(body: Uint8Array): string {
     while (p + 1 < body.length && !(body[p] === 0 && body[p + 1] === 0)) p += 2;
     p += 2;
   }
+  // eslint-disable-next-line no-control-regex -- 有些上游用 NUL 补位，必须去掉
   return decodeText(body.subarray(p), enc).replace(/\u0000+$/, "").trim();
 }
 

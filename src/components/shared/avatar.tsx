@@ -1,4 +1,4 @@
-import { AsterMark } from "@/components/aster-mark";
+import { AsterMark } from "@/components/shared/aster-mark";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageCircle, RotateCcw } from "lucide-react";
-import { PlayHeader } from "@/components/play-header";
+import { PlayHeader } from "@/components/views/play-header";
 import { resolveAiName } from "@/lib/branding";
 import { aiMove, BOARD, boardFull, emptyBoard, idx, lineOfFive, type Point, type Stone } from "@/lib/gobang";
 import { useApp } from "@/lib/store";
@@ -79,7 +79,6 @@ export function GobangView() {
     if (openPanel?.id !== "gobang_new") return;
     useApp.getState().setPanel(null);
     reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openPanel]);
 
   function playAt(r: number, c: number) {

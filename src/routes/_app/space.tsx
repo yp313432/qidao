@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MePage } from "@/components/me-sections";
+import { MePage } from "@/components/views/me-sections";
 
 export const Route = createFileRoute("/_app/space")({
   component: () => (

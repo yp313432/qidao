@@ -13,8 +13,6 @@
  *      换设备后要重新导入音乐文件。
  */
 
-const STORE_KEY = "aster-app";
-
 /** 只要字段名撞上这些，值又是非空字符串，就在导出时清空。 */
 const SECRET_KEYS = [
   "customapikey",

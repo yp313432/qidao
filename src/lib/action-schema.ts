@@ -1047,7 +1047,7 @@ export const ACTION_GROUP_OF: Record<string, ActionGroup> = Object.fromEntries(
 /**
  * 把一组 kind 变成 `tools` 参数 —— **按需注册真正省下来的那一步**。
  *
- * 跟 `actionTools()` 的关系：那个是"全部 61 个"，这个是"这一轮要发的那几个"。
+ * 跟 `actionTools()` 的关系：那个是"表里全部的动作"，这个是"这一轮要发的那几个"。
  * 顺序跟着 `ACTION_SCHEMA` 走（稳定 → 不打断上游前缀缓存）。
  */
 export function actionToolsFor(kinds: readonly string[]): ActionTool[] {

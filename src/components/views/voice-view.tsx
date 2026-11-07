@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Mic, PhoneOff } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { Avatar } from "@/components/avatar";
-import { VoiceWave } from "@/components/voice-wave";
+import { PageHeader } from "@/components/shared/page-header";
+import { Avatar } from "@/components/shared/avatar";
+import { VoiceWave } from "@/components/shared/voice-wave";
 import { resolveAiName } from "@/lib/branding";
 import { createSentenceStreamer, createSpeechQueue, type SpeechQueue } from "@/lib/speech-queue";
 import { keepScreenAwake, type WakeLockHandle } from "@/lib/wake-lock";

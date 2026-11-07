@@ -4,7 +4,7 @@ import { getScene } from "./scenes";
 import type { EmotionEvent, IntimacyMode, SceneCategory, Settings, UserCorrection } from "./types";
 import { familyOf, resolveVisual } from "./visual";
 import type { VisualParams } from "./types";
-import { memoryAdapter, subscribeMemorySource, type MemorySearchResult } from "../memory";
+import { memoryAdapter, subscribeMemorySource, type MemorySearchResult } from "../memory/index";
 import { useEmotionStore } from "../store";
 
 export type EmotionView = {

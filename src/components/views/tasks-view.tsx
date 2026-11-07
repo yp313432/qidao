@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlarmClock, Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { PromptDialog } from "@/components/prompt-dialog";
+import { PageHeader } from "@/components/shared/page-header";
+import { PromptDialog } from "@/components/shared/prompt-dialog";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";

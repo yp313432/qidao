@@ -1,8 +1,8 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
-import { BackgroundLayer } from "@/components/background-layer";
-import { PreviewHostBridge } from "@/components/preview-host-bridge";
-import { ThemeRoot } from "@/components/theme-root";
+import { BackgroundLayer } from "@/components/shell/background-layer";
+import { PreviewHostBridge } from "@/components/shell/preview-host-bridge";
+import { ThemeRoot } from "@/components/shell/theme-root";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "栖岛";

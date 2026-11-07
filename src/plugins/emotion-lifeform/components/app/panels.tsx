@@ -148,21 +148,12 @@ function Toggle({
 
 export function TodayScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) => void }) {
   const view = useEmotionView();
-  const scenes = useEmotionStore((store) => store.scenes);
   const settings = useEmotionStore((store) => store.settings);
   const setPreview = useEmotionStore((store) => store.setPreview);
 
   const group = useMemo(() => groupOf(view.event), [view.event]);
   const hidden = view.masked || view.hiddenByLabel;
   const reduced = settings.reducedMotion;
-
-  const recent = useMemo(
-    () =>
-      [...scenes]
-        .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
-        .slice(0, 5),
-    [scenes],
-  );
 
   /** 六维里最突出的三条，避免今天屏太长 */
   const dimensions = useMemo(

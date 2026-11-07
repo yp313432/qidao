@@ -1,0 +1,58 @@
+/*
+  模式：纯色 —— 「工程蓝图」（用户 2026-11-07 选定的方向 C）。
+
+  这一版的气质：粗黑线、硬位移阴影、直角、等宽字、几乎零圆角、零透明。
+  它不是"没有效果的磨砂"，而是**另一种明确的美学**：像一张打好的工程图。
+
+  铁律：这个文件里只许写 [data-material="solid"] 的变量块。
+    · 不许出现任何类名选择器 / 元素选择器（那是"补丁"，正是这次要根除的）；
+    · 不许写颜色以外的样式（padding、font-size 之类的字面量都属于 tokens/kit）；
+    · 新增值 = 新增 --k-* 槽位，并在 tokens.css 里给默认值。
+
+  颜色一律从 --aster-* 派生，所以 cream / blue / green / pink 四套调色板
+  和 dawn / dusk / ink 三套主题依然照常生效 —— 这里只钉"材质性格"。
+*/
+
+[data-material="solid"] {
+  /* 字：等宽打头，中文自动落到系统字，读起来像终端/图纸 */
+  --k-font-ui: var(--k-font-mono);
+  --k-font-num: var(--k-font-mono);
+
+  /* 线：纯色模式要看得见骨架，所以线是实墨色，不是透明 */
+  --k-line: var(--aster-ink);
+  --k-line-soft: color-mix(in oklab, var(--aster-ink) 26%, transparent);
+  --k-border-w: 2px;
+
+  /* 角：图纸没有圆角。控件留 2px，避免手机上像毛刺 */
+  --k-card-radius: 2px;
+  --k-ctl-radius: 2px;
+
+  /* 影：不用扩散阴影（糊、慢），用一块硬阴影把卡片"抬"出纸面 */
+  --k-card-shadow: 4px 4px 0 var(--aster-ink);
+  --k-card-shadow-press: 1px 1px 0 var(--aster-ink);
+  --k-press-shift: 3px;
+
+  /*
+    不透明：`none` 而不是 `blur(0px)`。
+    blur(0) 仍会建合成层，纯色模式一张卡片一层，滚动就掉帧 ——
+    这是这次"不流畅"里最实的一刀，必须在源头就断掉。
+  */
+  --k-backdrop: none;
+
+  /* 开关：开 = 实墨轨道 + 纸色点；关 = 空心线框 */
+  --k-ctl-on-bg: var(--aster-ink);
+  --k-ctl-on-fg: var(--aster-bg);
+  --k-ctl-off-bg: transparent;
+  --k-ctl-off-knob: color-mix(in oklab, var(--aster-ink) 30%, transparent);
+  --k-chip-bg: var(--aster-ink);
+  --k-chip-fg: var(--aster-bg);
+
+  /* 控件几何：白点留 4px 边距，位移 = 40 − 14 − 8 = 18px */
+  --k-track-w: 40px;
+  --k-track-h: 22px;
+  --k-knob: 14px;
+
+  /* 动效：位移短促、走同一根曲线（快速到位，不拖尾） */
+  --k-dur-move: var(--k-d-2);
+  --k-ease-move: var(--k-e-move);
+}

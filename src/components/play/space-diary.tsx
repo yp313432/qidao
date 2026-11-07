@@ -1,5 +1,5 @@
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { DiaryWall } from "@/components/play/diary-view";
 import { useApp } from "@/lib/store";
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { cn } from "@/lib/utils";
 
 /**

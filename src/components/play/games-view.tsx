@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Grid3x3, Spade } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,6 @@ function GameCard({
 }) {
   return (
     <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       to={to as any}
       className={cn(
         "aster-card relative overflow-hidden rounded-[1.6rem] border border-line px-4 py-4",

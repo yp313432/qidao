@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
-import { PlayHeader } from "@/components/play-header";
+import { PlayHeader } from "@/components/views/play-header";
 import { drawCard, type DareKind, type DeckCard } from "@/lib/truth-deck";
 import { cn } from "@/lib/utils";
 

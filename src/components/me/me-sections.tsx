@@ -3,26 +3,10 @@ import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-servi
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  Activity,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Database,
-  ImagePlus,
-  Lock,
-  Palette,
-  Search,
-  Settings2,
-  SlidersHorizontal,
-  Sparkles,
-  X,
-  type LucideIcon,
-} from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { BackupSection } from "@/components/backup-section";
+import { Check, ChevronRight, Lock, Search, SlidersHorizontal, X } from "lucide-react";
+import { BackupSection } from "@/components/shared/backup-section";
 import {
   localNotify,
   PERMISSION_LABEL,
@@ -47,511 +31,25 @@ import { pingWake, readWakeLog, resetWake } from "@/lib/wake-sync";
 import { speakTextAsync } from "@/lib/tts";
 import { useApp } from "@/lib/store";
 import { WAKE_LEVELS } from "@/lib/wake-schedule";
-import { readImageFile } from "@/lib/image-file";
-import type { FontId, PlanetTone, ReplyStyle, TextTone } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
-import { Avatar } from "@/components/avatar";
-import { FileButton } from "@/components/file-button";
-import { BUILD_TAG, resolveAiName } from "@/lib/branding";
+import { resolveAiName } from "@/lib/branding";
 import { permissionSummary } from "@/lib/permissions";
-import { useActivity } from "@/lib/use-activity";
-import { useScrollMemory, CHAT_FONT_SIZES } from "@/lib/ux";
+import { CHAT_FONT_SIZES } from "@/lib/ux";
 import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
+import type { MeTab } from "./me-types";
+import { STYLES, FONTS, TONES, PLANET_TONES } from "./me-options";
+import { relShort } from "./me-format";
+import { ImageRow, ProbeLine, Section, Group, Sub, Fold, Row, SliderRow } from "./me-widgets";
 
 /**
- * 「我的」的四组内容 —— 首页只放入口卡，细节在第二层。
+ * 四个 tab 的区块 JSX（我的空间 / 模型与用量 / 数据 / 系统）。
  *
- * 为什么抽出来：以前全部平铺在 `me-view.tsx` 一个文件里（1300 行），
- * 现在按文档的 4 大类拆成 4 个二级页，但**区块 JSX 只写一份**：
- *   · `MeHub`   → 首页（头像 + 5 张入口卡）
- *   · `space`   → 我的空间：形象 · 背景空间 · 个性化
- *   · `usage`   → 模型与用量：用量 · 上下文与内存 · 自定义上游
- *   · `data`    → 数据与记忆：记忆库 · 世界书 / 思考引导 · 备份恢复
- *   · `system`  → 系统：思考链 · 通知 · 定位 · 语音 · 定时任务 · 开发与纠错
- *
- * 纯搬位置，**一个功能都没动** ✅（开关、输入框、逻辑全是原来那套）
+ * 四个 tab 共用**同一份状态与副作用**（都是 settings 里的字段），所以还是一个组件：
+ * 拆成四个组件就得把几十个状态用 props 传下去，只会更容易出错。
+ * 想再拆，先把状态抽成一个 hook（见 design/ARCHITECTURE.md 的 D2 备注）。
  */
 
-export type MeTab = "space" | "usage" | "data" | "system";
-
-const STYLES: { id: ReplyStyle; label: string }[] = [
-  { id: "default", label: "默认" },
-  { id: "concise", label: "简洁" },
-  { id: "explanatory", label: "详尽" },
-];
-
-/** 「此刻的情况」那几行小字要用到的相对时间。 */
-function relShort(ts: number): string {
-  const mins = Math.floor((Date.now() - ts) / 60000);
-  if (mins < 60) return `${Math.max(1, mins)} 分钟前`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  return `${Math.floor(hours / 24)} 天前`;
-}
-
-const FONTS: { id: FontId; label: string; hint: string; stack: string }[] = [
-  { id: "system", label: "默认", hint: "无衬线", stack: '"DM Sans", system-ui, sans-serif' },
-  {
-    id: "serif",
-    label: "衬线",
-    hint: "宋体 · 优雅",
-    stack: '"Source Serif 4", "Songti SC", "SimSun", serif',
-  },
-  { id: "kai", label: "楷体", hint: "手写 · 文艺", stack: '"Kaiti SC", "KaiTi", "楷体", "STKaiti", serif' },
-  {
-    id: "mono",
-    label: "等宽",
-    hint: "代码感",
-    stack: '"IBM Plex Mono", ui-monospace, Consolas, monospace',
-  },
-];
-
-const TONES: { id: TextTone; label: string }[] = [
-  { id: "auto", label: "跟随主题" },
-  { id: "dark", label: "深色字" },
-  { id: "light", label: "浅色字" },
-  { id: "custom", label: "自定义" },
-];
-
-/**
- * 小宇宙里行星/星环的预设色。
- *
- * 跟「文字颜色」是**两个独立的开关**（用户："球体颜色和字体颜色做个切割吧，
- * 她两分开，不放一起，不然不好同时兼顾"）。
- * 三个色取自视觉 Skill 的配色原则：冷薄荷青为主 + 雾紫为辅 + 暖金点缀。
- * swatch 只用来画那个小圆点，真实取值在 store.ts 的 PLANET_COLORS。
- */
-const PLANET_TONES: { id: PlanetTone; label: string; swatch?: string }[] = [
-  { id: "auto", label: "跟随文字" },
-  { id: "mist", label: "冷薄荷青", swatch: "#7fa8b8" },
-  { id: "violet", label: "雾紫", swatch: "#9a8cba" },
-  { id: "gold", label: "暖金", swatch: "#c9a227" },
-  { id: "custom", label: "自定义" },
-];
-
-/* ───────────────────────────── 首页：只留入口卡 ───────────────────────────── */
-
-/**
- * 首页那 5 张入口卡 —— 图里的构成是「图标 + 标题 + 一行短小字 + 箭头」。
- *
- * 图标统一放一个 `size-10` 的圆角方玻璃底、`strokeWidth 1.7` 的线性图标，
- * **不按卡片给不同颜色** —— 文档第 7 节说要收敛"卡片之间颜色竞争"，
- * 靠背景图那个天然渐变的圆底取色，比硬编码五个颜色自然（也不挑主题）。
- */
-const ME_CARDS: { to: string; label: string; hint: string; icon: LucideIcon }[] = [
-  {
-    to: "/core",
-    label: "AI 概览",
-    hint: "他是谁 · 能知道什么 · 怎么和你相处 · 记得你什么",
-    icon: Sparkles,
-  },
-  {
-    to: "/space",
-    label: "我的空间",
-    hint: "形象 · 背景空间 · 个性化",
-    icon: Palette,
-  },
-  {
-    to: "/usage",
-    label: "模型与用量",
-    hint: "用量 · 上下文与内存 · 自定义上游",
-    icon: Activity,
-  },
-  { to: "/data", label: "数据", hint: "备份与恢复", icon: Database },
-  {
-    to: "/system",
-    /*
-      ⚠️ 这行 hint 是**用户能看到的**，必须跟二级页里真实有的东西一致，
-      否则就是误导（用户实测指出过："闹钟和定时任务已经挪走了，
-      但是系统那行提示还是显示有"）。
-
-      所以：闹钟、定时任务**已经从小日子那边挪过去了**，这里不能再写。
-      改 hint 的时候记得回头对一遍下面 systemSections 里的 Section 标题。
-    */
-    label: "系统",
-    hint: "思考链 · 通知 · 天气与定位 · 语音 · 开发与纠错",
-    icon: Settings2,
-  },
-];
-
-/**
- * 「我的」首页。
- *
- * 用户的原话："我的主页那里直接把下面的功能页塞到第二层展示就好了，更短。"
- * 所以这里**只有**：头像/名字那张卡 + 5 个入口 + 版本号。
- */
-export function MeHub() {
-  const patch = useApp((s) => s.patchSettings);
-  const settings = useApp((s) => s.settings);
-  const scrollRef = useScrollMemory("me");
-
-  /*
-   * 「封面收进导航栏」——用户 m14888 的原话：
-   *   "这个顶边栏效果我想的是把那个组件做成变化效果的，就是我上滑，整个头像组件滑动缩小到左边，
-   *    而不是还保留着那一大块组件，然后再另做一个缩小组件。"
-   * 所以这里不是"大卡 + 另做一个小条"两套组件，而是**同一个头像、同一个名字**连续变过去：
-   *   卡片高度 268 → 46、头像 80 → 28 并左移、名字跟着缩到头像右边、卡片底淡出、
-   *   46px 高的玻璃条浮上来接手顶栏。
-   * 滚动中只改 style（不 setState），避免每帧重渲染整页。
-   */
-  const headRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-  const avRef = useRef<HTMLSpanElement>(null);
-  const nameRef = useRef<HTMLSpanElement>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  const fadeRef = useRef<HTMLDivElement>(null);
-  const hintRef = useRef<HTMLParagraphElement>(null);
-  const titleRef = useRef<HTMLDivElement>(null);
-  const spacerRef = useRef<HTMLDivElement>(null);
-  /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
-  const needRef = useRef(0);
-
-  const HEAD_H = 300; // 展开时资料卡的高度（塌陷行程 = 300-46 = 254px，行程越长收得越慢）
-  const BAR_H = 46; // 收进顶栏后的高度
-  const AV0 = 80; // 头像展开尺寸
-  const AV1 = 28; // 头像收起尺寸
-  const NAME_W = 220; // 名字输入框宽度（居中时靠它算落点）
-  /**
-   * 收起后第一张卡与顶栏之间留的空隙。
-   *
-   * 用户原话："距离可以没有重叠" —— 宁可留一道缝，也不要让内容被顶栏压住。
-   * 这个值参与 need 的计算（见下面 pad），所以它是"收起态唯一的目标间距"，
-   * 别在别处再写死一个数字。
-   */
-  const GAP = 8;
-  /** 头块吸顶时距滚动区顶部的偏移，必须和下面 sticky 的 `top` 里的 +2px 保持一致 */
-  const BAR_TOP = 2;
-
-  const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-  const onScroll = (el: HTMLElement) => {
-    const head = headRef.current;
-    if (!head) return;
-    /*
-     * 两段式（2026-10-29 定稿，前后返工三次才理清）：
-     *   第一段：头块**不动**，先让下面的内容滑上来贴住头底（这一段长度 = need - 行程）
-     *   第二段：头块开始塌，内容跟着 1:1 上移（布局占位不变，只改视觉高度）
-     * 两段加起来正好让「滚到底 ⇔ 头收成 46px 顶栏 且 第一个入口贴着顶栏」。
-     * 开头就让它收（旧版）会出现"中间空一大片"；让它真实变矮又会被顶飞。
-     */
-    const span = Math.max(1, HEAD_H - BAR_H);
-    const dead = Math.max(0, needRef.current - span);
-    const t = clamp01((el.scrollTop - dead) / span);
-    /*
-     * 必须 1:1（不能用 t^1.6 那种前慢后快）：头块是"视觉变矮"、内容按滚动线性上移，
-     * 两者一旦不同步，内容就会钻到头块下面或者拉开一道缝。跟手才贴得住。
-     */
-    const e = t;
-    const p = t;
-    const W = head.clientWidth || 320;
-
-    const headH = lerp(HEAD_H, BAR_H, e);
-    head.style.height = `${headH}px`;
-    if (cardRef.current) cardRef.current.style.opacity = String(1 - clamp01(p / 0.72));
-    // 玻璃条留到最后三成才浮上来，别在卡片还完整时就压一条白边
-    if (barRef.current) barRef.current.style.opacity = String(clamp01((p - 0.55) / 0.35));
-    if (avRef.current) {
-      const scale = lerp(1, AV1 / AV0, e);
-      const x = lerp((W - AV0) / 2, 16, e);
-      // 始终留在容器可见范围内（高度在收缩，别让它被 overflow 裁掉）
-      const y = Math.min(lerp(56, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
-      avRef.current.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-    }
-    if (nameRef.current) {
-      const x = lerp((W - NAME_W) / 2, 16 + AV1 + 8, e);
-      const y = Math.min(lerp(150, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
-      nameRef.current.style.transform = `translate(${x}px, ${y}px) scale(${lerp(1, 0.58, e)})`;
-      if (nameInputRef.current) nameInputRef.current.style.textAlign = e > 0.5 ? "left" : "center";
-    }
-    const fade = String(1 - clamp01(p / 0.34));
-    if (fadeRef.current) {
-      fadeRef.current.style.opacity = fade;
-      /*
-       * 外层已经是 pointer-events: none，这里必须写 `auto` 才会重新可点 ——
-       * 写 ""（移除内联样式）只会继承外层的 none，称呼那几个按钮就永远点不动了。
-       */
-      fadeRef.current.style.pointerEvents = p > 0.34 ? "none" : "auto";
-    }
-    if (hintRef.current) hintRef.current.style.opacity = fade;
-    if (titleRef.current) titleRef.current.style.opacity = String(1 - clamp01(p / 0.22));
-  };
-
-  // 首帧就摆好位置（不然那几个 absolute 的元素会先挤在左上角闪一下）
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) onScroll(el);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
-   * 补足可滚量：让「滚到底」= 头收成 46px 顶栏，且第一个入口停在它下面 GAP 像素处。
-   *
-   * ⚠️ 2026-10-29 返工三次的教训：
-   *   · 只补到「行程」(254px) → 内容短，滚到底时内容还没贴上来，中间空一大片；
-   *   · 让头块真实变矮 → 内容被「缩小 + 滚动」顶两次，直接飞出屏幕。
-   * 现在按「第一个内容块贴到 顶栏底边 + GAP 需要滚多少」来补，再在 onScroll 里拆成两段。
-   *
-   * ⚠️ 2026-10-30 用户报"头像缩小之后和下面内容是重叠的"：
-   * 原来目标取的是「顶栏顶边 + BAR_H」（= 顶栏底边，零间距），于是刚收起时第一张卡
-   * 正好贴着玻璃条下沿，视觉上像压在一起。现在目标改成顶栏底边 + GAP，
-   * 并且把 sticky 自己的吸顶偏移（BAR_TOP）和原生状态栏高度（--q-inset-top）也减掉：
-   * 浏览器里 inset-top 是 0，只减 BAR_H 看不出问题，装到真机上内容会被顶栏压住一条。
-   */
-  useEffect(() => {
-    const el = scrollRef.current;
-    const sp = spacerRef.current;
-    if (!el || !sp) return;
-    const pad = () => {
-      // 第一个内容块（入口列表 / 二级卡片）距滚动内容顶部的距离
-      const content = headRef.current?.parentElement?.nextElementSibling as HTMLElement | null;
-      const offset = content
-        ? content.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
-        : HEAD_H;
-      /**
-       * 顶栏底边 = 状态栏高度（原生推的 `--q-inset-top`） + 吸顶偏移 + BAR_H。
-       * 本页的滚动区从屏幕最顶上开始，所以状态栏高度必须算进来。
-       */
-      const insetRaw = getComputedStyle(document.documentElement)
-        .getPropertyValue("--q-inset-top")
-        .trim();
-      const insetTop = Number.isFinite(parseFloat(insetRaw)) ? parseFloat(insetRaw) : 0;
-      const target = BAR_H + GAP + BAR_TOP + insetTop;
-      const need = Math.max(HEAD_H - BAR_H, offset - target);
-      needRef.current = need;
-      /*
-       * 增量补，不能"先归零再量差值"：内容比容器还短时 scrollHeight 会被夹成 clientHeight，
-       * 量出来的差值永远是 0（「AI 概览」就吃过这个亏）。按当前可滚量一次次加，几次收敛。
-       */
-      for (let i = 0; i < 8; i += 1) {
-        const diff = need - (el.scrollHeight - el.clientHeight);
-        if (Math.abs(diff) < 1) break;
-        const cur = parseFloat(sp.style.height) || 0;
-        if (cur <= 0 && diff < 0) break;
-        sp.style.height = `${Math.max(0, cur + diff)}px`;
-      }
-      onScroll(el);
-    };
-    pad();
-    const ro = new ResizeObserver(pad);
-    ro.observe(el);
-    window.addEventListener("resize", pad);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", pad);
-    };
-    // HEAD_H / BAR_H 是常量，不需要进依赖
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div
-      ref={scrollRef}
-      onScroll={(e) => onScroll(e.currentTarget)}
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav"
-      /*
-       * 关掉 Chrome 的滚动锚定：头块在滚动中真的在变矮、spacer 同时反向变高，
-       * 浏览器会自作主张"保持锚点"去改 scrollTop —— 实测会让进度乱跳（滑到 180 变 202）。
-       */
-      style={{ overflowAnchor: "none" }}
-    >
-      {/* 标题：滚动时先淡出，把位置让给资料卡 */}
-      <div ref={titleRef} className="px-5 inset-top-100 pb-1">
-        <p className="text-xs tracking-wide text-muted">账号与系统</p>
-        <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
-      </div>
-
-      {/*
-        资料区 = 一个会"塌"下来的容器：卡片底、顶栏玻璃、头像、名字、文字块都在里面，
-        滚动时同一套元素变形，不是换了一套小组件。
-      */}
-      {/*
-        ⚠️ 2026-10-29 第三次返工后的定稿：
-        外层永远是 HEAD_H 的**布局占位**，内层 head 只改视觉高度（绝对定位）。
-        这样内容的位置只由 scrollTop 决定 —— 滚到底时内容正好落在 46px 顶栏下面，
-        既不会「中间空一大片」（那是布局高度不变 + 内容没跟上），也不会被头块自身的缩小顶飞。
-        可滚量由底部 spacer 补足，spacer 高度在挂载时实测（见下面那个 effect）。
-      */}
-      {/*
-        ⚠️ 2026-10-30 用户报「AI 概览缩小时下面那些功能点不进去」：
-        这一层是 HEAD_H 高的布局占位，收起后它的**透明区域**仍然盖在内容上面（z-20），
-        以前整层默认可点，于是把下面的入口全挡住了。
-        现在整层 pointer-events: none，只有真正要点的元素（头像、名字输入框、称呼按钮）
-        各自加 pointer-events-auto 顶回来。
-        ⚠️ **不要用"把外层 height 改小"来躲这个坑**：外层高度就是内容位置计算和
-        1:1 映射的基准，改小会让"滚到底 ⇔ 头收完 + 内容贴住"这条恒等式断掉。
-      */}
-      <div
-        className="pointer-events-none sticky z-20 mx-4 mt-3 shrink-0"
-        data-surface
-        style={{ height: HEAD_H, top: "calc(var(--q-inset-top, 0px) + 2px)" }}
-      >
-        <div
-          ref={headRef}
-          className="absolute inset-x-0 top-0 overflow-hidden"
-          style={{ height: HEAD_H }}
-        >
-        <div ref={cardRef} className="me-head-card absolute inset-0 rounded-3xl border border-line bg-surface" />
-        <p className="me-exlibris">EX LIBRIS · 栖岛</p>
-        <p className="me-rule" />
-        <p className="me-rule2" />
-        <p className="me-vol">VOL.02 · 2026.11</p>
-        <div
-          ref={barRef}
-          className="me-bar absolute inset-x-0 top-0 h-[46px] rounded-3xl"
-          style={{
-            opacity: 0,
-            backgroundColor: "var(--aster-surface)",
-            backdropFilter: "blur(18px) saturate(1.5)",
-            WebkitBackdropFilter: "blur(18px) saturate(1.5)",
-            borderBottom: "0.5px solid var(--aster-line)",
-          }}
-        />
-        <span
-          ref={avRef}
-          /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
-          className="pointer-events-auto absolute left-0 top-0 block"
-          style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
-        >
-          <span className="me-av-ring" aria-hidden="true" />
-          <FileButton
-            ariaLabel="更换我的头像"
-            accept="image/*"
-            className="flex size-full items-center justify-center rounded-full"
-            onPick={(files) => {
-              const file = files[0];
-              if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
-            }}
-          >
-            <Avatar role="user" size={80} />
-          </FileButton>
-        </span>
-        <p
-          ref={hintRef}
-          className="absolute inset-x-0 text-center text-[11px] text-subtle"
-          style={{ top: 180 }}
-        >
-          {settings.userAvatar ? "点头像可以换一张" : "点头像上传一张"}
-        </p>
-        <span
-          ref={nameRef}
-          /* 同上：名字要能输入/聚焦，得单独顶回可点击 */
-          className="pointer-events-auto absolute left-0 top-0 block"
-          style={{ width: NAME_W, transformOrigin: "0 0" }}
-        >
-          <input
-            ref={nameInputRef}
-            value={settings.displayName}
-            onChange={(e) => patch({ displayName: e.target.value.slice(0, 24) })}
-            placeholder="你的名字"
-            aria-label="显示名"
-            maxLength={24}
-            className="w-full bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
-          />
-        </span>
-        <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 196 }}>
-          {/*
-            称呼（性别）—— 2026-10 用户点名要的：
-            "我是女的，凡事跟我相关的应该是女她，包括之前他思考链里我没提醒也是用的男他，
-             说了才改 —— 要不要给我头像下面设置个性别设置，让 AI 能知道的。"
-            他自己没法猜，只能靠这里告诉他一处、处处生效（提示词 + 说明书都带上）。
-          */}
-          <div
-            className="mt-3 flex items-center justify-center gap-1.5"
-            role="group"
-            aria-label="他该怎么称呼你"
-          >
-            {(
-              [
-                { v: "", label: "不说" },
-                { v: "女", label: "用「她」" },
-                { v: "男", label: "用「他」" },
-              ] as const
-            ).map((opt) => {
-              const active = (settings.userGender ?? "") === opt.v;
-              return (
-                <button
-                  key={opt.v || "none"}
-                  type="button"
-                  aria-pressed={active}
-                  data-opt={active ? undefined : ""}
-                  onClick={() => patch({ userGender: opt.v })}
-                  className={cn(
-                    "me-call-btn rounded-full px-3 py-1 text-[11px] transition",
-                    active && "data-pill",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        </div>
-      </div>
-
-      {/*
-        5 个入口 —— 点进去才是细节，首页不再平铺一长串
-        （文档：「我的」= AI 控制中枢，先分类再进二级 ✅ 纯入口整理）
-      */}
-      <p className="me-index-ttl">CONTENTS · 目录</p>
-      <nav className="me-index mt-2 px-5">
-        {ME_CARDS.map((c, i) => {
-          const Icon = c.icon;
-          return (
-            <Link key={c.to} to={c.to} className="me-index-row">
-              <Icon className="me-index-ic" strokeWidth={1.5} aria-hidden="true" />
-              <span className="me-index-no">{String(i + 1).padStart(2, "0")}</span>
-              <span className="me-index-name">{c.label}</span>
-              <span className="me-index-hint">{c.hint}</span>
-              <span className="me-index-lead" />
-              <ChevronRight className="me-index-arrow" aria-hidden="true" />
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="px-5 py-8 text-center text-[12px] text-subtle">
-        栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
-      </div>
-      {/* 占位：保证「卡片塌成顶栏」那 254px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
-      <div ref={spacerRef} aria-hidden style={{ height: HEAD_H - BAR_H, flexShrink: 0 }} />
-    </div>
-  );
-}
-
-/* ───────────────────────── 第二层：四组区块 ───────────────────────── */
-
-/** 第二层页面共用外壳：左上角返回 + 标题 + 可滚动内容区。 */
-export function MePage({
-  tab,
-  title,
-  subtitle,
-}: {
-  tab: MeTab;
-  title: string;
-  subtitle: string;
-}) {
-  // 报给 AI「我在看什么」（跟其它二级页一样），纯 UI 迁移顺手补上
-  useActivity(`在看${title}`);
-  const scrollRef = useScrollMemory(`me-${tab}`);
-
-  return (
-    <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <PageHeader title={title} description={subtitle} />
-
-      <MeSections tab={tab} />
-
-      <div className="px-5 py-8 text-center text-[12px] text-subtle">
-        栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
-      </div>
-    </div>
-  );
-}
-
-function MeSections({ tab }: { tab: MeTab }) {
+export function MeSections({ tab }: { tab: MeTab }) {
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
   /**
@@ -617,8 +115,14 @@ function MeSections({ tab }: { tab: MeTab }) {
     start.setHours(0, 0, 0, 0);
     const today = requestLog.filter((r) => r.at >= start.getTime());
     if (today.length === 0) return null;
-    const sum = (k: "prompt" | "completion" | "cached") => today.reduce((n, r) => n + (r[k] ?? 0), 0);
-    return { calls: today.length, prompt: sum("prompt"), completion: sum("completion"), cached: sum("cached") };
+    const sum = (k: "prompt" | "completion" | "cached") =>
+      today.reduce((n, r) => n + (r[k] ?? 0), 0);
+    return {
+      calls: today.length,
+      prompt: sum("prompt"),
+      completion: sum("completion"),
+      cached: sum("cached"),
+    };
   })();
   const hydrationDone = useApp((s) => s.hydrated);
   // 配额重置时间是按「现在」算的 —— 服务端和客户端算出来必然不同，
@@ -711,7 +215,11 @@ function MeSections({ tab }: { tab: MeTab }) {
   const [wakeLogLines, setWakeLogLines] = useState<string[] | null | undefined>(undefined);
   /** 主路（直接问你的 AI）配好了没 —— 缺哪样都不能问 */
   const upstreamReady = () =>
-    Boolean((settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() && (settings.upstreamModel ?? "").trim());
+    Boolean(
+      (settings.customBaseUrl ?? "").trim() &&
+      (settings.customApiKey ?? "").trim() &&
+      (settings.upstreamModel ?? "").trim(),
+    );
   /**
    * 他是不是正处于"我说了我在忙"的状态（`busyUntil` 是时间戳，过期自然失效）。
    * 这个判断只影响这一个块显示什么 —— 真正的"不打扰"是后台那段 JS 读抽屉里的
@@ -819,7 +327,9 @@ function MeSections({ tab }: { tab: MeTab }) {
     if (wakeResetBusy) return;
     if (!wakeResetArmed) {
       setWakeResetArmed(true);
-      setWakeResetMsg("再点一下确认：会清掉醒来次数、后台日志、上次说话时间、静音标记，还有交给后台的那份配置。");
+      setWakeResetMsg(
+        "再点一下确认：会清掉醒来次数、后台日志、上次说话时间、静音标记，还有交给后台的那份配置。",
+      );
       return;
     }
     setWakeResetArmed(false);
@@ -853,7 +363,8 @@ function MeSections({ tab }: { tab: MeTab }) {
 
   useEffect(() => {
     // App 里权限要去问安卓系统，所以是异步的（同步版只会给个占位值）
-    void permissionStateAsync().then(setPerm);    setSecure(secureContextOk());
+    void permissionStateAsync().then(setPerm);
+    setSecure(secureContextOk());
     void (async () => {
       const reg = await swRegistration();
       if (reg) setSw({ ok: true, message: "已注册（不缓存、不拦截请求）" });
@@ -890,7 +401,11 @@ function MeSections({ tab }: { tab: MeTab }) {
   /* ── 外观：材质 / 背景 / 字体 / 对话框配色（用户 m14333 定的版式）── */
 
   const MATERIALS = [
-    { id: "solid", label: "纯色", hint: "实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸" },
+    {
+      id: "solid",
+      label: "纯色",
+      hint: "实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸",
+    },
     { id: "frost", label: "半磨砂", hint: "毛玻璃：半透、糊一层，什么背景都能搭" },
     { id: "liquid", label: "液态玻璃", hint: "极透：背景的颜色直接映进卡片，最贵的一档" },
   ] as const;
@@ -906,7 +421,9 @@ function MeSections({ tab }: { tab: MeTab }) {
   const matName = MATERIALS.find((m) => m.id === material)?.label ?? "半磨砂";
   const matHint = MATERIALS.find((m) => m.id === material)?.hint ?? "";
   const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
-  const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(Boolean).length;
+  const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(
+    Boolean,
+  ).length;
   const bgHint = `${bgCount ? `${bgCount} 张都设了` : "还没设"} · 压纸色 ${settings.bgPaper ?? 18}%`;
   const fontHint = `${FONTS.find((f) => f.id === (settings.font ?? "sans"))?.label ?? "默认"} · ${
     CHAT_FONT_SIZES.find((x) => x.id === (settings.chatFontSize ?? "md"))?.label ?? "中号"
@@ -915,8 +432,7 @@ function MeSections({ tab }: { tab: MeTab }) {
 
   const spaceSections = (
     <>
-      <section className="px-4">
-      </section>
+      <section className="px-4"></section>
 
       <section className="mt-3 px-4">
         <Fold
@@ -978,115 +494,119 @@ function MeSections({ tab }: { tab: MeTab }) {
           open={openFold === "bg"}
           onToggle={() => setOpenFold(openFold === "bg" ? null : "bg")}
         >
-        {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
-        <div className="space-y-2">
-          <ImageRow
-            label="主页背景"
-            hint="整个 App 的底"
-            value={background.image}
-            onPick={(url) => patch({ background: { ...background, image: url } })}
-            onClear={() => patch({ background: { ...background, image: "" } })}
-          />
-          <ImageRow
-            label="音乐播放页"
-            hint="只在这一页出现"
-            value={settings.musicImage}
-            onPick={(url) => patch({ musicImage: url })}
-            onClear={() => patch({ musicImage: "" })}
-          />
-          <ImageRow
-            label="日记动态页"
-            hint="只在这一页出现"
-            value={settings.diaryImage}
-            onPick={(url) => patch({ diaryImage: url })}
-            onClear={() => patch({ diaryImage: "" })}
-          />
-        </div>
-        <p className="mt-2 text-[12px] leading-5 text-muted">
-          图片只存在这台设备；玻璃会随背景自动调整明暗，保证文字可读。
-          另外两张不设的话，那两页就用「主页背景」。
-        </p>
-
-        {/* 动画 */}
-        <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-          <p className="text-[13px] font-medium">动画</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted">
-            手机开着「减弱动态效果」时，系统会把所有动画压成 0.01 毫秒 ——
-            那就是黑胶不转、心跳不动的原因。
-          </p>
-          <div className="mt-2 grid grid-cols-3 gap-1">
-            {(
-              [
-                ["auto", "跟随系统"],
-                ["on", "始终开启"],
-                ["off", "关闭"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                data-opt={settings.motion === id ? undefined : ""}
-                onClick={() => patch({ motion: id })}
-                className={cn(
-                  "rounded-full py-1.5 text-[11px]",
-                  settings.motion === id && "data-pill font-medium",
-                )}
-              >
-                {label}
-              </button>
-            ))}
+          {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
+          <div className="space-y-2">
+            <ImageRow
+              label="主页背景"
+              hint="整个 App 的底"
+              value={background.image}
+              onPick={(url) => patch({ background: { ...background, image: url } })}
+              onClear={() => patch({ background: { ...background, image: "" } })}
+            />
+            <ImageRow
+              label="音乐播放页"
+              hint="只在这一页出现"
+              value={settings.musicImage}
+              onPick={(url) => patch({ musicImage: url })}
+              onClear={() => patch({ musicImage: "" })}
+            />
+            <ImageRow
+              label="日记动态页"
+              hint="只在这一页出现"
+              value={settings.diaryImage}
+              onPick={(url) => patch({ diaryImage: url })}
+              onClear={() => patch({ diaryImage: "" })}
+            />
           </div>
-        </div>
+          <p className="mt-2 text-[12px] leading-5 text-muted">
+            图片只存在这台设备；玻璃会随背景自动调整明暗，保证文字可读。
+            另外两张不设的话，那两页就用「主页背景」。
+          </p>
 
-        <div className="mt-3 flex items-center justify-between rounded-2xl bg-chip px-3.5 py-2.5">
-          <span className="min-w-0 text-[11px] leading-4 text-muted">
-            {bgUnlocked ? "正在调整 —— 调完记得锁上" : "已锁定，滑动页面不会误改"}
-          </span>
-          <button
-            type="button"
-            aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
-            data-opt={bgUnlocked ? undefined : ""}
-            onClick={() => setBgUnlocked((v) => !v)}
-            className={cn(
-              "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium",
-              bgUnlocked && "bg-warn/20 text-warn",
-            )}
-          >
-            {bgUnlocked ? <Lock className="size-3.5" /> : <SlidersHorizontal className="size-3.5" />}
-            {bgUnlocked ? "锁定" : "调整"}
-          </button>
-        </div>
+          {/* 动画 */}
+          <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
+            <p className="text-[13px] font-medium">动画</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-muted">
+              手机开着「减弱动态效果」时，系统会把所有动画压成 0.01 毫秒 ——
+              那就是黑胶不转、心跳不动的原因。
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-1">
+              {(
+                [
+                  ["auto", "跟随系统"],
+                  ["on", "始终开启"],
+                  ["off", "关闭"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-opt={settings.motion === id ? undefined : ""}
+                  onClick={() => patch({ motion: id })}
+                  className={cn(
+                    "rounded-full py-1.5 text-[11px]",
+                    settings.motion === id && "data-pill font-medium",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <SliderRow
-          label="模糊"
-          value={background.blur}
-          min={0}
-          max={60}
-          step={1}
-          unit="px"
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, blur: v } })}
-        />
-        <SliderRow
-          label="暗化"
-          value={background.dim}
-          min={0}
-          max={0.8}
-          step={0.05}
-          unit=""
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, dim: v } })}
-        />
-        <SliderRow
-          label="透明度"
-          value={background.opacity}
-          min={0.2}
-          max={1}
-          step={0.05}
-          unit=""
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, opacity: v } })}
-        />
+          <div className="mt-3 flex items-center justify-between rounded-2xl bg-chip px-3.5 py-2.5">
+            <span className="min-w-0 text-[11px] leading-4 text-muted">
+              {bgUnlocked ? "正在调整 —— 调完记得锁上" : "已锁定，滑动页面不会误改"}
+            </span>
+            <button
+              type="button"
+              aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
+              data-opt={bgUnlocked ? undefined : ""}
+              onClick={() => setBgUnlocked((v) => !v)}
+              className={cn(
+                "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium",
+                bgUnlocked && "bg-warn/20 text-warn",
+              )}
+            >
+              {bgUnlocked ? (
+                <Lock className="size-3.5" />
+              ) : (
+                <SlidersHorizontal className="size-3.5" />
+              )}
+              {bgUnlocked ? "锁定" : "调整"}
+            </button>
+          </div>
+
+          <SliderRow
+            label="模糊"
+            value={background.blur}
+            min={0}
+            max={60}
+            step={1}
+            unit="px"
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, blur: v } })}
+          />
+          <SliderRow
+            label="暗化"
+            value={background.dim}
+            min={0}
+            max={0.8}
+            step={0.05}
+            unit=""
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, dim: v } })}
+          />
+          <SliderRow
+            label="透明度"
+            value={background.opacity}
+            min={0.2}
+            max={1}
+            step={0.05}
+            unit=""
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, opacity: v } })}
+          />
           {material === "solid" && (
             <label className="mt-4 block px-1">
               <span className="flex items-baseline justify-between text-[12px] text-muted">
@@ -1116,79 +636,79 @@ function MeSections({ tab }: { tab: MeTab }) {
           open={openFold === "font"}
           onToggle={() => setOpenFold(openFold === "font" ? null : "font")}
         >
-        <p className="mt-4 mb-2 text-[12px] text-muted">正文字体</p>
-        <div className="grid grid-cols-2 gap-2">
-          {FONTS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => patch({ font: f.id })}
-              style={{ fontFamily: f.stack }}
-              data-opt={settings.font === f.id ? undefined : ""}
-              className={cn(
-                "rounded-2xl border px-3 py-2.5 text-left",
-                settings.font === f.id ? "choice-card-on data-pill" : "choice-card-off",
-              )}
-            >
-              <span className="block text-[13px] font-medium">{f.label}</span>
-              <span className="text-[11px] text-muted">{f.hint}</span>
-            </button>
-          ))}
-        </div>
+          <p className="mt-4 mb-2 text-[12px] text-muted">正文字体</p>
+          <div className="grid grid-cols-2 gap-2">
+            {FONTS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => patch({ font: f.id })}
+                style={{ fontFamily: f.stack }}
+                data-opt={settings.font === f.id ? undefined : ""}
+                className={cn(
+                  "rounded-2xl border px-3 py-2.5 text-left",
+                  settings.font === f.id ? "choice-card-on data-pill" : "choice-card-off",
+                )}
+              >
+                <span className="block text-[13px] font-medium">{f.label}</span>
+                <span className="text-[11px] text-muted">{f.hint}</span>
+              </button>
+            ))}
+          </div>
 
-        {/* 「最大输出长度」+「回复风格」已经挪到「系统 → 思考链」（用户要求）。
+          {/* 「最大输出长度」+「回复风格」已经挪到「系统 → 思考链」（用户要求）。
             这里不能再留一份 —— 同一个开关出现两次，改哪边都容易漏。 */}
 
-        <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
-        <div className="flex gap-2">
-          {CHAT_FONT_SIZES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              data-opt={settings.chatFontSize === s.id ? undefined : ""}
-              onClick={() => patch({ chatFontSize: s.id })}
-              className={cn(
-                "flex-1 rounded-2xl border px-2 py-2.5 text-center",
-                settings.chatFontSize === s.id ? "choice-card-on data-pill" : "choice-card-off",
-              )}
-            >
-              <span className="block text-[13px] font-medium">{s.label}</span>
-              <span className="block text-[10px] text-subtle">{s.px}px</span>
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-4 mb-2 text-[12px] text-muted">文字颜色</p>
-        <div className="flex flex-wrap gap-2">
-          {TONES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              data-opt={settings.textTone === t.id ? undefined : ""}
-              onClick={() => patch({ textTone: t.id })}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-[13px]",
-                settings.textTone === t.id && "data-pill",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {settings.textTone === "custom" && (
-          <div className="mt-3 flex items-center gap-3 px-1">
-            <input
-              type="color"
-              value={settings.textColor}
-              onChange={(e) => patch({ textColor: e.target.value })}
-              className="size-9 rounded-full border border-line bg-transparent"
-              aria-label="自定义文字颜色"
-            />
-            <span className="text-[12px] text-muted">自定义颜色 {settings.textColor}</span>
+          <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
+          <div className="flex gap-2">
+            {CHAT_FONT_SIZES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                data-opt={settings.chatFontSize === s.id ? undefined : ""}
+                onClick={() => patch({ chatFontSize: s.id })}
+                className={cn(
+                  "flex-1 rounded-2xl border px-2 py-2.5 text-center",
+                  settings.chatFontSize === s.id ? "choice-card-on data-pill" : "choice-card-off",
+                )}
+              >
+                <span className="block text-[13px] font-medium">{s.label}</span>
+                <span className="block text-[10px] text-subtle">{s.px}px</span>
+              </button>
+            ))}
           </div>
-        )}
 
-        {/*
+          <p className="mt-4 mb-2 text-[12px] text-muted">文字颜色</p>
+          <div className="flex flex-wrap gap-2">
+            {TONES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                data-opt={settings.textTone === t.id ? undefined : ""}
+                onClick={() => patch({ textTone: t.id })}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-[13px]",
+                  settings.textTone === t.id && "data-pill",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {settings.textTone === "custom" && (
+            <div className="mt-3 flex items-center gap-3 px-1">
+              <input
+                type="color"
+                value={settings.textColor}
+                onChange={(e) => patch({ textColor: e.target.value })}
+                className="size-9 rounded-full border border-line bg-transparent"
+                aria-label="自定义文字颜色"
+              />
+              <span className="text-[12px] text-muted">自定义颜色 {settings.textColor}</span>
+            </div>
+          )}
+
+          {/*
           星球颜色 —— 跟「文字颜色」**分开**的一个开关。
           用户："球体颜色和字体颜色做个切割吧，她两分开，不放一起，
           不然不好同时兼顾。"
@@ -1202,69 +722,68 @@ function MeSections({ tab }: { tab: MeTab }) {
           open={openFold === "tint"}
           onToggle={() => setOpenFold(openFold === "tint" ? null : "tint")}
         >
-        <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
-        <p className="mb-2 text-[11px] text-subtle">
-          换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
-        </p>
-        {/* 现成的几套：点一下整套换掉 */}
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {TINT_PRESETS.map((p) => {
-            const active = normalizeTint(settings.composerTint).join() === p.colors.join();
-            return (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={active}
-                data-opt={active ? undefined : ""}
-                onClick={() => patch({ composerTint: [...p.colors] })}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
-                  active ? "border-accent text-fg data-pill" : "border-line",
-                )}
+          <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
+          <p className="mb-2 text-[11px] text-subtle">
+            换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
+          </p>
+          {/* 现成的几套：点一下整套换掉 */}
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {TINT_PRESETS.map((p) => {
+              const active = normalizeTint(settings.composerTint).join() === p.colors.join();
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={active}
+                  data-opt={active ? undefined : ""}
+                  onClick={() => patch({ composerTint: [...p.colors] })}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
+                    active ? "border-accent text-fg data-pill" : "border-line",
+                  )}
+                >
+                  <span
+                    className="size-3 rounded-full"
+                    style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
+                  />
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
+          <div className="flex items-center gap-2">
+            {normalizeTint(settings.composerTint).map((c, i) => (
+              <label
+                key={i}
+                className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
               >
-                <span
-                  className="size-3 rounded-full"
-                  style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
+                <input
+                  type="color"
+                  value={c}
+                  aria-label={`第 ${i + 1} 段颜色`}
+                  onChange={(e) => {
+                    const next = normalizeTint(settings.composerTint);
+                    next[i] = e.target.value;
+                    patch({ composerTint: next });
+                  }}
+                  className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
                 />
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-        {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
-        <div className="flex items-center gap-2">
-          {normalizeTint(settings.composerTint).map((c, i) => (
-            <label
-              key={i}
-              className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
-            >
-              <input
-                type="color"
-                value={c}
-                aria-label={`第 ${i + 1} 段颜色`}
-                onChange={(e) => {
-                  const next = normalizeTint(settings.composerTint);
-                  next[i] = e.target.value;
-                  patch({ composerTint: next });
-                }}
-                className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
-              />
-              <span className="font-mono text-[10px] text-subtle">{c}</span>
-            </label>
-          ))}
-        </div>
-        {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
-        <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
-          对话框就是这个样子
-        </div>
-        <button
-          type="button"
-          onClick={() => patch({ composerTint: undefined })}
-          className="mt-1.5 text-[11px] text-subtle underline"
-        >
-          恢复默认（粉青蓝）
-        </button>
-
+                <span className="font-mono text-[10px] text-subtle">{c}</span>
+              </label>
+            ))}
+          </div>
+          {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
+          <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
+            对话框就是这个样子
+          </div>
+          <button
+            type="button"
+            onClick={() => patch({ composerTint: undefined })}
+            className="mt-1.5 text-[11px] text-subtle underline"
+          >
+            恢复默认（粉青蓝）
+          </button>
         </Fold>
 
         <Fold
@@ -1273,69 +792,74 @@ function MeSections({ tab }: { tab: MeTab }) {
           open={openFold === "more"}
           onToggle={() => setOpenFold(openFold === "more" ? null : "more")}
         >
-        <p className="mt-4 mb-2 text-[12px] text-muted">小宇宙的星球颜色</p>
-        <div className="flex flex-wrap gap-2">
-          {PLANET_TONES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              data-opt={settings.planetTone === t.id ? undefined : ""}
-              onClick={() => patch({ planetTone: t.id })}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
-                settings.planetTone === t.id && "data-pill",
-              )}
-            >
-              {t.swatch && (
-                <span
-                  className="size-3 rounded-full border border-line/60"
-                  style={{ background: t.swatch }}
-                  aria-hidden="true"
-                />
-              )}
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {settings.planetTone === "custom" && (
-          <div className="mt-3 flex items-center gap-3 px-1">
-            <input
-              type="color"
-              value={settings.planetColor}
-              onChange={(e) => patch({ planetColor: e.target.value })}
-              className="size-9 rounded-full border border-line bg-transparent"
-              aria-label="自定义星球颜色"
-            />
-            <span className="text-[12px] text-muted">自定义星球色 {settings.planetColor}</span>
+          <p className="mt-4 mb-2 text-[12px] text-muted">小宇宙的星球颜色</p>
+          <div className="flex flex-wrap gap-2">
+            {PLANET_TONES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                data-opt={settings.planetTone === t.id ? undefined : ""}
+                onClick={() => patch({ planetTone: t.id })}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
+                  settings.planetTone === t.id && "data-pill",
+                )}
+              >
+                {t.swatch && (
+                  <span
+                    className="size-3 rounded-full border border-line/60"
+                    style={{ background: t.swatch }}
+                    aria-hidden="true"
+                  />
+                )}
+                {t.label}
+              </button>
+            ))}
           </div>
-        )}
-        <p className="mt-2 text-[12px] leading-5 text-muted">
-          只影响对话抽屉下面那个小宇宙里的行星和星环，<span className="text-fg">不影响文字</span>。
-          选「跟随文字」时会随你换背景、改文字色一起变，不会出现背景暗了、星球还亮的问题。
-        </p>
+          {settings.planetTone === "custom" && (
+            <div className="mt-3 flex items-center gap-3 px-1">
+              <input
+                type="color"
+                value={settings.planetColor}
+                onChange={(e) => patch({ planetColor: e.target.value })}
+                className="size-9 rounded-full border border-line bg-transparent"
+                aria-label="自定义星球颜色"
+              />
+              <span className="text-[12px] text-muted">自定义星球色 {settings.planetColor}</span>
+            </div>
+          )}
+          <p className="mt-2 text-[12px] leading-5 text-muted">
+            只影响对话抽屉下面那个小宇宙里的行星和星环，<span className="text-fg">不影响文字</span>
+            。 选「跟随文字」时会随你换背景、改文字色一起变，不会出现背景暗了、星球还亮的问题。
+          </p>
 
-        {/*
+          {/*
           认识的日子 —— 玩乐区首页那个「NNN DAYS TOGETHER」用它算天数。
           用户："可以来个组件，上面是两个的名字或头像，写着认识多久了"、
           "用户自己填日子"。填了才显示，没填就提示来这儿填，不编数字。
         */}
-        <p className="mt-4 mb-2 text-[12px] text-muted">认识的日子</p>
-        <label className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3">
-          <span className="min-w-0 text-[12px] leading-4 text-muted">
-            玩乐区首页会显示
-            <br />
-            「一起多少天」
-          </span>
-          <DateTimeField mode="date" label="认识的日子" value={settings.togetherSince} onChange={(v) => patch({ togetherSince: v })} />
-        </label>
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          {settings.togetherSince
-            ? "留空就不显示那个数字。"
-            : "还没填 —— 填上之后，玩乐区首页就会替你数着。"}
-        </p>
-        <p className="mt-2 text-[12px] leading-5 text-muted">
-          深色背景图下小字看不清时，把它换成浅色字就行。
-        </p>
+          <p className="mt-4 mb-2 text-[12px] text-muted">认识的日子</p>
+          <label className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3">
+            <span className="min-w-0 text-[12px] leading-4 text-muted">
+              玩乐区首页会显示
+              <br />
+              「一起多少天」
+            </span>
+            <DateTimeField
+              mode="date"
+              label="认识的日子"
+              value={settings.togetherSince}
+              onChange={(v) => patch({ togetherSince: v })}
+            />
+          </label>
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            {settings.togetherSince
+              ? "留空就不显示那个数字。"
+              : "还没填 —— 填上之后，玩乐区首页就会替你数着。"}
+          </p>
+          <p className="mt-2 text-[12px] leading-5 text-muted">
+            深色背景图下小字看不清时，把它换成浅色字就行。
+          </p>
         </Fold>
       </section>
 
@@ -1369,11 +893,13 @@ function MeSections({ tab }: { tab: MeTab }) {
    */
   const chanCustom = Boolean(
     (settings.customBaseUrl ?? "").trim() &&
-      (settings.customApiKey ?? "").trim() &&
-      (settings.upstreamModel ?? "").trim(),
+    (settings.customApiKey ?? "").trim() &&
+    (settings.upstreamModel ?? "").trim(),
   );
   /** 设置页显示的档位 = 聊天页当前用的那档（同一个 `model`） */
-  const curModel = getModel(modelNow ?? "sonnet");  /** 三档是不是"测过且真能调" —— 决定下面那句提示是"已确认"还是"还没测" */
+  const curModel = getModel(
+    modelNow ?? "sonnet",
+  ); /** 三档是不是"测过且真能调" —— 决定下面那句提示是"已确认"还是"还没测" */
   const effortOk = settings.effortProbeOk === true;
   /** 缓存命中率：命中数 / 输入总数（DeepSeek 的 prompt_tokens 已包含命中的部分） */
   const cacheHitRate =
@@ -1391,9 +917,7 @@ function MeSections({ tab }: { tab: MeTab }) {
         <div className="overflow-hidden rounded-3xl border border-line bg-surface">
           <div>
             {/* ① 自定义上游 —— 现在唯一能真用的通道 */}
-            <div
-              className="border-b border-line/60"
-            >
+            <div className="border-b border-line/60">
               <button
                 type="button"
                 onClick={() => toggleChan("custom")}
@@ -1455,7 +979,9 @@ function MeSections({ tab }: { tab: MeTab }) {
                     {/* 次级操作：不是"主按钮"，所以用 chip 底 + 边线，别跟三档抢视觉 */}
                     <button
                       type="button"
-                      disabled={!settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing}
+                      disabled={
+                        !settings.customBaseUrl.trim() || !settings.customApiKey.trim() || probing
+                      }
                       onClick={probeModels}
                       data-opt=""
                       className="h-11 shrink-0 rounded-2xl border border-line/70 px-3.5 text-[12px] font-medium disabled:opacity-40"
@@ -1625,7 +1151,12 @@ function MeSections({ tab }: { tab: MeTab }) {
                       </button>
                     ))}
                   </div>
-                  <p className={cn("mt-1.5 text-[11px] leading-4", effortOk ? "text-ok" : "text-warn")}>
+                  <p
+                    className={cn(
+                      "mt-1.5 text-[11px] leading-4",
+                      effortOk ? "text-ok" : "text-warn",
+                    )}
+                  >
                     {effortOk
                       ? "已确认：这台上游支持调强度，三档会真的改变推理深度。"
                       : settings.effortProbeOk === false
@@ -1645,7 +1176,10 @@ function MeSections({ tab }: { tab: MeTab }) {
                   {effortResult && !effortBusy && (
                     <div className="mt-2 rounded-2xl border border-line/60 px-3 py-2.5">
                       <ProbeLine label="能开思考（回了思考内容）" pass={effortResult.reasoningOn} />
-                      <ProbeLine label="能关思考（关了就不思考）" pass={effortResult.reasoningOff} />
+                      <ProbeLine
+                        label="能关思考（关了就不思考）"
+                        pass={effortResult.reasoningOff}
+                      />
                       <p
                         className={cn(
                           "mt-1.5 text-[11px] leading-4",
@@ -1703,7 +1237,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                           <span
                             className={cn(
                               "mt-[5px] size-1.5 shrink-0 rounded-full",
-                              it.pass === true ? "bg-ok" : it.pass === false ? "bg-warn" : "bg-subtle",
+                              it.pass === true
+                                ? "bg-ok"
+                                : it.pass === false
+                                  ? "bg-warn"
+                                  : "bg-subtle",
                             )}
                           />
                           <span className="min-w-0 flex-1 text-[11.5px] leading-4">
@@ -1718,7 +1256,9 @@ function MeSections({ tab }: { tab: MeTab }) {
                         </p>
                       ))}
                       {verifyResult.error && (
-                        <p className="mt-1.5 text-[11px] leading-4 text-warn">{verifyResult.error}</p>
+                        <p className="mt-1.5 text-[11px] leading-4 text-warn">
+                          {verifyResult.error}
+                        </p>
                       )}
                       <p className="mt-1.5 text-[10.5px] leading-4 text-subtle">
                         「分词指纹」这一行请记下来：换站或换模型时再跑一次，数一样才说明是同一个模型。
@@ -1777,7 +1317,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-[15px] font-medium">今天 {usageToday.calls} 次请求</p>
                 <p className="shrink-0 text-[12px] text-muted">
-                  输入 {usageToday.prompt.toLocaleString()} · 输出 {usageToday.completion.toLocaleString()}
+                  输入 {usageToday.prompt.toLocaleString()} · 输出{" "}
+                  {usageToday.completion.toLocaleString()}
                 </p>
               </div>
               <p className="mt-1.5 text-[12px] text-muted">
@@ -1819,7 +1360,6 @@ function MeSections({ tab }: { tab: MeTab }) {
           <ChevronRight className="size-4 shrink-0 text-muted" />
         </Link>
       </Section>
-
 
       {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
       <Section title="工具调用（原生 tools）">
@@ -1874,8 +1414,8 @@ function MeSections({ tab }: { tab: MeTab }) {
           <p className="text-[12px] leading-5">每次发多少工具</p>
           <p className="mt-1 text-[11px] leading-4 text-muted">
             按需：只按当前这句话挑相关的几组发过去（省钱，也少让他选错）。
-            拿不准你在说什么的时候会全发，不会让他「不会做」。
-            全发：每轮都带 61 个动作，最稳但最贵 —— 怀疑按需漏了什么就切到这儿对比。
+            拿不准你在说什么的时候会全发，不会让他「不会做」。 全发：每轮都带 61 个动作，最稳但最贵
+            —— 怀疑按需漏了什么就切到这儿对比。
           </p>
           <div className="mt-2 grid grid-cols-2 gap-1">
             {(
@@ -1969,69 +1509,69 @@ function MeSections({ tab }: { tab: MeTab }) {
 
   const systemSections = (
     <div className="sys-list">
-        <Group title="聊天" value="思考链 · 说话方式 · 表情包" order={4}>
+      <Group title="聊天" value="思考链 · 说话方式 · 表情包" order={4}>
         <Sub title="思考链">
-        {/* 只留「显示」—— 「保存思考链」已去掉：
+          {/* 只留「显示」—— 「保存思考链」已去掉：
             思考过程回复时你当场就能看到，再存一份纯占地方（用户明确要求删）。 */}
-        <Row
-          label="显示思考过程"
-          hint="折叠块展示推理"
-          checked={settings.showThinking}
-          onChange={(v) => patch({ showThinking: v })}
-        />
-        {/*
+          <Row
+            label="显示思考过程"
+            hint="折叠块展示推理"
+            checked={settings.showThinking}
+            onChange={(v) => patch({ showThinking: v })}
+          />
+          {/*
           这两项原来在「我的空间 → 个性化」里（最大输出长度 + 回复风格），
           用户要求挪到思考链这边：
           "思考链的最大输出长度和模型回复风格放思考链那里，不要放在个性化那里"。
           它们本来就跟"思考多深 / 回答多长"是一回事，放这儿更贴。
         */}
-        <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { v: 0, label: "跟随档位" },
-            { v: 8192, label: "8192" },
-            { v: 16384, label: "16384" },
-            { v: 32768, label: "32768" },
-          ].map((o) => (
-            <button
-              key={o.v}
-              type="button"
-              data-opt={settings.maxTokens === o.v ? undefined : ""}
-              onClick={() => patch({ maxTokens: o.v })}
-              className={cn(
-                "rounded-2xl border px-3 py-2 text-[12px]",
-                settings.maxTokens === o.v ? "choice-on data-pill" : "choice-off",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
-          但调太大某些模型会直接报错 —— 所以默认「跟随档位」。
-        </p>
+          <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { v: 0, label: "跟随档位" },
+              { v: 8192, label: "8192" },
+              { v: 16384, label: "16384" },
+              { v: 32768, label: "32768" },
+            ].map((o) => (
+              <button
+                key={o.v}
+                type="button"
+                data-opt={settings.maxTokens === o.v ? undefined : ""}
+                onClick={() => patch({ maxTokens: o.v })}
+                className={cn(
+                  "rounded-2xl border px-3 py-2 text-[12px]",
+                  settings.maxTokens === o.v ? "choice-on data-pill" : "choice-off",
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
+            但调太大某些模型会直接报错 —— 所以默认「跟随档位」。
+          </p>
 
-        <p className="mt-4 mb-2 text-[12px] text-muted">回复风格</p>
-        <div className="flex gap-2">
-          {STYLES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              data-opt={settings.replyStyle === s.id ? undefined : ""}
-              onClick={() => patch({ replyStyle: s.id })}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-[13px]",
-                settings.replyStyle === s.id && "data-pill",
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+          <p className="mt-4 mb-2 text-[12px] text-muted">回复风格</p>
+          <div className="flex gap-2">
+            {STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                data-opt={settings.replyStyle === s.id ? undefined : ""}
+                onClick={() => patch({ replyStyle: s.id })}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-[13px]",
+                  settings.replyStyle === s.id && "data-pill",
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </Sub>
 
-      {/*
+        {/*
         ── 说话方式：**分段回复**（2026-11 用户要的）─────────────────────
         用户原话："他这个回复只能我回一句，他回一句，就感觉不像真人；
         能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
@@ -2041,67 +1581,69 @@ function MeSections({ tab }: { tab: MeTab }) {
         不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
       */}
         <Sub title="说话方式">
-        <Row
-          label="分段回复"
-          hint="像真人那样连着发几条"
-          checked={settings.segmentReply !== false}
-          onChange={(v) => patch({ segmentReply: v })}
-        />
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          打开后他可以把想说的分成几条发过来，一条一个气泡、一条接一条出现。
-          一句能说完的回复不会被切开（只有他确实有几句话要分开说时才分）。
-        </p>
+          <Row
+            label="分段回复"
+            hint="像真人那样连着发几条"
+            checked={settings.segmentReply !== false}
+            onChange={(v) => patch({ segmentReply: v })}
+          />
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            打开后他可以把想说的分成几条发过来，一条一个气泡、一条接一条出现。
+            一句能说完的回复不会被切开（只有他确实有几句话要分开说时才分）。
+          </p>
 
-        {settings.segmentReply !== false && (
-          <>
-            <p className="mt-4 mb-2 text-[12px] text-muted">段间延迟</p>
-            <div className="flex flex-wrap gap-2">
-              {[400, 800, 1200, 1800, 2500].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  data-opt={(settings.segmentDelayMs ?? 1200) === v ? undefined : ""}
-                  onClick={() => patch({ segmentDelayMs: v })}
-                  className={cn(
-                    "rounded-2xl border px-3 py-2 text-[12px]",
-                    (settings.segmentDelayMs ?? 1200) === v ? "choice-on data-pill" : "choice-off",
-                  )}
-                >
-                  {(v / 1000).toFixed(1)} 秒
-                </button>
-              ))}
-            </div>
-            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-              两条之间隔多久出现。太短就没有"一句句发过来"的感觉，太长会显得他在发呆。
-            </p>
-          </>
-        )}
+          {settings.segmentReply !== false && (
+            <>
+              <p className="mt-4 mb-2 text-[12px] text-muted">段间延迟</p>
+              <div className="flex flex-wrap gap-2">
+                {[400, 800, 1200, 1800, 2500].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    data-opt={(settings.segmentDelayMs ?? 1200) === v ? undefined : ""}
+                    onClick={() => patch({ segmentDelayMs: v })}
+                    className={cn(
+                      "rounded-2xl border px-3 py-2 text-[12px]",
+                      (settings.segmentDelayMs ?? 1200) === v
+                        ? "choice-on data-pill"
+                        : "choice-off",
+                    )}
+                  >
+                    {(v / 1000).toFixed(1)} 秒
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+                两条之间隔多久出现。太短就没有"一句句发过来"的感觉，太长会显得他在发呆。
+              </p>
+            </>
+          )}
         </Sub>
 
-      {/*
+        {/*
         ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
         两块：① 入库时**去白底**（照片/白底截图 → 真正的透明表情）
              ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
         "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
       */}
         <Sub title="表情包">
-        <Row
-          label="传表情时自动去白底"
-          hint="照片/白底截图 → 透明表情"
-          checked={settings.stickerRemoveWhite !== false}
-          onChange={(v) => patch({ stickerRemoveWhite: v })}
-        />
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          从相册选的表情常常是白底照片，贴到聊天里就是一块白边（不是表情包那个样子）。
-          打开这项会自动把**跟边缘连通的白色**变透明（图内部的白留住，比如眼白、白字）。
-          动图（GIF/WebP）不会被重画，动画保留。
-        </p>
-        <p className="mt-3 text-[11px] leading-4 text-subtle">
-          他**可以自己发表情**（不用你问）：想发的时候会从你的表情库里挑一张，
-          而且会避开上一次那张。想加表情就走输入框的「＋ → 表情包」。
-        </p>
+          <Row
+            label="传表情时自动去白底"
+            hint="照片/白底截图 → 透明表情"
+            checked={settings.stickerRemoveWhite !== false}
+            onChange={(v) => patch({ stickerRemoveWhite: v })}
+          />
+          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+            从相册选的表情常常是白底照片，贴到聊天里就是一块白边（不是表情包那个样子）。
+            打开这项会自动把**跟边缘连通的白色**变透明（图内部的白留住，比如眼白、白字）。
+            动图（GIF/WebP）不会被重画，动画保留。
+          </p>
+          <p className="mt-3 text-[11px] leading-4 text-subtle">
+            他**可以自己发表情**（不用你问）：想发的时候会从你的表情库里挑一张，
+            而且会避开上一次那张。想加表情就走输入框的「＋ → 表情包」。
+          </p>
         </Sub>
-        </Group>
+      </Group>
 
       <Group title="通知" value="本地通知 · 测试通知" order={1}>
         <Row
@@ -2183,7 +1725,7 @@ function MeSections({ tab }: { tab: MeTab }) {
           />
 
           <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            {settings.wakeEnabled ?? true
+            {(settings.wakeEnabled ?? true)
               ? "系统每 1 小时来一次（只是起一下程序，你感觉不到）；每次一半概率真的看他一眼，看了再由他决定说不说。"
               : "已经关掉了 —— 他不会再主动找你（包括后台。要重新开就打开上面这个开关）。"}
           </p>
@@ -2195,250 +1737,273 @@ function MeSections({ tab }: { tab: MeTab }) {
 
           {(settings.wakeEnabled ?? true) && (
             <>
-          {/*
+              {/*
             用户最后拍板的规矩（原话）：
               "每隔一小时系统起程序，叫 ai 概率各一半，这次没叫就下次，
                然后 ai 说话也是说不说各 50，这次没说下次必定说，
                这样最少四小时也会说一次对吧"
             → 两个 50%，各自"没中就下次必定" → 最坏 4 小时一定有一句。他算的是对的。
           */}
-          <div data-opt="" className="mt-2 rounded-2xl px-3 py-2.5">
-            <p className="text-[11px] leading-5 text-muted">
-              <strong>他多久会开口</strong>
-            </p>
-            <ul className="mt-1 space-y-0.5 text-[11px] leading-5 text-subtle">
-              <li>· 每 <strong>1 小时</strong>系统来一次（很轻，你感觉不到）</li>
-              <li>· 这一半：<strong>50%</strong> 真的看他一眼；没看 → <strong>下次必定看</strong></li>
-              <li>· 看了之后：<strong>50%</strong> 他会说；没说 → <strong>下次必定说</strong></li>
-              <li>· 所以最坏 <strong>4 小时</strong>一定有他一句话（平均约 2~2.5 小时）</li>
-              <li>· 他一旦说了，两边都重新算</li>
-            </ul>
-          </div>
+              <div data-opt="" className="mt-2 rounded-2xl px-3 py-2.5">
+                <p className="text-[11px] leading-5 text-muted">
+                  <strong>他多久会开口</strong>
+                </p>
+                <ul className="mt-1 space-y-0.5 text-[11px] leading-5 text-subtle">
+                  <li>
+                    · 每 <strong>1 小时</strong>系统来一次（很轻，你感觉不到）
+                  </li>
+                  <li>
+                    · 这一半：<strong>50%</strong> 真的看他一眼；没看 → <strong>下次必定看</strong>
+                  </li>
+                  <li>
+                    · 看了之后：<strong>50%</strong> 他会说；没说 → <strong>下次必定说</strong>
+                  </li>
+                  <li>
+                    · 所以最坏 <strong>4 小时</strong>一定有他一句话（平均约 2~2.5 小时）
+                  </li>
+                  <li>· 他一旦说了，两边都重新算</li>
+                </ul>
+              </div>
 
-          {/*
+              {/*
             通道状态。现在**主路是"直接问你的 AI"**（甲）：
             后台那段 JS 醒来 → 从 App 交给它的抽屉里读配置 → 直接打你的上游（国内、不用梯、不用域名）。
             Worker（乙）只是备路，只有配了地址才会用。
           */}
-          <p className="mt-2 text-[11px] leading-4">
-            通道：
-            <span className={upstreamReady() ? "text-ok" : "text-warn"}>
-              {upstreamReady()
-                ? "直接问你的 AI（不用梯、不用域名）"
-                : "还没配自定义上游（地址 / 密钥 / 模型）"}
-            </span>
-          </p>
+              <p className="mt-2 text-[11px] leading-4">
+                通道：
+                <span className={upstreamReady() ? "text-ok" : "text-warn"}>
+                  {upstreamReady()
+                    ? "直接问你的 AI（不用梯、不用域名）"
+                    : "还没配自定义上游（地址 / 密钥 / 模型）"}
+                </span>
+              </p>
 
-          {/* 夜间不打扰 */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted">夜间不打扰</span>
-            <select
-              value={settings.wakeQuietStart ?? 1}
-              onChange={(e) => patch({ wakeQuietStart: Number(e.target.value) })}
-              className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
-              aria-label="夜间从不打扰开始的小时"
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {h}:00
-                </option>
-              ))}
-            </select>
-            <span className="text-[11px] text-muted">→</span>
-            <select
-              value={settings.wakeQuietEnd ?? 8}
-              onChange={(e) => patch({ wakeQuietEnd: Number(e.target.value) })}
-              className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
-              aria-label="夜间不打扰结束的小时"
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {h}:00
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="mt-1 text-[11px] leading-4 text-subtle">
-            这两格设成一样 = 不启用。（跨零点也对：比如 23:00 → 7:00。）
-          </p>
+              {/* 夜间不打扰 */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-muted">夜间不打扰</span>
+                <select
+                  value={settings.wakeQuietStart ?? 1}
+                  onChange={(e) => patch({ wakeQuietStart: Number(e.target.value) })}
+                  className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
+                  aria-label="夜间从不打扰开始的小时"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {h}:00
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-muted">→</span>
+                <select
+                  value={settings.wakeQuietEnd ?? 8}
+                  onChange={(e) => patch({ wakeQuietEnd: Number(e.target.value) })}
+                  className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
+                  aria-label="夜间不打扰结束的小时"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {h}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-[11px] leading-4 text-subtle">
+                这两格设成一样 = 不启用。（跨零点也对：比如 23:00 → 7:00。）
+              </p>
 
-          {/*
+              {/*
             ── 主动说话的三个闸门（2026-11 用户要的）────────────────────
             用户原话："设置一个回复的约定或按钮，我主动说忙，他自动调低，否则原来就行。"
             ＋ "他自己情绪到了，也可以发吧……或者你给情绪那个加个按钮，只单独管情绪发消息这个。"
             ＋ "降频那个不用"（所以**没有**"你不理他就自动降频"）。
             默认值：最短 40 分钟、每天最多 8 条 —— 这两条是防骚扰的地板。
           */}
-          <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 text-[12px] leading-5">
-                {busy ? (
-                  <>
-                    <span className="text-warn">我现在忙</span>
-                    <br />
-                    <span className="text-subtle">
-                      他不会再主动说话，到 {new Date(settings.busyUntil ?? 0).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 自动恢复
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    我没在忙
-                    <br />
-                    <span className="text-subtle">他还是按下面那两条频率规矩来找你</span>
-                  </>
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => patch({ busyUntil: busy ? 0 : Date.now() + 2 * 60 * 60 * 1000 })}
-                className="shrink-0 rounded-2xl border border-line px-3 py-2 text-[12px]"
-              >
-                {busy ? "取消" : "我在忙（2 小时）"}
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] leading-4 text-subtle">
-              说忙之后是**彻底不打扰**（不是"少说点"）—— 你主动找他说话不受影响。
-            </p>
-          </div>
+              <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 text-[12px] leading-5">
+                    {busy ? (
+                      <>
+                        <span className="text-warn">我现在忙</span>
+                        <br />
+                        <span className="text-subtle">
+                          他不会再主动说话，到{" "}
+                          {new Date(settings.busyUntil ?? 0).toLocaleTimeString("zh-CN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          自动恢复
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        我没在忙
+                        <br />
+                        <span className="text-subtle">他还是按下面那两条频率规矩来找你</span>
+                      </>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => patch({ busyUntil: busy ? 0 : Date.now() + 2 * 60 * 60 * 1000 })}
+                    className="shrink-0 rounded-2xl border border-line px-3 py-2 text-[12px]"
+                  >
+                    {busy ? "取消" : "我在忙（2 小时）"}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-subtle">
+                  说忙之后是**彻底不打扰**（不是"少说点"）—— 你主动找他说话不受影响。
+                </p>
+              </div>
 
-          <Row
-            label="心情可以单独让他开口"
-            hint="情绪到了就能说，不用等由头"
-            checked={settings.emotionSpeak !== false}
-            onChange={(v) => patch({ emotionSpeak: v })}
-          />
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            打开：他情绪到了就能主动说一句。关掉：只有真有由头（隔了很久 / 深夜 / 你正挂在心上的事）才会开口，
-            心情只影响他怎么说。
-          </p>
+              <Row
+                label="心情可以单独让他开口"
+                hint="情绪到了就能说，不用等由头"
+                checked={settings.emotionSpeak !== false}
+                onChange={(v) => patch({ emotionSpeak: v })}
+              />
+              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+                打开：他情绪到了就能主动说一句。关掉：只有真有由头（隔了很久 / 深夜 /
+                你正挂在心上的事）才会开口， 心情只影响他怎么说。
+              </p>
 
-          <p className="mt-4 mb-2 text-[12px] text-muted">最短间隔（两次主动说话之间）</p>
-          <div className="flex flex-wrap gap-2">
-            {[30, 40, 60, 90, 120].map((v) => (
-              <button
-                key={v}
-                type="button"
-                data-opt={(settings.wakeMinGapMin ?? 40) === v ? undefined : ""}
-                onClick={() => patch({ wakeMinGapMin: v })}
-                className={cn(
-                  "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeMinGapMin ?? 40) === v ? "choice-on data-pill" : "choice-off",
-                )}
-              >
-                {v} 分钟
-              </button>
-            ))}
-          </div>
+              <p className="mt-4 mb-2 text-[12px] text-muted">最短间隔（两次主动说话之间）</p>
+              <div className="flex flex-wrap gap-2">
+                {[30, 40, 60, 90, 120].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    data-opt={(settings.wakeMinGapMin ?? 40) === v ? undefined : ""}
+                    onClick={() => patch({ wakeMinGapMin: v })}
+                    className={cn(
+                      "rounded-2xl border px-3 py-2 text-[12px]",
+                      (settings.wakeMinGapMin ?? 40) === v ? "choice-on data-pill" : "choice-off",
+                    )}
+                  >
+                    {v} 分钟
+                  </button>
+                ))}
+              </div>
 
-          <p className="mt-4 mb-2 text-[12px] text-muted">每天最多主动说几条</p>
-          <div className="flex flex-wrap gap-2">
-            {[4, 6, 8, 12].map((v) => (
-              <button
-                key={v}
-                type="button"
-                data-opt={(settings.wakeDailyMax ?? 8) === v ? undefined : ""}
-                onClick={() => patch({ wakeDailyMax: v })}
-                className={cn(
-                  "rounded-2xl border px-3 py-2 text-[12px]",
-                  (settings.wakeDailyMax ?? 8) === v ? "choice-on data-pill" : "choice-off",
-                )}
-              >
-                {v} 条
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            这两条是**地板**：不管什么理由都不会越过它们。他现在是每 1 小时醒一次、掷骰子决定说不说，
-            所以"最短间隔"实际很少碰到（醒来次数本来就少），真正管用的是每天上限。
-          </p>
+              <p className="mt-4 mb-2 text-[12px] text-muted">每天最多主动说几条</p>
+              <div className="flex flex-wrap gap-2">
+                {[4, 6, 8, 12].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    data-opt={(settings.wakeDailyMax ?? 8) === v ? undefined : ""}
+                    onClick={() => patch({ wakeDailyMax: v })}
+                    className={cn(
+                      "rounded-2xl border px-3 py-2 text-[12px]",
+                      (settings.wakeDailyMax ?? 8) === v ? "choice-on data-pill" : "choice-off",
+                    )}
+                  >
+                    {v} 条
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+                这两条是**地板**：不管什么理由都不会越过它们。他现在是每 1
+                小时醒一次、掷骰子决定说不说，
+                所以"最短间隔"实际很少碰到（醒来次数本来就少），真正管用的是每天上限。
+              </p>
 
-          {/*
+              {/*
             通道自检：安全，只是 fetch 一下 Worker。
             ⚠️ 绝不调插件的 dispatchEvent（那个会让整个 App 卡死）。
           */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={wakePinging}
-              onClick={() => {
-                setWakePinging(true);
-                setWakePingMsg("");
-                void pingWake()
-                  .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
-                  .finally(() => setWakePinging(false));
-              }}
-              data-opt=""
-              className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
-            >
-              {wakePinging ? "正在试…" : "通道自检"}
-            </button>
-            {/*
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={wakePinging}
+                  onClick={() => {
+                    setWakePinging(true);
+                    setWakePingMsg("");
+                    void pingWake()
+                      .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
+                      .finally(() => setWakePinging(false));
+                  }}
+                  data-opt=""
+                  className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+                >
+                  {wakePinging ? "正在试…" : "通道自检"}
+                </button>
+                {/*
               「清空重来」（用户："你把他清空，重新来"）。
               连点两下才真清（页面上没有现成的确认弹窗，就沿用"再点一次"的老办法）。
               网页版没有抽屉 → lib 里会如实说"这台上没有抽屉"，不装成功。
             */}
-            <button
-              type="button"
-              disabled={wakeResetBusy}
-              onClick={() => void doWakeReset()}
-              data-opt=""
-              className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
-            >
-              {wakeResetBusy ? "正在清…" : wakeResetArmed ? "再点一下，确认清空" : "清空后台状态，重新来"}
-            </button>
-          </div>
-          {wakePingMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>}
-          {wakeResetMsg && <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakeResetMsg}</p>}
+                <button
+                  type="button"
+                  disabled={wakeResetBusy}
+                  onClick={() => void doWakeReset()}
+                  data-opt=""
+                  className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+                >
+                  {wakeResetBusy
+                    ? "正在清…"
+                    : wakeResetArmed
+                      ? "再点一下，确认清空"
+                      : "清空后台状态，重新来"}
+                </button>
+              </div>
+              {wakePingMsg && (
+                <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>
+              )}
+              {wakeResetMsg && (
+                <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakeResetMsg}</p>
+              )}
 
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 1 小时（到下一次节拍），
-            所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 / 上游没配&rdquo;分开。
-          </p>
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            「清空后台状态，重新来」会清掉：醒来次数、后台日志、上次说话时间、静音标记，
-            还有交给后台的那份配置（清完立刻重新交一份新的）。
-          </p>
+              <p className="mt-2 text-[11px] leading-4 text-subtle">
+                自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 1
+                小时（到下一次节拍）， 所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 /
+                上游没配&rdquo;分开。
+              </p>
+              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
+                「清空后台状态，重新来」会清掉：醒来次数、后台日志、上次说话时间、静音标记，
+                还有交给后台的那份配置（清完立刻重新交一份新的）。
+              </p>
 
-          {/*
+              {/*
             后台记录（只读、折叠的次要区域）—— 用户手机上这块原来是黑盒：
             连续失败 90 次他也只能看到通知里那一句英文报错。这里直接把 `wake_log` 摊开，
             里面就带着后台**自己诊断出来的结论**（后台没网 / 只有你的上游解析不出来 / 上游连不上）。
             ⚠️ 抽屉读回来的 key 被原生打码成「已设置」；日志里也从不写 key。
           */}
-          <button
-            type="button"
-            onClick={() => void toggleWakeLog()}
-            aria-expanded={wakeLogOpen}
-            className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
-          >
-            {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
-          </button>
-          {wakeLogOpen && (
-            <div data-opt="" className="mt-1.5 rounded-2xl px-3 py-2">
-              {wakeLogLines === undefined ? (
-                <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
-              ) : wakeLogLines && wakeLogLines.length > 0 ? (
-                <>
-                  <p className="text-[11px] leading-4 text-subtle">
-                    后台最近 {wakeLogLines.length} 条记录（最近的在最上面）：
-                  </p>
-                  <ul className="mt-1 space-y-1">
-                    {wakeLogLines.map((line, i) => (
-                      <li key={i} className="text-[11px] leading-4 break-all text-muted">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="text-[11px] leading-4 text-subtle">
-                  {wakeLogLines === null
-                    ? "后台还没有记录（这台上没有抽屉，网页版没有后台任务）。"
-                    : "后台还没有记录。"}
-                </p>
+              <button
+                type="button"
+                onClick={() => void toggleWakeLog()}
+                aria-expanded={wakeLogOpen}
+                className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
+              >
+                {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
+              </button>
+              {wakeLogOpen && (
+                <div data-opt="" className="mt-1.5 rounded-2xl px-3 py-2">
+                  {wakeLogLines === undefined ? (
+                    <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
+                  ) : wakeLogLines && wakeLogLines.length > 0 ? (
+                    <>
+                      <p className="text-[11px] leading-4 text-subtle">
+                        后台最近 {wakeLogLines.length} 条记录（最近的在最上面）：
+                      </p>
+                      <ul className="mt-1 space-y-1">
+                        {wakeLogLines.map((line, i) => (
+                          <li key={i} className="text-[11px] leading-4 break-all text-muted">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-[11px] leading-4 text-subtle">
+                      {wakeLogLines === null
+                        ? "后台还没有记录（这台上没有抽屉，网页版没有后台任务）。"
+                        : "后台还没有记录。"}
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
-          )}
             </>
           )}
         </div>
@@ -2548,8 +2113,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               className="h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none placeholder:text-subtle"
             />
             <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-              填了就直接用它 —— <span className="text-fg">不用网络、不会失败</span>，而且日常就在那一两个地方，
-              比每次重新定位还准。想用自动定位就留空。
+              填了就直接用它 —— <span className="text-fg">不用网络、不会失败</span>
+              ，而且日常就在那一两个地方， 比每次重新定位还准。想用自动定位就留空。
             </p>
 
             {/* ── 和风天气：一次配好，定位（反查地名）和天气都能用 ── */}
@@ -2671,7 +2236,11 @@ function MeSections({ tab }: { tab: MeTab }) {
       <Group title="语音" value="服务商 · 模型 · 音色" order={2}>
         <Row
           label="朗读回复"
-          hint={voiceConfigured ? `用 ${voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"} 的音色念` : "还没配语音服务，配好才会有声音"}
+          hint={
+            voiceConfigured
+              ? `用 ${voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"} 的音色念`
+              : "还没配语音服务，配好才会有声音"
+          }
           checked={settings.voiceReplies}
           onChange={(v) => patch({ voiceReplies: v })}
         />
@@ -2718,7 +2287,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                   setVoiceModels([]);
                   setElevenVoices([]);
                   setDsVoices([]);
-        setDsVoiceStatus({});
+                  setDsVoiceStatus({});
                   setDesignMsg("");
                   setVoiceMsg("");
                 }}
@@ -2748,39 +2317,39 @@ function MeSections({ tab }: { tab: MeTab }) {
             </div>
           ))}
 
-          {([
+          {[
             { k: "voiceAsrModel" as const, label: "转文字", pick: "asr" as const },
             { k: "voiceTtsModel" as const, label: "合成", pick: "tts" as const },
             { k: "voiceTtsVoice" as const, label: "音色", pick: "voice" as const },
-          ])
+          ]
             /* 百炼只接"说"，不接"听"：它那套转文字是另一个接口，这里不硬凑 */
             .filter((f) => !(voiceProvider === "dashscope" && f.k === "voiceAsrModel"))
             .map((f) => {
-            const cur = (settings[f.k] as string | undefined) ?? "";
-            return (
-              <div key={f.k} className="mt-2 block">
-                <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
-                <button
-                  type="button"
-                  data-opt=""
-                  onClick={() => {
-                    setVoicePick(f.pick);
-                    setVoicePickQuery("");
-                  }}
-                  className="flex h-10 w-full items-center gap-2 rounded-2xl px-3 text-left text-[12px] text-fg"
-                >
-                  <span className="flex-1 truncate font-mono text-[11px]">
-                    {cur || "（点这里选）"}
-                  </span>
-                  <ChevronRight className="size-3.5 shrink-0 text-subtle" />
-                </button>
-              </div>
-            );
-          })}
+              const cur = (settings[f.k] as string | undefined) ?? "";
+              return (
+                <div key={f.k} className="mt-2 block">
+                  <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+                  <button
+                    type="button"
+                    data-opt=""
+                    onClick={() => {
+                      setVoicePick(f.pick);
+                      setVoicePickQuery("");
+                    }}
+                    className="flex h-10 w-full items-center gap-2 rounded-2xl px-3 text-left text-[12px] text-fg"
+                  >
+                    <span className="flex-1 truncate font-mono text-[11px]">
+                      {cur || "（点这里选）"}
+                    </span>
+                    <ChevronRight className="size-3.5 shrink-0 text-subtle" />
+                  </button>
+                </div>
+              );
+            })}
 
           <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-4 text-subtle">
             <span className="size-1.5 rounded-full bg-emerald-500" />
-            正在用 {(((settings.voiceTtsModel ?? "").split("/").pop() || "—"))} ·{" "}
+            正在用 {(settings.voiceTtsModel ?? "").split("/").pop() || "—"} ·{" "}
             {(settings.voiceTtsVoice ?? "").trim() || "—"}
             {(() => {
               /**
@@ -2788,9 +2357,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                * 刚用声音设计造出来的嗓子先是 DEPLOYING，要等几分钟才能合成。
                * 不在这儿说，用户只会以为是我写坏了。
                */
-              const hint = dsVoiceStatusHint(
-                dsVoiceStatus[(settings.voiceTtsVoice ?? "").trim()],
-              );
+              const hint = dsVoiceStatusHint(dsVoiceStatus[(settings.voiceTtsVoice ?? "").trim()]);
               return hint ? <span className="text-accent"> · {hint}</span> : null;
             })()}
           </p>
@@ -2800,9 +2367,7 @@ function MeSections({ tab }: { tab: MeTab }) {
             data-opt=""
             className="mt-2 h-9 w-full rounded-2xl border border-line text-[12px]"
             onClick={async () => {
-              setVoiceMsg(
-                voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…",
-              );
+              setVoiceMsg(voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…");
               const r = await listVoiceModels();
               if (!r.ok) {
                 setVoiceMsg(r.reason);
@@ -2816,7 +2381,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                */
               if (voiceProvider === "dashscope") {
                 setDsVoices(r.voices);
-        setDsVoiceStatus(r.voiceStatus ?? {});
+                setDsVoiceStatus(r.voiceStatus ?? {});
                 setVoiceMsg(
                   r.voices.length > 0
                     ? `这个模型下有你建的 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。\n（系统音色也在那格里，和自定义的一起列。）`
@@ -2841,7 +2406,9 @@ function MeSections({ tab }: { tab: MeTab }) {
               } as Partial<typeof settings>);
               setVoiceMsg(
                 `拉到 ${r.models.length} 个语音相关的模型（聊天、画图的已滤掉）：\n` +
-                  [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`].filter(Boolean).join("\n") +
+                  [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`]
+                    .filter(Boolean)
+                    .join("\n") +
                   "\n\n点上面那几格可以换；长名字不用手打。",
               );
             }}
@@ -2865,9 +2432,7 @@ function MeSections({ tab }: { tab: MeTab }) {
                 onClick={() => setAsrOpen((v) => !v)}
                 className="flex w-full items-center gap-2 text-left"
               >
-                <span className="flex-1 text-[12px] font-medium text-fg">
-                  转文字（听）· 借别家
-                </span>
+                <span className="flex-1 text-[12px] font-medium text-fg">转文字（听）· 借别家</span>
                 <span
                   className={cn(
                     "shrink-0 text-[10.5px]",
@@ -2886,8 +2451,8 @@ function MeSections({ tab }: { tab: MeTab }) {
               {asrOpen && (
                 <>
                   <p className="mt-1 text-[11px] leading-4 text-muted">
-                    百炼没有「听」这条接口。想用它捏的嗓子又能按住说话，就让转文字走别家
-                    —— 推荐硅基流动的 SenseVoiceSmall（又快又便宜）。三项都空着＝不启用，
+                    百炼没有「听」这条接口。想用它捏的嗓子又能按住说话，就让转文字走别家 ——
+                    推荐硅基流动的 SenseVoiceSmall（又快又便宜）。三项都空着＝不启用，
                     那就只能文字聊天。
                   </p>
                   <div className="mt-2 space-y-2">
@@ -3088,7 +2653,10 @@ function MeSections({ tab }: { tab: MeTab }) {
             type="button"
             onClick={async () => {
               setVoiceMsg("正在合成…");
-              const r = await speakTextAsync("你好，我是" + resolveAiName(settings.aiName) + "。", {});
+              const r = await speakTextAsync(
+                "你好，我是" + resolveAiName(settings.aiName) + "。",
+                {},
+              );
               setVoiceMsg(r.ok ? "" : `没读出来：${r.reason}`);
             }}
             data-opt=""
@@ -3128,7 +2696,11 @@ function MeSections({ tab }: { tab: MeTab }) {
                 : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
             const list = voicePick === "asr" ? asrList : voicePick === "tts" ? ttsList : voiceList;
             const field =
-              voicePick === "asr" ? "voiceAsrModel" : voicePick === "tts" ? "voiceTtsModel" : "voiceTtsVoice";
+              voicePick === "asr"
+                ? "voiceAsrModel"
+                : voicePick === "tts"
+                  ? "voiceTtsModel"
+                  : "voiceTtsVoice";
             const cur = ((settings[field] as string | undefined) ?? "").trim();
             const title =
               voicePick === "asr" ? "选转文字模型" : voicePick === "tts" ? "选合成模型" : "选音色";
@@ -3288,245 +2860,3 @@ function MeSections({ tab }: { tab: MeTab }) {
   if (tab === "data") return <>{dataSections}</>;
   return <>{systemSections}</>;
 }
-
-/* ───────────────────────────── 小部件 ───────────────────────────── */
-/** 一张背景图槽位：缩略图 + 名字 + 说明 + 更换/移除。 */
-function ImageRow({
-  label,
-  hint,
-  value,
-  onPick,
-  onClear,
-}: {
-  label: string;
-  hint: string;
-  value: string;
-  onPick: (url: string) => void;
-  onClear: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-chip px-3 py-2.5">
-      <FileButton
-        ariaLabel={value ? `更换${label}` : `上传${label}`}
-        accept="image/*"
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        onPick={(files) => {
-          const file = files[0];
-          if (file) readImageFile(file, onPick);
-        }}
-      >
-        <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-elevated">
-          {value ? (
-            <img src={value} alt="" className="size-full object-cover" />
-          ) : (
-            <ImagePlus className="size-4 text-muted" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">{label}</span>
-          <span className="block truncate text-[11px] text-muted">
-            {value ? "已设置 · 点一下换" : `${hint} · 点一下上传`}
-          </span>
-        </span>
-      </FileButton>
-      {value && (
-        <button
-          type="button"
-          aria-label={`移除${label}`}
-          onClick={onClear}
-          data-opt=""
-          className="flex size-8 shrink-0 items-center justify-center rounded-full"
-        >
-          <X className="size-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** 探测结果里的一行：通过 / 不通过 */
-function ProbeLine({ label, pass }: { label: string; pass: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-1">
-      <span className="text-[13px]">{label}</span>
-      <span className={cn("shrink-0 text-[12px] font-medium", pass ? "text-ok" : "text-warn")}>
-        {pass ? "通过" : "不通过"}
-      </span>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-  hidden,
-}: {
-  title: string;
-  children: ReactNode;
-  /** 暂时收起这一块（内容已经归到别处了，但代码先留着） */
-  hidden?: boolean;
-}) {
-  // 收起的块直接不渲染（代码留着，随时能放回来）
-  if (hidden) return null;
-  return (
-    <section className="mt-6 px-4">
-      <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">{title}</h2>
-      <div className="rounded-3xl border border-line bg-surface p-3">{children}</div>
-    </section>
-  );
-}
-
-/**
- * 折叠入口：一行标题 + 当前值，点开才展开内容。
- *
- * 用户定的版式（m14333）：我的空间就是"几行字"，点哪行展哪行；
- * 不再一页全是常驻卡片 —— 那样每加一项就更长一截。
- */
-
-
-/**
- * 系统页的折叠组：平时收起，点标题展开。
- * （用户 2026-11：系统页先做二级区，平时也是收起来的，点击再展开）
- */
-function Group({
-  title,
-  value,
-  order,
-  children,
-}: {
-  title: string;
-  value: string;
-  order?: number;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="me-group" style={order ? { order } : undefined}>
-      <button
-        type="button"
-        className="me-group-h"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="me-group-t">{title}</span>
-        <span className="me-group-v">{value}</span>
-        <ChevronDown className={cn("me-group-ic", open && "rotate-180")} aria-hidden="true" />
-      </button>
-      {open && <div className="me-group-body bubble-in">{children}</div>}
-    </section>
-  );
-}
-
-/** 折叠组里的二级小标题 */
-function Sub({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="me-sub">
-      <h3 className="me-sub-t">{title}</h3>
-      <div className="me-sub-body">{children}</div>
-    </div>
-  );
-}
-
-function Fold({
-  title,
-  value,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  value: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mt-3 rounded-3xl border border-line bg-surface">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] text-fg">{title}</span>
-          <span className="mt-0.5 block truncate text-[12px] text-muted">{value}</span>
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-subtle transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && <div className="bubble-in border-t border-line/60 px-4 pb-4 pt-3">{children}</div>}
-    </div>
-  );
-}
-
-function Row({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-1 py-2.5">
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-[12px] text-muted">{hint}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} label={label} />
-    </div>
-  );
-}
-
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  onChange: (v: number) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className={cn("mt-3 px-1", disabled && "opacity-45")}>
-      <div className="flex items-center justify-between text-[12px] text-muted">
-        <span>{label}</span>
-        <span>
-          {Math.round(value * 100) / 100}
-          {unit}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full"
-        style={{ accentColor: "var(--aster-accent)" }}
-      />
-    </div>
-  );
-}
-
-/** ⚠️ 「把相册里选的图读成 dataURL」已经搬去 `@/lib/image-file` 了（全 App 一处实现） */

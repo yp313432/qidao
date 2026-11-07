@@ -26,7 +26,7 @@ export function GlassHighlight() {
     document.body.appendChild(glow);
 
     let raf = 0;
-    let hideTimer = 0;
+const hideTimer = 0;
 
     const show = (el: HTMLElement, x: number, y: number) => {
       const r = el.getBoundingClientRect();

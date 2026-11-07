@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { clearCrumbs, crumbsReport, flushCrumbs, stampOf, type RunReport } from "@/lib/breadcrumbs";
 import { collectEnv, summarize, type EnvItem } from "@/lib/env-check";
 import { openSenseSettings } from "@/lib/sense-bridge";

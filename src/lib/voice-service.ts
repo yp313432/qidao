@@ -1,12 +1,9 @@
 import { useApp } from "@/lib/store";
 import {
-  DS_DEFAULT_BASE,
   DS_SYSTEM_VOICES,
   DS_TTS_MODELS,
-  designVoice,
   listDashscopeVoices,
   synthDashscope,
-  type DsVoice,
 } from "@/lib/dashscope";
 
 /**

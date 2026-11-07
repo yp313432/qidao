@@ -1,0 +1,80 @@
+/*
+  层：base —— 结构层。只管骨架、触控、滚动、安全区。
+
+  这里不许出现颜色、阴影、圆角、字号 —— 那些属于 tokens 和 modes。
+  也不许出现 [data-material=...]：三种模式共享同一套结构，
+  模式之间不互通的只有"皮肤"（见 src/styles/modes/）。
+*/
+
+.k-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-inline: var(--k-page-x);
+}
+
+.k-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.k-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-4);
+}
+
+/* 底部导航占位：让最后一屏内容不被导航压住（含安全区） */
+.k-nav-space {
+  padding-bottom: calc(var(--k-nav-h) + var(--k-safe-b) + var(--k-s-5));
+}
+
+/* 触控目标兜底：任何可点的东西都不小于 44px */
+.k-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--k-tap);
+  min-inline-size: var(--k-tap);
+}
+
+.k-hstack {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s-3);
+  min-width: 0;
+}
+
+.k-vstack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-1);
+  min-width: 0;
+}
+
+.k-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.k-clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 消息列表：每条消息自己一块布局区。
+   流式回复改的永远是最后一条；没有这层隔离，一次内容变化会把整列几百个气泡
+   一起卷进重排（切页/打字掉帧的主因之一，见 design/ARCHITECTURE.md D9）。
+   只加 layout 不加 paint：搜索跳转的 .aster-highlight 是 6px 外扩的 box-shadow，
+   paint 隔离会把它裁掉 —— 那是视觉回归，不是优化。 */
+.view-enter ol > li[id^="msg-"] {
+  contain: layout;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-scroll {
+    scroll-behavior: auto;
+  }
+}

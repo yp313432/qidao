@@ -1,30 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
 import { startAwakeLoop } from "@/lib/awake";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ActionGate } from "@/components/action-gate";
-import { AppBack } from "@/components/app-back";
-import { AudioWidget } from "@/components/audio-widget";
-import { ComposerTint } from "@/components/composer-tint";
-import { McpOAuthListener } from "@/components/mcp-oauth-listener";
-import { LetterAlert } from "@/components/letter-alert";
-import { GiftAlert } from "@/components/gift-alert";
-import { GlobalToast } from "@/components/global-toast";
-import { ChatNoticeBanner } from "@/components/chat-notice-banner";
-import { GlassHighlight } from "@/components/glass-highlight";
-import { PlayerHost } from "@/components/player-host";
+import { ActionGate } from "@/components/shared/action-gate";
+import { AppBack } from "@/components/shell/app-back";
+import { AudioWidget } from "@/components/daemons/audio-widget";
+import { ComposerTint } from "@/components/shared/composer-tint";
+import { McpOAuthListener } from "@/components/daemons/mcp-oauth-listener";
+import { LetterAlert } from "@/components/overlays/letter-alert";
+import { GiftAlert } from "@/components/overlays/gift-alert";
+import { GlobalToast } from "@/components/shared/global-toast";
+import { ChatNoticeBanner } from "@/components/overlays/chat-notice-banner";
+import { GlassHighlight } from "@/components/shared/glass-highlight";
+import { PlayerHost } from "@/components/daemons/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
-import { ReminderDaemon } from "@/components/reminder-daemon";
-import { AlarmOverlay } from "@/components/alarm-overlay";
-import { TaskDaemon } from "@/components/task-daemon";
-import { WakePlan } from "@/components/wake-plan";
-import { WakeDaemon } from "@/components/wake-daemon";
-import { UiEffects } from "@/components/ui-effects";
+import { ReminderDaemon } from "@/components/daemons/reminder-daemon";
+import { AlarmOverlay } from "@/components/overlays/alarm-overlay";
+import { TaskDaemon } from "@/components/daemons/task-daemon";
+import { WakePlan } from "@/components/daemons/wake-plan";
+import { WakeDaemon } from "@/components/daemons/wake-daemon";
+import { UiEffects } from "@/components/shared/ui-effects";
 import { hidesNav } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
 import { installBreadcrumbs } from "@/lib/breadcrumbs";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
-import { NavEtch } from "@/components/nav-icons";
+import { NavEtch } from "@/components/shell/nav-icons";
+import { PerfProbe } from "@/components/shell/perf-probe";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
 import { useApp } from "@/lib/store";
@@ -71,8 +72,6 @@ export function AppShell() {
    * 正确做法是根本不让它消失。
    */
   const hideNav = hidesNav(pathname);
-  /** 这次启动是不是靠"安全带镜子"把设置救回来的（是的话界面要如实说一句） */
-  const [restoredFromMirror, setRestoredFromMirror] = useState(false);
   const hydrated = useApp((s) => s.hydrated);
   /** 纸世界（qidao-docs/纸世界-落地清单.md）：纯色材质下底部导航换 F 邮票版。 */
   const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
@@ -159,8 +158,11 @@ export function AppShell() {
    * **启动自检恢复**（2026-10，起因见 `lib/data/safety.ts` 的事故复盘）。
    *
    * 如果这次读出来的设置"像被重置了"（没密钥、没地址、没模型、没背景、没自定义名字），
-   * 而安全带的镜子里有一份**有料**的 → 就用镜子那份把它补回来，并**如实告诉用户**
-   * （不静默：静默恢复会让人以为自己没丢过，反而更糟）。
+   * 而安全带的镜子里有一份**有料**的 → 就用镜子那份把它补回来。
+   *
+   * ⚠️ 本来还该"如实告诉用户一句"（静默恢复会让人以为自己没丢过，反而更糟），
+   * 但那行提示一直没做：原来挂在这里的 `restoredFromMirror` 状态没有任何界面在读，
+   * 已于 2026-11-07 删掉。要做的话加在 `shared/global-toast` 上。
    */
   useEffect(() => {
     if (!hydrated) return;
@@ -174,7 +176,6 @@ export function AppShell() {
         const mirror = await readSettingsMirror();
         if (mirrorIsBetter(mirror, cur)) {
           st.useApp.setState({ settings: { ...(cur ?? {}), ...(mirror ?? {}) } } as never);
-          setRestoredFromMirror(true);
         }
         /** 每次启动压一份滚动快照（最近 3 份）——真出事了能往回翻 */
         void pushSnapshot(JSON.stringify({ state: st.useApp.getState(), at: Date.now() }));
@@ -206,6 +207,8 @@ export function AppShell() {
       style={{ paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
     >
       <GlassHighlight />
+      {/* 切页流畅度浮层：默认完全不出现，只在 ?perf=1 / 改 PERF_FORCE 时亮 */}
+      <PerfProbe />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
       <UiEffects />
       {/* 全局音乐播放器：整个 App 只此一个 <audio>，切页不会停 */}

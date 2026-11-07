@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookHeart, ChevronRight, Mail, NotebookPen } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 

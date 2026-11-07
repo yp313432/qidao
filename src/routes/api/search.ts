@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchText, htmlToText, json, preflight } from "@/lib/web-tools";
+import { fetchText, json, preflight } from "@/lib/web-tools";
 
 /**
  * `GET /api/search?q=<关键词>` —— **搜网页**。

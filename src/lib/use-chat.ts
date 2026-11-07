@@ -1137,7 +1137,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
       setBusy(false);
       setLiveId(null);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [model, aiName, settings],
   );
 

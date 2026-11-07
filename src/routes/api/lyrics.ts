@@ -83,7 +83,7 @@ export const Route = createFileRoute("/api/lyrics")({
         }
         queries.push(`/api/search?q=${encodeURIComponent(raw)}`);
         // 去掉括号里的补充说明（「（荣耀全球品牌主题曲）」这种）再搜一次
-        const simplified = raw.replace(/[（(【\[].*?[)）】\]]/g, " ").replace(/\s+/g, " ").trim();
+        const simplified = raw.replace(/[（(【[].*?[)）】\]]/g, " ").replace(/\s+/g, " ").trim();
         if (simplified && simplified !== raw) {
           queries.push(`/api/search?q=${encodeURIComponent(simplified)}`);
         }

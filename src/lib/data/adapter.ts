@@ -132,23 +132,6 @@ export async function loadLegacyShaped(): Promise<ReadResult<string>> {
     out[t] = r.value ?? [];
   }
   const settingsRow = (out[TABLES.settings] ?? [])[0] as { value?: LegacyState } | undefined;
-  const state: LegacyState = {
-    settings: (settingsRow?.value as LegacyState["settings"]) ?? {},
-    conversations: [] as LegacyState["conversations"],
-    memories: [],
-    worldBook: [],
-    diary: [],
-    moments: [],
-    letters: [],
-    docs: [],
-    todos: [],
-    dates: [],
-    emotionEvents: [],
-    reminders: [],
-    tasks: [],
-    actionLog: [],
-    requestLog: [],
-  };
   /** 用迁移映射的逆函数拼回来（`roundTrip` 只认 plan，所以先搭一个 plan 壳） */
   const fakePlan = {
     settings: (settingsRow?.value as Record<string, unknown>) ?? {},

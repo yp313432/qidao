@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Disc3, Headphones, Link2, Plus, Trash2 } from "lucide-react";
-import { PlayHeader } from "@/components/play-header";
+import { PlayHeader } from "@/components/views/play-header";
 import { kindLabel } from "@/lib/music-embed";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";

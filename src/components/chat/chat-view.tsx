@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -17,7 +17,7 @@ import {
 import { prettySize } from "@/lib/attachments";
 import { setChatPageActive } from "@/lib/chat-presence";
 import { firstSegment } from "@/lib/segment";
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/components/shared/avatar";
 
 /**
  * 这段文字里**有没有看得见的东西**。
@@ -347,7 +347,7 @@ function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
   const hasMedia = el.querySelector("img, video, canvas, hr") !== null;
   el.style.display = hasText || hasMedia ? "" : "none";
 }
-import { Markdown } from "@/components/markdown";
+import { Markdown } from "@/components/shared/markdown";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
@@ -411,7 +411,6 @@ export function ChatView() {
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
   const settings = useApp((s) => s.settings);
-  const model = useApp((s) => s.model);
   const [menu, setMenu] = useState(false);
   /** 会话列表每行的 ⋯ 菜单（第 3 条：重命名 / 置顶 / 删除 收进一个菜单） */
   const [rowMenu, setRowMenu] = useState<string | null>(null);
@@ -1264,7 +1263,6 @@ export function ChatView() {
                           const callCount = (m.steps ?? [])
                             .filter((x) => x.kind === "call").length ||
                             (m.rounds ?? []).reduce((n, r) => n + r.calls.length, 0);
-                          const thinkable = Boolean(m.thinking) || callCount > 0;
                           /*
                            * 2026-11-01 用户：「动作没有了，比如它设闹钟，我没看到他调用工具，但是定上了」。
                            * 原来这行整块受「显示思考过程」开关控制 —— 关掉后连「动了 N 次手」也一起没了。

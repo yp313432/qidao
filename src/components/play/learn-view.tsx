@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Volume2,
 } from "lucide-react";
-import { PlayHeader } from "@/components/play-header";
+import { PlayHeader } from "@/components/views/play-header";
 import { resolveAiName } from "@/lib/branding";
 import { DICTIONARY, READINGS, WORDS } from "@/lib/learn-data";
 import { useApp } from "@/lib/store";

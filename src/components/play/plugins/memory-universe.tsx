@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { MemoryUniverse } from "@/plugins/memory-universe";
+import { MemoryUniverse } from "@/plugins/memory-universe/index";
 import { toUniverse } from "@/plugins/memory-universe/adapter/qidao-memory";
 import { useApp } from "@/lib/store";
 

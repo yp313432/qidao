@@ -2,7 +2,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Plus, Puzzle } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";

@@ -278,7 +278,9 @@ function tokenIdentityKey(token: string): string {
             .digest("base64url");
         }
       }
-    } catch {}
+    } catch {
+      /* payload 不是合法 JSON：不是我们认得的 JWT，往下按整串 token 算哈希 */
+    }
   }
   return createHash("sha256").update(token).digest("base64url");
 }

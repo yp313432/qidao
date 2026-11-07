@@ -5,8 +5,8 @@ import {
   ChevronRight,
   ListChecks,
   Timer } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { countdown, sortDates } from "@/lib/days";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";

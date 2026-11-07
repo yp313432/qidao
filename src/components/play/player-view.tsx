@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ListMusic,
-  Link2,
   Pause,
   Play,
   Repeat,
@@ -11,16 +10,14 @@ import {
   SkipForward,
   Volume2,
 } from "lucide-react";
-import { FileButton } from "@/components/file-button";
-import { SceneBackdrop } from "@/components/background-layer";
+import { FileButton } from "@/components/shared/file-button";
+import { SceneBackdrop } from "@/components/shell/background-layer";
 import { SongStage } from "@/components/play/song-stage";
 import { activeLineIndex, parseLrc, readEmbeddedLyrics } from "@/lib/lyrics";
 import { embedHeight, kindLabel } from "@/lib/music-embed";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-
-const AUDIO_ACCEPT = "audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac";
 
 function mmss(v: number): string {
   if (!Number.isFinite(v) || v <= 0) return "0:00";

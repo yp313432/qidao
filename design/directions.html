@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖岛 · 纯色模式三个方向样张</title>
+<style>
+  :root{
+    --serif: "Noto Serif SC","Source Han Serif SC","Songti SC",Georgia,"SimSun",serif;
+    --sans: -apple-system,"Segoe UI Variable","Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono: "Cascadia Mono",Consolas,ui-monospace,"SFMono-Regular",monospace;
+    --shell: #ECEAE4;
+    --shell-ink: #2A2823;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; padding:44px 24px 96px;
+    background: var(--shell);
+    color: var(--shell-ink);
+    font-family: var(--sans);
+    display:flex; flex-wrap:wrap; gap:40px 48px; justify-content:center; align-items:flex-start;
+  }
+  .col{ width:390px; }
+  .col > header{ margin:0 2px 16px; }
+  .col h2{
+    margin:0; font: 600 15px/1.4 var(--sans); letter-spacing:.5px;
+    display:flex; align-items:baseline; gap:8px;
+  }
+  .col h2 b{ font: 400 22px/1 var(--mono); opacity:.32; letter-spacing:-.5px; }
+  .col .why{ margin:6px 0 0; font-size:11.5px; line-height:1.75; opacity:.62; }
+  .col .why i{ font-style:normal; opacity:.6; }
+
+  /* ===== 手机画布 ===== */
+  .phone{
+    position:relative;
+    width:390px; height:760px;
+    border-radius:26px;
+    overflow:hidden;
+    box-shadow: 0 18px 44px -18px rgba(0,0,0,.4), 0 0 0 1px rgba(0,0,0,.07);
+    display:flex; flex-direction:column;
+  }
+  .statusbar{
+    flex:0 0 auto; height:26px; display:flex; align-items:center; justify-content:space-between;
+    padding:0 20px; font:600 10.5px/1 var(--mono); opacity:.5;
+  }
+  .scroll{ flex:1 1 auto; overflow:hidden; padding:0 18px; }
+  .nav{
+    flex:0 0 auto; height:56px; display:flex; align-items:stretch;
+    padding-bottom:6px;
+  }
+  .nav span{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    font-size:11px;
+  }
+
+  /* ============================================================
+     A · 瑞士编辑  —  无阴影、无圆角、发丝线、单一强调色
+     ============================================================ */
+  .A{
+    --bg:#FAF7F0; --ink:#1C1A17; --accent:#C4553B;
+    --line: rgba(28,26,23,.14); --muted: rgba(28,26,23,.46); --faint: rgba(28,26,23,.24);
+    background: var(--bg); color: var(--ink); font-family: var(--serif);
+  }
+  .A .statusbar{ color:var(--muted); font-family:var(--mono); }
+  .A .head{ padding:6px 0 22px; display:flex; align-items:flex-end; justify-content:space-between; }
+  .A .head h1{ margin:0; font:600 27px/1.1 var(--serif); letter-spacing:.5px; }
+  .A .head .meta{ font:400 9.5px/1.5 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--muted); text-align:right; }
+  .A .list{ border-top:1px solid var(--ink); }
+  .A .row{
+    display:flex; align-items:center; gap:14px;
+    padding:17px 0 16px; border-bottom:1px solid var(--line);
+  }
+  .A .idx{
+    flex:0 0 26px; font:300 19px/1 var(--serif); color:var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .A .body-txt{ flex:1 1 auto; min-width:0; }
+  .A .t{ font:600 15px/1.3 var(--serif); letter-spacing:.4px; }
+  .A .row.off .t{ color:var(--muted); }
+  .A .s{
+    margin-top:5px; display:flex; align-items:center; gap:8px;
+    font:400 9.5px/1 var(--mono); letter-spacing:.05em; color:var(--muted);
+  }
+  .A .m{ letter-spacing:.14em; color:var(--ink); opacity:.55; }
+  .A .row.off .m{ opacity:.3; }
+  .A .dot{ width:2px; height:2px; border-radius:50%; background:var(--faint); }
+  .A .sw{
+    flex:0 0 34px; width:34px; height:20px; border-radius:2px;
+    border:1px solid var(--line); background:transparent; position:relative;
+    transition: background-color .22s ease, border-color .22s ease;
+  }
+  .A .sw::after{
+    content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:1px;
+    background: var(--faint);
+    transition: translate .24s cubic-bezier(.3,.7,.4,1), background-color .22s ease;
+  }
+  .A .sw[data-on="1"]{ background:var(--accent); border-color:var(--accent); }
+  .A .sw[data-on="1"]::after{ translate: 14px 0; background:#FDFAF4; }
+  .A .add{
+    margin-top:26px; display:inline-flex; align-items:center; gap:7px;
+    font:400 12px/1 var(--sans); letter-spacing:.06em; color:var(--ink);
+    border-bottom:1px solid var(--ink); padding-bottom:5px;
+  }
+  .A .nav{ border-top:1px solid var(--ink); color:var(--muted); font-family:var(--sans); letter-spacing:.1em; }
+  .A .nav span.on{ color:var(--ink); font-weight:600; }
+
+  /* ============================================================
+     B · 版画平涂  —  三色油墨、硬边位移、印章感
+     ============================================================ */
+  .B{
+    --paper:#F6F1E4; --ink:#1C1A17; --rust:#B5673F; --olive:#5A6B4A; --card:#FFFCF3;
+    background: var(--paper); color: var(--ink); font-family: var(--serif);
+  }
+  .B .statusbar{ color:rgba(28,26,23,.42); font-family:var(--mono); }
+  .B .head{ padding:8px 0 18px; display:flex; align-items:center; gap:10px; }
+  .B .head h1{ margin:0; font:700 26px/1 var(--serif); letter-spacing:1px; }
+  .B .stamp{
+    font:700 8.5px/1 var(--mono); letter-spacing:.18em; text-transform:uppercase;
+    padding:5px 6px 4px; border:1.5px solid var(--ink); border-radius:2px;
+    rotate:-3deg; background:var(--card);
+  }
+  .B .list{ display:flex; flex-direction:column; gap:14px; }
+  .B .row{
+    position:relative; display:flex; align-items:center; gap:11px;
+    padding:13px 13px 12px; background:var(--card);
+    border:2px solid var(--ink); border-radius:3px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .B .row:nth-child(even){ rotate:.6deg; }
+  .B .row:nth-child(odd){ rotate:-.5deg; }
+  .B .row::after{ /* 折角 */
+    content:""; position:absolute; top:-2px; right:-2px; width:11px; height:11px;
+    background: var(--paper);
+    border-left:2px solid var(--ink); border-bottom:2px solid var(--ink);
+    border-bottom-left-radius:2px;
+  }
+  .B .body-txt{ flex:1 1 auto; min-width:0; }
+  .B .t{ font:700 14.5px/1.3 var(--serif); letter-spacing:.3px; }
+  .B .row.off .t{ color:rgba(28,26,23,.5); }
+  .B .s{ margin-top:6px; display:flex; align-items:center; gap:7px; font:400 9.5px/1 var(--mono); letter-spacing:.04em; color:rgba(28,26,23,.55); }
+  .B .m{
+    padding:3px 5px 2px; border-radius:2px; border:1.5px solid var(--olive);
+    color:var(--olive); font:700 8.5px/1 var(--mono); letter-spacing:.12em;
+  }
+  .B .row[data-m="POST"] .m{ border-color:var(--rust); color:var(--rust); }
+  .B .row.off .m{ border-color:rgba(28,26,23,.3); color:rgba(28,26,23,.35); }
+  .B .sw{
+    flex:0 0 40px; width:40px; height:22px; border-radius:11px;
+    background:var(--card); border:2px solid var(--ink); position:relative;
+    transition: background-color .2s ease;
+  }
+  .B .sw::after{
+    content:""; position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:3px;
+    background:rgba(28,26,23,.22);
+    transition: translate .24s cubic-bezier(.3,.7,.4,1), background-color .2s ease;
+  }
+  .B .sw[data-on="1"]{ background:var(--rust); }
+  .B .sw[data-on="1"]::after{ translate:18px 0; background:var(--card); }
+  .B .add{
+    margin-top:20px; padding:12px; text-align:center;
+    border:2px dashed var(--ink); border-radius:3px;
+    font:600 11.5px/1 var(--sans); letter-spacing:.16em;
+  }
+  .B .nav{ border-top:2px solid var(--ink); color:rgba(28,26,23,.45); font-family:var(--sans); letter-spacing:.08em; }
+  .B .nav span.on{ color:var(--card); background:var(--ink); font-weight:700; }
+
+  /* ============================================================
+     C · 工程蓝图  —  2px 黑线、硬阴影、等宽字、数据感
+     ============================================================ */
+  .C{
+    --bg:#F2F0EA; --ink:#14140F; --card:#FBFAF5; --olive:#4A5540;
+    background: var(--bg); color: var(--ink); font-family: var(--mono);
+  }
+  .C .statusbar{ color:rgba(20,20,15,.45); }
+  .C .head{
+    margin:0 -18px 16px; padding:12px 18px 13px; background:var(--ink); color:#F2F0EA;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .C .head h1{ margin:0; font:700 13px/1 var(--mono); letter-spacing:.2em; }
+  .C .head .meta{ font:400 9px/1.5 var(--mono); letter-spacing:.16em; opacity:.6; text-align:right; }
+  .C .list{ display:flex; flex-direction:column; gap:12px; }
+  .C .row{
+    display:flex; align-items:center; gap:10px;
+    padding:11px 10px 10px; background:var(--card);
+    border:2px solid var(--ink); border-radius:2px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .C .idx{ font:700 9px/1 var(--mono); letter-spacing:.1em; opacity:.35; align-self:flex-start; padding-top:2px; }
+  .C .body-txt{ flex:1 1 auto; min-width:0; }
+  .C .t{ font:700 12px/1.35 var(--mono); letter-spacing:.06em; }
+  .C .row.off .t{ opacity:.42; }
+  .C .s{ margin-top:6px; display:flex; align-items:center; gap:6px; font:400 9px/1 var(--mono); letter-spacing:.04em; opacity:.6; }
+  .C .m{
+    padding:2px 4px 1px; background:var(--olive); color:#F2F0EA;
+    font:700 8px/1 var(--mono); letter-spacing:.1em;
+  }
+  .C .row[data-m="POST"] .m{ background:var(--ink); }
+  .C .row.off .m{ background:rgba(20,20,15,.22); color:#F2F0EA; }
+  .C .sw{
+    flex:0 0 40px; width:40px; height:22px; border-radius:2px;
+    border:2px solid var(--ink); background:var(--card); position:relative;
+    transition: background-color .2s ease;
+  }
+  .C .sw::after{
+    content:""; position:absolute; top:2px; left:2px; width:14px; height:14px;
+    background:rgba(20,20,15,.25);
+    transition: translate .24s cubic-bezier(.3,.7,.4,1), background-color .2s ease;
+  }
+  .C .sw[data-on="1"]{ background:var(--ink); }
+  .C .sw[data-on="1"]::after{ translate:18px 0; background:#F2F0EA; }
+  .C .add{
+    margin-top:16px; padding:11px; text-align:center;
+    border:2px dashed var(--ink); border-radius:2px;
+    font:700 10px/1 var(--mono); letter-spacing:.2em;
+  }
+  .C .nav{ border-top:2px solid var(--ink); color:rgba(20,20,15,.42); letter-spacing:.14em; font-size:10px; }
+  .C .nav span.on{ color:var(--bg); background:var(--ink); font-weight:700; }
+</style>
+</head>
+<body>
+
+<!-- ======================= A ======================= -->
+<section class="col">
+  <header>
+    <h2><b>A</b>瑞士编辑</h2>
+    <p class="why">最安静也最“贵”。发丝线代替卡片，唯一的颜色只留给打开的开关。<br>
+    <i>代价：</i>要去掉现有所有硬阴影、纸纹、旋转；信息层级靠字重和留白撑。</p>
+  </header>
+  <div class="phone A">
+    <div class="statusbar"><span>9:41</span><span>◍ ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="head">
+        <h1>工具</h1>
+        <div class="meta">接口<br>03 / 06 已启用</div>
+      </div>
+      <div class="list">
+        <div class="row" data-m="GET">
+          <div class="idx">01</div>
+          <div class="body-txt">
+            <div class="t">天气接口</div>
+            <div class="s"><span class="m">GET</span><span class="dot"></span><span>api.weather.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用天气接口"></button>
+        </div>
+        <div class="row off" data-m="GET">
+          <div class="idx">02</div>
+          <div class="body-txt">
+            <div class="t">热榜数据</div>
+            <div class="s"><span class="m">GET</span><span class="dot"></span><span>60s.viki.moe</span></div>
+          </div>
+          <button class="sw" data-on="0" aria-label="启用热榜数据"></button>
+        </div>
+        <div class="row" data-m="POST">
+          <div class="idx">03</div>
+          <div class="body-txt">
+            <div class="t">待办同步</div>
+            <div class="s"><span class="m">POST</span><span class="dot"></span><span>apis.tianapi.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用待办同步"></button>
+        </div>
+      </div>
+      <div class="add">＋ 添加接口</div>
+    </div>
+    <div class="nav"><span>空间</span><span>玩法</span><span class="on">工具</span><span>我</span></div>
+  </div>
+</section>
+
+<!-- ======================= B ======================= -->
+<section class="col">
+  <header>
+    <h2><b>B</b>版画平涂</h2>
+    <p class="why">保留现在的纸世界气质，但把颜色压到三色油墨，阴影改成硬位移。<br>
+    <i>代价：</i>改动最小，能直接沿用现有配色和印章细节；但仍是“有装饰”的路子。</p>
+  </header>
+  <div class="phone B">
+    <div class="statusbar"><span>9:41</span><span>◍ ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="head">
+        <h1>工具</h1>
+        <span class="stamp">API TOOLS</span>
+      </div>
+      <div class="list">
+        <div class="row" data-m="GET">
+          <div class="body-txt">
+            <div class="t">天气接口</div>
+            <div class="s"><span class="m">GET</span><span>api.weather.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用天气接口"></button>
+        </div>
+        <div class="row off" data-m="GET">
+          <div class="body-txt">
+            <div class="t">热榜数据</div>
+            <div class="s"><span class="m">GET</span><span>60s.viki.moe</span></div>
+          </div>
+          <button class="sw" data-on="0" aria-label="启用热榜数据"></button>
+        </div>
+        <div class="row" data-m="POST">
+          <div class="body-txt">
+            <div class="t">待办同步</div>
+            <div class="s"><span class="m">POST</span><span>apis.tianapi.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用待办同步"></button>
+        </div>
+      </div>
+      <div class="add">＋ 添加接口</div>
+    </div>
+    <div class="nav"><span>空间</span><span>玩法</span><span class="on">工具</span><span>我</span></div>
+  </div>
+</section>
+
+<!-- ======================= C ======================= -->
+<section class="col">
+  <header>
+    <h2><b>C</b>工程蓝图</h2>
+    <p class="why">最“顺手”、最抗造，触控目标大、对比度高，长期用不累眼。<br>
+    <i>代价：</i>气质偏工具，和纸世界的关系最远；适合纯色模式当“白天/干活”人格。</p>
+  </header>
+  <div class="phone C">
+    <div class="statusbar"><span>9:41</span><span>◍ ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="head">
+        <h1>TOOLS / 工具</h1>
+        <div class="meta">03 ACTIVE<br>06 TOTAL</div>
+      </div>
+      <div class="list">
+        <div class="row" data-m="GET">
+          <div class="idx">No.01</div>
+          <div class="body-txt">
+            <div class="t">天气接口</div>
+            <div class="s"><span class="m">GET</span><span>api.weather.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用天气接口"></button>
+        </div>
+        <div class="row off" data-m="GET">
+          <div class="idx">No.02</div>
+          <div class="body-txt">
+            <div class="t">热榜数据</div>
+            <div class="s"><span class="m">GET</span><span>60s.viki.moe</span></div>
+          </div>
+          <button class="sw" data-on="0" aria-label="启用热榜数据"></button>
+        </div>
+        <div class="row" data-m="POST">
+          <div class="idx">No.03</div>
+          <div class="body-txt">
+            <div class="t">待办同步</div>
+            <div class="s"><span class="m">POST</span><span>apis.tianapi.com</span></div>
+          </div>
+          <button class="sw" data-on="1" aria-label="启用待办同步"></button>
+        </div>
+      </div>
+      <div class="add">＋ 添加接口</div>
+    </div>
+    <div class="nav"><span>空间</span><span>玩法</span><span class="on">工具</span><span>我</span></div>
+  </div>
+</section>
+
+<script>
+  // 点开关就能试手感（纯样张，不接数据）
+  document.querySelectorAll('.sw').forEach((el) => {
+    el.addEventListener('click', () => {
+      const on = el.dataset.on === '1' ? '0' : '1';
+      el.dataset.on = on;
+      el.closest('.row').classList.toggle('off', on === '0');
+    });
+  });
+</script>
+</body>
+</html>

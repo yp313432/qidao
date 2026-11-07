@@ -1,0 +1,339 @@
+/*
+  层：kit —— 组件层。页面只拼这些类，不许自己写颜色/字号/阴影。
+
+  硬规则（scripts/guard-styles.mjs 检查）：
+    · 这个文件里不许出现 hex / rgb() / hsl() 字面色值；
+    · 不许出现 [data-material=...]（模式差异只能通过 tokens 里的槽位进来）；
+    · 尺寸只能取 var(--k-*)，不写 13px / 0.2s 这类字面量。
+
+  组件清单（一一对应 src/components/ui-kit/ 下的 React 封装）：
+    .k-head  页面标题区        .k-card   容器卡片
+    .k-row   列表行（主力）    .k-chip   标签
+    .k-switch 开关             .k-btn    按钮
+    .k-input 输入框            .k-empty  空态
+    .k-navbar 底部导航
+
+  为什么类名都带 k- 前缀：和现有的 .tool-card / .glass-* 完全隔开，
+  迁移期间两套样式可以同时存在，删掉旧的那套时不会误伤新的。
+*/
+
+/* ── 页面标题区 ─────────────────────────────────────────────── */
+.k-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--k-s-4);
+  padding-block: var(--k-s-5) var(--k-s-4);
+}
+
+.k-head__title {
+  margin: 0;
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-6);
+  line-height: var(--k-lh-1);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--k-fg);
+}
+
+.k-head__meta {
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-2);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: right;
+  color: var(--k-muted);
+}
+
+/* ── 容器卡片 ───────────────────────────────────────────────── */
+.k-card {
+  position: relative;
+  padding: var(--k-s-4) var(--k-s-5);
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  -webkit-backdrop-filter: var(--k-backdrop);
+  backdrop-filter: var(--k-backdrop);
+  box-shadow: var(--k-card-shadow);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+  transition:
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out),
+    border-color var(--k-d-1) var(--k-e-out);
+}
+
+/* ── 列表行：主力组件（原来的 .tool-card 就是它） ───────────── */
+.k-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--k-s-4);
+  width: 100%;
+  padding: var(--k-s-4) var(--k-s-5);
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  -webkit-backdrop-filter: var(--k-backdrop);
+  backdrop-filter: var(--k-backdrop);
+  box-shadow: var(--k-card-shadow);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+  text-align: left;
+  transition:
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out),
+    border-color var(--k-d-1) var(--k-e-out),
+    background-color var(--k-d-3) var(--k-e-out);
+}
+
+.k-row:active {
+  translate: var(--k-press-shift) var(--k-press-shift);
+  box-shadow: var(--k-card-shadow-press);
+}
+
+.k-row:focus-visible,
+.k-btn:focus-visible,
+.k-switch:focus-visible,
+.k-input:focus-visible,
+.k-navbar__item:focus-visible {
+  outline: 2px solid var(--k-fg);
+  outline-offset: 2px;
+}
+
+/* 停用态：只压信息，不换配色（换配色就又要为每个调色板写一遍） */
+.k-row[data-off="true"] {
+  color: var(--k-muted);
+}
+
+.k-row__idx {
+  flex: 0 0 auto;
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  letter-spacing: 0.1em;
+  color: var(--k-subtle);
+  align-self: flex-start;
+  padding-top: var(--k-s-1);
+}
+
+.k-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-1);
+}
+
+.k-row__title {
+  font-size: var(--k-t-4);
+  line-height: var(--k-lh-1);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.k-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s-2);
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.04em;
+  color: var(--k-muted);
+  min-width: 0;
+}
+
+/* ── 标签 ───────────────────────────────────────────────────── */
+.k-chip {
+  flex: 0 0 auto;
+  padding: var(--k-s-1) var(--k-s-2);
+  border-radius: var(--k-card-radius);
+  background: var(--k-chip-bg);
+  color: var(--k-chip-fg);
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.k-chip[data-tone="outline"] {
+  background: transparent;
+  color: var(--k-line);
+  box-shadow: inset 0 0 0 var(--k-border-w) var(--k-line);
+}
+
+/* ── 开关 ───────────────────────────────────────────────────── */
+.k-switch {
+  flex: 0 0 auto;
+  position: relative;
+  inline-size: var(--k-track-w);
+  block-size: var(--k-track-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--k-ctl-radius);
+  background: var(--k-ctl-off-bg);
+  box-shadow: inset 0 0 0 var(--k-border-w) var(--k-line-soft);
+  transition:
+    background-color var(--k-d-2) var(--k-e-out),
+    box-shadow var(--k-d-2) var(--k-e-out);
+}
+
+.k-switch__knob {
+  position: absolute;
+  inset-block-start: calc((var(--k-track-h) - var(--k-knob)) / 2);
+  inset-inline-start: calc((var(--k-track-h) - var(--k-knob)) / 2);
+  inline-size: var(--k-knob);
+  block-size: var(--k-knob);
+  border-radius: calc(var(--k-ctl-radius) / 2);
+  background: var(--k-ctl-off-knob);
+  /* 位移动画走 translate（合成层，每帧不重排）；不用 left 动画 */
+  transition:
+    translate var(--k-dur-move) var(--k-ease-move),
+    background-color var(--k-d-2) var(--k-e-out);
+}
+
+.k-switch[data-state="checked"],
+.k-switch[aria-checked="true"] {
+  background: var(--k-ctl-on-bg);
+  box-shadow: inset 0 0 0 var(--k-border-w) var(--k-ctl-on-bg);
+}
+
+/* 位移距离 = 轨道宽 - 白点宽 - 两侧内边距各一份 */
+.k-switch[data-state="checked"] .k-switch__knob,
+.k-switch[aria-checked="true"] .k-switch__knob {
+  translate: calc(var(--k-track-w) - var(--k-knob) - (var(--k-track-h) - var(--k-knob))) 0;
+  background: var(--k-ctl-on-fg);
+}
+
+/* ── 按钮 ───────────────────────────────────────────────────── */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--k-s-2);
+  min-block-size: var(--k-tap);
+  padding-inline: var(--k-s-5);
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-ctl-radius);
+  background: var(--k-surface);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-3);
+  letter-spacing: 0.06em;
+  box-shadow: var(--k-card-shadow);
+  transition:
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out);
+}
+
+.k-btn:active {
+  translate: var(--k-press-shift) var(--k-press-shift);
+  box-shadow: var(--k-card-shadow-press);
+}
+
+.k-btn--primary {
+  border-color: var(--k-ctl-on-bg);
+  background: var(--k-ctl-on-bg);
+  color: var(--k-ctl-on-fg);
+}
+
+/* 虚线款：新增类动作（原来的「添加接口」） */
+.k-btn--dashed {
+  border-style: dashed;
+  box-shadow: none;
+  color: var(--k-muted);
+  background: transparent;
+}
+
+.k-btn--block {
+  width: 100%;
+}
+
+/* ── 输入框 ─────────────────────────────────────────────────── */
+.k-input {
+  width: 100%;
+  min-block-size: var(--k-tap);
+  padding-inline: var(--k-s-4);
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-ctl-radius);
+  background: var(--k-surface);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-3);
+}
+
+.k-input::placeholder {
+  color: var(--k-subtle);
+}
+
+/* ── 空态 ───────────────────────────────────────────────────── */
+.k-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--k-s-3);
+  padding: var(--k-s-8) var(--k-s-5);
+  color: var(--k-muted);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  text-align: center;
+}
+
+/* ── 底部导航 ───────────────────────────────────────────────── */
+.k-navbar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: var(--k-z-nav);
+  display: flex;
+  align-items: stretch;
+  block-size: calc(var(--k-nav-h) + var(--k-safe-b));
+  padding-bottom: var(--k-safe-b);
+  border-top: var(--k-border-w) solid var(--k-line);
+  background: var(--k-surface);
+  -webkit-backdrop-filter: var(--k-backdrop);
+  backdrop-filter: var(--k-backdrop);
+  color: var(--k-muted);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-1);
+  letter-spacing: 0.12em;
+}
+
+.k-navbar__item {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--k-tap);
+  color: inherit;
+  text-decoration: none;
+  /* 既可能落在 <button> 上，也可能落在 <a> 上：清掉浏览器默认控件样式 */
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.k-navbar__item[data-active="true"] {
+  color: var(--k-fg);
+  font-weight: 700;
+}
+
+/* ── 尊重系统设置：不要动效 ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .k-card,
+  .k-row,
+  .k-btn,
+  .k-switch,
+  .k-switch__knob {
+    transition: none;
+  }
+  .k-row:active,
+  .k-btn:active {
+    translate: none;
+  }
+}

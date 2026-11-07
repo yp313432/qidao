@@ -33,28 +33,6 @@ import { buildAllWakePrompts, wakePromptInput } from "@/lib/wake-prompt";
 
 export type WakeSyncResult = { ok: boolean; message: string };
 
-/** 最近几条对话（老的在前）—— 只取有内容的，最多 12 条 */
-function recentMessages(): { role: "user" | "assistant"; text: string }[] {
-  const st = useApp.getState();
-  const conv = st.conversations.find((c) => c.id === st.activeId);
-  if (!conv) return [];
-  return conv.messages
-    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content.trim())
-    .slice(-12)
-    .map((m) => ({
-      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      text: m.content.trim().slice(0, 1200),
-    }));
-}
-
-/** 上一次真人说话/他回话的时间 —— 让 Worker 判断"刚聊完就别来敲门" */
-function lastChatAt(): number | undefined {
-  const st = useApp.getState();
-  const conv = st.conversations.find((c) => c.id === st.activeId);
-  const last = conv?.messages.filter((m) => m.content.trim()).at(-1);
-  return last?.createdAt;
-}
-
 /**
  * 把人设、最近对话、上游配置、两个规矩交给手机后台那段 JS。
  *

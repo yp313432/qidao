@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
-import { StorageModeCard } from "@/components/storage-mode-card";
+import { StorageModeCard } from "@/components/shared/storage-mode-card";
 import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -24,7 +24,6 @@ export function MemoryView() {
 
   const [store, setStore] = useState<StorageUsage | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [toast, setToast] = useState("");
   /** 「现在就总结一次」那一下在跑 */
   const [summarizing, setSummarizing] = useState(false);
   /** 「现在就总结一次」点完的那句话（成功/没得可摘都要说清） */
@@ -57,6 +56,7 @@ export function MemoryView() {
   }, [conversations.length]);
 
   // 预览读本地数据，等挂载后再算，避免服务端/客户端不一致
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 后三个依赖不参与闭包，是"数据一变就重算"的触发器
   const ctx = useMemo(() => (mounted ? computeContext() : null), [mounted, conversations, settings, requestLog]);
 
   const stats = useMemo(() => {
@@ -80,11 +80,6 @@ export function MemoryView() {
   }, [requestLog]);
 
   const hitRate = stats.prompt > 0 ? Math.round((stats.cached / stats.prompt) * 100) : 0;
-
-  function flash(msg: string) {
-    setToast(msg);
-    window.setTimeout(() => setToast(""), 4000);
-  }
 
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
@@ -443,9 +438,6 @@ export function MemoryView() {
         </div>
       </section>
 
-      {toast && (
-        <p className="mt-4 px-5 text-center text-[12px] text-muted">{toast}</p>
-      )}
       <div className="h-6" />
     </div>
   );

@@ -1,0 +1,12 @@
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+/**
+ * 容器卡片 —— `.k-card`。
+ *
+ * 和 `.k-row` 的区别：卡片装内容、不响应手指；行是可点的，带按下位移。
+ * 别拿卡片当按钮用 —— 那样按下没反馈，用户会以为没点上。
+ */
+export function KCard({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("k-card", className)}>{children}</div>;
+}

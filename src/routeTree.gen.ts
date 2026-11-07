@@ -32,6 +32,7 @@ import { Route as ApiReadRouteImport } from './routes/api/read'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiWakeRouteImport } from './routes/api/wake'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
+import { Route as DesignKitRouteImport } from './routes/design.kit'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
@@ -183,6 +184,11 @@ const ApiWakeRoute = ApiWakeRouteImport.update({
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
   id: '/oauth/callback',
   path: '/oauth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesignKitRoute = DesignKitRouteImport.update({
+  id: '/design/kit',
+  path: '/design/kit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPlayIndexRoute = AppPlayIndexRouteImport.update({
@@ -399,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/design/kit': typeof DesignKitRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
   '/play/learn': typeof AppPlayLearnRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/design/kit': typeof DesignKitRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -523,6 +531,7 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/design/kit': typeof DesignKitRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
   '/_app/play/days': typeof AppPlayDaysRoute
@@ -588,6 +597,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/oauth/callback'
+    | '/design/kit'
     | '/play/add'
     | '/play/days'
     | '/play/learn'
@@ -648,6 +658,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/oauth/callback'
+    | '/design/kit'
     | '/'
     | '/play/add'
     | '/play/days'
@@ -711,6 +722,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/oauth/callback'
+    | '/design/kit'
     | '/_app/'
     | '/_app/play/add'
     | '/_app/play/days'
@@ -762,6 +774,7 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   ApiWakeRoute: typeof ApiWakeRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
+  DesignKitRoute: typeof DesignKitRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
 }
@@ -927,6 +940,13 @@ declare module '@tanstack/react-router' {
       path: '/oauth/callback'
       fullPath: '/oauth/callback'
       preLoaderRoute: typeof OauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design/kit': {
+      id: '/design/kit'
+      path: '/design/kit'
+      fullPath: '/design/kit'
+      preLoaderRoute: typeof DesignKitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/play/': {
@@ -1325,6 +1345,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   ApiWakeRoute: ApiWakeRoute,
   OauthCallbackRoute: OauthCallbackRoute,
+  DesignKitRoute: DesignKitRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, Heart, ImagePlus, Send } from "lucide-react";
-import { Avatar } from "@/components/avatar";
-import { FileButton } from "@/components/file-button";
+import { Avatar } from "@/components/shared/avatar";
+import { FileButton } from "@/components/shared/file-button";
 import { resolveAiName } from "@/lib/branding";
 import { readImageFile } from "@/lib/image-file";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";

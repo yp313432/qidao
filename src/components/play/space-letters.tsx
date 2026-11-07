@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Mail, MailOpen } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { LetterViewer } from "@/components/play/letter-envelope";
 import { useApp } from "@/lib/store";
 import type { Letter } from "@/lib/types";

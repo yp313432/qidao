@@ -1,7 +1,7 @@
 import { DateTimeField } from "@/components/ui/datetime-picker";
 import { useEffect, useState } from "react";
 import { AlarmClock, Bell, BellOff, Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { resolveAiName } from "@/lib/branding";
 import { askExactAlarm, exactAlarmState } from "@/lib/notify";
 import { IS_APP } from "@/lib/platform";

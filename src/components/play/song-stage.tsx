@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/components/shared/avatar";
 
 /**
  * 正在播放的舞台。

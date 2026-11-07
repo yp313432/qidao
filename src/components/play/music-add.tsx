@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
-import { FileButton } from "@/components/file-button";
-import { PlayHeader } from "@/components/play-header";
+import { FileButton } from "@/components/shared/file-button";
+import { PlayHeader } from "@/components/views/play-header";
 import { MusicLinks } from "@/components/play/music-links";
 import { usePlayer } from "@/lib/player";
 

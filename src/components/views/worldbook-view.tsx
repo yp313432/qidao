@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { PromptDialog } from "@/components/prompt-dialog";
+import { PageHeader } from "@/components/shared/page-header";
+import { PromptDialog } from "@/components/shared/prompt-dialog";
 import { resolveAiName } from "@/lib/branding";
 import { buildManual } from "@/lib/manual";
 import { PERMISSIONS } from "@/lib/permissions";

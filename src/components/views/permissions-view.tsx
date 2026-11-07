@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { buildAwarenessItems } from "@/lib/awareness";
 import { usePlayer } from "@/lib/player";
 import {

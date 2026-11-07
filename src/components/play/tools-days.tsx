@@ -1,8 +1,8 @@
 import { DateTimeField } from "@/components/ui/datetime-picker";
 import { useMemo, useState } from "react";
 import { CalendarHeart, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { SceneBackdrop } from "@/components/background-layer";
-import { PlayHeader } from "@/components/play-header";
+import { SceneBackdrop } from "@/components/shell/background-layer";
+import { PlayHeader } from "@/components/views/play-header";
 import { countdown, dayDiff, sortDates, startOfDay } from "@/lib/days";
 import { useApp } from "@/lib/store";
 import { cn, formatClock } from "@/lib/utils";

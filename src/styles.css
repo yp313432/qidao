@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/*
+  分层样式（2026-11 起）—— 改动前先读 design/README.md。
+
+  顺序即优先级：tokens（尺度/语义色）→ base（骨架）→ kit（组件）→ modes（皮肤）。
+  modes 必须最后：它只写变量，靠"后写覆盖"生效，不靠特异性。
+  下面这个文件是旧账，只许变小不许变大（scripts/guard-styles.mjs 拦着）。
+*/
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/kit.css";
+@import "./styles/modes/solid.css";
+@import "./styles/modes/frost.css";
+@import "./styles/modes/liquid.css";
+
 /* 本地字体（原本走 Google Fonts 外链，国内网络会阻塞首屏渲染） */
 @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:300;font-display:swap;src:url(/fonts/cormorant-garamond-300-italic.woff2) format('woff2')}
 @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/cormorant-garamond-400-italic.woff2) format('woff2')}
@@ -5470,6 +5484,9 @@ html.q-paused * {
   transform-origin: 50% -36px;
   transform: rotate(var(--rot, 0deg));
   animation: tool-sway var(--sway, 5s) ease-in-out infinite alternate;
+  /* 切页 P0（见 design/ARCHITECTURE.md D9）：等首帧画完再起摆 —— 四张吊牌里都有文字，
+     旋转中的文字每帧重新栅格化，若和"挂载"挤在同一帧，切到工具页就会顿一下。 */
+  animation-delay: 0.45s;
 }
 /* 打孔 + 铜眼圈 */
 [data-material="solid"] .tool-tag-card::before {
@@ -5672,6 +5689,8 @@ html.q-paused * {
 /* ---------- 纯色：纸感 + 装饰 ---------- */
 [data-material="solid"] .tool-stack {
   padding: 2px 0 8px;
+  /* 切页 P0：只做 layout 隔离，不加 paint —— ::before 那张假纸底故意超出右侧 11px */
+  contain: layout;
 }
 [data-material="solid"] .tool-stack::before {
   content: "";
@@ -5706,20 +5725,26 @@ html.q-paused * {
   box-shadow:
     0 1px 2px color-mix(in srgb, var(--aster-ink) 6%, transparent),
     3px 3px 0 -1px color-mix(in srgb, var(--aster-bg) 90%, var(--aster-ink) 10%);
-  transition: transform 0.22s ease, margin-left 0.22s ease;
+  /* 切页 P0：每张卡自己一块绘制区，展开/改状态不会连带重画整张列表 */
+  contain: layout paint;
+  /* 切页 P0：原来动的是 margin-left（布局属性，每帧重排）→ 改成 translate（合成器） */
+  transition: transform 0.22s ease, translate 0.22s ease;
 }
 [data-material="solid"] .tool-stack > .tool-card:nth-child(odd) {
   transform: rotate(-0.8deg);
 }
 [data-material="solid"] .tool-stack > .tool-card:nth-child(even) {
   transform: rotate(0.7deg);
-  margin-left: 10px;
+  translate: 10px 0;
 }
 [data-material="solid"] .tool-stack > .tool-card + .tool-card {
   margin-top: 13px;
 }
 [data-material="solid"] .tool-stack > .tool-card.open {
   transform: none !important;
+  /* 不用 !important：上面 :nth-child(even) 那条与这条特异性相同（都是三个 class 级），
+     而这条在后面 —— 层叠顺序已经赢了。!important 每多一条，守卫生效的收紧就更难。 */
+  translate: 0 0;
   margin-left: 0 !important;
 }
 [data-material="solid"] .tool-card .tool-tab {
@@ -5845,14 +5870,16 @@ html.q-paused * {
   left: 2px;
   width: 18px;
   height: 18px;
-  translate: none;
-  transform: none;
-  transition: left 0.2s ease;
+  /* 位移交给组件自带的 translate-x 类（GPU 合成、不触发重排），这里只改它的距离：
+     38 轨道 - 18 白点 - 2×2 内边距 = 16px。不要再写 translate:none —— 构建压缩会把它吃掉 */
+  transition:
+    translate 0.22s cubic-bezier(0.3, 0.7, 0.4, 1),
+    background-color 0.2s ease;
   background: color-mix(in srgb, var(--aster-bg) 94%, var(--aster-ink) 6%);
   box-shadow: 0 1px 1px color-mix(in srgb, var(--aster-ink) 20%, transparent);
 }
 [data-material="solid"] .tool-card button[role="switch"][aria-checked="true"] > span {
-  left: 18px;
+  --tw-translate-x: 16px;
   background: #fdfaf4;
 }
 [data-material="solid"] .tool-card .tool-zone {

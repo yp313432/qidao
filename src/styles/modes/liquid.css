@@ -1,0 +1,42 @@
+/*
+  模式：液态玻璃 —— 极透。背景的彩色直接映进来，靠"边亮 + 底透"做厚度。
+
+  和半磨砂的关键区别（用户 2026-10 的原话是"液态玻璃还是不太透"）：
+    · 模糊只有 5px，能看见背景结构；糊到 20px 就退化成磨砂了；
+    · 表面白度极低（靠 --aster-surface 那套主题变量给），边更亮；
+    · 圆角最大、影子最淡 —— 像一块贴在背景上的玻璃片。
+
+  这里只写变量，写法约束同 modes/solid.css 顶部注释。
+*/
+
+[data-material="liquid"] {
+  --k-font-ui: var(--k-font-sans);
+  --k-font-num: var(--k-font-mono);
+
+  --k-line: color-mix(in oklab, #ffffff 30%, transparent);
+  --k-line-soft: color-mix(in oklab, var(--aster-fg) 8%, transparent);
+  --k-border-w: 1px;
+
+  --k-card-radius: 20px;
+  --k-ctl-radius: 999px;
+
+  --k-card-shadow: 0 6px 20px color-mix(in oklab, var(--aster-fg) 6%, transparent);
+  --k-card-shadow-press: 0 2px 8px color-mix(in oklab, var(--aster-fg) 6%, transparent);
+  --k-press-shift: 0px;
+
+  --k-backdrop: blur(5px) saturate(1.7);
+
+  --k-ctl-on-bg: var(--aster-accent);
+  --k-ctl-on-fg: var(--aster-accent-fg);
+  --k-ctl-off-bg: color-mix(in oklab, var(--aster-fg) 16%, transparent);
+  --k-ctl-off-knob: #ffffff;
+  --k-chip-bg: color-mix(in oklab, var(--aster-fg) 12%, transparent);
+  --k-chip-fg: var(--aster-fg);
+
+  --k-track-w: 40px;
+  --k-track-h: 22px;
+  --k-knob: 16px;
+
+  --k-dur-move: var(--k-d-3);
+  --k-ease-move: var(--k-e-move);
+}

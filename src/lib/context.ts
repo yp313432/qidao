@@ -2,7 +2,7 @@ import { listTracks } from "@/lib/data/media";
 import { kvGet } from "@/lib/data/local-kv";
 import { useApp } from "@/lib/store";
 import { historyForApi } from "@/lib/chat-client";
-import { estimateTokens, prettyBytes } from "@/lib/tokens";
+import { estimateTokens } from "@/lib/tokens";
 
 export { estimateTokens, shortHash, prettyBytes, thinkingToPrune } from "@/lib/tokens";
 

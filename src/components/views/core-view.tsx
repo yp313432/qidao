@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
-import { FileButton } from "@/components/file-button";
+import { FileButton } from "@/components/shared/file-button";
 import { readImageFile } from "@/lib/image-file";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/shared/page-header";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";

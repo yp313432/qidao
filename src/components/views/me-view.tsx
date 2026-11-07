@@ -1,4 +1,4 @@
-import { MeHub } from "@/components/me-sections";
+import { MeHub } from "@/components/views/me-sections";
 
 /**
  * 「我的」首页。

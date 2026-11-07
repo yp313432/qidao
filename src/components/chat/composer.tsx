@@ -4,7 +4,6 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
-  AudioLines,
   Check,
   ChevronDown,
   ChevronRight,
@@ -16,7 +15,7 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { FileButton } from "@/components/file-button";
+import { FileButton } from "@/components/shared/file-button";
 import { filesToAttachments, prettySize, stickerFromFile } from "@/lib/attachments";
 import { stripWhiteBackground } from "@/lib/white-removal";
 import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
@@ -27,9 +26,6 @@ import {
 } from "@/lib/stickers";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { transcribe } from "@/lib/voice-service";
-import { startListening } from "@/lib/voice";
-import { IS_APP } from "@/lib/platform";
-import { resolveVoiceLang } from "@/lib/voice";
 import { resolveAiName } from "@/lib/branding";
 import { resetLabel } from "@/lib/greeting";
 import type { Attachment } from "@/lib/types";
@@ -54,7 +50,6 @@ type Props = {
 
 export function Composer({ onSend, disabled, streaming, editingText, onCancelEdit }: Props) {
   const [value, setValue] = useState("");
-  const activeChatId = useApp((s) => s.activeId);
   /**
    * 草稿保存。
    *
@@ -303,81 +298,6 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   }
 
   /* ---------------- 语音消息 ---------------- */
-
-  async function startRec() {
-    if (disabled || recRef.current || asrRef.current) return;
-    setRecErr("");
-    setPlusOpen(false);
-
-    /**
-     * App 里走**原生语音识别**。
-     *
-     * 安卓 WebView 没有 SpeechRecognition，原来那条路永远拿不到文字 ——
-     * 用户实测："语音条也不可以、转文字是空的"。
-     * 另外安卓不允许"识别"和"录音"同时占麦克风，所以这里只做识别：
-     * 识别出来的文字直接写进输入框，你确认（或改一下）再发。
-     */
-    if (IS_APP) {
-      /**
-       * 走 startListening（它内部会按情况选路）：
-       *   配了语音服务 → 自己录音 + 上传转文字（**唯一在荣耀上真能用的路** ✅）
-       *   没配 → 退回系统识别
-       *
-       * 之前这里直接调 startNativeListening，等于绕过了语音服务 ——
-       * 用户实测："语音通话欧克了，但是对话框旁边那个还是不行，录不上语音，一直是零秒" ✅
-       */
-      const t0 = Date.now();
-      const tick = window.setInterval(() => setRecMs(Date.now() - t0), 200);
-      const handle = startListening({
-        lang: resolveVoiceLang(settings.voiceLang),
-        onPartial: (t) => {
-          // 服务那条路会推一句"录音中…"，当提示显示；识别到的中间结果照常显示
-          if (t && !t.startsWith("（")) setRecErr("");
-        },
-        onFinal: (text) =>
-          setValue((v) => (v ? `${v}${/\s$/.test(v) ? "" : " "}${text}` : text)),
-        onEnd: () => {
-          window.clearInterval(tick);
-          asrRef.current = null;
-          setRecMs(null);
-        },
-        onError: (msg) => {
-          window.clearInterval(tick);
-          setRecErr(msg);
-          asrRef.current = null;
-          setRecMs(null);
-        },
-      });
-      if (!handle) {
-        window.clearInterval(tick);
-        setRecErr("这个版本没接上语音，装最新版再试。");
-        return;
-      }
-      asrRef.current = handle;
-      setRecMs(0);
-      return;
-    }
-
-    if (!recordSupported()) {
-      setRecErr("这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。");
-      return;
-    }
-    try {
-      const rec = await startRecording((ms) => setRecMs(ms));
-      recRef.current = rec;
-      setRecMs(0);
-    } catch (err) {
-      const name = (err as { name?: string }).name;
-      setRecErr(
-        name === "NotAllowedError" || name === "SecurityError"
-          ? "麦克风权限被拒了（也可能是 http 页面不给用）。要在浏览器设置里允许麦克风。"
-          : name === "NotFoundError"
-            ? "没找到麦克风设备。"
-            : `录音起不来：${(err as Error).message || name || "未知原因"}`,
-      );
-      setRecMs(null);
-    }
-  }
 
   /**
    * 按住说话（用户 m11313："直接发语音气泡…跟微信发语音一样"）。
@@ -1456,10 +1376,3 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     </div>
   );
 }
-
-type SpeechRec = {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((e: { results: Array<Array<{ transcript: string }>> }) => void) | null;
-  start: () => void;
-};

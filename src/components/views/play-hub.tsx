@@ -12,7 +12,7 @@ import {
   Trees,
   X,
 } from "lucide-react";
-import { FileButton } from "@/components/file-button";
+import { FileButton } from "@/components/shared/file-button";
 import { countdown, sortDates } from "@/lib/days";
 import { deletePhoto, listPhotos, makePhoto, putPhoto, type PlayPhoto } from "@/lib/data/media";
 import { ButterflyWings, ClipStamp } from "@/components/play/note-decor";
