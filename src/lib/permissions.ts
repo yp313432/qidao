@@ -22,6 +22,7 @@ export type RiskLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type PermStatus = "ready" | "partial" | "todo" | "system" | "forbidden" | "needs_ai";
 export type GroupId =
   | "sense"
+  | "device"
   | "ui"
   | "write"
   | "media"
@@ -42,6 +43,11 @@ export type PermissionDef = {
 
 export const GROUPS: { id: GroupId; title: string; note: string }[] = [
   { id: "sense", title: "感知 · 他能知道什么", note: "只读，不改变任何东西。" },
+  {
+    id: "device",
+    title: "动手 · 他能替你做什么",
+    note: "都是交给系统做：开 App、分享、剪贴板、地图、日历。碰不到别的 App 里面。",
+  },
   { id: "ui", title: "界面与外观", note: "他能动你眼前的界面。" },
   { id: "write", title: "内容写入", note: "他会往你的资料里写东西。" },
   { id: "media", title: "媒体", note: "音乐与朗读。" },
@@ -226,13 +232,20 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "export_data", title: "导出 / 外传你的数据", hint: "把你的内容送出去", risk: "L4", status: "forbidden", group: "danger" },
   { id: "upload_files", title: "上传你的文件", hint: "音乐、图片等原始文件", risk: "L4", status: "forbidden", group: "danger" },
 
+  // ---------------- 动手（零权限，交系统做） ----------------
+  // 这一组全都靠系统 Intent 完成，不需要无障碍也不需要 Shizuku（见 lib/native-device.ts）。
+  { id: "app_list", title: "看你装了哪些 App", hint: "只知道名字和图标，读不到里面", risk: "L0", status: "ready", group: "device" },
+  { id: "app_open", title: "替你打开 App", hint: "等于点了下桌面图标，进去做什么还得他自己来", risk: "L1", status: "ready", group: "device" },
+  { id: "share_out", title: "把内容分享出去", hint: "弹系统分享面板，发给谁你当场定", risk: "L1", status: "ready", group: "device" },
+  { id: "map_nav", title: "打开地图", hint: "只是把地图叫出来，不读你的位置", risk: "L1", status: "ready", group: "device" },
+  { id: "clipboard", title: "读写剪贴板", hint: "你刚复制的东西 / 让你去粘贴", risk: "L2", status: "ready", group: "device" },
+  { id: "calendar_write", title: "往日历里加日程", hint: "打开系统新建日程页，你按保存才生效", risk: "L2", status: "ready", group: "device" },
+
   // ---------------- 系统级（封装后） ----------------
   { id: "sys_notify", title: "后台系统通知", hint: "App 关着也能提醒你", risk: "L2", status: "system", group: "system" },
   { id: "sys_alarm", title: "闹钟 / 定时任务", hint: "操作系统级的定时", risk: "L2", status: "system", group: "system" },
   { id: "sys_files", title: "读写本地文件 / 相册", hint: "需要原生权限", risk: "L2", status: "system", group: "system" },
-  { id: "sys_clipboard", title: "剪贴板", hint: "读取或写入剪贴板", risk: "L2", status: "system", group: "system" },
   { id: "sys_background", title: "后台播放 / 锁屏控制", hint: "退出页面还在放", risk: "L1", status: "system", group: "system" },
-  { id: "sys_calendar", title: "日历 / 联系人", hint: "比较敏感，单独确认", risk: "L3", status: "system", group: "system" },
 ];
 
 export const PERMISSION_MAP: Record<string, PermissionDef> = Object.fromEntries(

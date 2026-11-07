@@ -22,6 +22,14 @@ public class MainActivity extends BridgeActivity {
     // 背景铺到状态栏/导航栏下面 + 把安全区高度交给网页 + 图标颜色跟着背景明暗走。
     // ⚠️ 必须跟插件里的 edgeToEdge() 一起用：只开窗口、不交安全区，顶栏会被状态栏压住
     registerPlugin(ShellBridgePlugin.class);
+    // 注册自定义插件：**用户闹钟**（见 QidaoAlarmPlugin）
+    // 用 AlarmManager.setAlarmClock 排真正的系统闹钟 —— App 关着也会响、会亮屏、会震；
+    // 原来只排了一条"定时通知"，App 不在前台就什么都不会发生（用户 m05769 报的 bug）。
+    registerPlugin(QidaoAlarmPlugin.class);
+    // 注册自定义插件：**零权限的"动手"层**（见 QidaoDevicePlugin）
+    // 开 App / 系统分享 / 剪贴板 / 地图导航 / 写日历 —— 全靠 Intent 交给系统做，
+    // 不需要无障碍、不需要 Shizuku、不需要任何特殊权限。
+    registerPlugin(QidaoDevicePlugin.class);
     super.onCreate(savedInstanceState);
 
     /**

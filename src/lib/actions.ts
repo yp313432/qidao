@@ -23,6 +23,15 @@ import { closeFact, conflictOf, guessKind, isLive } from "@/lib/memory";
 import { cancelNative } from "@/lib/notify";
 import { appendVestigium } from "@/lib/garden-trace";
 import { runSenseAction } from "@/lib/sense";
+import {
+  addCalendarEvent,
+  clipboardRead,
+  clipboardWrite,
+  listLaunchableApps,
+  openApp,
+  openMap,
+  shareText,
+} from "@/lib/native-device";
 import { speakTextAsync } from "@/lib/tts";
 import {
   feedFlower,
@@ -330,7 +339,7 @@ const stamp = (t: number): string =>
       const oneOff = /^\d{4}-\d{2}-\d{2}$/.test(date);
       st.addReminder({ text, time: action.time, ring: action.ring, date });
       const when = action.time ? `${oneOff ? date : "每天"} ${action.time}` : "App 开着时提醒";
-      return `设好了：${when} · ${text}${action.ring ? "（会全屏响铃）" : "（只弹通知）"}`;
+      return `设好了：${when} · ${text}${action.ring ? "（到点全屏响铃，App 关着也响）" : "（只弹通知）"}`;
     }
     case "memory.add": {
       const note = str(action.note).trim();
@@ -1285,6 +1294,53 @@ ${lines.join("\n")}`;
       return await runSenseAction("sense.usage", { days: action.days });
     case "sense.screen":
       return await runSenseAction("sense.screen");
+
+    /* ── 动手：零权限（全靠系统 Intent，见 lib/native-device.ts） ── */
+    case "device.listApps": {
+      const apps = await listLaunchableApps();
+      if (!apps.length) return "这台设备上看不到能打开的 App（网页版没有这个能力）";
+      const labels = apps.slice(0, 80).map((a) => a.label);
+      const more = apps.length > labels.length ? `（共 ${apps.length} 个，这里列前 ${labels.length} 个）` : "";
+      return `能打开的有 ${apps.length} 个${more}：${labels.join("、")}`;
+    }
+    case "device.openApp": {
+      const r = await openApp(action.app);
+      if (r.ok) return `打开了「${r.label ?? action.app}」`;
+      const near = r.candidates?.length ? `。相近的有：${r.candidates.join("、")}` : "";
+      return `没找到「${action.app}」${r.reason ? `：${r.reason}` : ""}${near}`;
+    }
+    case "device.share": {
+      const r = await shareText(action.text, action.title);
+      if (!r.ok) return `没分享出去：${r.reason ?? "面板没打开"}`;
+      if (r.via === "system" || r.via === "web-share") return "分享面板已经打开，你挑发给谁";
+      return "分享面板打不开，已经复制到剪贴板了";
+    }
+    case "device.clipboardRead": {
+      const text = await clipboardRead();
+      if (!text) return "剪贴板是空的（或者系统不让读 —— 安卓 10 起只允许在前台读）";
+      const clipped = text.length > 2000 ? `${text.slice(0, 2000)}…（共 ${text.length} 字）` : text;
+      return `剪贴板里是：${clipped}`;
+    }
+    case "device.clipboardWrite": {
+      const ok = await clipboardWrite(action.text);
+      return ok ? `已经复制 ${action.text.length} 字到剪贴板` : "没能写进剪贴板";
+    }
+    case "device.openMap": {
+      const r = await openMap({ query: action.place, lat: action.lat, lng: action.lng });
+      if (!r.ok) return `没能打开地图：${r.reason ?? "缺地点"}`;
+      return `地图已打开${action.place ? `：${action.place}` : ""}`;
+    }
+    case "device.addCalendar": {
+      const r = await addCalendarEvent({
+        title: action.title,
+        begin: action.begin,
+        end: action.end,
+        location: action.location,
+        notes: action.notes,
+      });
+      if (!r.ok) return `没能打开日历：${r.reason ?? "未知原因"}`;
+      return `日历里已经填好「${action.title}」，你按保存才真的写进去`;
+    }
 
     case "media.import": {
       const url = action.url.trim();

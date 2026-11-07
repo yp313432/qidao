@@ -19,6 +19,18 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      闹钟页面：震动 + "锁屏上直接怼到眼前"的兜底通知。
+
+      · VIBRATE：`AlarmActivity` 用 Vibrator 打拍子，缺了就是 SecurityException
+      · USE_FULL_SCREEN_INTENT：`AlarmNotify` 的 setFullScreenIntent 需要它。
+        ⚠️ 安卓 14 起这权限对**新装**应用默认不授予，用户得去
+           设置 → 应用 → 栖岛 → 通知 → 「全屏通知」里手动开；
+        所以它只是兜底 —— 主路径是 `AlarmReceiver` 直接 startActivity
+        （闹钟类应用有后台启动 Activity 的豁免，不需要这个权限）。
+    -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!--
       ——— 原生后台唤醒（2026-10）———
@@ -204,6 +216,39 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          ───── 用户闹钟（2026-11 这一批）─────
+
+          链路：AlarmManager.setAlarmClock → AlarmReceiver（到点）
+               → AlarmActivity（全屏 + 铃声 + 震动 + 亮屏）→ 关掉 / 5 分钟后再响
+
+          为什么跟上面的 WakeReceiver（主动唤醒）分开：
+            两者语义不同。主动唤醒是"他自己想说句话"，低优先级、可以沉默；
+            用户闹钟是"人定的、必须把人叫醒"，要高优先级、要亮屏、要盖在锁屏上。
+            混在一个 receiver 里迟早互相干扰（WakeReceiver 里有一堆排下一次的逻辑）。
+
+          `android:showWhenLocked` / `turnScreenOn` 在这里也写一遍（Java 里也设了）：
+            Java 那侧是 API 27+ 的运行时 API，manifest 这两条对老版本生效。
+          `launchMode="singleInstance"`：连响两次不会叠出两个闹钟页。
+          `excludeFromRecents="true"`：别让它出现在多任务里（它不是 App 的一页）。
+        -->
+        <activity
+            android:name=".AlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <receiver
+            android:name=".AlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.yanping.qidao.ALARM_RING" />
             </intent-filter>
         </receiver>
 

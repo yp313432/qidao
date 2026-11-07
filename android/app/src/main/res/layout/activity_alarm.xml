@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  闹钟到点时的全屏页（见 AlarmActivity.java）。
+
+  为什么用纯 LinearLayout 手写而不走 WebView：
+  这一页必须在**几秒内**出现在锁屏上面，不能等 Capacitor 把 React 挂起来。
+  它也不显示任何 App 内容，只是大字 + 两个按钮，手写反而最稳。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#1c1917"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/alarm_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="72sp"
+        android:textColor="#f6f3ee"
+        android:fontFamily="sans-serif-light"
+        android:letterSpacing="0.02"
+        android:text="07:30" />
+
+    <TextView
+        android:id="@+id/alarm_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textSize="18sp"
+        android:textColor="#c17b5a"
+        android:gravity="center"
+        android:text="闹钟" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:textSize="12sp"
+        android:textColor="#7a746c"
+        android:letterSpacing="0.2"
+        android:text="QIDAO · 栖岛" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/alarm_snooze"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="5 分钟后再响"
+            android:textAllCaps="false"
+            android:textSize="15sp"
+            android:textColor="#f6f3ee"
+            android:backgroundTint="#2a2521" />
+
+        <Button
+            android:id="@+id/alarm_stop"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:text="关掉"
+            android:textAllCaps="false"
+            android:textSize="15sp"
+            android:textColor="#f6f3ee"
+            android:backgroundTint="#c17b5a" />
+    </LinearLayout>
+</LinearLayout>

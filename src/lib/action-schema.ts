@@ -74,6 +74,14 @@ export const ACTION_GROUPS = [
    * （把每个英文双引号包着的短串当成一个组名），注释里的引号会被算成第 13 个组名。
    */
   "感知",
+  /**
+   * 「动手」= **零权限也能让他替你办事**（2026-11 用户 m05769 定：先做零权限那半套）。
+   *
+   * 这一组全是把请求交给系统做：开 App、系统分享、剪贴板、地图、日历。
+   * 不需要无障碍、不需要 Shizuku —— 代价是碰不到别人 App 内部。
+   * 单开一组是因为它风险与语气都和「感知」不同：感知是看，这一组是动。
+   */
+  "动手",
 ] as const;
 
 export type ActionGroup = (typeof ACTION_GROUPS)[number];
@@ -941,6 +949,63 @@ export const ACTION_SCHEMA = [
     group: "感知",
     summary: "看一眼屏幕亮着没、锁没锁",
     fields: [],
+  },
+
+  /* ── 动手：零权限（交系统做） ── */
+  {
+    kind: "device.listApps",
+    group: "动手",
+    summary: "看看这台手机上装了哪些能打开的 App",
+    fields: [],
+  },
+  {
+    kind: "device.openApp",
+    group: "动手",
+    summary: "替他打开某个 App（等于点了下桌面图标，进去之后做什么还得他自己来）",
+    fields: [{ name: "app", type: "string", required: true, note: "App 名字或包名，可以只写一部分" }],
+  },
+  {
+    kind: "device.share",
+    group: "动手",
+    summary: "把一段文字或链接调起系统分享面板发出去",
+    fields: [
+      { name: "text", type: "string", required: true, note: "要分享的内容" },
+      { name: "title", type: "string", required: false, note: "分享面板上的标题" },
+    ],
+  },
+  {
+    kind: "device.clipboardRead",
+    group: "动手",
+    summary: "读一下他刚复制到剪贴板的东西（安卓 10 起只能在前台读）",
+    fields: [],
+  },
+  {
+    kind: "device.clipboardWrite",
+    group: "动手",
+    summary: "把一段文字放进剪贴板，让他自己去粘",
+    fields: [{ name: "text", type: "string", required: true }],
+  },
+  {
+    kind: "device.openMap",
+    group: "动手",
+    summary: "打开地图看某个地方（有坐标给坐标，只有地名也可以）",
+    fields: [
+      { name: "place", type: "string", required: false, note: "地名，例如 静安寺" },
+      { name: "lat", type: "number", required: false, note: "纬度，和 lng 一起给更准" },
+      { name: "lng", type: "number", required: false },
+    ],
+  },
+  {
+    kind: "device.addCalendar",
+    group: "动手",
+    summary: "往日历里加一条日程（打开系统新建日程页填好，他按保存才真的写进去）",
+    fields: [
+      { name: "title", type: "string", required: true },
+      { name: "begin", type: "string", required: false, note: "ISO 8601，例如 2026-11-08T07:30:00；不填就是现在" },
+      { name: "end", type: "string", required: false, note: "ISO 8601；不填就跟 begin 一样" },
+      { name: "location", type: "string", required: false },
+      { name: "notes", type: "string", required: false },
+    ],
   },
 ] as const satisfies readonly ActionDef[];
 

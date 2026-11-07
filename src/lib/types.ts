@@ -1334,7 +1334,29 @@ export type FeatureId =
        */
       days?: number;
     }
-  | { kind: "sense.screen" };
+  | { kind: "sense.screen" }
+  /**
+   * **零权限的"动手"层**（2026-11 用户 m05769）。
+   *
+   * 这些都是"把请求交给系统做"：开 App、系统分享、剪贴板、地图、日历。
+   * 不需要无障碍、不需要 Shizuku —— 但也正因为如此，**碰不到别人 App 内部**
+   * （点不了它的按钮、读不到它的字）。那部分留给 P2b/P2c。
+   */
+  | { kind: "device.listApps" }
+  | { kind: "device.openApp"; app: string }
+  | { kind: "device.share"; text: string; title?: string }
+  | { kind: "device.clipboardRead" }
+  | { kind: "device.clipboardWrite"; text: string }
+  | { kind: "device.openMap"; place?: string; lat?: number; lng?: number }
+  | {
+      kind: "device.addCalendar";
+      title: string;
+      /** ISO 8601（2026-11-08T07:30:00）；不传就是现在 */
+      begin?: string;
+      end?: string;
+      location?: string;
+      notes?: string;
+    };
 
 /** 一条「用户在干什么」的记录。 */
 export type ActivityEntry = {

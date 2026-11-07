@@ -157,6 +157,20 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "sense.notifications": "read_notifications",
   "sense.foreground": "read_usage",
   "sense.usage": "read_usage",
+  /**
+   * ——— 动手 · 零权限（2026-11 用户 m05769：先做零权限那半套）———
+   *
+   * 全是把请求交给系统做（开 App / 分享 / 剪贴板 / 地图 / 日历），
+   * 所以风险按"能不能改变你手机上的东西"分：看一眼与叫出来是 L0/L1，
+   * 碰内容和写日历是 L2（默认每次问一下）。见 `lib/native-device.ts`。
+   */
+  "device.listApps": "app_list",
+  "device.openApp": "app_open",
+  "device.share": "share_out",
+  "device.openMap": "map_nav",
+  "device.clipboardRead": "clipboard",
+  "device.clipboardWrite": "clipboard",
+  "device.addCalendar": "calendar_write",
 };
 
 const THEME_LABEL: Record<string, string> = { dawn: "黎明", dusk: "黄昏", ink: "墨色" };
@@ -378,5 +392,19 @@ export function actionTitle(action: AppAction): string {
       return "看一眼今天每个 App 用了多久";
     case "sense.screen":
       return "看一眼屏幕状态";
+    case "device.listApps":
+      return "看一眼装了哪些 App";
+    case "device.openApp":
+      return `打开「${action.app}」`;
+    case "device.share":
+      return "把内容分享出去";
+    case "device.clipboardRead":
+      return "读一下剪贴板";
+    case "device.clipboardWrite":
+      return "把一段话放进剪贴板";
+    case "device.openMap":
+      return `打开地图看${action.place ? `「${action.place}」` : "一个位置"}`;
+    case "device.addCalendar":
+      return `往日历里加「${action.title}」`;
   }
 }

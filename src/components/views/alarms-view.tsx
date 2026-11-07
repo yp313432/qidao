@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AlarmClock, Bell, BellOff, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { resolveAiName } from "@/lib/branding";
+import { testNativeAlarm } from "@/lib/native-alarm";
 import { askExactAlarm, exactAlarmState } from "@/lib/notify";
 import { IS_APP } from "@/lib/platform";
 import { previewRing } from "@/lib/ring-tone";
@@ -17,7 +18,8 @@ import { cn } from "@/lib/utils";
  *
  * 三件事必须说清（否则用户会以为它像系统闹钟那样绝对可靠）：
  *   · App 开着 → 到点**全屏响铃 + 真的响**（WebAudio 合成，不用音频文件）
- *   · App 关着 → 只有系统通知（我们把闹钟交给了系统定时，那个照样会响）
+ *   · App 关着 → **照样响**：2026-11 起闹钟走系统 `setAlarmClock` + 原生响铃页
+ *     （见 `lib/native-alarm.ts`），不再是"只弹一条通知"
  *   · 安卓 12+ 还要单独授权"闹钟和提醒"，没授权时系统可能推迟几十秒到几分钟
  */
 export function AlarmsView() {
@@ -70,18 +72,35 @@ export function AlarmsView() {
       <section className="px-4">
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
           <p className="text-[13px] leading-5">
-            到点会<span className="text-fg">全屏响铃</span>（带声音），不只弹一条通知 ——
-            只发通知的话，睡着的时候根本不知道响过。
+            到点会<span className="text-fg">全屏响铃</span>：亮屏 + 声音 + 震动，
+            盖在锁屏上，得你自己按掉才停。
           </p>
           <p className="mt-2 text-[11px] leading-4 text-subtle">
-            App 关着时靠系统定时通知（我们把闹钟交给了系统，所以照样会响，但只弹通知）。
+            {/* 2026-11 用户 m05769：以前这里只是排了一条定时通知，App 一关就什么都不发生 */}
+            App 关着也响 —— 闹钟已经排进系统的闹钟队列（安卓设置里能看到「下一个闹钟」）。
             网页版没有这个能力。
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => previewRing()}
+              onClick={() => {
+                /*
+                 * 试听走的就是**真的那条路**（原生响铃页）—— 否则用户听到的是
+                 * 网页合成的音，真闹钟响了什么样他永远不知道。
+                 * 网页版没有原生响铃页，退回 `previewRing()`。
+                 */
+                if (!IS_APP) {
+                  previewRing();
+                  return;
+                }
+                void testNativeAlarm("这是试听 · 真闹钟就长这样").then((r) => {
+                  if (!r.ok) {
+                    setSysMsg(r.reason ?? "没能试听");
+                    previewRing();
+                  }
+                });
+              }}
               className="rounded-full bg-chip px-3 py-1.5 text-[12px] text-fg"
             >
               听一下铃声
@@ -95,13 +114,13 @@ export function AlarmsView() {
                   exact === "granted" ? "bg-chip text-muted" : "bg-accent text-accent-fg",
                 )}
               >
-                {exact === "granted" ? "精确定时已授权 ✅" : "申请精确定时（安卓 12+）"}
+                {exact === "granted" ? "精确定时已开 ✅" : "打开精确定时（安卓 12+）"}
               </button>
             )}
           </div>
           {IS_APP && exact === "denied" && (
             <p className="mt-2 text-[11px] leading-4 text-subtle">
-              没授权时闹钟可能晚几十秒到几分钟 —— 这是安卓的省电规矩，不是我们偷懒。
+              没开精确定时的话，系统会把闹钟跟别的定时合并一下，可能晚几十秒到几分钟。
             </p>
           )}
           {sysMsg && <p className="mt-2 text-[11px] leading-4 text-fg">{sysMsg}</p>}

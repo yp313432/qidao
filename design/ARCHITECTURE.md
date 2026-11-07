@@ -286,3 +286,46 @@ npm run dev       # 真机/浏览器看效果
   现在两种都认（`SKIP` / `<silent>` / `[silent]`）。
   教训：**跨进程共享的"协议字符串"改一处就要把另一头的解析一起改** —— 它不在 TypeScript 的
   类型检查范围里，只能靠人记。
+
+- **45. 「闹钟」和「通知」是两种东西，混着做就会出现"到点什么都没发生"**（2026-11-07
+  用户 m05769："现在的闹钟只能在 app 点开的时候响，其他时候不想（响）"）：
+  原来 `lib/notify.ts` 的 `scheduleNative()` 只是往系统排了一条**定时通知** ——
+  App 不在前台时它会插一条通知，但不响、不震、不亮屏；睡着了的人永远不会知道。
+  正解是 `AlarmManager.setAlarmClock()`（不是 `setExact`）：
+  · Doze 下照样准时，状态栏会显示"下一个闹钟"（对用户是明示，也是系统的承诺）
+  · PendingIntent 到点触发 `.AlarmReceiver` → `.AlarmActivity`（全屏）
+  · **闹钟类应用有后台启动 Activity 的豁免** —— 这是全屏页能弹到锁屏上面的前提，
+  普通通知的 `setFullScreenIntent` 只是兜底（安卓 14 起该权限对新装应用默认不授予）
+  配套三条：铃声 `AudioAttributes.USAGE_ALARM`（否则静音/勿扰按媒体音量压掉）、
+  `MediaPlayer.setLooping(true)`、自己拿 `WakeLock`（`setTurnScreenOn` 只点亮那一下）。
+  另外**别复用聊天的通知渠道**：渠道重要性建后不可改，聊天渠道不该带闹铃音/勿扰穿透。
+
+- **46. 原生侧没有"列出我排了哪些 PendingIntent"的 API**（同上）：想让"删闹钟"生效，
+  只能靠 JS 侧记一份表（`qidao:alarms-scheduled`）并把差分 `removed` 传下去；
+  反过来在原生侧对 10 万个 requestCode 用 `FLAG_NO_CREATE` 去试探 = 十万次 binder 调用，
+  主线程直接卡死。
+
+- **47. 一个闹钟响两遍的坑**：原生接管之后，App 内 `reminder-daemon` 的 `check()`
+  不能再弹自己的全屏响铃（`setRinging`），否则同一时刻两层都弹。
+  用模块级 `nativeAlarmReady` 做让位开关 —— **不能放 React state**，
+  因为 `check()` 跑在 `setInterval` 里闭包读的是旧值。
+
+- **48. 「零权限」到底能做什么，边界要写在代码里**（2026-11 用户 m05769，做 P2a 那一层）：
+  这一层全靠**把请求交给系统**（`Intent`）—— 开 App、系统分享、剪贴板、地图、日历。
+  能「叫得出来」，但**进不去**：点不了别人 App 里的按钮、读不到它的字（那要无障碍/Shizuku）。
+  三个具体边界：剪贴板**读**在 Android 10+ 只允许前台；写日历是 `ACTION_INSERT`
+  打开系统新建页，**用户按保存才真写**；开 App 只等于点了下桌面图标。
+
+- **49. 新增一个动作组要同步改四处**（漏一处 tsc 或界面就少一块）：
+  ① `src/lib/action-schema.ts`：`ACTION_GROUPS` + `ACTION_SCHEMA`（`MissingActionKind` 会兜住漏写）
+  ② `src/lib/action-meta.ts`：`ACTION_PERMISSION`（kind → 权限 id）+ `actionTitle()` 的 switch
+  （那个 switch 没有 default，漏了会 `TS2366`）
+  ③ `src/lib/permissions.ts`：`GroupId` 联合 + `GROUPS` + `PERMISSIONS`（权限项要真的存在，
+  否则 `ACTION_PERMISSION` 指向一个不存在的 id，去重面板里就永远问不到）
+  ④ `src/lib/tool-select.ts`：**零 import 的副本**（`GroupId` / `ALL_GROUPS` / `GROUP_KEYWORDS`）
+  —— 关键词是「按需注册」的唯一依据，不写这一组的词，这组的工具永远发不出去。
+
+- **50. 占位权限不能在真实现之后继续留着**：`sys_clipboard` / `sys_calendar` 原本是
+  「封装成 App 后」的占位（`status: "system"`）。零权限层做出来之后，它们被
+  `clipboard` / `calendar_write` 两个真项取代 —— 否则权限页会同时出现「能用」和「等一下再说」
+  两套说法，用户不知道该信哪个。
