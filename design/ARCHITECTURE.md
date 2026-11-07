@@ -346,3 +346,11 @@ npm run dev       # 真机/浏览器看效果
   `results-receiver.actions.githubusercontent.com`，返回 **chunked** 编码，要自己 dechunk
   才是合法 zip。定位顺序：`/runs` → `/runs/{id}/jobs`（看哪一步红）→ 下载 logs zip →
   在那个步骤的 txt 里 grep `error:`。
+
+- **53. Java 的 lambda 只能捕获 final / effectively final 的局部变量**（2026-11-07 #265 构建失败）：
+  `AlarmActivity` 里写了 `String text = getIntent().getStringExtra("text"); if (text == null || …) text = "闹钟";`
+  然后把 `text` 用在了 `setOnClickListener(v -> snooze(text))` 里 → 编译报
+  `local variables referenced from a lambda expression must be final or effectively final`。
+  正解是一次赋值（`final String text = raw == null || raw.isEmpty() ? "闹钟" : raw;`），
+  不要"先声明再补默认值"。顺带记住：javac 的 attr 阶段和 flow 阶段是分开报的，
+  一次只看到一条错，说明**后面可能还藏着**，改完要整文件再读一遍。

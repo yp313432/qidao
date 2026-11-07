@@ -59,8 +59,9 @@ public class AlarmActivity extends Activity {
     }
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-    String text = getIntent().getStringExtra("text");
-    if (text == null || text.isEmpty()) text = "闹钟";
+    String rawText = getIntent().getStringExtra("text");
+    /* 一次赋值：下面「稍后再响」的 lambda 要捕获它，javac 要求 final / effectively final */
+    final String text = (rawText == null || rawText.isEmpty()) ? "闹钟" : rawText;
     int hour = getIntent().getIntExtra("hour", -1);
     int minute = getIntent().getIntExtra("minute", -1);
 
