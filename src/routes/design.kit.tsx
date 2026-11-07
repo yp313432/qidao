@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { ChevronDown, Trash2 } from "lucide-react";
 import {
   KButton,
   KCard,
@@ -48,6 +49,8 @@ function KitShowcase() {
   const [switchA, setSwitchA] = useState(true);
   const [switchB, setSwitchB] = useState(false);
   const [nav, setNav] = useState("home");
+  const [tab, setTab] = useState("HTTP");
+  const [openCard, setOpenCard] = useState(true);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -169,6 +172,93 @@ function KitShowcase() {
           hint="加一条之后就会列在这里"
           action={<KButton variant="dashed">加一条</KButton>}
         />
+      </KCard>
+
+      {/* ── 标签条 ─────────────────────────────────────────── */}
+      <KHead title="标签条" meta=".k-tabs / .k-tab" />
+      <div className="k-tabs">
+        {["HTTP", "MCP", "摘要", "文档"].map((t) => (
+          <button
+            key={t}
+            type="button"
+            className="k-tab"
+            data-active={tab === t ? "true" : undefined}
+            onClick={() => setTab(t)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 可展开卡片（工具页三处列表用的就是它）────────────── */}
+      <KHead title="展开卡" meta="ToolCard" />
+      <div className="k-list">
+        <KCard open={openCard}>
+          <div className="k-card__head">
+            <button
+              type="button"
+              className="k-card__toggle"
+              aria-expanded={openCard}
+              onClick={() => setOpenCard((v) => !v)}
+            >
+              <span className="k-row__body">
+                <span className="k-row__title">点标题展开 / 收起</span>
+                <span className="k-row__meta">
+                  <KChip>GET</KChip>
+                  <span className="k-clip">api.example.com/v1/weather</span>
+                </span>
+              </span>
+              <ChevronDown className="k-chev" aria-hidden="true" />
+            </button>
+            <KSwitch checked={switchA} onChange={setSwitchA} label="演示卡片的开关" />
+          </div>
+          {openCard && (
+            <div className="k-card__body">
+              <div className="k-kv">
+                <span className="k-kv__k">地址</span>
+                <span className="k-kv__v">https://api.example.com/v1/weather</span>
+              </div>
+              <div className="k-kv">
+                <span className="k-kv__k">参数</span>
+                <span className="k-kv__v">city = 杭州</span>
+              </div>
+              <div className="k-acts">
+                <KButton variant="primary">调用</KButton>
+                <KButton variant="icon" aria-label="删除">
+                  <Trash2 aria-hidden="true" />
+                </KButton>
+                <span className="k-stat" data-tone="ok">
+                  启用中
+                </span>
+                <span className="k-stat" data-tone="warn">
+                  已停用
+                </span>
+              </div>
+              <span className="k-stat">最近返回 · 12:04</span>
+              <pre className="k-code">{`{
+  "city": "杭州",
+  "t": 19
+}`}</pre>
+            </div>
+          )}
+        </KCard>
+      </div>
+
+      {/* ── 长文与折叠说明 ─────────────────────────────────── */}
+      <KHead title="长文 / 说明" meta=".k-long / .k-note" />
+      <KCard>
+        <div className="k-vstack">
+          <p className="k-long">
+            摘要正文用 .k-long：行高比正文松一档，长文读起来不挤。纯色下底色是纸、字是墨，
+            磨砂和液态下自动跟着材质走。
+          </p>
+          <details className="k-note">
+            <summary>折叠说明（点一下展开）</summary>
+            <div className="k-note__body">
+              .k-note 是给“怎么用”这种次要说明用的，默认收起，不抢正文的注意力。
+            </div>
+          </details>
+        </div>
       </KCard>
 
       <KNavbar

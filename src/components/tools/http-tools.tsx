@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Loader2, Pencil, Play, Plus, Sparkles, Trash2 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Loader2, Pencil, Play, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ToolCard } from "@/components/tools/tool-card";
+import { KButton, KChip, KEmpty, KSwitch } from "@/components/ui-kit";
 import { buildHttpRequest, paramsOfTool } from "@/lib/http-tools";
 import { EXAMPLE_HTTP_TOOLS, useApp } from "@/lib/store";
 import type { HttpTool } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type Result = { status: number; ms: number; text: string; error?: string };
 
@@ -32,6 +32,9 @@ function hostOf(url: string) {
  *     POST/PUT 看请求体的顶层键。所以"你配了什么，他就能改什么"，不用另填说明。
  *
  * 新建 / 编辑跳到独立页面 `/tools/http`（原来那个底部弹层会被导航挡住）。
+ *
+ * 2026-11-07 阶段3 迁移：外框从手写的 `.tool-card` 换成 kit 的
+ * `ToolCard`（`.k-card`）—— 三套材质各自靠变量变样子，这里一个颜色都不写。
  */
 export function HttpTools() {
   const tools = useApp((s) => s.httpTools);
@@ -97,165 +100,132 @@ export function HttpTools() {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1 pb-0.5">
-        <p className="font-mono text-[9px] tracking-[0.14em] text-subtle">
-          HTTP · {tools.length} 个
-        </p>
-        <Link to="/tools/http" search={{}} className="text-[11px] text-muted">
+    <div className="k-list">
+      <div className="k-sect">
+        <p className="k-sect__title">HTTP · {tools.length} 个</p>
+        <Link to="/tools/http" search={{}} className="k-sect__act">
           ＋ 新建
         </Link>
       </div>
 
       {tools.length === 0 && (
-        <p className="py-8 text-center text-[12px] text-muted">还没有工具，点右上角新建一个</p>
+        <KEmpty title="还没有工具" hint="点右上角「新建」加一个，或者先加几个示例试试。" />
       )}
 
-      <div className="tool-stack space-y-2">
+      <div className="k-list">
         {tools.map((t, i) => {
-        const r = results[t.id];
-        const ok = r && !r.error && r.status >= 200 && r.status < 300;
-        const open = openId === t.id;
-        const params = paramsOfTool(t);
-        return (
-          <article
-            key={t.id}
-            data-method={t.method}
-            className={cn("overflow-hidden rounded-xl border border-line bg-surface p-3", "tool-card", open && "open", !t.enabled && "off")}
-          >
-            <span className="tool-tab" aria-hidden />
-            <span className="tool-fold" aria-hidden />
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setOpenId(open ? null : t.id)}
-                aria-expanded={open}
-                className="tool-hit min-w-0 flex-1"
-              >
-                <span className="tool-r1">
-                  <span className="tool-name">{t.name}</span>
-                  <ChevronDown
-                    className={cn(
-                      "size-3.5 shrink-0 text-subtle transition-transform duration-200",
-                      open && "rotate-180",
-                    )}
-                  />
-                  <span className="tool-host">{hostOf(t.url)}</span>
-                </span>
-                <span className="tool-r2">
-                  <span className="tool-mk">{t.method}</span>
-                  <span className={cn("tool-st", t.enabled && "on")}>
+          const r = results[t.id];
+          const ok = r && !r.error && r.status >= 200 && r.status < 300;
+          const open = openId === t.id;
+          const params = paramsOfTool(t);
+          return (
+            <ToolCard
+              key={t.id}
+              title={t.name}
+              off={!t.enabled}
+              open={open}
+              onToggle={() => setOpenId(open ? null : t.id)}
+              trailing={
+                <KSwitch
+                  checked={t.enabled}
+                  label={t.name}
+                  onChange={(v) => useApp.getState().patchHttpTool(t.id, { enabled: v })}
+                />
+              }
+              meta={
+                <>
+                  <KChip>{t.method}</KChip>
+                  <span className="k-clip">{hostOf(t.url)}</span>
+                  <span className="k-stat" data-tone={t.enabled ? "ok" : undefined}>
                     {t.enabled ? "已启用" : "已停用"}
                   </span>
-                  <span className="tool-no">No.{String(i + 1).padStart(2, "0")}</span>
-                </span>
-              </button>
-              <Switch
-                checked={t.enabled}
-                label={t.name}
-                onCheckedChange={(v) => useApp.getState().patchHttpTool(t.id, { enabled: v })}
-              />
-            </div>
-
-            {open && (
-              <div className="tool-zone">
-                <div className="tool-row">
-                  <i>地址</i>
-                  <span>{t.url || "(未填地址)"}</span>
+                  <span className="k-stat">No.{String(i + 1).padStart(2, "0")}</span>
+                </>
+              }
+            >
+              <div className="k-kv">
+                <span className="k-kv__k">地址</span>
+                <span className="k-kv__v">{t.url || "(未填地址)"}</span>
+              </div>
+              {t.description && (
+                <div className="k-kv">
+                  <span className="k-kv__k">说明</span>
+                  <span className="k-kv__v">{t.description}</span>
                 </div>
-                {t.description && (
-                  <div className="tool-row">
-                    <i>说明</i>
-                    <span>{t.description}</span>
-                  </div>
-                )}
-                {/* 「星芒能改哪几个值」直接摆出来（推导规则见 lib/http-tools.ts） */}
-                {params.length > 0 && (
-                  <div className="tool-row">
-                    <i>参数</i>
-                    <span>{params.join("、")}</span>
-                  </div>
-                )}
+              )}
+              {/* 「星芒能改哪几个值」直接摆出来（推导规则见 lib/http-tools.ts） */}
+              {params.length > 0 && (
+                <div className="k-kv">
+                  <span className="k-kv__k">参数</span>
+                  <span className="k-kv__v">{params.join("、")}</span>
+                </div>
+              )}
 
-                <div className="tool-acts">
-                  <button
-                    type="button"
-                    onClick={() => void run(t)}
-                    disabled={running === t.id}
-                    className="flex items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ink-fg disabled:opacity-60"
-                  >
-                    {running === t.id ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <Play className="size-3" />
-                    )}
-                    调用
-                  </button>
-                  {/* 用 Link（真链接）而不是 button + navigate：能长按、能新开、无障碍也对 */}
-                  <Link
-                    to="/tools/http"
-                    search={{ id: t.id }}
-                    aria-label="编辑"
-                    className="flex size-8 items-center justify-center rounded-full bg-chip text-muted"
-                  >
-                    <Pencil className="size-3.5" />
-                  </Link>
-                  <button
-                    type="button"
-                    aria-label="删除"
-                    onClick={() => useApp.getState().removeHttpTool(t.id)}
-                    className="flex size-8 items-center justify-center rounded-full bg-chip text-muted"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                  {!t.enabled && (
-                    <span className="tool-off-stamp" aria-hidden>
-                      停用
-                    </span>
+              <div className="k-acts">
+                <KButton variant="primary" onClick={() => void run(t)} disabled={running === t.id}>
+                  {running === t.id ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Play aria-hidden="true" />
                   )}
-                </div>
-
-                {r && (
-                  <div className="mt-2 rounded-lg bg-chip px-2.5 py-2">
-                    <p className={cn("text-[11px] font-medium", ok ? "text-ok" : "text-warn")}>
-                      {r.error ? "请求失败" : `HTTP ${r.status}`} · {r.ms}ms
-                    </p>
-                    <pre className="mt-1 max-h-40 overflow-auto font-mono text-[10px] leading-[1.6] break-all whitespace-pre-wrap text-muted">
-                      {r.error ?? (r.text || "(空响应)")}
-                    </pre>
-                  </div>
+                  调用
+                </KButton>
+                {/* 用 Link（真链接）而不是 button + navigate：能长按、能新开、无障碍也对 */}
+                <Link
+                  to="/tools/http"
+                  search={{ id: t.id }}
+                  aria-label="编辑"
+                  className="k-btn k-btn--icon"
+                >
+                  <Pencil aria-hidden="true" />
+                </Link>
+                <KButton
+                  variant="icon"
+                  aria-label="删除"
+                  onClick={() => useApp.getState().removeHttpTool(t.id)}
+                >
+                  <Trash2 aria-hidden="true" />
+                </KButton>
+                {!t.enabled && (
+                  <span className="k-stat" data-tone="warn">
+                    停用
+                  </span>
                 )}
               </div>
-            )}
-          </article>
-        );
+
+              {r && (
+                <>
+                  <p className="k-stat" data-tone={ok ? "ok" : "warn"}>
+                    {r.error ? "请求失败" : `HTTP ${r.status}`} · {r.ms}ms
+                  </p>
+                  <pre className="k-code">{r.error ?? (r.text || "(空响应)")}</pre>
+                </>
+              )}
+            </ToolCard>
+          );
         })}
       </div>
 
-      <div className="flex items-center gap-2 pt-0.5">
-        <Link
-          to="/tools/http"
-          search={{}}
-          className="tool-add flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-line py-2 text-[12px] text-muted"
-        >
-          <Plus className="size-3.5" />
+      <div className="k-acts">
+        <Link to="/tools/http" search={{}} className="k-btn k-btn--dashed k-btn--block k-grow">
+          <Plus aria-hidden="true" />
           新建
         </Link>
         {/* 一键加示例：给"不知道该填什么"的人一个起点，按名字去重 */}
-        <button
-          type="button"
-          onClick={addExamples}
-          className="tool-add flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-2 text-[12px] text-muted"
-        >
-          <Sparkles className="size-3.5" />
+        <KButton variant="dashed" onClick={addExamples}>
+          <Sparkles aria-hidden="true" />
           示例
-        </button>
+        </KButton>
       </div>
-      {added && <p className="px-1 text-[11px] text-accent">{added}</p>}
+      {added && (
+        <p className="k-stat" data-tone="ok">
+          {added}
+        </p>
+      )}
 
-      <details className="px-1 pt-1">
-        <summary className="cursor-pointer text-[11px] text-subtle">说明 · 这个标签怎么用</summary>
-        <div className="space-y-1.5 pt-1.5 text-[11px] leading-[1.6] text-subtle">
+      <details className="k-note">
+        <summary>说明 · 这个标签怎么用</summary>
+        <div className="k-note__body">
           <p>
             自己填地址和请求头，点「调用」会真的发一次请求 —— 不依赖 AI。浏览器有跨域（CORS）
             限制，对方服务器不放开的话会被挡住。

@@ -114,4 +114,13 @@
   --k-knob: 16px;
   --k-dur-move: var(--k-d-2);
   --k-ease-move: var(--k-e-move);
+
+  /* 分段标签条：选中那格是"抬起来的一块"，纯色模式下会被覆盖成实墨块 */
+  --k-tab-on-bg: var(--k-surface);
+  --k-tab-on-fg: var(--k-fg);
+
+  /* 展开区里的滚动上限：响应体 / 长正文。
+     写死高度会让不同字号的模式互相看着别扭，所以收成槽位统一给。 */
+  --k-code-h: 160px;
+  --k-long-h: 224px;
 }

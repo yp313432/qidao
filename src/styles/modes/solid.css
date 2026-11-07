@@ -52,6 +52,10 @@
   --k-track-h: 22px;
   --k-knob: 14px;
 
+  /* 分段标签条：选中的那格直接压成实墨块（图纸上"涂黑"的那一条） */
+  --k-tab-on-bg: var(--aster-ink);
+  --k-tab-on-fg: var(--aster-bg);
+
   /* 动效：位移短促、走同一根曲线（快速到位，不拖尾） */
   --k-dur-move: var(--k-d-2);
   --k-ease-move: var(--k-e-move);

@@ -16,7 +16,7 @@ export function KButton({
   type = "button",
   ...rest
 }: ComponentProps<"button"> & {
-  variant?: "default" | "primary" | "dashed";
+  variant?: "default" | "primary" | "dashed" | "icon";
   /** 撑满一行 */
   block?: boolean;
 }) {
@@ -27,6 +27,7 @@ export function KButton({
         "k-btn",
         variant === "primary" && "k-btn--primary",
         variant === "dashed" && "k-btn--dashed",
+        variant === "icon" && "k-btn--icon",
         block && "k-btn--block",
         className,
       )}

@@ -31,8 +31,8 @@ import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiReadRouteImport } from './routes/api/read'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiWakeRouteImport } from './routes/api/wake'
-import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as DesignKitRouteImport } from './routes/design.kit'
+import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
@@ -181,14 +181,14 @@ const ApiWakeRoute = ApiWakeRouteImport.update({
   path: '/api/wake',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OauthCallbackRoute = OauthCallbackRouteImport.update({
-  id: '/oauth/callback',
-  path: '/oauth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DesignKitRoute = DesignKitRouteImport.update({
   id: '/design/kit',
   path: '/design/kit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth/callback',
+  path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPlayIndexRoute = AppPlayIndexRouteImport.update({
@@ -404,8 +404,8 @@ export interface FileRoutesByFullPath {
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
-  '/oauth/callback': typeof OauthCallbackRoute
   '/design/kit': typeof DesignKitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
   '/play/learn': typeof AppPlayLearnRoute
@@ -465,8 +465,8 @@ export interface FileRoutesByTo {
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
-  '/oauth/callback': typeof OauthCallbackRoute
   '/design/kit': typeof DesignKitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -530,8 +530,8 @@ export interface FileRoutesById {
   '/api/read': typeof ApiReadRoute
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
-  '/oauth/callback': typeof OauthCallbackRoute
   '/design/kit': typeof DesignKitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
   '/_app/play/days': typeof AppPlayDaysRoute
@@ -596,8 +596,8 @@ export interface FileRouteTypes {
     | '/api/read'
     | '/api/search'
     | '/api/wake'
-    | '/oauth/callback'
     | '/design/kit'
+    | '/oauth/callback'
     | '/play/add'
     | '/play/days'
     | '/play/learn'
@@ -657,8 +657,8 @@ export interface FileRouteTypes {
     | '/api/read'
     | '/api/search'
     | '/api/wake'
-    | '/oauth/callback'
     | '/design/kit'
+    | '/oauth/callback'
     | '/'
     | '/play/add'
     | '/play/days'
@@ -721,8 +721,8 @@ export interface FileRouteTypes {
     | '/api/read'
     | '/api/search'
     | '/api/wake'
-    | '/oauth/callback'
     | '/design/kit'
+    | '/oauth/callback'
     | '/_app/'
     | '/_app/play/add'
     | '/_app/play/days'
@@ -773,8 +773,8 @@ export interface RootRouteChildren {
   ApiReadRoute: typeof ApiReadRoute
   ApiSearchRoute: typeof ApiSearchRoute
   ApiWakeRoute: typeof ApiWakeRoute
-  OauthCallbackRoute: typeof OauthCallbackRoute
   DesignKitRoute: typeof DesignKitRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
 }
@@ -935,18 +935,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWakeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/oauth/callback': {
-      id: '/oauth/callback'
-      path: '/oauth/callback'
-      fullPath: '/oauth/callback'
-      preLoaderRoute: typeof OauthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/design/kit': {
       id: '/design/kit'
       path: '/design/kit'
       fullPath: '/design/kit'
       preLoaderRoute: typeof DesignKitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/callback': {
+      id: '/oauth/callback'
+      path: '/oauth/callback'
+      fullPath: '/oauth/callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/play/': {
@@ -1344,8 +1344,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReadRoute: ApiReadRoute,
   ApiSearchRoute: ApiSearchRoute,
   ApiWakeRoute: ApiWakeRoute,
-  OauthCallbackRoute: OauthCallbackRoute,
   DesignKitRoute: DesignKitRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
 }

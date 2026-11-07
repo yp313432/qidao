@@ -26,6 +26,22 @@
   padding-block: var(--k-s-5) var(--k-s-4);
 }
 
+.k-head__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-1);
+  min-width: 0;
+}
+
+.k-head__kicker {
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--k-subtle);
+}
+
 .k-head__title {
   margin: 0;
   font-family: var(--k-font-ui);
@@ -252,6 +268,27 @@
   width: 100%;
 }
 
+/* 只有一个图标的按钮：正方形，边长就是触控下限 */
+.k-btn--icon {
+  padding-inline: 0;
+  inline-size: var(--k-tap);
+  min-inline-size: var(--k-tap);
+}
+
+/* 按钮里的图标统一尺子。
+   lucide 默认 24×24，摆在 13px 字旁边太抢眼、还会把按钮撑高；
+   这里收成跟字号同量级，纯图标按钮再单独放大一档。 */
+.k-btn > svg {
+  flex: none;
+  inline-size: var(--k-t-4);
+  block-size: var(--k-t-4);
+}
+
+.k-btn--icon > svg {
+  inline-size: var(--k-t-5);
+  block-size: var(--k-t-5);
+}
+
 /* ── 输入框 ─────────────────────────────────────────────────── */
 .k-input {
   width: 100%;
@@ -323,17 +360,267 @@
   font-weight: 700;
 }
 
+/* ── 分区小标题（列表上方那行「HTTP · 3 个 … ＋ 新建」）─────── */
+.k-sect {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--k-s-3);
+  padding-block: var(--k-s-2) var(--k-s-1);
+}
+
+.k-sect__title {
+  margin: 0;
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--k-subtle);
+}
+
+/* 右上的「＋ 新建」也要够 44px，不然手机上点不中 */
+.k-sect__act {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--k-tap);
+  margin-block: calc(var(--k-s-2) * -1);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  color: var(--k-muted);
+  text-decoration: none;
+}
+
+/* ── 分段标签条（工具页那四个标签；纯色下原来是吊牌串）───────── */
+.k-tabs {
+  display: flex;
+  gap: var(--k-s-2);
+}
+
+.k-tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--k-s-2);
+  min-block-size: var(--k-tap);
+  padding-inline: var(--k-s-2);
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: transparent;
+  color: var(--k-muted);
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    background-color var(--k-d-2) var(--k-e-out),
+    color var(--k-d-2) var(--k-e-out),
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out);
+}
+
+.k-tab[data-active="true"] {
+  border-color: var(--k-tab-on-bg);
+  background: var(--k-tab-on-bg);
+  color: var(--k-tab-on-fg);
+  box-shadow: var(--k-card-shadow);
+}
+
+.k-tab:active {
+  translate: var(--k-press-shift) var(--k-press-shift);
+  box-shadow: var(--k-card-shadow-press);
+}
+
+/* ── 可展开卡片：一行 + 展开区（工具页三种列表共用）──────────── */
+.k-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s-3);
+}
+
+/* 可点的那一大块：整行都是热区，不是只有标题几个字 */
+.k-card__toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s-3);
+  min-block-size: var(--k-tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+
+.k-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-3);
+  margin-block-start: var(--k-s-4);
+  padding-block-start: var(--k-s-4);
+  border-top: var(--k-border-w) solid var(--k-line-soft);
+}
+
+/* 折角箭头：旋转走 rotate（合成层），不用 transform 覆盖别处的位移 */
+.k-chev {
+  flex: 0 0 auto;
+  inline-size: var(--k-t-3);
+  block-size: var(--k-t-3);
+  margin-block-start: var(--k-s-1);
+  color: var(--k-subtle);
+  transition: rotate var(--k-d-2) var(--k-e-out);
+}
+
+.k-card[data-open="true"] .k-chev {
+  rotate: 180deg;
+}
+
+/* ── 键值行（地址 / 说明 / 参数）─────────────────────────────── */
+.k-kv {
+  display: flex;
+  gap: var(--k-s-3);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-2);
+}
+
+.k-kv__k {
+  flex: 0 0 auto;
+  min-inline-size: var(--k-s-8);
+  font-family: var(--k-font-num);
+  letter-spacing: 0.1em;
+  color: var(--k-subtle);
+}
+
+.k-kv__v {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--k-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── 动作行 / 状态字 ────────────────────────────────────────── */
+.k-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--k-s-2);
+}
+
+.k-stat {
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.08em;
+  color: var(--k-muted);
+}
+
+.k-stat[data-tone="ok"] {
+  color: var(--k-ok);
+}
+
+.k-stat[data-tone="warn"] {
+  color: var(--k-warn);
+}
+
+/* ── 代码 / 响应体 ──────────────────────────────────────────── */
+.k-code {
+  margin: 0;
+  padding: var(--k-s-3);
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: var(--k-chip-bg);
+  color: var(--k-chip-fg);
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  line-height: var(--k-lh-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  max-block-size: var(--k-code-h);
+}
+
+/* ── 长正文（摘要 / 文档）：看的时候能滚，改的时候是个普通输入区 ── */
+.k-long {
+  margin: 0;
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-2);
+  color: var(--k-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  max-block-size: var(--k-long-h);
+}
+
+.k-long--input {
+  display: block;
+  width: 100%;
+  min-block-size: var(--k-long-h);
+  padding: var(--k-s-3);
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  color: var(--k-fg);
+  resize: vertical;
+}
+
+/* ── 说明折叠（原来每个列表底部那个 <details>）───────────────── */
+.k-note > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s-2);
+  min-block-size: var(--k-tap);
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--k-subtle);
+}
+
+.k-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+.k-note__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-2);
+  padding-block: var(--k-s-2) var(--k-s-3);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-2);
+  color: var(--k-subtle);
+}
+
+.k-note__body p {
+  margin: 0;
+}
+
 /* ── 尊重系统设置：不要动效 ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .k-card,
   .k-row,
   .k-btn,
+  .k-tab,
+  .k-chev,
   .k-switch,
   .k-switch__knob {
     transition: none;
   }
   .k-row:active,
-  .k-btn:active {
+  .k-btn:active,
+  .k-tab:active {
     translate: none;
+  }
+  .k-card[data-open="true"] .k-chev {
+    rotate: 0deg;
   }
 }

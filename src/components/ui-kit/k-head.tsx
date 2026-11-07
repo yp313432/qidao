@@ -10,11 +10,14 @@ import { cn } from "@/lib/utils";
  */
 export function KHead({
   title,
+  kicker,
   meta,
   action,
   className,
 }: {
   title: ReactNode;
+  /** 标题上方那行小字（「功能区」「对话」这种分区名） */
+  kicker?: ReactNode;
   /** 右侧小字：数量、日期、"共 12 项" */
   meta?: ReactNode;
   /** 右侧动作（比如一个「添加」按钮），优先于 meta */
@@ -23,7 +26,10 @@ export function KHead({
 }) {
   return (
     <div className={cn("k-head", className)}>
-      <h2 className="k-head__title">{title}</h2>
+      <div className="k-head__main">
+        {kicker !== undefined && <span className="k-head__kicker">{kicker}</span>}
+        <h2 className="k-head__title">{title}</h2>
+      </div>
       {action ?? (meta !== undefined ? <span className="k-head__meta">{meta}</span> : null)}
     </div>
   );
