@@ -5,8 +5,8 @@ export const Route = createFileRoute("/_app/space")({
   component: () => (
     <MePage
       tab="space"
-      title="我的空间"
-      subtitle="材质、背景、字体、对话框的颜色 —— 点哪一行展开哪一行"
+      title="外观"
+      subtitle="材质、纸色、字体、背景、对话框配色 —— 点哪一行展开哪一行"
     />
   ),
 });

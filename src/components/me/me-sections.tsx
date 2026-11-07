@@ -1,11 +1,10 @@
-import { DateTimeField } from "@/components/ui/datetime-picker";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, Lock, Search, SlidersHorizontal, X } from "lucide-react";
+import { Check, ChevronRight, Search, X } from "lucide-react";
 import { BackupSection } from "@/components/shared/backup-section";
 import {
   localNotify,
@@ -33,13 +32,13 @@ import { useApp } from "@/lib/store";
 import { WAKE_LEVELS } from "@/lib/wake-schedule";
 import { cn } from "@/lib/utils";
 import { resolveAiName } from "@/lib/branding";
-import { permissionSummary } from "@/lib/permissions";
-import { CHAT_FONT_SIZES } from "@/lib/ux";
-import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
+
 import type { MeTab } from "./me-types";
-import { STYLES, FONTS, TONES, PLANET_TONES } from "./me-options";
+import { STYLES } from "./me-options";
+import { SpacePage } from "./space-page";
 import { relShort } from "./me-format";
-import { ImageRow, ProbeLine, Section, Group, Sub, Fold, Row, SliderRow } from "./me-widgets";
+import { KButton, KOpt, KOpts, KSlider } from "@/components/ui-kit";
+import { ProbeLine, Section, Group, Sub, Row } from "./me-widgets";
 
 /**
  * 四个 tab 的区块 JSX（我的空间 / 模型与用量 / 数据 / 系统）。
@@ -76,9 +75,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const [voicePick, setVoicePick] = useState<null | "asr" | "tts" | "voice">(null);
   useBodyScrollLock(!!voicePick);
   /** 我的空间里哪一组是展开的（null = 全收起，一屏能看完） */
-  const [openFold, setOpenFold] = useState<null | "material" | "bg" | "font" | "tint" | "more">(
-    null,
-  );
   const [voicePickQuery, setVoicePickQuery] = useState("");
   /** ElevenLabs 点「拉取音色」拉回来的 voice_id 清单 */
   const [elevenVoices, setElevenVoices] = useState<string[]>([]);
@@ -102,8 +98,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const solidPaper = (settings.material ?? "frost") === "solid";
   /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
-  /** 有没有填密钥 —— 没填就等于没配，朗读不会有声音（系统 TTS 已删） */
-  const voiceConfigured = Boolean((settings.voiceApiKey ?? "").trim());
   /** "听"单独配的那家有没有密钥（没有就跟随主配置） */
   const asrKey = (settings.voiceAsrApiKey ?? "").trim();
   // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
@@ -136,8 +130,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
    */
   const modelNow = useApp((s) => s.model);
   const setModel = useApp((s) => s.setModel);
-  const background = settings.background;
-  const sum = permissionSummary(settings.permissions);
   /** 这一轮对话实际走哪条通道（跟聊天那边**共用同一个判断**，别在这里再写一套） */
   const channel = toolProtocolLabel(settings);
   /** 上次探测是什么时候 —— 只在 hydration 之后显示（时间在服务端和客户端算出来不一样） */
@@ -158,7 +150,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const [pushReady, setPushReady] = useState(false);
   const [toast, setToast] = useState("");
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
-  const [bgUnlocked, setBgUnlocked] = useState(false);
   // 拉取上游模型名：省得用户猜（猜错只会得到一句看不懂的英文报错）
   const [models, setModels] = useState<string[]>([]);
   const [modelMsg, setModelMsg] = useState<string | null>(null);
@@ -400,490 +391,24 @@ export function MeSections({ tab }: { tab: MeTab }) {
 
   /* ── 外观：材质 / 背景 / 字体 / 对话框配色（用户 m14333 定的版式）── */
 
-  const MATERIALS = [
-    {
-      id: "solid",
-      label: "纯色",
-      hint: "实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸",
-    },
-    { id: "frost", label: "半磨砂", hint: "毛玻璃：半透、糊一层，什么背景都能搭" },
-    { id: "liquid", label: "液态玻璃", hint: "极透：背景的颜色直接映进卡片，最贵的一档" },
-  ] as const;
-  const PALETTES = [
-    { id: "cream", label: "奶油白", dot: "#f6f3ee" },
-    { id: "blue", label: "雾蓝", dot: "#5b7f9e" },
-    { id: "green", label: "苔绿", dot: "#6f8c6a" },
-    { id: "pink", label: "淡粉", dot: "#c07f8c" },
-  ] as const;
-
-  const material = settings.material ?? "frost";
-  const palette = settings.palette ?? "cream";
-  const matName = MATERIALS.find((m) => m.id === material)?.label ?? "半磨砂";
-  const matHint = MATERIALS.find((m) => m.id === material)?.hint ?? "";
-  const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
-  const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(
-    Boolean,
-  ).length;
-  const bgHint = `${bgCount ? `${bgCount} 张都设了` : "还没设"} · 压纸色 ${settings.bgPaper ?? 18}%`;
-  const fontHint = `${FONTS.find((f) => f.id === (settings.font ?? "sans"))?.label ?? "默认"} · ${
-    CHAT_FONT_SIZES.find((x) => x.id === (settings.chatFontSize ?? "md"))?.label ?? "中号"
-  }`;
-  const tintHint = "粉青蓝 · 按模式自动配浓度";
-
-  const spaceSections = (
-    <>
-      <section className="px-4"></section>
-
-      <section className="mt-3 px-4">
-        <Fold
-          title="材质"
-          value={`${matName}${material === "solid" ? ` · ${palName}` : ""}`}
-          open={openFold === "material"}
-          onToggle={() => setOpenFold(openFold === "material" ? null : "material")}
-        >
-          <div className="grid grid-cols-3 gap-2">
-            {MATERIALS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                data-opt={material === m.id ? undefined : ""}
-                onClick={() => patch({ material: m.id })}
-                className={cn(
-                  "rounded-2xl border px-3 py-2.5 text-[13px]",
-                  material === m.id ? "choice-on data-pill" : "choice-off",
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] leading-4 text-subtle">{matHint}</p>
-          {material === "solid" && (
-            <>
-              <p className="mt-4 mb-2 text-[12px] text-muted">纸的颜色</p>
-              <div className="grid grid-cols-4 gap-2">
-                {PALETTES.map((x) => (
-                  <button
-                    key={x.id}
-                    type="button"
-                    data-opt={palette === x.id ? undefined : ""}
-                    onClick={() => patch({ palette: x.id })}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-2xl border px-2 py-2 text-[12px]",
-                      palette === x.id ? "choice-on data-pill" : "choice-off",
-                    )}
-                  >
-                    <span
-                      className="size-3 shrink-0 rounded-full border border-line"
-                      style={{ background: x.dot }}
-                    />
-                    {x.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-subtle">
-                只有纯色模式用得上：卡片是实心的，这四套就是纸的颜色。
-              </p>
-            </>
-          )}
-        </Fold>
-
-        <Fold
-          title="背景"
-          value={bgHint}
-          open={openFold === "bg"}
-          onToggle={() => setOpenFold(openFold === "bg" ? null : "bg")}
-        >
-          {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
-          <div className="space-y-2">
-            <ImageRow
-              label="主页背景"
-              hint="整个 App 的底"
-              value={background.image}
-              onPick={(url) => patch({ background: { ...background, image: url } })}
-              onClear={() => patch({ background: { ...background, image: "" } })}
-            />
-            <ImageRow
-              label="音乐播放页"
-              hint="只在这一页出现"
-              value={settings.musicImage}
-              onPick={(url) => patch({ musicImage: url })}
-              onClear={() => patch({ musicImage: "" })}
-            />
-            <ImageRow
-              label="日记动态页"
-              hint="只在这一页出现"
-              value={settings.diaryImage}
-              onPick={(url) => patch({ diaryImage: url })}
-              onClear={() => patch({ diaryImage: "" })}
-            />
-          </div>
-          <p className="mt-2 text-[12px] leading-5 text-muted">
-            图片只存在这台设备；玻璃会随背景自动调整明暗，保证文字可读。
-            另外两张不设的话，那两页就用「主页背景」。
-          </p>
-
-          {/* 动画 */}
-          <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-            <p className="text-[13px] font-medium">动画</p>
-            <p className="mt-0.5 text-[11px] leading-4 text-muted">
-              手机开着「减弱动态效果」时，系统会把所有动画压成 0.01 毫秒 ——
-              那就是黑胶不转、心跳不动的原因。
-            </p>
-            <div className="mt-2 grid grid-cols-3 gap-1">
-              {(
-                [
-                  ["auto", "跟随系统"],
-                  ["on", "始终开启"],
-                  ["off", "关闭"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  data-opt={settings.motion === id ? undefined : ""}
-                  onClick={() => patch({ motion: id })}
-                  className={cn(
-                    "rounded-full py-1.5 text-[11px]",
-                    settings.motion === id && "data-pill font-medium",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between rounded-2xl bg-chip px-3.5 py-2.5">
-            <span className="min-w-0 text-[11px] leading-4 text-muted">
-              {bgUnlocked ? "正在调整 —— 调完记得锁上" : "已锁定，滑动页面不会误改"}
-            </span>
-            <button
-              type="button"
-              aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
-              data-opt={bgUnlocked ? undefined : ""}
-              onClick={() => setBgUnlocked((v) => !v)}
-              className={cn(
-                "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium",
-                bgUnlocked && "bg-warn/20 text-warn",
-              )}
-            >
-              {bgUnlocked ? (
-                <Lock className="size-3.5" />
-              ) : (
-                <SlidersHorizontal className="size-3.5" />
-              )}
-              {bgUnlocked ? "锁定" : "调整"}
-            </button>
-          </div>
-
-          <SliderRow
-            label="模糊"
-            value={background.blur}
-            min={0}
-            max={60}
-            step={1}
-            unit="px"
-            disabled={!bgUnlocked}
-            onChange={(v) => patch({ background: { ...background, blur: v } })}
-          />
-          <SliderRow
-            label="暗化"
-            value={background.dim}
-            min={0}
-            max={0.8}
-            step={0.05}
-            unit=""
-            disabled={!bgUnlocked}
-            onChange={(v) => patch({ background: { ...background, dim: v } })}
-          />
-          <SliderRow
-            label="透明度"
-            value={background.opacity}
-            min={0.2}
-            max={1}
-            step={0.05}
-            unit=""
-            disabled={!bgUnlocked}
-            onChange={(v) => patch({ background: { ...background, opacity: v } })}
-          />
-          {material === "solid" && (
-            <label className="mt-4 block px-1">
-              <span className="flex items-baseline justify-between text-[12px] text-muted">
-                <span>背景压纸色</span>
-                <span>{settings.bgPaper ?? 18}%</span>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={40}
-                step={2}
-                value={settings.bgPaper ?? 18}
-                onChange={(e) => patch({ bgPaper: Number(e.target.value) })}
-                aria-label="背景压纸色"
-                className="mt-2 w-full accent-accent"
-              />
-              <span className="mt-1 block text-[11px] leading-4 text-subtle">
-                只在纯色模式生效：压一点，实色卡片才不会像贴在花图上。
-              </span>
-            </label>
-          )}
-        </Fold>
-
-        <Fold
-          title="字体"
-          value={fontHint}
-          open={openFold === "font"}
-          onToggle={() => setOpenFold(openFold === "font" ? null : "font")}
-        >
-          <p className="mt-4 mb-2 text-[12px] text-muted">正文字体</p>
-          <div className="grid grid-cols-2 gap-2">
-            {FONTS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => patch({ font: f.id })}
-                style={{ fontFamily: f.stack }}
-                data-opt={settings.font === f.id ? undefined : ""}
-                className={cn(
-                  "rounded-2xl border px-3 py-2.5 text-left",
-                  settings.font === f.id ? "choice-card-on data-pill" : "choice-card-off",
-                )}
-              >
-                <span className="block text-[13px] font-medium">{f.label}</span>
-                <span className="text-[11px] text-muted">{f.hint}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* 「最大输出长度」+「回复风格」已经挪到「系统 → 思考链」（用户要求）。
-            这里不能再留一份 —— 同一个开关出现两次，改哪边都容易漏。 */}
-
-          <p className="mt-4 mb-2 text-[12px] text-muted">正文字号</p>
-          <div className="flex gap-2">
-            {CHAT_FONT_SIZES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                data-opt={settings.chatFontSize === s.id ? undefined : ""}
-                onClick={() => patch({ chatFontSize: s.id })}
-                className={cn(
-                  "flex-1 rounded-2xl border px-2 py-2.5 text-center",
-                  settings.chatFontSize === s.id ? "choice-card-on data-pill" : "choice-card-off",
-                )}
-              >
-                <span className="block text-[13px] font-medium">{s.label}</span>
-                <span className="block text-[10px] text-subtle">{s.px}px</span>
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-4 mb-2 text-[12px] text-muted">文字颜色</p>
-          <div className="flex flex-wrap gap-2">
-            {TONES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                data-opt={settings.textTone === t.id ? undefined : ""}
-                onClick={() => patch({ textTone: t.id })}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-[13px]",
-                  settings.textTone === t.id && "data-pill",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          {settings.textTone === "custom" && (
-            <div className="mt-3 flex items-center gap-3 px-1">
-              <input
-                type="color"
-                value={settings.textColor}
-                onChange={(e) => patch({ textColor: e.target.value })}
-                className="size-9 rounded-full border border-line bg-transparent"
-                aria-label="自定义文字颜色"
-              />
-              <span className="text-[12px] text-muted">自定义颜色 {settings.textColor}</span>
-            </div>
-          )}
-
-          {/*
-          星球颜色 —— 跟「文字颜色」**分开**的一个开关。
-          用户："球体颜色和字体颜色做个切割吧，她两分开，不放一起，
-          不然不好同时兼顾。"
-          所以这里单独给一组：跟随文字 / 冷薄荷青 / 雾紫 / 暖金 / 自定义。
-        */}
-        </Fold>
-
-        <Fold
-          title="对话框配色"
-          value={tintHint}
-          open={openFold === "tint"}
-          onToggle={() => setOpenFold(openFold === "tint" ? null : "tint")}
-        >
-          <p className="mt-4 mb-2 text-[12px] text-muted">对话框玻璃配色</p>
-          <p className="mb-2 text-[11px] text-subtle">
-            换背景时按那几个颜色挑一套，或者自己改三段 —— 只影响输入框那层渐变。
-          </p>
-          {/* 现成的几套：点一下整套换掉 */}
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {TINT_PRESETS.map((p) => {
-              const active = normalizeTint(settings.composerTint).join() === p.colors.join();
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-pressed={active}
-                  data-opt={active ? undefined : ""}
-                  onClick={() => patch({ composerTint: [...p.colors] })}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition",
-                    active ? "border-accent text-fg data-pill" : "border-line",
-                  )}
-                >
-                  <span
-                    className="size-3 rounded-full"
-                    style={{ background: `linear-gradient(118deg, ${p.colors.join(", ")})` }}
-                  />
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-          {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
-          <div className="flex items-center gap-2">
-            {normalizeTint(settings.composerTint).map((c, i) => (
-              <label
-                key={i}
-                className="flex flex-1 items-center gap-1.5 rounded-xl border border-line px-2 py-1.5"
-              >
-                <input
-                  type="color"
-                  value={c}
-                  aria-label={`第 ${i + 1} 段颜色`}
-                  onChange={(e) => {
-                    const next = normalizeTint(settings.composerTint);
-                    next[i] = e.target.value;
-                    patch({ composerTint: next });
-                  }}
-                  className="size-6 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0"
-                />
-                <span className="font-mono text-[10px] text-subtle">{c}</span>
-              </label>
-            ))}
-          </div>
-          {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
-          <div className="glass-float mt-2 flex h-11 items-center justify-center rounded-2xl border border-line text-[11px] text-muted">
-            对话框就是这个样子
-          </div>
-          <button
-            type="button"
-            onClick={() => patch({ composerTint: undefined })}
-            className="mt-1.5 text-[11px] text-subtle underline"
-          >
-            恢复默认（粉青蓝）
-          </button>
-        </Fold>
-
-        <Fold
-          title="其他"
-          value="星球颜色 · 认识的日子"
-          open={openFold === "more"}
-          onToggle={() => setOpenFold(openFold === "more" ? null : "more")}
-        >
-          <p className="mt-4 mb-2 text-[12px] text-muted">小宇宙的星球颜色</p>
-          <div className="flex flex-wrap gap-2">
-            {PLANET_TONES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                data-opt={settings.planetTone === t.id ? undefined : ""}
-                onClick={() => patch({ planetTone: t.id })}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px]",
-                  settings.planetTone === t.id && "data-pill",
-                )}
-              >
-                {t.swatch && (
-                  <span
-                    className="size-3 rounded-full border border-line/60"
-                    style={{ background: t.swatch }}
-                    aria-hidden="true"
-                  />
-                )}
-                {t.label}
-              </button>
-            ))}
-          </div>
-          {settings.planetTone === "custom" && (
-            <div className="mt-3 flex items-center gap-3 px-1">
-              <input
-                type="color"
-                value={settings.planetColor}
-                onChange={(e) => patch({ planetColor: e.target.value })}
-                className="size-9 rounded-full border border-line bg-transparent"
-                aria-label="自定义星球颜色"
-              />
-              <span className="text-[12px] text-muted">自定义星球色 {settings.planetColor}</span>
-            </div>
-          )}
-          <p className="mt-2 text-[12px] leading-5 text-muted">
-            只影响对话抽屉下面那个小宇宙里的行星和星环，<span className="text-fg">不影响文字</span>
-            。 选「跟随文字」时会随你换背景、改文字色一起变，不会出现背景暗了、星球还亮的问题。
-          </p>
-
-          {/*
-          认识的日子 —— 玩乐区首页那个「NNN DAYS TOGETHER」用它算天数。
-          用户："可以来个组件，上面是两个的名字或头像，写着认识多久了"、
-          "用户自己填日子"。填了才显示，没填就提示来这儿填，不编数字。
-        */}
-          <p className="mt-4 mb-2 text-[12px] text-muted">认识的日子</p>
-          <label className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3">
-            <span className="min-w-0 text-[12px] leading-4 text-muted">
-              玩乐区首页会显示
-              <br />
-              「一起多少天」
-            </span>
-            <DateTimeField
-              mode="date"
-              label="认识的日子"
-              value={settings.togetherSince}
-              onChange={(v) => patch({ togetherSince: v })}
-            />
-          </label>
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            {settings.togetherSince
-              ? "留空就不显示那个数字。"
-              : "还没填 —— 填上之后，玩乐区首页就会替你数着。"}
-          </p>
-          <p className="mt-2 text-[12px] leading-5 text-muted">
-            深色背景图下小字看不清时，把它换成浅色字就行。
-          </p>
-        </Fold>
-      </section>
-
-      <section className="mt-6 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">效果预览</h2>
-        <div className="rounded-3xl border border-line bg-surface p-3">
-          <div className="flex flex-col gap-2">
-            <div className="ml-auto w-fit max-w-[86%] rounded-[18px] rounded-tr-none border border-line bg-surface px-3.5 py-2 text-[13px] text-fg">
-              那你以后说话短点
-            </div>
-            <div className="w-fit max-w-[86%] rounded-[18px] rounded-tl-none border border-line bg-surface px-3.5 py-2 text-[13px] text-fg">
-              好，从这条开始。
-            </div>
-            <div className="glass-float mt-1 flex h-10 items-center rounded-2xl border border-line px-3 text-[12px] text-subtle">
-              和{resolveAiName(settings.aiName)}聊聊…
-            </div>
-          </div>
-        </div>
-        <p className="mt-2 px-1 text-[11px] leading-4 text-subtle">
-          改上面任何一项，这块都会跟着变 —— 不用来回跳到聊天页去试。
-        </p>
-      </section>
-    </>
-  );
+  /**
+   * 外观页（原「我的空间」）。
+   *
+   * 这是第一页按「标准件 + 一页一骨架」重做的设置页 —— 用户对着样张
+   * `design/appearance-page.html` 说"欧克，动手吧"，长相照那张图来。
+   *
+   * 三条规矩（后面 5 页照这个来）：
+   *   1. **只换骨架，逻辑一个不动**：`patch(...)` 的字段名、默认值、
+   *      取值范围全照旧 —— 换的是 DOM 和外形，不是设置本身；
+   *   2. 长相一律走 `.k-*`（KFold / KOpt / KOpts / KSlider / KButton），
+   *      这一页里不再出现颜色、字号、圆角的具体数值；
+   *   3. 每个展开区底部最多留**一句**说明（`.k-hint`）。
+   *
+   * 为什么原来的样子"没条理"：纯色下 `--aster-line` 是 transparent、
+   * `--aster-surface` 就是页面底色 —— 卡片等于没有边界，整页只剩一片灰字
+   * 加一堆长句。所以第一步不是加装饰，是**把每张卡变回一张纸**。
+   */
+  const spaceSections = <SpacePage />;
 
   /* ── 模型与用量 ── */
 
@@ -911,10 +436,10 @@ export function MeSections({ tab }: { tab: MeTab }) {
     <>
       <Section title="用哪个">
         {/*
-          B 档玻璃（总则 §3 两层）：外层 = L2 主卡（rounded-3xl + border-line + bg-surface），
+          B 档玻璃（总则 §3 两层）：外层 = L2 主卡（rounded-[var(--k-card-radius)] + border-line + bg-surface），
           里面两条通道 = L3 控件（bg-chip）。原来两张卡平铺在同一层，看不出"这是一组二选一"。
         */}
-        <div className="overflow-hidden rounded-3xl border border-line bg-surface">
+        <div className="overflow-hidden">
           <div>
             {/* ① 自定义上游 —— 现在唯一能真用的通道 */}
             <div className="border-b border-line/60">
@@ -959,14 +484,14 @@ export function MeSections({ tab }: { tab: MeTab }) {
                     value={settings.customBaseUrl}
                     onChange={(e) => patch({ customBaseUrl: e.target.value })}
                     placeholder="https://your-proxy/v1"
-                    className="mb-2 h-11 w-full rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
+                    className="k-input mb-2"
                   />
                   <input
                     type="password"
                     value={settings.customApiKey}
                     onChange={(e) => patch({ customApiKey: e.target.value })}
                     placeholder="API Key"
-                    className="h-11 w-full rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
+                    className="k-input"
                   />
                   <div className="mt-2 flex items-center gap-2">
                     <input
@@ -974,7 +499,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                       onChange={(e) => patch({ upstreamModel: e.target.value.trim() })}
                       placeholder="上游模型名，例如 deepseek-v4-pro"
                       aria-label="上游模型名"
-                      className="h-11 min-w-0 flex-1 rounded-2xl border border-line/70 bg-transparent px-3 text-[13px] outline-none"
+                      className="h-11 min-w-0 flex-1 rounded-[var(--k-card-radius)] border border-line/70 bg-transparent px-3 text-[13px] outline-none"
                     />
                     {/* 次级操作：不是"主按钮"，所以用 chip 底 + 边线，别跟三档抢视觉 */}
                     <button
@@ -984,7 +509,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                       }
                       onClick={probeModels}
                       data-opt=""
-                      className="h-11 shrink-0 rounded-2xl border border-line/70 px-3.5 text-[12px] font-medium disabled:opacity-40"
+                      className="h-11 shrink-0 rounded-[var(--k-card-radius)] border border-line/70 px-3.5 text-[12px] font-medium disabled:opacity-40"
                     >
                       {probing ? "问上游…" : "拉取可用模型"}
                     </button>
@@ -998,7 +523,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                         setModelPickOpen(true);
                       }}
                       data-opt=""
-                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-line/70 px-3 py-2.5 text-left"
+                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-[var(--k-card-radius)] border border-line/70 px-3 py-2.5 text-left"
                     >
                       <span className="min-w-0">
                         <span className="block text-[12px] font-medium">
@@ -1039,7 +564,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                           <div
                             data-contrast=""
                             className={cn(
-                              "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                              "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
                               solidPaper && "paper-card",
                             )}
                           >
@@ -1143,7 +668,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                         data-opt={modelNow === m.id ? undefined : ""}
                         onClick={() => setModel(m.id)}
                         className={cn(
-                          "rounded-2xl border py-2.5 text-[13px] font-medium transition-colors",
+                          "rounded-[var(--k-card-radius)] border py-2.5 text-[13px] font-medium transition-colors",
                           modelNow === m.id ? "choice-on data-pill" : "choice-off",
                         )}
                       >
@@ -1169,12 +694,12 @@ export function MeSections({ tab }: { tab: MeTab }) {
                     type="button"
                     disabled={!chanCustom || effortBusy}
                     onClick={runEffortProbe}
-                    className="mt-2 h-11 w-full rounded-2xl border border-line bg-ink text-[13px] font-medium text-ink-fg disabled:border-line/70 disabled:bg-transparent disabled:text-subtle"
+                    className="k-btn k-btn--primary k-btn--block mt-2 disabled:border-line/70 disabled:bg-transparent disabled:text-subtle"
                   >
                     {effortBusy ? "正在试着开关思考，稍等…" : "检测强度支持"}
                   </button>
                   {effortResult && !effortBusy && (
-                    <div className="mt-2 rounded-2xl border border-line/60 px-3 py-2.5">
+                    <div className="mt-2 flex flex-col gap-2">
                       <ProbeLine label="能开思考（回了思考内容）" pass={effortResult.reasoningOn} />
                       <ProbeLine
                         label="能关思考（关了就不思考）"
@@ -1226,12 +751,12 @@ export function MeSections({ tab }: { tab: MeTab }) {
                         setVerifyBusy(false);
                       }
                     }}
-                    className="mt-2 h-11 w-full rounded-2xl border border-line text-[13px] font-medium text-fg disabled:border-line/70 disabled:text-subtle"
+                    className="k-btn k-btn--block mt-2 disabled:border-line/70 disabled:text-subtle"
                   >
                     {verifyBusy ? "正在体检，会连发几个请求，稍等…" : "体检这个上游（五项）"}
                   </button>
                   {verifyResult && !verifyBusy && (
-                    <div className="mt-2 rounded-2xl border border-line/60 px-3 py-2.5">
+                    <div className="mt-2 flex flex-col gap-2">
                       {verifyResult.items.map((it) => (
                         <div key={it.key} className="flex items-start gap-2 py-0.5">
                           <span
@@ -1290,19 +815,9 @@ export function MeSections({ tab }: { tab: MeTab }) {
               </button>
               {openChan === "gpt" && (
                 <div className="bubble-in px-4 pb-4">
-                  <p className="text-[11px] leading-5 text-muted">
-                    用你自己的 ChatGPT 计划额度，不额外收费。登录一次就行，之后自动续期。
-                  </p>
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-2.5 h-11 w-full rounded-2xl border border-line/70 text-[13px] font-medium text-subtle"
-                  >
+                  <button type="button" disabled className="k-btn k-btn--block mt-2.5 text-subtle">
                     登录 ChatGPT（还没接）
                   </button>
-                  <p className="mt-2 text-[11px] leading-4 text-subtle">
-                    额度是账号里所有 app 共用的，用完这里也会停。这段是占位，等接入后才真能用。
-                  </p>
                 </div>
               )}
             </div>
@@ -1311,7 +826,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       </Section>
 
       <Section title="今天用掉的">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="flex flex-col gap-1 py-1">
           {usageToday ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
@@ -1346,7 +861,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       <Section title="上下文与内存">
         <Link
           to="/memory"
-          className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
+          className="flex items-center justify-between gap-3 rounded-[var(--k-card-radius)] px-3.5 py-3"
         >
           <span className="min-w-0">
             <span className="block text-[13px] font-medium">预算 · 缓存 · 存储</span>
@@ -1370,7 +885,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
           用的就是上面那三格（地址 / 密钥 / 模型名），密钥只在本机这次请求里用。
         </p>
         {/* 现在到底走哪条通道 —— 不写清楚的话，用户永远不知道自己处在哪个状态 */}
-        <div className="mb-2 rounded-2xl bg-chip px-3.5 py-3">
+        <div className="mb-2 flex flex-col gap-2">
           <p className="text-[12px] leading-5">
             现在走的是：
             <span className="font-medium">
@@ -1410,13 +925,8 @@ export function MeSections({ tab }: { tab: MeTab }) {
           用户原话："就是根据对话判断我需要什么样的工具才会调用，其他的就不每一轮都发给它"
           —— 61 个动作的定义每轮 ≈ 4007 token，按需能砍到 1/3 左右。
         */}
-        <div className="mb-2 rounded-2xl bg-chip px-3.5 py-3">
+        <div className="mb-2 flex flex-col gap-2">
           <p className="text-[12px] leading-5">每次发多少工具</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted">
-            按需：只按当前这句话挑相关的几组发过去（省钱，也少让他选错）。
-            拿不准你在说什么的时候会全发，不会让他「不会做」。 全发：每轮都带 61 个动作，最稳但最贵
-            —— 怀疑按需漏了什么就切到这儿对比。
-          </p>
           <div className="mt-2 grid grid-cols-2 gap-1">
             {(
               [
@@ -1454,17 +964,12 @@ export function MeSections({ tab }: { tab: MeTab }) {
           }
           onClick={runToolProbe}
           data-opt=""
-          className="h-11 w-full rounded-2xl px-3.5 text-[13px] font-medium disabled:opacity-40"
+          className="h-11 w-full rounded-[var(--k-card-radius)] px-3.5 text-[13px] font-medium disabled:opacity-40"
         >
           {probeBusy ? "正在问上游，稍等…（最多 20 秒）" : "测一测这个上游支不支持工具调用"}
         </button>
-        {probeBusy && (
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            真机上网络往返 0.8~2 秒很正常，三条请求加起来可能要几秒 —— 别退出去，马上好。
-          </p>
-        )}
         {probeResult && !probeBusy && (
-          <div className="mt-2 rounded-2xl bg-chip px-3.5 py-3">
+          <div className="mt-2 flex flex-col gap-2">
             <ProbeLine label="认 tools 参数" pass={probeResult.nonStreamToolCall} />
             <ProbeLine label="流式下能识别到工具调用" pass={probeResult.streamToolCall} />
             <ProbeLine label="一次能返回多个工具调用" pass={probeResult.multiToolCall} />
@@ -1507,71 +1012,81 @@ export function MeSections({ tab }: { tab: MeTab }) {
 
   /* ── 系统 ── */
 
-  const systemSections = (
-    <div className="sys-list">
-      <Group title="聊天" value="思考链 · 说话方式 · 表情包" order={4}>
-        <Sub title="思考链">
-          {/* 只留「显示」—— 「保存思考链」已去掉：
+  <div className="sys-list">
+    {/*
+        「定时任务」那一段**已挪到「玩乐 → 小日子 → 定时任务」**
+        （跟闹钟一起挪的，用户要求，理由是"这样看着分类更准一点"）。
+        这一页不再重复。
+      */}
+  </div>;
+  /**
+   * 「系统」原页里的五块，抽成对象：现在它们分别属于新的五个二级页
+   * （对话 / 主动与通知 / 语音 / 隐私与数据 / 关于与高级）。
+   * 分派在文件最末尾，旧 tab 仍在，改完页面后可以整块删掉。
+   */
+  /**
+   * 「系统」原页里的五块，现在分别是五个二级页的正文。
+   *
+   * 为什么拆成 `{ title, value, order, body }` 而不是整块 JSX：
+   * 用户要求「对话 / 主动与通知 / 语音 点进去直接把里面的东西铺开」——
+   * 整块 JSX 没法去掉外壳再复用内容，所以把标题和正文分开，壳由页面自己拼：
+   * 对话页三个分类各一张卡，其他页把正文直接摆进一张卡。
+   * 旧 tab `/system` 仍然把它们还原成可折叠的 Group，等旧页删掉一起走。
+   */
+  const sysGroups = {
+    chat: {
+      title: "聊天",
+      value: "思考链 · 说话方式 · 表情包",
+      order: 4,
+      body: (
+        <>
+          <Sub title="思考链">
+            {/* 只留「显示」—— 「保存思考链」已去掉：
             思考过程回复时你当场就能看到，再存一份纯占地方（用户明确要求删）。 */}
-          <Row
-            label="显示思考过程"
-            hint="折叠块展示推理"
-            checked={settings.showThinking}
-            onChange={(v) => patch({ showThinking: v })}
-          />
-          {/*
+            <Row
+              label="显示思考过程"
+              checked={settings.showThinking}
+              onChange={(v) => patch({ showThinking: v })}
+            />
+            {/*
           这两项原来在「我的空间 → 个性化」里（最大输出长度 + 回复风格），
           用户要求挪到思考链这边：
           "思考链的最大输出长度和模型回复风格放思考链那里，不要放在个性化那里"。
           它们本来就跟"思考多深 / 回答多长"是一回事，放这儿更贴。
         */}
-          <p className="mt-4 mb-2 text-[12px] text-muted">最大输出长度</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { v: 0, label: "跟随档位" },
-              { v: 8192, label: "8192" },
-              { v: 16384, label: "16384" },
-              { v: 32768, label: "32768" },
-            ].map((o) => (
-              <button
-                key={o.v}
-                type="button"
-                data-opt={settings.maxTokens === o.v ? undefined : ""}
-                onClick={() => patch({ maxTokens: o.v })}
-                className={cn(
-                  "rounded-2xl border px-3 py-2 text-[12px]",
-                  settings.maxTokens === o.v ? "choice-on data-pill" : "choice-off",
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            思考链太长被掐断、只剩空回复时，调大这个能缓解（有些网关把思考也算进这个额度）。
-            但调太大某些模型会直接报错 —— 所以默认「跟随档位」。
-          </p>
+            <p className="k-sect__title mt-4">最大输出长度</p>
+            <KOpts cols={2}>
+              {[
+                { v: 0, label: "跟随档位" },
+                { v: 8192, label: "8192" },
+                { v: 16384, label: "16384" },
+                { v: 32768, label: "32768" },
+              ].map((o) => (
+                <KOpt
+                  key={o.v}
+                  active={settings.maxTokens === o.v}
+                  onClick={() => patch({ maxTokens: o.v })}
+                >
+                  {o.label}
+                </KOpt>
+              ))}
+            </KOpts>
 
-          <p className="mt-4 mb-2 text-[12px] text-muted">回复风格</p>
-          <div className="flex gap-2">
-            {STYLES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                data-opt={settings.replyStyle === s.id ? undefined : ""}
-                onClick={() => patch({ replyStyle: s.id })}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-[13px]",
-                  settings.replyStyle === s.id && "data-pill",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </Sub>
+            <p className="k-sect__title mt-4">回复风格</p>
+            <KOpts cols={4}>
+              {STYLES.map((s) => (
+                <KOpt
+                  key={s.id}
+                  active={settings.replyStyle === s.id}
+                  onClick={() => patch({ replyStyle: s.id })}
+                >
+                  {s.label}
+                </KOpt>
+              ))}
+            </KOpts>
+          </Sub>
 
-        {/*
+          {/*
         ── 说话方式：**分段回复**（2026-11 用户要的）─────────────────────
         用户原话："他这个回复只能我回一句，他回一句，就感觉不像真人；
         能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
@@ -1580,118 +1095,105 @@ export function MeSections({ tab }: { tab: MeTab }) {
         所以四个旋钮都摆在这儿，**不写死在代码里** —— 效果不对他自己拧，
         不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
       */}
-        <Sub title="说话方式">
-          <Row
-            label="分段回复"
-            hint="像真人那样连着发几条"
-            checked={settings.segmentReply !== false}
-            onChange={(v) => patch({ segmentReply: v })}
-          />
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            打开后他可以把想说的分成几条发过来，一条一个气泡、一条接一条出现。
-            一句能说完的回复不会被切开（只有他确实有几句话要分开说时才分）。
-          </p>
+          <Sub title="说话方式">
+            <Row
+              label="分段回复"
+              checked={settings.segmentReply !== false}
+              onChange={(v) => patch({ segmentReply: v })}
+            />
+            {settings.segmentReply !== false && (
+              <>
+                <p className="k-sect__title mt-4">段间延迟</p>
+                <KOpts cols={3}>
+                  {[400, 800, 1200, 1800, 2500].map((v) => (
+                    <KOpt
+                      key={v}
+                      active={(settings.segmentDelayMs ?? 1200) === v}
+                      onClick={() => patch({ segmentDelayMs: v })}
+                    >
+                      {(v / 1000).toFixed(1)} 秒
+                    </KOpt>
+                  ))}
+                </KOpts>
+              </>
+            )}
+          </Sub>
 
-          {settings.segmentReply !== false && (
-            <>
-              <p className="mt-4 mb-2 text-[12px] text-muted">段间延迟</p>
-              <div className="flex flex-wrap gap-2">
-                {[400, 800, 1200, 1800, 2500].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    data-opt={(settings.segmentDelayMs ?? 1200) === v ? undefined : ""}
-                    onClick={() => patch({ segmentDelayMs: v })}
-                    className={cn(
-                      "rounded-2xl border px-3 py-2 text-[12px]",
-                      (settings.segmentDelayMs ?? 1200) === v
-                        ? "choice-on data-pill"
-                        : "choice-off",
-                    )}
-                  >
-                    {(v / 1000).toFixed(1)} 秒
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-                两条之间隔多久出现。太短就没有"一句句发过来"的感觉，太长会显得他在发呆。
-              </p>
-            </>
-          )}
-        </Sub>
-
-        {/*
+          {/*
         ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
         两块：① 入库时**去白底**（照片/白底截图 → 真正的透明表情）
              ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
         "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
       */}
-        <Sub title="表情包">
-          <Row
-            label="传表情时自动去白底"
-            hint="照片/白底截图 → 透明表情"
-            checked={settings.stickerRemoveWhite !== false}
-            onChange={(v) => patch({ stickerRemoveWhite: v })}
-          />
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            从相册选的表情常常是白底照片，贴到聊天里就是一块白边（不是表情包那个样子）。
-            打开这项会自动把**跟边缘连通的白色**变透明（图内部的白留住，比如眼白、白字）。
-            动图（GIF/WebP）不会被重画，动画保留。
-          </p>
-          <p className="mt-3 text-[11px] leading-4 text-subtle">
-            他**可以自己发表情**（不用你问）：想发的时候会从你的表情库里挑一张，
-            而且会避开上一次那张。想加表情就走输入框的「＋ → 表情包」。
-          </p>
-        </Sub>
-      </Group>
+          <Sub title="表情包">
+            <Row
+              label="传表情时自动去白底"
+              checked={settings.stickerRemoveWhite !== false}
+              onChange={(v) => patch({ stickerRemoveWhite: v })}
+            />
+          </Sub>
+        </>
+      ),
+    },
+    notify: {
+      title: "通知",
+      value: "本地通知 · 测试通知",
+      order: 1,
+      body: (
+        <>
+          <Sub title="允许通知">
+            <Row
+              label="允许通知"
+              checked={settings.notifications}
+              onChange={(v) => {
+                patch({ notifications: v });
+                if (!v) return;
+                void (async () => {
+                  const p = await requestPermission();
+                  setPerm(p);
+                  setSw(await registerServiceWorker());
+                  setPushReady(await pushKeyConfigured());
+                })();
+              }}
+            />
 
-      <Group title="通知" value="本地通知 · 测试通知" order={1}>
-        <Row
-          label="允许通知"
-          hint="打开时向系统申请权限"
-          checked={settings.notifications}
-          onChange={(v) => {
-            patch({ notifications: v });
-            if (!v) return;
-            void (async () => {
-              const p = await requestPermission();
-              setPerm(p);
-              setSw(await registerServiceWorker());
-              setPushReady(await pushKeyConfigured());
-            })();
-          }}
-        />
+            <div className="k-inset">
+              <p>
+                系统权限：
+                <span className={perm === "granted" ? "text-ok" : "text-warn"}>
+                  {perm === "loading" ? "读取中…" : (PERMISSION_LABEL[perm] ?? perm)}
+                </span>
+              </p>
+              <p>
+                HTTPS 环境：
+                <span className={secure ? "text-ok" : "text-warn"}>
+                  {secure === null ? "读取中…" : secure ? "满足" : "不满足（SW 与推送都用不了）"}
+                </span>
+              </p>
+              <p>
+                Service Worker：
+                <span className={sw?.ok ? "text-ok" : "text-warn"}>{sw?.message ?? "未注册"}</span>
+              </p>
+              <p>
+                后台推送：
+                <span className={IS_APP || pushReady ? "text-ok" : "text-warn"}>
+                  {IS_APP
+                    ? "App 里用安卓系统通知，不用它"
+                    : pushReady
+                      ? "服务端已配好，可订阅"
+                      : "服务端还没配 VAPID 密钥"}
+                </span>
+              </p>
+            </div>
 
-        <div data-opt="" className="mb-2 rounded-2xl px-3.5 py-3 text-[11px] leading-5">
-          <p>
-            系统权限：
-            <span className={perm === "granted" ? "text-ok" : "text-warn"}>
-              {perm === "loading" ? "读取中…" : (PERMISSION_LABEL[perm] ?? perm)}
-            </span>
-          </p>
-          <p>
-            HTTPS 环境：
-            <span className={secure ? "text-ok" : "text-warn"}>
-              {secure === null ? "读取中…" : secure ? "满足" : "不满足（SW 与推送都用不了）"}
-            </span>
-          </p>
-          <p>
-            Service Worker：
-            <span className={sw?.ok ? "text-ok" : "text-warn"}>{sw?.message ?? "未注册"}</span>
-          </p>
-          <p>
-            后台推送：
-            <span className={IS_APP || pushReady ? "text-ok" : "text-warn"}>
-              {IS_APP
-                ? "App 里用安卓系统通知，不用它"
-                : pushReady
-                  ? "服务端已配好，可订阅"
-                  : "服务端还没配 VAPID 密钥"}
-            </span>
-          </p>
-        </div>
+            <div className="k-hstack">
+              <KButton onClick={() => void testNotify()}>发一条测试通知</KButton>
+              <KButton onClick={() => void doSubscribe()}>订阅后台推送</KButton>
+            </div>
+            {toast && <p className="k-hint">{toast}</p>}
+          </Sub>
 
-        {/*
+          {/*
           **「他主动找你」的说明卡**（2026-10 加）。
           用户的诉求："定时任务还是只有点开 app 才可以发消息" / "不要再留网页的设计思路了"
           —— 原来的定时任务靠页面里每 30 秒查一次，一关 App 就没了。
@@ -1709,1153 +1211,1042 @@ export function MeSections({ tab }: { tab: MeTab }) {
             · JSX 里**不能写 `**粗体**`**（markdown 语法在网页里不渲染，会原样显示星号）
               —— 用户截图里那句就带着两个星号。要强调就直接说，或用 <b>。
         */}
-        <div className="mt-3 mb-4 rounded-2xl bg-chip px-3.5 py-3">
-          <p className="text-[12px] font-medium">他主动找你</p>
-          {/*
+          <Sub title="让他主动找你">
+            {/*
             **总开关**（用户原话："这个定时唤醒要做个开关，哪一天我不想他跑了，可以一键关闭"）。
             关掉之后：Worker 一次 AI 都不问、不弹通知；后台那段 JS 还会把"静音"记下来，
             接下来 4 小时连请求都不发（省电）。
             唯一关不掉的是"系统每 1 小时来一次"这个节拍 —— 它写在打包配置里。
           */}
-          <Row
-            label="让他主动找我"
-            hint="关掉就完全安静：不问 AI、不弹通知、后台几小时内也不发请求"
-            checked={settings.wakeEnabled ?? true}
-            onChange={(v) => patch({ wakeEnabled: v })}
-          />
+            <Row
+              label="让他主动找我"
+              checked={settings.wakeEnabled ?? true}
+              onChange={(v) => patch({ wakeEnabled: v })}
+            />
 
-          <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-            {(settings.wakeEnabled ?? true)
-              ? "系统每 1 小时来一次（只是起一下程序，你感觉不到）；每次一半概率真的看他一眼，看了再由他决定说不说。"
-              : "已经关掉了 —— 他不会再主动找你（包括后台。要重新开就打开上面这个开关）。"}
-          </p>
-          {!wakeSupported() && (
-            <p className="mt-1 text-[11px] leading-4 text-warn">
-              （网页版没有后台任务 —— 这一栏只有装成 App 之后才有用）
-            </p>
-          )}
+            {!wakeSupported() && (
+              <p className="mt-1 text-[11px] leading-4 text-warn">（网页版没有后台任务）</p>
+            )}
 
-          {(settings.wakeEnabled ?? true) && (
-            <>
-              {/*
+            {(settings.wakeEnabled ?? true) && (
+              <>
+                {/*
             用户最后拍板的规矩（原话）：
               "每隔一小时系统起程序，叫 ai 概率各一半，这次没叫就下次，
                然后 ai 说话也是说不说各 50，这次没说下次必定说，
                这样最少四小时也会说一次对吧"
             → 两个 50%，各自"没中就下次必定" → 最坏 4 小时一定有一句。他算的是对的。
           */}
-              <div data-opt="" className="mt-2 rounded-2xl px-3 py-2.5">
-                <p className="text-[11px] leading-5 text-muted">
-                  <strong>他多久会开口</strong>
-                </p>
-                <ul className="mt-1 space-y-0.5 text-[11px] leading-5 text-subtle">
-                  <li>
-                    · 每 <strong>1 小时</strong>系统来一次（很轻，你感觉不到）
-                  </li>
-                  <li>
-                    · 这一半：<strong>50%</strong> 真的看他一眼；没看 → <strong>下次必定看</strong>
-                  </li>
-                  <li>
-                    · 看了之后：<strong>50%</strong> 他会说；没说 → <strong>下次必定说</strong>
-                  </li>
-                  <li>
-                    · 所以最坏 <strong>4 小时</strong>一定有他一句话（平均约 2~2.5 小时）
-                  </li>
-                  <li>· 他一旦说了，两边都重新算</li>
-                </ul>
-              </div>
-
-              {/*
+                {/*
             通道状态。现在**主路是"直接问你的 AI"**（甲）：
             后台那段 JS 醒来 → 从 App 交给它的抽屉里读配置 → 直接打你的上游（国内、不用梯、不用域名）。
             Worker（乙）只是备路，只有配了地址才会用。
           */}
-              <p className="mt-2 text-[11px] leading-4">
-                通道：
-                <span className={upstreamReady() ? "text-ok" : "text-warn"}>
-                  {upstreamReady()
-                    ? "直接问你的 AI（不用梯、不用域名）"
-                    : "还没配自定义上游（地址 / 密钥 / 模型）"}
-                </span>
-              </p>
+                <p className="mt-2 text-[11px] leading-4">
+                  通道：
+                  <span className={upstreamReady() ? "text-ok" : "text-warn"}>
+                    {upstreamReady()
+                      ? "直接问你的 AI（不用梯、不用域名）"
+                      : "还没配自定义上游（地址 / 密钥 / 模型）"}
+                  </span>
+                </p>
 
-              {/* 夜间不打扰 */}
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-muted">夜间不打扰</span>
-                <select
-                  value={settings.wakeQuietStart ?? 1}
-                  onChange={(e) => patch({ wakeQuietStart: Number(e.target.value) })}
-                  className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
-                  aria-label="夜间从不打扰开始的小时"
-                >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>
-                      {h}:00
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[11px] text-muted">→</span>
-                <select
-                  value={settings.wakeQuietEnd ?? 8}
-                  onChange={(e) => patch({ wakeQuietEnd: Number(e.target.value) })}
-                  className="rounded-full bg-elevated px-3 py-1.5 text-[11px]"
-                  aria-label="夜间不打扰结束的小时"
-                >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>
-                      {h}:00
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="mt-1 text-[11px] leading-4 text-subtle">
-                这两格设成一样 = 不启用。（跨零点也对：比如 23:00 → 7:00。）
-              </p>
+                {/* 夜间不打扰 */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-muted">夜间不打扰</span>
+                  <select
+                    value={settings.wakeQuietStart ?? 1}
+                    onChange={(e) => patch({ wakeQuietStart: Number(e.target.value) })}
+                    className="k-input w-16"
+                    aria-label="夜间从不打扰开始的小时"
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>
+                        {h}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] text-muted">→</span>
+                  <select
+                    value={settings.wakeQuietEnd ?? 8}
+                    onChange={(e) => patch({ wakeQuietEnd: Number(e.target.value) })}
+                    className="k-input w-16"
+                    aria-label="夜间不打扰结束的小时"
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>
+                        {h}:00
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/*
+                {/*
             ── 主动说话的三个闸门（2026-11 用户要的）────────────────────
             用户原话："设置一个回复的约定或按钮，我主动说忙，他自动调低，否则原来就行。"
             ＋ "他自己情绪到了，也可以发吧……或者你给情绪那个加个按钮，只单独管情绪发消息这个。"
             ＋ "降频那个不用"（所以**没有**"你不理他就自动降频"）。
             默认值：最短 40 分钟、每天最多 8 条 —— 这两条是防骚扰的地板。
           */}
-              <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 text-[12px] leading-5">
-                    {busy ? (
-                      <>
-                        <span className="text-warn">我现在忙</span>
-                        <br />
-                        <span className="text-subtle">
-                          他不会再主动说话，到{" "}
-                          {new Date(settings.busyUntil ?? 0).toLocaleTimeString("zh-CN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}{" "}
-                          自动恢复
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        我没在忙
-                        <br />
-                        <span className="text-subtle">他还是按下面那两条频率规矩来找你</span>
-                      </>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => patch({ busyUntil: busy ? 0 : Date.now() + 2 * 60 * 60 * 1000 })}
-                    className="shrink-0 rounded-2xl border border-line px-3 py-2 text-[12px]"
-                  >
-                    {busy ? "取消" : "我在忙（2 小时）"}
-                  </button>
+                <div className="k-inset">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 text-[12px] leading-5">
+                      {busy ? (
+                        <>
+                          <span className="text-warn">我现在忙</span>
+                          <br />
+                          <span className="text-subtle">
+                            他不会再主动说话，到{" "}
+                            {new Date(settings.busyUntil ?? 0).toLocaleTimeString("zh-CN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}{" "}
+                            自动恢复
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          我没在忙
+                          <br />
+                          <span className="text-subtle">他还是按下面那两条频率规矩来找你</span>
+                        </>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({ busyUntil: busy ? 0 : Date.now() + 2 * 60 * 60 * 1000 })
+                      }
+                      className="shrink-0 rounded-[var(--k-card-radius)] border border-line px-3 py-2 text-[12px]"
+                    >
+                      {busy ? "取消" : "我在忙（2 小时）"}
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-2 text-[11px] leading-4 text-subtle">
-                  说忙之后是**彻底不打扰**（不是"少说点"）—— 你主动找他说话不受影响。
-                </p>
-              </div>
 
-              <Row
-                label="心情可以单独让他开口"
-                hint="情绪到了就能说，不用等由头"
-                checked={settings.emotionSpeak !== false}
-                onChange={(v) => patch({ emotionSpeak: v })}
-              />
-              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-                打开：他情绪到了就能主动说一句。关掉：只有真有由头（隔了很久 / 深夜 /
-                你正挂在心上的事）才会开口， 心情只影响他怎么说。
-              </p>
+                <Row
+                  label="心情可以单独让他开口"
+                  checked={settings.emotionSpeak !== false}
+                  onChange={(v) => patch({ emotionSpeak: v })}
+                />
 
-              <p className="mt-4 mb-2 text-[12px] text-muted">最短间隔（两次主动说话之间）</p>
-              <div className="flex flex-wrap gap-2">
-                {[30, 40, 60, 90, 120].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    data-opt={(settings.wakeMinGapMin ?? 40) === v ? undefined : ""}
-                    onClick={() => patch({ wakeMinGapMin: v })}
-                    className={cn(
-                      "rounded-2xl border px-3 py-2 text-[12px]",
-                      (settings.wakeMinGapMin ?? 40) === v ? "choice-on data-pill" : "choice-off",
-                    )}
-                  >
-                    {v} 分钟
-                  </button>
-                ))}
-              </div>
+                <p className="k-row__title">最短间隔（两次主动说话之间）</p>
+                <KOpts cols="wrap">
+                  {[30, 40, 60, 90, 120].map((v) => (
+                    <KOpt
+                      key={v}
+                      active={(settings.wakeMinGapMin ?? 40) === v}
+                      onClick={() => patch({ wakeMinGapMin: v })}
+                    >
+                      {v} 分钟
+                    </KOpt>
+                  ))}
+                </KOpts>
 
-              <p className="mt-4 mb-2 text-[12px] text-muted">每天最多主动说几条</p>
-              <div className="flex flex-wrap gap-2">
-                {[4, 6, 8, 12].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    data-opt={(settings.wakeDailyMax ?? 8) === v ? undefined : ""}
-                    onClick={() => patch({ wakeDailyMax: v })}
-                    className={cn(
-                      "rounded-2xl border px-3 py-2 text-[12px]",
-                      (settings.wakeDailyMax ?? 8) === v ? "choice-on data-pill" : "choice-off",
-                    )}
-                  >
-                    {v} 条
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-                这两条是**地板**：不管什么理由都不会越过它们。他现在是每 1
-                小时醒一次、掷骰子决定说不说，
-                所以"最短间隔"实际很少碰到（醒来次数本来就少），真正管用的是每天上限。
-              </p>
+                <p className="k-row__title">每天最多主动说几条</p>
+                <KOpts cols="wrap">
+                  {[4, 6, 8, 12].map((v) => (
+                    <KOpt
+                      key={v}
+                      active={(settings.wakeDailyMax ?? 8) === v}
+                      onClick={() => patch({ wakeDailyMax: v })}
+                    >
+                      {v} 条
+                    </KOpt>
+                  ))}
+                </KOpts>
 
-              {/*
+                {/*
             通道自检：安全，只是 fetch 一下 Worker。
             ⚠️ 绝不调插件的 dispatchEvent（那个会让整个 App 卡死）。
           */}
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={wakePinging}
-                  onClick={() => {
-                    setWakePinging(true);
-                    setWakePingMsg("");
-                    void pingWake()
-                      .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
-                      .finally(() => setWakePinging(false));
-                  }}
-                  data-opt=""
-                  className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
-                >
-                  {wakePinging ? "正在试…" : "通道自检"}
-                </button>
-                {/*
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={wakePinging}
+                    onClick={() => {
+                      setWakePinging(true);
+                      setWakePingMsg("");
+                      void pingWake()
+                        .then((r) => setWakePingMsg(`${r.ok ? "🟢" : "🔴"} ${r.message}`))
+                        .finally(() => setWakePinging(false));
+                    }}
+                    data-opt=""
+                    className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+                  >
+                    {wakePinging ? "正在试…" : "通道自检"}
+                  </button>
+                  {/*
               「清空重来」（用户："你把他清空，重新来"）。
               连点两下才真清（页面上没有现成的确认弹窗，就沿用"再点一次"的老办法）。
               网页版没有抽屉 → lib 里会如实说"这台上没有抽屉"，不装成功。
             */}
-                <button
-                  type="button"
-                  disabled={wakeResetBusy}
-                  onClick={() => void doWakeReset()}
-                  data-opt=""
-                  className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
-                >
-                  {wakeResetBusy
-                    ? "正在清…"
-                    : wakeResetArmed
-                      ? "再点一下，确认清空"
-                      : "清空后台状态，重新来"}
-                </button>
-              </div>
-              {wakePingMsg && (
-                <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>
-              )}
-              {wakeResetMsg && (
-                <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakeResetMsg}</p>
-              )}
+                  <button
+                    type="button"
+                    disabled={wakeResetBusy}
+                    onClick={() => void doWakeReset()}
+                    data-opt=""
+                    className="rounded-full px-4 py-2 text-[12px] font-medium disabled:opacity-40"
+                  >
+                    {wakeResetBusy
+                      ? "正在清…"
+                      : wakeResetArmed
+                        ? "再点一下，确认清空"
+                        : "清空后台状态，重新来"}
+                  </button>
+                </div>
+                {wakePingMsg && (
+                  <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakePingMsg}</p>
+                )}
+                {wakeResetMsg && (
+                  <p className="mt-1.5 text-[11px] leading-4 text-subtle">{wakeResetMsg}</p>
+                )}
 
-              <p className="mt-2 text-[11px] leading-4 text-subtle">
-                自检只问一句&ldquo;这条路通不通&rdquo;，不改任何东西。一次真机验证要等 1
-                小时（到下一次节拍）， 所以先用它把&ldquo;地址错 / 口令错 / Worker 没部署 /
-                上游没配&rdquo;分开。
-              </p>
-              <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-                「清空后台状态，重新来」会清掉：醒来次数、后台日志、上次说话时间、静音标记，
-                还有交给后台的那份配置（清完立刻重新交一份新的）。
-              </p>
-
-              {/*
+                {/*
             后台记录（只读、折叠的次要区域）—— 用户手机上这块原来是黑盒：
             连续失败 90 次他也只能看到通知里那一句英文报错。这里直接把 `wake_log` 摊开，
             里面就带着后台**自己诊断出来的结论**（后台没网 / 只有你的上游解析不出来 / 上游连不上）。
             ⚠️ 抽屉读回来的 key 被原生打码成「已设置」；日志里也从不写 key。
           */}
-              <button
-                type="button"
-                onClick={() => void toggleWakeLog()}
-                aria-expanded={wakeLogOpen}
-                className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
-              >
-                {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
-              </button>
-              {wakeLogOpen && (
-                <div data-opt="" className="mt-1.5 rounded-2xl px-3 py-2">
-                  {wakeLogLines === undefined ? (
-                    <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
-                  ) : wakeLogLines && wakeLogLines.length > 0 ? (
-                    <>
+                <button
+                  type="button"
+                  onClick={() => void toggleWakeLog()}
+                  aria-expanded={wakeLogOpen}
+                  className="mt-2 text-[11px] leading-4 text-subtle underline decoration-dotted underline-offset-2"
+                >
+                  {wakeLogOpen ? "收起后台记录" : "看后台记录（最近 16 条）"}
+                </button>
+                {wakeLogOpen && (
+                  <div className="k-inset k-inset--flat">
+                    {wakeLogLines === undefined ? (
+                      <p className="text-[11px] leading-4 text-subtle">正在读后台的记录…</p>
+                    ) : wakeLogLines && wakeLogLines.length > 0 ? (
+                      <>
+                        <p className="text-[11px] leading-4 text-subtle">
+                          后台最近 {wakeLogLines.length} 条记录（最近的在最上面）：
+                        </p>
+                        <ul className="mt-1 space-y-1">
+                          {wakeLogLines.map((line, i) => (
+                            <li key={i} className="text-[11px] leading-4 break-all text-muted">
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
                       <p className="text-[11px] leading-4 text-subtle">
-                        后台最近 {wakeLogLines.length} 条记录（最近的在最上面）：
+                        {wakeLogLines === null
+                          ? "后台还没有记录（这台上没有抽屉，网页版没有后台任务）。"
+                          : "后台还没有记录。"}
                       </p>
-                      <ul className="mt-1 space-y-1">
-                        {wakeLogLines.map((line, i) => (
-                          <li key={i} className="text-[11px] leading-4 break-all text-muted">
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  ) : (
-                    <p className="text-[11px] leading-4 text-subtle">
-                      {wakeLogLines === null
-                        ? "后台还没有记录（这台上没有抽屉，网页版没有后台任务）。"
-                        : "后台还没有记录。"}
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </Sub>
 
-        <div className="mb-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void testNotify()}
-            data-opt=""
-            className="rounded-full px-4 py-2.5 text-[13px]"
-          >
-            发一条测试通知
-          </button>
-          <button
-            type="button"
-            onClick={() => void doSubscribe()}
-            data-opt=""
-            className="rounded-full px-4 py-2.5 text-[13px]"
-          >
-            订阅后台推送
-          </button>
-        </div>
-        {toast && <p className="mb-2 px-1 text-[11px] leading-4 text-muted">{toast}</p>}
-
-        <Row
-          label="额度提醒"
-          hint="接近上限时提示"
-          checked={settings.quotaAlerts}
-          onChange={(v) => patch({ quotaAlerts: v })}
-        />
-        {/*
+          {/*
+        额度提醒（40 次 / 5 小时的窗口配额）**整套删掉了** —— 2026-11 用户定了产品边界：
+        其他用户一律自带自己的 key/地址（"不能把我的 Key 给他们"），「内置服务端 + 内置额度」
+        这条路不走。自己 key 花自己的钱、永不拦（`bumpQuota` 里早就是这个逻辑），这个开关和
+        服务端配额一起失去意义，留着只会是死开关。
+        字段 `quotaAlerts` / `quota` 仍留在 types 与 store 里：老档案里可能存过，删字段会让
+        迁移与恢复变复杂，留着无害。
+      */}
+          {/*
           「日记提醒」原来是**提醒用户**写日记（弹一条"今天还没写日记"）——
           2026-10 用户纠正："日记是让他写，不是提醒给我写。" 所以改成：
           **他每天写一篇（到点还没写就唤醒他补）**，不再打扰用户。
           （用户定的参数：保底时间晚上八点半；日记不弹通知。）
         */}
-        <Row
-          label="日记（他每天写一篇）"
-          hint="到晚上 20:30 还没写就唤醒他补一篇；你也能自己写，他写的会挂「他写的」"
-          checked={settings.diaryReminders}
-          onChange={(v) => patch({ diaryReminders: v })}
-        />
+          <Sub title="日记">
+            <Row
+              label="日记（他每天写一篇）"
+              checked={settings.diaryReminders}
+              onChange={(v) => patch({ diaryReminders: v })}
+            />
+          </Sub>
 
-        {/*
+          {/*
           **活跃度**（2026-10 用户定的"他自己的日子"第一批）。
           用户原话："每天他不定时唤醒，做他自己想能做的……" —— 这一档决定他一天自己动几次。
         */}
-        <Row
-          label="他自己的日子"
-          hint="自由活动 / 每天一篇日记 / 你互动他就回响 —— 关掉就完全安静（也不弹那些到点通知）"
-          checked={settings.autonomyEnabled !== false}
-          onChange={(v) => patch({ autonomyEnabled: v })}
-        />
+          <Sub title="他自己的日子">
+            <Row
+              label="他自己的日子"
+              checked={settings.autonomyEnabled !== false}
+              onChange={(v) => patch({ autonomyEnabled: v })}
+            />
 
-        <p className="mt-4 mb-2 text-[12px] text-muted">他的活跃度（一天自己动几次）</p>
-        <div className="flex items-center gap-1.5" role="group" aria-label="他的活跃度">
-          {WAKE_LEVELS.map((lv) => {
-            const active = (settings.wakeLevel ?? "daily") === lv.id;
-            return (
-              <button
-                key={lv.id}
-                type="button"
-                aria-pressed={active}
-                data-opt={active ? undefined : ""}
-                onClick={() => patch({ wakeLevel: lv.id })}
-                className={cn(
-                  "flex-1 rounded-2xl px-2 py-2 text-[12px] transition",
-                  active && "data-pill",
-                )}
-              >
-                {lv.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-          {WAKE_LEVELS.find((lv) => lv.id === (settings.wakeLevel ?? "daily"))?.hint}
-          <br />
-          他醒来做的事会出现在对话/朋友圈/日记页；评论、点赞、发动态会弹通知，其他不弹（你定的）。
-        </p>
+            <p className="k-row__title">他的活跃度（一天自己动几次）</p>
+            <KOpts cols={3}>
+              {WAKE_LEVELS.map((lv) => (
+                <KOpt
+                  key={lv.id}
+                  active={(settings.wakeLevel ?? "daily") === lv.id}
+                  onClick={() => patch({ wakeLevel: lv.id })}
+                >
+                  {lv.label}
+                </KOpt>
+              ))}
+            </KOpts>
+          </Sub>
 
-        {/*
+          {/*
           「闹钟 / 提醒」的列表入口**已挪到「玩乐 → 小日子 → 闹钟」**
           （用户："把闹钟和定时任务都挪到小日子这个组件里面呗，
                  然后我的区里面就删掉就不用重复了"）。
           这里只留上面那个"日记提醒时间"的开关 —— 它属于通知设置，不是闹钟。
         */}
-      </Group>
-
-      <Group title="天气与定位" value="自动定位 · 城市 · 单位" order={3}>
-        <Row
-          label="让他知道你在哪、外面什么天气"
-          hint="默认关。开了之后地点和天气会进「此刻的情况」—— 也就是说会发给你接的那家 AI"
-          checked={settings.geoEnabled}
-          onChange={(v) => patch({ geoEnabled: v })}
-        />
-
-        {settings.geoEnabled && (
-          <>
-            {/* ── 手动指定地点：不依赖任何服务，永远可用 ── */}
-            <p className="mt-3 mb-2 text-[12px] text-muted">你常待的地方</p>
-            <input
-              value={settings.manualPlace}
-              onChange={(e) => patch({ manualPlace: e.target.value })}
-              placeholder="例如 北京市朝阳区"
-              aria-label="手动指定地点"
-              className="h-11 w-full rounded-2xl bg-chip px-3 text-sm outline-none placeholder:text-subtle"
+        </>
+      ),
+    },
+    weather: {
+      title: "天气与定位",
+      value: "自动定位 · 城市 · 单位",
+      order: 3,
+      body: (
+        <>
+          <Sub title="天气与定位">
+            <Row
+              label="让他知道你在哪、外面什么天气"
+              checked={settings.geoEnabled}
+              onChange={(v) => patch({ geoEnabled: v })}
             />
-            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-              填了就直接用它 —— <span className="text-fg">不用网络、不会失败</span>
-              ，而且日常就在那一两个地方， 比每次重新定位还准。想用自动定位就留空。
-            </p>
 
-            {/* ── 和风天气：一次配好，定位（反查地名）和天气都能用 ── */}
-            <p className="mt-4 mb-2 text-[12px] text-muted">和风天气</p>
-            <input
-              value={settings.qweatherHost}
-              onChange={(e) => patch({ qweatherHost: e.target.value.trim() })}
-              placeholder="API Host，例如 abcd1234.re.qweatherapi.com"
-              aria-label="和风 API Host"
-              className="mb-2 h-11 w-full rounded-2xl bg-chip px-3 font-mono text-[12px] outline-none placeholder:text-subtle"
-            />
-            <input
-              type="password"
-              value={settings.qweatherKey}
-              onChange={(e) => patch({ qweatherKey: e.target.value.trim() })}
-              placeholder="API Key"
-              aria-label="和风 API Key"
-              className="h-11 w-full rounded-2xl bg-chip px-3 font-mono text-[12px] outline-none placeholder:text-subtle"
-            />
-            <p className="mt-1.5 text-[11px] leading-4 text-subtle">
-              在和风控制台「项目管理 → 创建项目 → 添加凭据（选 API KEY）」里拿这两样。
-              <br />
-              <span className="text-fg">API Host 每个人不一样</span>（和风早就不是统一的
-              devapi.qweather.com 了），控制台首页能看到。免费额度每月 5 万次，个人用不完。
-              <br />
-              它管两件事：把坐标翻译成地名（就是原来一直失败的那一步），以及天气。
-              <br />
-              <span className="text-fg">这两栏是边打边存的</span>，不用点保存 ——
-              填完把上面的开关打开，再点下面的「刷新」。
-            </p>
+            {settings.geoEnabled && (
+              <>
+                {/* ── 手动指定地点：不依赖任何服务，永远可用 ── */}
+                <p className="k-sect__title mt-4">你常待的地方</p>
+                <input
+                  value={settings.manualPlace}
+                  onChange={(e) => patch({ manualPlace: e.target.value })}
+                  placeholder="例如 北京市朝阳区"
+                  aria-label="手动指定地点"
+                  className="k-input"
+                />
 
-            {/* ── 现在在哪 / 什么天气 ── */}
-            <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 text-[12px] leading-5">
-                  {settings.manualPlace.trim() ? (
-                    <>
-                      用手动地点：<span className="text-fg">{settings.manualPlace.trim()}</span>
-                    </>
-                  ) : settings.geoLabel ? (
-                    <>
-                      现在在<span className="text-fg">{settings.geoLabel}</span>
-                      {/*
+                {/* ── 和风天气：一次配好，定位（反查地名）和天气都能用 ── */}
+                <p className="k-sect__title mt-4">和风天气</p>
+                <input
+                  value={settings.qweatherHost}
+                  onChange={(e) => patch({ qweatherHost: e.target.value.trim() })}
+                  placeholder="API Host · abcd1234.re.qweatherapi.com"
+                  aria-label="和风 API Host"
+                  className="k-input mb-2 font-mono"
+                />
+                <input
+                  type="password"
+                  value={settings.qweatherKey}
+                  onChange={(e) => patch({ qweatherKey: e.target.value.trim() })}
+                  placeholder="API Key"
+                  aria-label="和风 API Key"
+                  className="k-input font-mono"
+                />
+
+                {/* ── 现在在哪 / 什么天气 ── */}
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 text-[12px] leading-5">
+                      {settings.manualPlace.trim() ? (
+                        <>
+                          用手动地点：<span className="text-fg">{settings.manualPlace.trim()}</span>
+                        </>
+                      ) : settings.geoLabel ? (
+                        <>
+                          现在在<span className="text-fg">{settings.geoLabel}</span>
+                          {/*
                         ⚠️ **来源必须写在脸上**（2026-11 用户原话："点刷新还是刷到了海南"）。
                         IP 猜的城市在国内移动网络下可能差几个省，不标明就会让人以为"定位坏了"，
                         而实际上"IP 猜的"和"系统定的"是两回事 —— 前者本来就不该当事实用。
                       */}
-                      {settings.geoSource === "ip" ? (
-                        <span className="text-warn">（按 IP 猜的，不可靠）</span>
-                      ) : settings.geoSource === "system" ? (
-                        <span className="text-subtle">（系统定的）</span>
-                      ) : null}
-                      {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
-                    </>
-                  ) : (
-                    "还没定位过"
-                  )}
-                  {settings.weatherText && (
-                    <>
-                      <br />
-                      外面：<span className="text-fg">{settings.weatherText}</span>
-                      {settings.weatherAt ? ` · ${relShort(settings.weatherAt)}` : ""}
-                    </>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    /*
+                          {settings.geoSource === "ip" ? (
+                            <span className="text-warn">（按 IP 猜的，不可靠）</span>
+                          ) : settings.geoSource === "system" ? (
+                            <span className="text-subtle">（系统定的）</span>
+                          ) : null}
+                          {settings.geoAt ? ` · ${relShort(settings.geoAt)}` : ""}
+                        </>
+                      ) : (
+                        "还没定位过"
+                      )}
+                      {settings.weatherText && (
+                        <>
+                          <br />
+                          外面：<span className="text-fg">{settings.weatherText}</span>
+                          {settings.weatherAt ? ` · ${relShort(settings.weatherAt)}` : ""}
+                        </>
+                      )}
+                    </span>
+                    <KButton
+                      disabled={geoBusy}
+                      onClick={() => {
+                        /*
                       开关关着的时候**必须明说**，不能什么都不发生。
                       用户实测："天气也是填完之后也没有动静，能不能调用，
                       不清楚，也没有保存和错误提示" —— 就是这里的锅：
                       原来 refreshPlaceAndWeather 直接返回一个 ok:false，
                       而按钮那边对"没反应"没有任何提示，看起来就像坏了。
                     */
-                    if (!settings.geoEnabled) {
-                      setGeoMsg(
-                        "上面那个开关是关着的 —— 先打开它，地点和天气才会去查。（关着的时候不会发任何请求）",
-                      );
-                      return;
-                    }
-                    if (!settings.manualPlace.trim() && !settings.qweatherKey.trim()) {
-                      setGeoMsg(
-                        "还没有可用的方式：要么在「你常待的地方」填一个（最简单、不用联网），要么填上和风天气的 Key 和 API Host 用自动定位。",
-                      );
-                      return;
-                    }
-                    setGeoBusy(true);
-                    setGeoMsg("");
-                    void refreshPlaceAndWeather(true).then((r) => {
-                      setGeoBusy(false);
-                      if (r.ok) {
-                        setGeoMsg(
-                          r.weather
-                            ? `已更新：${r.label} · ${r.weather}`
-                            : `已更新地点：${r.label}${r.note ? `（${r.note}）` : ""}`,
-                        );
-                      } else {
-                        setGeoMsg(r.reason);
-                      }
-                    });
-                  }}
-                  disabled={geoBusy}
-                  data-opt=""
-                  className="shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium shadow-sm disabled:opacity-50"
-                >
-                  {geoBusy ? "刷新中…" : "刷新"}
-                </button>
-              </div>
-              {geoMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{geoMsg}</p>}
-              <p className="mt-2 text-[11px] leading-4 text-subtle">
-                地点、天气、Key 都只存在这台设备上；关掉上面的开关就不再进提示词。
-              </p>
-            </div>
-          </>
-        )}
-      </Group>
+                        if (!settings.geoEnabled) {
+                          setGeoMsg(
+                            "上面那个开关是关着的 —— 先打开它，地点和天气才会去查。（关着的时候不会发任何请求）",
+                          );
+                          return;
+                        }
+                        if (!settings.manualPlace.trim() && !settings.qweatherKey.trim()) {
+                          setGeoMsg(
+                            "还没有可用的方式：要么在「你常待的地方」填一个（最简单、不用联网），要么填上和风天气的 Key 和 API Host 用自动定位。",
+                          );
+                          return;
+                        }
+                        setGeoBusy(true);
+                        setGeoMsg("");
+                        void refreshPlaceAndWeather(true).then((r) => {
+                          setGeoBusy(false);
+                          if (r.ok) {
+                            setGeoMsg(
+                              r.weather
+                                ? `已更新：${r.label} · ${r.weather}`
+                                : `已更新地点：${r.label}${r.note ? `（${r.note}）` : ""}`,
+                            );
+                          } else {
+                            setGeoMsg(r.reason);
+                          }
+                        });
+                      }}
+                      className="shrink-0"
+                    >
+                      {geoBusy ? "刷新中…" : "刷新"}
+                    </KButton>
+                  </div>
+                  {geoMsg && <p className="mt-2 text-[11px] leading-4 text-subtle">{geoMsg}</p>}
+                </div>
+              </>
+            )}
+          </Sub>
+        </>
+      ),
+    },
+    voice: {
+      title: "语音",
+      value: "服务商 · 模型 · 音色",
+      order: 2,
+      body: (
+        <>
+          <Sub title="朗读回复">
+            <Row
+              label="朗读回复"
+              checked={settings.voiceReplies}
+              onChange={(v) => patch({ voiceReplies: v })}
+            />
+          </Sub>
 
-      <Group title="语音" value="服务商 · 模型 · 音色" order={2}>
-        <Row
-          label="朗读回复"
-          hint={
-            voiceConfigured
-              ? `用 ${voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI 兼容"} 的音色念`
-              : "还没配语音服务，配好才会有声音"
-          }
-          checked={settings.voiceReplies}
-          onChange={(v) => patch({ voiceReplies: v })}
-        />
-
-        {/*
+          {/*
           语音服务：两家分开（用户 m10646 要求的分法）。
           ⚠️ 安卓系统 TTS 已删 —— "试听像手机自带的 YOYO"就是它顶着，
           删掉之后合成失败会直说，不再冒充。
         */}
-        <div className="mt-4 rounded-2xl bg-chip px-3.5 py-3">
-          <div className="flex gap-1 rounded-xl bg-surface/70 p-1">
-            {[
-              { k: "openai" as const, label: "1 · OpenAI 兼容" },
-              { k: "elevenlabs" as const, label: "2 · ElevenLabs" },
-              /*
+          <Sub title="语音服务">
+            <div className="k-tabs">
+              {[
+                { k: "openai" as const, label: "1 · OpenAI 兼容" },
+                { k: "elevenlabs" as const, label: "2 · ElevenLabs" },
+                /*
                 百炼（阿里）：不是 OpenAI 形状，但音质和"自己捏嗓子"是这几家里最好的。
                 用户 m10841："这个百炼这个是千问的语音模型对吗，那音色呢，能自己捏吗"。
               */
-              { k: "dashscope" as const, label: "3 · 百炼" },
-            ].map((tab) => (
-              <button
-                key={tab.k}
-                type="button"
-                aria-pressed={tab.k === voiceProvider}
-                data-opt=""
-                onClick={() => {
-                  if (tab.k === voiceProvider) return;
-                  patch({
-                    voiceBaseUrl:
-                      tab.k === "elevenlabs"
-                        ? "https://api.elevenlabs.io/v1"
-                        : tab.k === "dashscope"
-                          ? "https://dashscope.aliyuncs.com"
-                          : "https://api.siliconflow.cn/v1",
-                    /* 换家时把不通用的小格子清掉，免得带着上家的模型名去请求 */
-                    ...(tab.k === "dashscope"
-                      ? {
-                          voiceTtsModel: "qwen-audio-3.1-tts-flash",
-                          voiceTtsVoice: "longanhuan_v3.1",
-                          voiceAsrModel: "",
-                        }
-                      : {}),
-                  });
-                  setVoiceModels([]);
-                  setElevenVoices([]);
-                  setDsVoices([]);
-                  setDsVoiceStatus({});
-                  setDesignMsg("");
-                  setVoiceMsg("");
-                }}
-                className={cn(
-                  "flex-1 rounded-[11px] py-1.5 text-center text-[12px]",
-                  tab.k === voiceProvider && "font-medium shadow-sm",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {[
-            { k: "voiceBaseUrl" as const, label: "地址", ph: "https://api.siliconflow.cn/v1" },
-            { k: "voiceApiKey" as const, label: "密钥", ph: "sk-…", secret: true },
-          ].map((f) => (
-            <div key={f.k} className="mt-2 block">
-              <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
-              <input
-                type={f.secret ? "password" : "text"}
-                value={(settings[f.k] as string | undefined) ?? ""}
-                onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
-                placeholder={f.ph}
-                className="h-10 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-              />
-            </div>
-          ))}
-
-          {[
-            { k: "voiceAsrModel" as const, label: "转文字", pick: "asr" as const },
-            { k: "voiceTtsModel" as const, label: "合成", pick: "tts" as const },
-            { k: "voiceTtsVoice" as const, label: "音色", pick: "voice" as const },
-          ]
-            /* 百炼只接"说"，不接"听"：它那套转文字是另一个接口，这里不硬凑 */
-            .filter((f) => !(voiceProvider === "dashscope" && f.k === "voiceAsrModel"))
-            .map((f) => {
-              const cur = (settings[f.k] as string | undefined) ?? "";
-              return (
-                <div key={f.k} className="mt-2 block">
-                  <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
-                  <button
-                    type="button"
-                    data-opt=""
-                    onClick={() => {
-                      setVoicePick(f.pick);
-                      setVoicePickQuery("");
-                    }}
-                    className="flex h-10 w-full items-center gap-2 rounded-2xl px-3 text-left text-[12px] text-fg"
-                  >
-                    <span className="flex-1 truncate font-mono text-[11px]">
-                      {cur || "（点这里选）"}
-                    </span>
-                    <ChevronRight className="size-3.5 shrink-0 text-subtle" />
-                  </button>
-                </div>
-              );
-            })}
-
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-4 text-subtle">
-            <span className="size-1.5 rounded-full bg-emerald-500" />
-            正在用 {(settings.voiceTtsModel ?? "").split("/").pop() || "—"} ·{" "}
-            {(settings.voiceTtsVoice ?? "").trim() || "—"}
-            {(() => {
-              /**
-               * 音色状态（用户 m11120 的「合成失败」最可能就是它）：
-               * 刚用声音设计造出来的嗓子先是 DEPLOYING，要等几分钟才能合成。
-               * 不在这儿说，用户只会以为是我写坏了。
-               */
-              const hint = dsVoiceStatusHint(dsVoiceStatus[(settings.voiceTtsVoice ?? "").trim()]);
-              return hint ? <span className="text-accent"> · {hint}</span> : null;
-            })()}
-          </p>
-
-          <button
-            type="button"
-            data-opt=""
-            className="mt-2 h-9 w-full rounded-2xl border border-line text-[12px]"
-            onClick={async () => {
-              setVoiceMsg(voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…");
-              const r = await listVoiceModels();
-              if (!r.ok) {
-                setVoiceMsg(r.reason);
-                return;
-              }
-              setVoiceModels(r.models);
-              setElevenVoices(r.voices);
-              /**
-               * **百炼**：`models` 是它固定的几个合成模型，
-               * `voices` 是你在控制台 / App 里捏出来的自定义音色（绑在这个模型上的）。
-               */
-              if (voiceProvider === "dashscope") {
-                setDsVoices(r.voices);
-                setDsVoiceStatus(r.voiceStatus ?? {});
-                setVoiceMsg(
-                  r.voices.length > 0
-                    ? `这个模型下有你建的 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。\n（系统音色也在那格里，和自定义的一起列。）`
-                    : "没拉到自定义音色：系统音色照样能用，想捏一个就点下面的「捏一个嗓子」。",
-                );
-                return;
-              }
-              if (voiceProvider === "elevenlabs") {
-                setVoiceMsg(
-                  r.voices.length > 0
-                    ? `拉到 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。`
-                    : "一家音色都没拉到：这个 key 可能还没建过声音。",
-                );
-                return;
-              }
-              const pick = (re: RegExp) => r.models.find((m) => re.test(m)) ?? "";
-              const asr = pick(/sensevoice|whisper|asr|transcri/i);
-              const tts = pick(/cosyvoice|tts|vits|speech/i);
-              patch({
-                ...(asr ? { voiceAsrModel: asr } : {}),
-                ...(tts ? { voiceTtsModel: tts } : {}),
-              } as Partial<typeof settings>);
-              setVoiceMsg(
-                `拉到 ${r.models.length} 个语音相关的模型（聊天、画图的已滤掉）：\n` +
-                  [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`]
-                    .filter(Boolean)
-                    .join("\n") +
-                  "\n\n点上面那几格可以换；长名字不用手打。",
-              );
-            }}
-          >
-            {voiceProvider === "openai" ? "拉取可用模型" : "拉取音色"}
-          </button>
-
-          {voiceMsg && (
-            <p
-              className="mt-2 whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface px-3 py-2 text-[11.5px] leading-5 text-ink"
-              onClick={() => setVoiceMsg("")}
-            >
-              {voiceMsg}
-            </p>
-          )}
-
-          {voiceProvider === "dashscope" && (
-            <div className="mt-3 rounded-2xl border border-line bg-surface/70 px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => setAsrOpen((v) => !v)}
-                className="flex w-full items-center gap-2 text-left"
-              >
-                <span className="flex-1 text-[12px] font-medium text-fg">转文字（听）· 借别家</span>
-                <span
-                  className={cn(
-                    "shrink-0 text-[10.5px]",
-                    asrKey ? "text-emerald-600" : "text-subtle",
-                  )}
+                { k: "dashscope" as const, label: "3 · 百炼" },
+              ].map((tab) => (
+                <button
+                  key={tab.k}
+                  type="button"
+                  data-active={tab.k === voiceProvider ? "true" : undefined}
+                  onClick={() => {
+                    if (tab.k === voiceProvider) return;
+                    patch({
+                      voiceBaseUrl:
+                        tab.k === "elevenlabs"
+                          ? "https://api.elevenlabs.io/v1"
+                          : tab.k === "dashscope"
+                            ? "https://dashscope.aliyuncs.com"
+                            : "https://api.siliconflow.cn/v1",
+                      /* 换家时把不通用的小格子清掉，免得带着上家的模型名去请求 */
+                      ...(tab.k === "dashscope"
+                        ? {
+                            voiceTtsModel: "qwen-audio-3.1-tts-flash",
+                            voiceTtsVoice: "longanhuan_v3.1",
+                            voiceAsrModel: "",
+                          }
+                        : {}),
+                    });
+                    setVoiceModels([]);
+                    setElevenVoices([]);
+                    setDsVoices([]);
+                    setDsVoiceStatus({});
+                    setDesignMsg("");
+                    setVoiceMsg("");
+                  }}
+                  className="k-tab"
                 >
-                  {asrKey ? "已接上" : "未配置"}
-                </span>
-                <ChevronRight
-                  className={cn(
-                    "size-3.5 shrink-0 text-subtle transition-transform",
-                    asrOpen && "rotate-90",
-                  )}
-                />
-              </button>
-              {asrOpen && (
-                <>
-                  <p className="mt-1 text-[11px] leading-4 text-muted">
-                    百炼没有「听」这条接口。想用它捏的嗓子又能按住说话，就让转文字走别家 ——
-                    推荐硅基流动的 SenseVoiceSmall（又快又便宜）。三项都空着＝不启用，
-                    那就只能文字聊天。
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    <input
-                      value={settings.voiceAsrBaseUrl ?? ""}
-                      onChange={(e) => patch({ voiceAsrBaseUrl: e.target.value })}
-                      placeholder="地址，如 https://api.siliconflow.cn/v1"
-                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-                    />
-                    <input
-                      type="password"
-                      value={settings.voiceAsrApiKey ?? ""}
-                      onChange={(e) => patch({ voiceAsrApiKey: e.target.value })}
-                      placeholder="这家的密钥（和上面那个可以不一样）"
-                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-                    />
-                    <input
-                      value={settings.voiceAsrModel ?? ""}
-                      onChange={(e) => patch({ voiceAsrModel: e.target.value })}
-                      placeholder="模型，如 FunAudioLLM/SenseVoiceSmall"
-                      className="h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-                    />
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        patch({
-                          voiceAsrBaseUrl: "https://api.siliconflow.cn/v1",
-                          voiceAsrModel: "FunAudioLLM/SenseVoiceSmall",
-                        })
-                      }
-                      data-opt=""
-                      className="h-8 flex-1 rounded-xl border border-line text-[11.5px]"
-                    >
-                      填硅基流动的推荐值
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        patch({ voiceAsrApiKey: "", voiceAsrBaseUrl: "", voiceAsrModel: "" })
-                      }
-                      data-opt=""
-                      className="h-8 w-16 rounded-xl border border-line text-[11.5px]"
-                    >
-                      清空
-                    </button>
-                  </div>
-                  {asrKey && (
-                    <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-emerald-600">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      正在用 {(settings.voiceAsrModel ?? "").split("/").pop() || "默认模型"} 听
-                    </p>
-                  )}
-                </>
-              )}
+                  {tab.label}
+                </button>
+              ))}
             </div>
-          )}
 
-          {voiceProvider === "dashscope" && (
-            <div className="mt-3 rounded-2xl border border-line bg-surface/70 px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => setDesignOpen((v) => !v)}
-                className="flex w-full items-center gap-2 text-left text-[12px] font-medium text-fg"
+            {[
+              { k: "voiceBaseUrl" as const, label: "地址", ph: "https://api.siliconflow.cn/v1" },
+              { k: "voiceApiKey" as const, label: "密钥", ph: "sk-…", secret: true },
+            ].map((f) => (
+              <div key={f.k} className="mt-2 block">
+                <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+                <input
+                  type={f.secret ? "password" : "text"}
+                  value={(settings[f.k] as string | undefined) ?? ""}
+                  onChange={(e) => patch({ [f.k]: e.target.value } as Partial<typeof settings>)}
+                  placeholder={f.ph}
+                  className="k-input"
+                />
+              </div>
+            ))}
+
+            {[
+              { k: "voiceAsrModel" as const, label: "转文字", pick: "asr" as const },
+              { k: "voiceTtsModel" as const, label: "合成", pick: "tts" as const },
+              { k: "voiceTtsVoice" as const, label: "音色", pick: "voice" as const },
+            ]
+              /* 百炼只接"说"，不接"听"：它那套转文字是另一个接口，这里不硬凑 */
+              .filter((f) => !(voiceProvider === "dashscope" && f.k === "voiceAsrModel"))
+              .map((f) => {
+                const cur = (settings[f.k] as string | undefined) ?? "";
+                return (
+                  <div key={f.k} className="mt-2 block">
+                    <span className="mb-1 block text-[11px] text-muted">{f.label}</span>
+                    <button
+                      type="button"
+                      data-opt=""
+                      onClick={() => {
+                        setVoicePick(f.pick);
+                        setVoicePickQuery("");
+                      }}
+                      className="flex h-10 w-full items-center gap-2 rounded-[var(--k-card-radius)] px-3 text-left text-[12px] text-fg"
+                    >
+                      <span className="flex-1 truncate font-mono text-[11px]">
+                        {cur || "（点这里选）"}
+                      </span>
+                      <ChevronRight className="size-3.5 shrink-0 text-subtle" />
+                    </button>
+                  </div>
+                );
+              })}
+
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-4 text-subtle">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              正在用 {(settings.voiceTtsModel ?? "").split("/").pop() || "—"} ·{" "}
+              {(settings.voiceTtsVoice ?? "").trim() || "—"}
+              {(() => {
+                /**
+                 * 音色状态（用户 m11120 的「合成失败」最可能就是它）：
+                 * 刚用声音设计造出来的嗓子先是 DEPLOYING，要等几分钟才能合成。
+                 * 不在这儿说，用户只会以为是我写坏了。
+                 */
+                const hint = dsVoiceStatusHint(
+                  dsVoiceStatus[(settings.voiceTtsVoice ?? "").trim()],
+                );
+                return hint ? <span className="text-accent"> · {hint}</span> : null;
+              })()}
+            </p>
+
+            <button
+              type="button"
+              data-opt=""
+              className="k-input mt-2"
+              onClick={async () => {
+                setVoiceMsg(voiceProvider === "openai" ? "正在拉取…" : "正在拉取音色…");
+                const r = await listVoiceModels();
+                if (!r.ok) {
+                  setVoiceMsg(r.reason);
+                  return;
+                }
+                setVoiceModels(r.models);
+                setElevenVoices(r.voices);
+                /**
+                 * **百炼**：`models` 是它固定的几个合成模型，
+                 * `voices` 是你在控制台 / App 里捏出来的自定义音色（绑在这个模型上的）。
+                 */
+                if (voiceProvider === "dashscope") {
+                  setDsVoices(r.voices);
+                  setDsVoiceStatus(r.voiceStatus ?? {});
+                  setVoiceMsg(
+                    r.voices.length > 0
+                      ? `这个模型下有你建的 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。\n（系统音色也在那格里，和自定义的一起列。）`
+                      : "没拉到自定义音色：系统音色照样能用，想捏一个就点下面的「捏一个嗓子」。",
+                  );
+                  return;
+                }
+                if (voiceProvider === "elevenlabs") {
+                  setVoiceMsg(
+                    r.voices.length > 0
+                      ? `拉到 ${r.voices.length} 个音色：点上面「音色」那一格挑一个。`
+                      : "一家音色都没拉到：这个 key 可能还没建过声音。",
+                  );
+                  return;
+                }
+                const pick = (re: RegExp) => r.models.find((m) => re.test(m)) ?? "";
+                const asr = pick(/sensevoice|whisper|asr|transcri/i);
+                const tts = pick(/cosyvoice|tts|vits|speech/i);
+                patch({
+                  ...(asr ? { voiceAsrModel: asr } : {}),
+                  ...(tts ? { voiceTtsModel: tts } : {}),
+                } as Partial<typeof settings>);
+                setVoiceMsg(
+                  `拉到 ${r.models.length} 个语音相关的模型（聊天、画图的已滤掉）：\n` +
+                    [asr && `· 转文字 → ${asr}`, tts && `· 合成 → ${tts}`]
+                      .filter(Boolean)
+                      .join("\n") +
+                    "\n\n点上面那几格可以换；长名字不用手打。",
+                );
+              }}
+            >
+              {voiceProvider === "openai" ? "拉取可用模型" : "拉取音色"}
+            </button>
+
+            {voiceMsg && (
+              <p
+                className="mt-2 whitespace-pre-wrap break-all py-1 text-[11.5px] leading-5 text-muted"
+                onClick={() => setVoiceMsg("")}
               >
-                <span className="flex-1">捏一个嗓子</span>
-                <ChevronRight
-                  className={cn(
-                    "size-3.5 text-subtle transition-transform",
-                    designOpen && "rotate-90",
-                  )}
-                />
-              </button>
-              {designOpen && (
-                <>
-                  <p className="mt-1 text-[11px] leading-4 text-muted">
-                    用一句话描述你想让 TA 怎么说话 —— 百炼照这个造一个不存在的嗓子，
-                    不用录音、不借真人声音。造好直接就能用。
-                  </p>
-                  <textarea
-                    value={designDesc}
-                    onChange={(e) => setDesignDesc(e.target.value)}
-                    rows={3}
-                    placeholder="比如：二十五六岁的女生，声音偏轻，说话不快，尾音带一点笑意，像在耳边说话。"
-                    className="mt-2 w-full resize-none rounded-2xl bg-surface px-3 py-2 text-[12px] outline-none"
-                  />
-                  <input
-                    value={designPreview}
-                    onChange={(e) => setDesignPreview(e.target.value)}
-                    placeholder="试听用哪句话（留空用默认的一句）"
-                    className="mt-2 h-9 w-full rounded-2xl bg-surface px-3 text-[12px] outline-none"
-                  />
-                  <button
-                    type="button"
-                    disabled={designBusy}
-                    onClick={async () => {
-                      const cfg = voiceConfig();
-                      if (!cfg) {
-                        setDesignMsg("先在上面把密钥填上。");
-                        return;
-                      }
-                      setDesignBusy(true);
-                      setDesignMsg("正在造，十几秒；造好会自动换成它。");
-                      const r = await designVoice(
-                        {
-                          baseUrl: cfg.baseUrl,
-                          apiKey: cfg.apiKey,
-                          model: cfg.ttsModel,
-                          voice: cfg.voice,
-                        },
-                        {
-                          description: designDesc,
-                          previewText: designPreview || undefined,
-                        },
-                      );
-                      setDesignBusy(false);
-                      if (!r.ok) {
-                        setDesignMsg(r.reason);
-                        return;
-                      }
-                      setDesignUrl(r.previewUrl ?? "");
-                      patch({ voiceTtsVoice: r.voiceId });
-                      setDesignMsg(
-                        `造好了：${r.voiceId}${r.status === "OK" ? "" : "（还在审核，可能要等一会儿才能用）"}\n已经切成它，先听一下；不满意就改描述再造一个。`,
-                      );
-                    }}
-                    className="mt-2 h-9 w-full rounded-2xl bg-fg text-[12px] font-medium text-bg disabled:opacity-50"
+                {voiceMsg}
+              </p>
+            )}
+
+            {voiceProvider === "dashscope" && (
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAsrOpen((v) => !v)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <span className="flex-1 text-[12px] font-medium text-fg">
+                    转文字（听）· 借别家
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-[10.5px]",
+                      asrKey ? "text-emerald-600" : "text-subtle",
+                    )}
                   >
-                    {designBusy ? "正在造…" : "造一个，先听听"}
-                  </button>
-                  {designMsg && (
-                    <p
-                      onClick={() => setDesignMsg("")}
-                      className="mt-2 whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface px-3 py-2 text-[11.5px] leading-5 text-ink"
-                    >
-                      {designMsg}
-                    </p>
-                  )}
-                  {designUrl && (
+                    {asrKey ? "已接上" : "未配置"}
+                  </span>
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 shrink-0 text-subtle transition-transform",
+                      asrOpen && "rotate-90",
+                    )}
+                  />
+                </button>
+                {asrOpen && (
+                  <>
+                    <div className="mt-2 space-y-2">
+                      <input
+                        value={settings.voiceAsrBaseUrl ?? ""}
+                        onChange={(e) => patch({ voiceAsrBaseUrl: e.target.value })}
+                        placeholder="地址，如 https://api.siliconflow.cn/v1"
+                        className="h-9 w-full rounded-[var(--k-card-radius)] bg-surface px-3 text-[12px] outline-none"
+                      />
+                      <input
+                        type="password"
+                        value={settings.voiceAsrApiKey ?? ""}
+                        onChange={(e) => patch({ voiceAsrApiKey: e.target.value })}
+                        placeholder="这家的密钥（和上面那个可以不一样）"
+                        className="h-9 w-full rounded-[var(--k-card-radius)] bg-surface px-3 text-[12px] outline-none"
+                      />
+                      <input
+                        value={settings.voiceAsrModel ?? ""}
+                        onChange={(e) => patch({ voiceAsrModel: e.target.value })}
+                        placeholder="模型，如 FunAudioLLM/SenseVoiceSmall"
+                        className="h-9 w-full rounded-[var(--k-card-radius)] bg-surface px-3 text-[12px] outline-none"
+                      />
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patch({
+                            voiceAsrBaseUrl: "https://api.siliconflow.cn/v1",
+                            voiceAsrModel: "FunAudioLLM/SenseVoiceSmall",
+                          })
+                        }
+                        data-opt=""
+                        className="h-8 flex-1 rounded-xl border border-line text-[11.5px]"
+                      >
+                        填硅基流动的推荐值
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patch({ voiceAsrApiKey: "", voiceAsrBaseUrl: "", voiceAsrModel: "" })
+                        }
+                        data-opt=""
+                        className="h-8 w-16 rounded-xl border border-line text-[11.5px]"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    {asrKey && (
+                      <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-emerald-600">
+                        <span className="size-1.5 rounded-full bg-emerald-500" />
+                        正在用 {(settings.voiceAsrModel ?? "").split("/").pop() || "默认模型"} 听
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {voiceProvider === "dashscope" && (
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDesignOpen((v) => !v)}
+                  className="flex w-full items-center gap-2 text-left text-[12px] font-medium text-fg"
+                >
+                  <span className="flex-1">捏一个嗓子</span>
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 text-subtle transition-transform",
+                      designOpen && "rotate-90",
+                    )}
+                  />
+                </button>
+                {designOpen && (
+                  <>
+                    <textarea
+                      value={designDesc}
+                      onChange={(e) => setDesignDesc(e.target.value)}
+                      rows={3}
+                      placeholder="比如：二十五六岁的女生，声音偏轻，说话不快，尾音带一点笑意，像在耳边说话。"
+                      className="mt-2 w-full resize-none rounded-[var(--k-card-radius)] bg-surface px-3 py-2 text-[12px] outline-none"
+                    />
+                    <input
+                      value={designPreview}
+                      onChange={(e) => setDesignPreview(e.target.value)}
+                      placeholder="试听用哪句话（留空用默认的一句）"
+                      className="mt-2 h-9 w-full rounded-[var(--k-card-radius)] bg-surface px-3 text-[12px] outline-none"
+                    />
                     <button
                       type="button"
-                      onClick={() => void new Audio(designUrl).play()}
-                      data-opt=""
-                      className="mt-2 h-9 w-full rounded-2xl border border-line text-[12px]"
+                      disabled={designBusy}
+                      onClick={async () => {
+                        const cfg = voiceConfig();
+                        if (!cfg) {
+                          setDesignMsg("先在上面把密钥填上。");
+                          return;
+                        }
+                        setDesignBusy(true);
+                        setDesignMsg("正在造，十几秒；造好会自动换成它。");
+                        const r = await designVoice(
+                          {
+                            baseUrl: cfg.baseUrl,
+                            apiKey: cfg.apiKey,
+                            model: cfg.ttsModel,
+                            voice: cfg.voice,
+                          },
+                          {
+                            description: designDesc,
+                            previewText: designPreview || undefined,
+                          },
+                        );
+                        setDesignBusy(false);
+                        if (!r.ok) {
+                          setDesignMsg(r.reason);
+                          return;
+                        }
+                        setDesignUrl(r.previewUrl ?? "");
+                        patch({ voiceTtsVoice: r.voiceId });
+                        setDesignMsg(
+                          `造好了：${r.voiceId}${r.status === "OK" ? "" : "（还在审核，可能要等一会儿才能用）"}\n已经切成它，先听一下；不满意就改描述再造一个。`,
+                        );
+                      }}
+                      className="mt-2 h-9 w-full rounded-[var(--k-card-radius)] bg-fg text-[12px] font-medium text-bg disabled:opacity-50"
                     >
-                      ▶ 再听一遍刚造的那个
+                      {designBusy ? "正在造…" : "造一个，先听听"}
                     </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                    {designMsg && (
+                      <p
+                        onClick={() => setDesignMsg("")}
+                        className="mt-2 whitespace-pre-wrap break-all py-1 text-[11.5px] leading-5 text-muted"
+                      >
+                        {designMsg}
+                      </p>
+                    )}
+                    {designUrl && (
+                      <button
+                        type="button"
+                        onClick={() => void new Audio(designUrl).play()}
+                        data-opt=""
+                        className="k-input mt-2"
+                      >
+                        ▶ 再听一遍刚造的那个
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
-          {voiceProvider === "dashscope" && (
-            <Row
-              label="按情绪念"
-              hint="最近一次情绪低落就念慢一点；关掉就一律平着念"
-              checked={settings.voiceEmotionTags !== false}
-              onChange={(v) => patch({ voiceEmotionTags: v })}
+            {voiceProvider === "dashscope" && (
+              <Row
+                label="按情绪念"
+                checked={settings.voiceEmotionTags !== false}
+                onChange={(v) => patch({ voiceEmotionTags: v })}
+              />
+            )}
+          </Sub>
+
+          <Sub title="语速与音调">
+            <KSlider
+              label="语速"
+              value={settings.voiceRate}
+              min={0.5}
+              max={2}
+              step={0.05}
+              unit="×"
+              onChange={(v) => patch({ voiceRate: v })}
             />
-          )}
+            <KSlider
+              label="音调"
+              value={settings.voicePitch}
+              min={0.5}
+              max={1.8}
+              step={0.05}
+              unit=""
+              onChange={(v) => patch({ voicePitch: v })}
+            />
+            <div className="mt-3">
+              <KButton
+                variant="dashed"
+                onClick={async () => {
+                  setVoiceMsg("正在合成…");
+                  const r = await speakTextAsync(
+                    "你好，我是" + resolveAiName(settings.aiName) + "。",
+                    {},
+                  );
+                  setVoiceMsg(r.ok ? "" : `没读出来：${r.reason}`);
+                }}
+              >
+                试听一句
+              </KButton>
+            </div>
+          </Sub>
 
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            密钥只存在这台设备里，不进代码、不进仓库。填了自动启用：语音页、输入框的麦克风、
-            朗读都走它。
-            {voiceProvider === "elevenlabs" &&
-              " ElevenLabs 要国际卡，国内直连不通，得挂梯或走你自己的中转。"}
-            {voiceProvider === "dashscope" &&
-              " 百炼的密钥在阿里云百炼控制台建（国内可用，不用挂梯）。地址填 https://dashscope.aliyuncs.com 就行。注意：它自己只有朗读，按住麦克风说话要先在上面配好「转文字借别家」。"}
-          </p>
-        </div>
-
-        <p className="mt-4 mb-2 text-[12px] text-muted">语速 {settings.voiceRate.toFixed(2)}×</p>
-        <input
-          type="range"
-          min={0.5}
-          max={2}
-          step={0.05}
-          value={settings.voiceRate}
-          onChange={(e) => patch({ voiceRate: Number(e.target.value) })}
-          className="w-full"
-        />
-        <p className="mt-3 mb-2 text-[12px] text-muted">
-          音调 {settings.voicePitch.toFixed(2)}（低一点更沉稳，高一点更年轻）
-        </p>
-        <input
-          type="range"
-          min={0.5}
-          max={1.8}
-          step={0.05}
-          value={settings.voicePitch}
-          onChange={(e) => patch({ voicePitch: Number(e.target.value) })}
-          className="w-full"
-        />
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={async () => {
-              setVoiceMsg("正在合成…");
-              const r = await speakTextAsync(
-                "你好，我是" + resolveAiName(settings.aiName) + "。",
-                {},
-              );
-              setVoiceMsg(r.ok ? "" : `没读出来：${r.reason}`);
-            }}
-            data-opt=""
-            className="rounded-full px-3.5 py-2 text-[12px]"
-          >
-            试听一句
-          </button>
-        </div>
-        <p className="mt-2 text-[11px] leading-4 text-subtle">
-          App 里已经不用手机自带的语音（那是 YOYO）。合成失败会直说原因，不会偷偷换成系统声音。
-        </p>
-
-        {/*
+          {/*
           **弹层选择器**（用户 m10646："改成弹层选择，就跟之前做的聊天页面的模型选择那种"）。
           一次只列一类（转文字 / 合成 / 音色），带搜索框；点一下就是换掉。
         */}
-        {voicePick &&
-          (() => {
-            const isEL = voiceProvider === "elevenlabs";
-            const isDS = voiceProvider === "dashscope";
-            const asrList = isEL
-              ? ["scribe_v1"]
-              : voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m));
-            /**
-             * 百炼的合成模型是**固定的几个**（不靠 /models 接口发现）；
-             * 音色 = 系统音色 + 你在它那儿建的（复刻/设计）。
-             */
-            const ttsList = isDS
-              ? [...DS_TTS_MODELS]
-              : isEL
-                ? ["eleven_multilingual_v2", "eleven_turbo_v2_5"]
-                : voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m));
-            const voiceList = isDS
-              ? [...DS_SYSTEM_VOICES.map((v) => v.id), ...dsVoices]
-              : isEL
-                ? elevenVoices
-                : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
-            const list = voicePick === "asr" ? asrList : voicePick === "tts" ? ttsList : voiceList;
-            const field =
-              voicePick === "asr"
-                ? "voiceAsrModel"
-                : voicePick === "tts"
-                  ? "voiceTtsModel"
-                  : "voiceTtsVoice";
-            const cur = ((settings[field] as string | undefined) ?? "").trim();
-            const title =
-              voicePick === "asr" ? "选转文字模型" : voicePick === "tts" ? "选合成模型" : "选音色";
-            const q = voicePickQuery.trim().toLowerCase();
-            const shown = list.filter((m) => !q || m.toLowerCase().includes(q));
-            /**
-             * ⚠️ 必须 portal 到 body：这一页的卡片带 backdrop-filter，
-             * 祖先一旦有 filter/transform，position: fixed 就退化成"相对祖先"，
-             * 弹层会被裁在卡片里看不见。
-             */
-            return createPortal(
-              <div
-                className="fixed inset-0 z-[120] flex items-center justify-center px-4"
-                onClick={() => setVoicePick(null)}
-              >
-                <div className="absolute inset-0 bg-black/45" />
+          {voicePick &&
+            (() => {
+              const isEL = voiceProvider === "elevenlabs";
+              const isDS = voiceProvider === "dashscope";
+              const asrList = isEL
+                ? ["scribe_v1"]
+                : voiceModels.filter((m) => /asr|whisper|sensevoice|transcri|paraformer/i.test(m));
+              /**
+               * 百炼的合成模型是**固定的几个**（不靠 /models 接口发现）；
+               * 音色 = 系统音色 + 你在它那儿建的（复刻/设计）。
+               */
+              const ttsList = isDS
+                ? [...DS_TTS_MODELS]
+                : isEL
+                  ? ["eleven_multilingual_v2", "eleven_turbo_v2_5"]
+                  : voiceModels.filter((m) => /tts|cosyvoice|voice|speech|moss/i.test(m));
+              const voiceList = isDS
+                ? [...DS_SYSTEM_VOICES.map((v) => v.id), ...dsVoices]
+                : isEL
+                  ? elevenVoices
+                  : ["alex", "anna", "bella", "benjamin", "charles", "claire", "david", "diana"];
+              const list =
+                voicePick === "asr" ? asrList : voicePick === "tts" ? ttsList : voiceList;
+              const field =
+                voicePick === "asr"
+                  ? "voiceAsrModel"
+                  : voicePick === "tts"
+                    ? "voiceTtsModel"
+                    : "voiceTtsVoice";
+              const cur = ((settings[field] as string | undefined) ?? "").trim();
+              const title =
+                voicePick === "asr"
+                  ? "选转文字模型"
+                  : voicePick === "tts"
+                    ? "选合成模型"
+                    : "选音色";
+              const q = voicePickQuery.trim().toLowerCase();
+              const shown = list.filter((m) => !q || m.toLowerCase().includes(q));
+              /**
+               * ⚠️ 必须 portal 到 body：这一页的卡片带 backdrop-filter，
+               * 祖先一旦有 filter/transform，position: fixed 就退化成"相对祖先"，
+               * 弹层会被裁在卡片里看不见。
+               */
+              return createPortal(
                 <div
-                  data-contrast=""
-                  className={cn(
-                    "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
-                    solidPaper && "paper-card",
-                  )}
-                  onClick={(e) => e.stopPropagation()}
+                  className="fixed inset-0 z-[120] flex items-center justify-center px-4"
+                  onClick={() => setVoicePick(null)}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[14px] font-semibold text-fg">{title}</p>
-                    <button
-                      type="button"
-                      aria-label="关闭"
-                      onClick={() => setVoicePick(null)}
-                      data-opt=""
-                      className="flex size-7 shrink-0 items-center justify-center rounded-full"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                  <p className="mt-0.5 text-[10.5px] leading-4 text-muted">
-                    {voicePick === "voice" && isEL
-                      ? "这些是这家 key 底下建过的音色（voice_id）"
-                      : list.length === 0
-                        ? "还没拉到清单，先点上面那个按钮"
-                        : isEL
-                          ? "这家这两个都是能用的"
-                          : "只列语音相关的，聊天和画图那些已经滤掉"}
-                  </p>
-                  <input
-                    value={voicePickQuery}
-                    onChange={(e) => setVoicePickQuery(e.target.value)}
-                    placeholder="搜索…"
-                    data-opt=""
-                    className="mt-2 h-9 w-full rounded-xl border border-line px-3 text-[12px] outline-none"
-                  />
-                  <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto">
-                    {shown.length === 0 && (
-                      <p className="py-4 text-center text-[11.5px] text-subtle">
-                        {list.length === 0 ? "清单是空的" : "没有匹配的"}
-                      </p>
+                  <div className="absolute inset-0 bg-black/45" />
+                  <div
+                    data-contrast=""
+                    className={cn(
+                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                      solidPaper && "paper-card",
                     )}
-                    {shown.map((m) => (
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[14px] font-semibold text-fg">{title}</p>
                       <button
-                        key={m}
                         type="button"
-                        onClick={() => {
-                          patch({ [field]: m } as Partial<typeof settings>);
-                          setVoicePick(null);
-                        }}
-                        className="flex w-full items-center gap-2 border-b border-line/60 py-2.5 text-left last:border-b-0"
+                        aria-label="关闭"
+                        onClick={() => setVoicePick(null)}
+                        data-opt=""
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full"
                       >
-                        <span className="flex-1 truncate font-mono text-[11.5px] text-fg">{m}</span>
-                        {(() => {
-                          if (!isDS || voicePick !== "voice") return null;
-                          const hint = dsVoiceStatusHint(dsVoiceStatus[m]);
-                          return hint ? (
-                            <span className="shrink-0 text-[10px] text-accent">{hint}</span>
-                          ) : null;
-                        })()}
-                        {cur === m && <span className="text-[13px] font-bold text-accent">✓</span>}
+                        <X className="size-4" />
                       </button>
-                    ))}
+                    </div>
+                    <p className="mt-0.5 text-[10.5px] leading-4 text-muted">
+                      {voicePick === "voice" && isEL
+                        ? "这些是这家 key 底下建过的音色（voice_id）"
+                        : list.length === 0
+                          ? "还没拉到清单，先点上面那个按钮"
+                          : isEL
+                            ? "这家这两个都是能用的"
+                            : "只列语音相关的，聊天和画图那些已经滤掉"}
+                    </p>
+                    <input
+                      value={voicePickQuery}
+                      onChange={(e) => setVoicePickQuery(e.target.value)}
+                      placeholder="搜索…"
+                      data-opt=""
+                      className="k-input mt-2"
+                    />
+                    <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto">
+                      {shown.length === 0 && (
+                        <p className="py-4 text-center text-[11.5px] text-subtle">
+                          {list.length === 0 ? "清单是空的" : "没有匹配的"}
+                        </p>
+                      )}
+                      {shown.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            patch({ [field]: m } as Partial<typeof settings>);
+                            setVoicePick(null);
+                          }}
+                          className="flex w-full items-center gap-2 border-b border-line/60 py-2.5 text-left last:border-b-0"
+                        >
+                          <span className="flex-1 truncate font-mono text-[11.5px] text-fg">
+                            {m}
+                          </span>
+                          {(() => {
+                            if (!isDS || voicePick !== "voice") return null;
+                            const hint = dsVoiceStatusHint(dsVoiceStatus[m]);
+                            return hint ? (
+                              <span className="shrink-0 text-[10px] text-accent">{hint}</span>
+                            ) : null;
+                          })()}
+                          {cur === m && (
+                            <span className="text-[13px] font-bold text-accent">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>,
-              document.body,
-            );
-          })()}
-      </Group>
-
-      {/*
-        「定时任务」那一段**已挪到「玩乐 → 小日子 → 定时任务」**
-        （跟闹钟一起挪的，用户要求，理由是"这样看着分类更准一点"）。
-        这一页不再重复。
-      */}
-
-      <Group title="开发与纠错" value="环境自检" order={5}>
-        {/* Section 里的子元素是直接堆叠的，多张卡片必须自己包一层间距，
+                </div>,
+                document.body,
+              );
+            })()}
+        </>
+      ),
+    },
+    dev: {
+      title: "开发与纠错",
+      value: "环境自检",
+      order: 5,
+      body: (
+        <>
+          <Sub title="开发与纠错">
+            {/* Section 里的子元素是直接堆叠的，多张卡片必须自己包一层间距，
             否则半透明圆角卡片贴在一起会看起来像「重合」。 */}
-        <div className="space-y-2">
-          {/* 入口卡 = 玻璃，不是选项胶囊：2026-11-01 用户 "环境自建改回白色" */}
-          <Link
-            to="/env"
-            className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
-          >
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium">环境自检</span>
-              <span className="mt-0.5 block text-[11px] text-muted">
-                麦克风 / 通知 / 摄像头 这台设备能不能用
-              </span>
-              <span className="mt-0.5 block text-[11px] text-subtle">
-                换地址、封装成 APP 之后再来看一次
-              </span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-muted" />
-          </Link>
-        </div>
-      </Group>
+            <div className="space-y-2">
+              {/* 入口卡 = 玻璃，不是选项胶囊：2026-11-01 用户 "环境自建改回白色" */}
+              <Link
+                to="/env"
+                className="flex items-center justify-between gap-3 rounded-[var(--k-card-radius)] px-3.5 py-3"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-medium">环境自检</span>
+                  <span className="mt-0.5 block text-[11px] text-muted">
+                    麦克风 / 通知 / 摄像头 这台设备能不能用
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-subtle">
+                    换地址、封装成 APP 之后再来看一次
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted" />
+              </Link>
+            </div>
+          </Sub>
+        </>
+      ),
+    },
+  };
 
-      {/*
-        这块**已经不显示了**（`hidden`）—— 它的内容搬到「AI 概览」里了：
-          · 权限与感知 → /permissions（从 AI 概览进）
-        「我的」页面留着它只会又长又重复。
+  /** 旧的 /system 页按原来的顺序把五块套回可折叠壳 */
+  const SYS_ORDER = ["chat", "notify", "weather", "voice", "dev"] as const;
 
-        用户要求："我之前让你删掉的那些外面还有就把它给调整了吧免得误导"——
-        所以这里**不再是"留着以后用"**：要么删掉，要么明确它就是废弃的。
-        保持 hidden 但写清原因，免得以后有人以为漏了又把它打开。
-
-        ⚠️ 2026-10：原来这里还有一块 hidden 的「内在」（他自己报的状态样本）。
-        旧的 11 维花瓣连 `state.report` 一起退场之后，`stateSamples` 已经不存在了，
-        所以那一块**整块删掉**（不是留个 hidden 的空壳）。
-
-        ⚠️ 2026-11：连「AI 概览」里那条「他的状态」入口和 `/inner` 那一页也**一起删了**
-        （用户："直接把他的状态这一项直接给删掉就行了，那个三级页面也不用留了"）。
-        情绪看「星屿」：玩乐 → 插件 → 星屿 —— 不用再留第二条路。
-      */}
-      <Section title="AI 权限" hidden>
-        <Link
-          to="/permissions"
-          data-opt=""
-          className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
-        >
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium">权限与感知</span>
-            <span className="mt-0.5 block text-[11px] text-muted">
-              {sum.allow} 项允许 · {sum.ask} 项询问 · {sum.deny} 项拒绝（共 {sum.total} 项）
-            </span>
-            <span className="mt-0.5 block text-[11px] text-subtle">
-              分级说明、他能感知到什么、动作记录都在那一页
-            </span>
-          </span>
-          <ChevronRight className="size-4 shrink-0 text-muted" />
-        </Link>
-      </Section>
+  const systemSections = (
+    <div className="sys-list">
+      {SYS_ORDER.map((k) => {
+        const g = sysGroups[k];
+        return (
+          <Group key={k} title={g.title} value={g.value} order={g.order}>
+            {g.body}
+          </Group>
+        );
+      })}
     </div>
   );
 
   if (tab === "space") return <>{spaceSections}</>;
+
+  /*
+   * 新五个二级页：用户 m03042 说「对话 / 主动与通知 / 语音 点进去只有一条大类，
+   * 直接把里面的东西铺开，分类铺开」—— 所以这里不再套那层要点的 `Group`：
+   * 对话页是三个分类各一张卡（`Sub` 自己就是一张卡）；
+   * 其余页把正文直接摆进一张卡，进页面就能看到，不用先点开。
+   */
+  if (tab === "chat") return <div className="k-list">{sysGroups.chat.body}</div>;
+  if (tab === "active") return <div className="k-list">{sysGroups.notify.body}</div>;
+  if (tab === "voice") return <div className="k-list">{sysGroups.voice.body}</div>;
+  if (tab === "privacy") {
+    return (
+      <div className="k-list">
+        {sysGroups.weather.body}
+        {dataSections}
+      </div>
+    );
+  }
+  if (tab === "about") {
+    return (
+      <div className="k-list">
+        {usageSections}
+        {sysGroups.dev.body}
+      </div>
+    );
+  }
+  /* 下面三行是旧分派：新页面接上之后整块删掉 */
   if (tab === "usage") return <>{usageSections}</>;
   if (tab === "data") return <>{dataSections}</>;
   return <>{systemSections}</>;

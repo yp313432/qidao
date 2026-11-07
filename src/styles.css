@@ -844,16 +844,10 @@
   color: var(--aster-accent);
 }
 
-/* 正文字体族：在「我的 → 个性化 → 正文字体」里切换。 */
-:root[data-font="serif"] {
-  --font-sans: "Source Serif 4", "Songti SC", "SimSun", "Iowan Old Style", Georgia, serif;
-}
-:root[data-font="kai"] {
-  --font-sans: "Kaiti SC", "KaiTi", "楷体", "STKaiti", "Songti SC", serif;
-}
-:root[data-font="mono"] {
-  --font-sans: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
-}
+/* 正文字体族：在「我的 → 外观 → 字体」里切换（字体栈与来龙去脉见 src/styles/tokens.css 的 --k-stack-*）。 */
+:root[data-font="serif"] { --font-sans: var(--k-stack-serif); --font-serif: var(--k-stack-serif); }
+:root[data-font="kai"] { --font-sans: var(--k-stack-kai); --font-serif: var(--k-stack-kai); }
+:root[data-font="mono"] { --font-sans: var(--k-stack-mono); --font-serif: var(--k-stack-mono); --font-mono: var(--k-stack-mono); }
 
 @layer base {
   html {

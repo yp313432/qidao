@@ -96,7 +96,7 @@ export function MemoryTimeline({
                     <button
                       type="button"
                       onClick={() => onOpen?.(m)}
-                      className="min-w-0 flex-1 rounded-2xl border border-line bg-surface px-3.5 py-2.5 text-left"
+                      className="k-card min-w-0 flex-1 text-left"
                     >
                       <p className="text-[13.5px] leading-6 text-fg">{m.content}</p>
                       <p className="mt-1 text-[11px] text-subtle">
@@ -107,7 +107,9 @@ export function MemoryTimeline({
                         {` · 清晰度 ${Math.round(r * 100)}%`}
                       </p>
                       {m.tags.length > 0 && (
-                        <p className="mt-1 text-[11px] text-muted">#{m.tags.slice(0, 4).join(" #")}</p>
+                        <p className="mt-1 text-[11px] text-muted">
+                          #{m.tags.slice(0, 4).join(" #")}
+                        </p>
                       )}
                     </button>
                   </div>

@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>「外观」页 —— 现在 vs 改后（柔和纸）</title>
+    <style>
+      /*
+        这是「我的 → 外观」这一页的样张，不是真页面。
+        右侧那版用的是真的标准件数值（src/styles/{tokens,kit}.css + modes/solid.css），
+        所以它在手机上和真机应该长得一样。
+        左边那版是照现在 me-sections.tsx 的写法还原的，用来说明"为什么看着没条理"。
+        色值全取自 cream 调色板（src/styles.css:280-284）。
+      */
+      :root {
+        --bg: #f6f3ee;
+        --canvas: #ece6dc;
+        --ink: #1c1917;
+        --muted: #7a746c;
+        --subtle: #b0aaa2;
+        --accent: #c17b5a;
+        /* 纯色模式（柔和纸）的槽位值，逐条对应 src/styles/modes/solid.css */
+        --line: rgba(28, 25, 23, 0.55);
+        --line-soft: rgba(28, 25, 23, 0.18);
+        --chip: rgba(28, 25, 23, 0.07);
+        --tab-on-bg: rgba(28, 25, 23, 0.06);
+        --card-radius: 8px;
+        --ctl-radius: 10px;
+        --shadow: 0 1px 2px rgba(28, 25, 23, 0.1), 0 10px 24px rgba(28, 25, 23, 0.08);
+        --shadow-press: 0 1px 1px rgba(28, 25, 23, 0.08), 0 3px 10px rgba(28, 25, 23, 0.06);
+        --sans: "DM Sans", "Source Serif 4", -apple-system, "PingFang SC", "Microsoft YaHei",
+          sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+        --serif: "Source Serif 4", "Songti SC", "SimSun", serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 40px 24px 64px;
+        background: #2b2723;
+        color: #e9e4dc;
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .doc-head {
+        max-width: 900px;
+        margin: 0 auto 28px;
+      }
+      .doc-head h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        letter-spacing: 0.02em;
+      }
+      .doc-head p {
+        margin: 0 0 6px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #b9b1a6;
+      }
+      .doc-head b {
+        color: #f0ece4;
+      }
+
+      .stage {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+        justify-content: center;
+        align-items: flex-start;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .col {
+        width: 398px;
+      }
+      .col-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding-left: 4px;
+      }
+      .col-head h2 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #f0ece4;
+      }
+      .col-head span {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #8f887e;
+      }
+
+      /* 手机画布 */
+      .phone {
+        width: 390px;
+        min-height: 760px;
+        background: var(--bg);
+        color: var(--ink);
+        border-radius: 14px;
+        padding: 18px 16px 40px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* ═══════════ 左边：现在 ═══════════ */
+
+      .now-title {
+        font-family: var(--serif);
+        font-size: 25px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin: 6px 0 18px;
+      }
+      /* 现在的卡片：border-line 在纯色下是 transparent，bg-surface 又跟页面同色，
+         所以看起来只剩一片字 —— 这正是"没条理"的来源 */
+      .now-card {
+        border: 1px solid transparent;
+        background: var(--bg);
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+      }
+      .now-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+      }
+      .now-row-t {
+        font-size: 15px;
+        color: var(--ink);
+      }
+      .now-row-v {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .now-chev {
+        margin-left: auto;
+        color: var(--subtle);
+        font-size: 12px;
+      }
+      .now-body {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line-soft);
+      }
+      .now-grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .now-choice {
+        border: 1px solid var(--line-soft);
+        border-radius: 16px;
+        padding: 10px 12px;
+        font-size: 13px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .now-choice.on {
+        border-color: var(--accent);
+        background: rgba(193, 123, 90, 0.12);
+        color: var(--ink);
+      }
+      .now-h {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 16px 0 8px;
+      }
+      .now-grid4 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+      .now-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid var(--line-soft);
+        display: inline-block;
+        vertical-align: -1px;
+        margin-right: 5px;
+      }
+      .now-tip {
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--subtle);
+        margin: 8px 0 0;
+      }
+
+      /* ═══════════ 右边：改后（真标准件） ═══════════ */
+
+      /* — .k-head — */
+      .k-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 0 12px;
+      }
+      .k-head__main {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .k-head__kicker {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
+      .k-head__title {
+        margin: 0;
+        font-size: 25px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--ink);
+      }
+      .k-head__meta {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding-bottom: 4px;
+      }
+
+      /* — .k-list / .k-card — */
+      .k-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .k-card {
+        position: relative;
+        padding: 12px 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--card-radius);
+        background: var(--bg);
+        box-shadow: var(--shadow);
+      }
+      .k-card__head {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .k-card__toggle {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+      }
+      .k-row__body {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-self: center;
+      }
+      .k-row__title {
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .k-row__meta {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+      .k-chev {
+        flex: 0 0 auto;
+        width: 13px;
+        height: 13px;
+        margin-top: 4px;
+        align-self: center;
+        color: var(--subtle);
+      }
+      .k-card[data-open="true"] .k-chev {
+        transform: rotate(180deg);
+      }
+      .k-card__body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line-soft);
+      }
+
+      /* — .k-sect__title — */
+      .k-sect__title {
+        margin: 0;
+        font-family: var(--mono);
+        font-size: 10px;
+        line-height: 1.25;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
+
+      /* — .k-tabs / .k-tab — */
+      .k-tabs {
+        display: flex;
+        gap: 4px;
+      }
+      .k-tab {
+        flex: 1 1 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 4px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--card-radius);
+        background: transparent;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: 11.5px;
+        letter-spacing: 0.08em;
+      }
+      .k-tab[data-active="true"] {
+        border-color: var(--tab-on-bg);
+        background: var(--tab-on-bg);
+        color: var(--ink);
+        box-shadow: inset 0 -3px 0 var(--ink), var(--shadow);
+      }
+
+      /* — .k-opt（这一页新加的选择块：材质/纸色/字号/星球色都用它） — */
+      .k-opt {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-height: 44px;
+        padding: 0 8px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--card-radius);
+        background: transparent;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.25;
+        text-align: center;
+        letter-spacing: 0.02em;
+      }
+      .k-opt[data-active="true"] {
+        border-color: var(--line);
+        background: var(--chip);
+        color: var(--ink);
+        font-weight: 700;
+        box-shadow: var(--shadow);
+      }
+      .k-opt__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 1px solid var(--line-soft);
+        flex: 0 0 auto;
+      }
+      .k-opt-grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+      }
+      .k-opt-grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+      }
+
+      /* — .k-note__body（说明只留一句） — */
+      .k-note {
+        font-family: var(--sans);
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: var(--subtle);
+        margin: 0;
+      }
+
+      /* — .k-kv（键值行） — */
+      .k-kv {
+        display: flex;
+        gap: 8px;
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+      .k-kv__k {
+        flex: 0 0 auto;
+        min-width: 32px;
+        font-family: var(--mono);
+        letter-spacing: 0.1em;
+        color: var(--subtle);
+      }
+      .k-kv__v {
+        flex: 1 1 auto;
+        color: var(--muted);
+      }
+
+      /* — 气泡（收敛浮签，真值来自 modes/solid.css） — */
+      .k-msg {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .k-msg[data-role="me"] {
+        align-items: flex-end;
+      }
+      .k-bubble {
+        position: relative;
+        max-width: 100%;
+        padding: 11px 12px 7px;
+        border: 1px solid rgba(28, 25, 23, 0.18);
+        border-radius: 4px 4px 10px 4px;
+        background: color-mix(in oklab, var(--accent) 6%, var(--bg));
+        color: var(--ink);
+        font-family: var(--serif);
+        font-size: 13px;
+        line-height: 1.85;
+        transform: rotate(-0.4deg);
+      }
+      .k-bubble::before {
+        content: "";
+        position: absolute;
+        top: -5px;
+        left: 20px;
+        width: 34px;
+        height: 10px;
+        background: rgba(193, 123, 90, 0.3);
+        transform: rotate(-2deg);
+        box-shadow: 0 1px 2px rgba(28, 25, 23, 0.1);
+      }
+      .k-msg[data-role="me"] .k-bubble {
+        border-radius: 4px 4px 4px 10px;
+        background: color-mix(in oklab, var(--ink) 6%, var(--bg));
+        transform: rotate(0.25deg);
+      }
+      .k-msg[data-role="me"] .k-bubble::before {
+        left: auto;
+        right: 20px;
+        background: rgba(28, 25, 23, 0.16);
+        transform: rotate(1.5deg);
+      }
+
+      /* — 底部导航只画个示意 — */
+      .k-navbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        height: 56px;
+        align-items: center;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+      .k-navbar div {
+        flex: 1 1 0;
+        text-align: center;
+      }
+      .k-navbar div[data-active="true"] {
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      /* ═══════════ 图例 / 对比表 ═══════════ */
+      .legend {
+        max-width: 900px;
+        margin: 44px auto 0;
+        background: #332e29;
+        border-radius: 12px;
+        padding: 22px 24px;
+      }
+      .legend h2 {
+        margin: 0 0 4px;
+        font-size: 15px;
+      }
+      .legend p {
+        margin: 0 0 16px;
+        font-size: 12.5px;
+        line-height: 1.7;
+        color: #b9b1a6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 10px;
+        border-bottom: 1px solid #443e38;
+        vertical-align: top;
+        line-height: 1.6;
+      }
+      th {
+        color: #8f887e;
+        font-weight: 500;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      td b {
+        color: #f0ece4;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: #e2b493;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="doc-head">
+      <h1>「我的 → 外观」这一页：现在长什么样，改完长什么样</h1>
+      <p>
+        左边照现在 <code>me-sections.tsx</code> 的写法还原，右边是<b>真的标准件数值</b>
+        （<code>tokens.css</code> + <code>kit.css</code> + <code>modes/solid.css</code> 里的柔和纸），
+        所以右边就是装包后手机上的样子。
+      </p>
+      <p>
+        内容一项没少：材质（含纸色）、背景、字体（含字号与文字色）、对话框配色、星球颜色，外加效果预览。
+        只是把「一大段解释」压成「一行小字」，把散落的圆角/边框/颜色收进同一套尺子。
+      </p>
+    </div>
+
+    <div class="stage">
+      <!-- ══════════ 现在 ══════════ -->
+      <div class="col">
+        <div class="col-head">
+          <h2>现在</h2>
+          <span>me-sections.tsx · space tab</span>
+        </div>
+        <div class="phone">
+          <div class="now-title">我的空间</div>
+
+          <div class="now-card">
+            <div class="now-row">
+              <div>
+                <div class="now-row-t">材质</div>
+                <div class="now-row-v">纯色 · 奶油白</div>
+              </div>
+              <span class="now-chev">▾</span>
+            </div>
+            <div class="now-body">
+              <div class="now-grid3">
+                <div class="now-choice on">纯色</div>
+                <div class="now-choice">半磨砂</div>
+                <div class="now-choice">液态玻璃</div>
+              </div>
+              <p class="now-tip">实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸</p>
+              <div class="now-h">纸的颜色</div>
+              <div class="now-grid4">
+                <div class="now-choice on"><i class="now-dot" style="background:#f6f3ee"></i>奶油白</div>
+                <div class="now-choice"><i class="now-dot" style="background:#5b7f9e"></i>雾蓝</div>
+                <div class="now-choice"><i class="now-dot" style="background:#6f8c6a"></i>苔绿</div>
+                <div class="now-choice"><i class="now-dot" style="background:#c07f8c"></i>淡粉</div>
+              </div>
+              <p class="now-tip">只有纯色模式用得上：卡片是实心的，这四套就是纸的颜色。</p>
+            </div>
+          </div>
+
+          <div class="now-card">
+            <div class="now-row">
+              <div>
+                <div class="now-row-t">背景</div>
+                <div class="now-row-v">2 张都设了 · 压纸色 18%</div>
+              </div>
+              <span class="now-chev">▾</span>
+            </div>
+          </div>
+          <div class="now-card">
+            <div class="now-row">
+              <div>
+                <div class="now-row-t">字体</div>
+                <div class="now-row-v">无衬线 · 中号</div>
+              </div>
+              <span class="now-chev">▾</span>
+            </div>
+          </div>
+          <div class="now-card">
+            <div class="now-row">
+              <div>
+                <div class="now-row-t">对话框配色</div>
+                <div class="now-row-v">粉青蓝 · 按模式自动配浓度</div>
+              </div>
+              <span class="now-chev">▾</span>
+            </div>
+          </div>
+          <div class="now-card">
+            <div class="now-row">
+              <div>
+                <div class="now-row-t">其他</div>
+                <div class="now-row-v">星球颜色 · 认识的日子</div>
+              </div>
+              <span class="now-chev">▾</span>
+            </div>
+          </div>
+
+          <div class="now-card">
+            <div class="now-row"><div class="now-row-t">效果预览</div></div>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px">
+              <div
+                style="
+                  margin-left: auto;
+                  max-width: 86%;
+                  border: 1px solid var(--line-soft);
+                  border-radius: 18px 18px 0 18px;
+                  padding: 8px 14px;
+                  font-size: 13px;
+                "
+              >
+                那你以后说话短点
+              </div>
+              <div
+                style="
+                  max-width: 86%;
+                  border: 1px solid var(--line-soft);
+                  border-radius: 18px 18px 18px 0;
+                  padding: 8px 14px;
+                  font-size: 13px;
+                "
+              >
+                好，从这条开始。
+              </div>
+            </div>
+            <p class="now-tip">改上面任何一项，这块都会跟着变 —— 不用来回跳到聊天页去试。</p>
+          </div>
+
+          <div class="k-navbar">
+            <div>对话</div>
+            <div>工具</div>
+            <div>玩乐</div>
+            <div data-active="true">我的</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ 改后 ══════════ -->
+      <div class="col">
+        <div class="col-head">
+          <h2>改后</h2>
+          <span>kit 标准件 · 柔和纸</span>
+        </div>
+        <div class="phone">
+          <div class="k-head">
+            <div class="k-head__main">
+              <span class="k-head__kicker">功能区</span>
+              <h2 class="k-head__title">外观</h2>
+            </div>
+            <span class="k-head__meta">5 项</span>
+          </div>
+
+          <div class="k-list">
+            <!-- 材质（展开态） -->
+            <div class="k-card" data-open="true">
+              <div class="k-card__head">
+                <button class="k-card__toggle">
+                  <span class="k-row__body">
+                    <span class="k-row__title">材质</span>
+                    <span class="k-row__meta">纯色 · 奶油白</span>
+                  </span>
+                  <svg class="k-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+              <div class="k-card__body">
+                <div class="k-tabs">
+                  <button class="k-tab" data-active="true">纯色</button>
+                  <button class="k-tab">半磨砂</button>
+                  <button class="k-tab">液态</button>
+                </div>
+
+                <p class="k-sect__title">纸的颜色</p>
+                <div class="k-opt-grid2">
+                  <button class="k-opt" data-active="true">
+                    <span class="k-opt__dot" style="background: #f6f3ee"></span>奶油白
+                  </button>
+                  <button class="k-opt">
+                    <span class="k-opt__dot" style="background: #5b7f9e"></span>雾蓝
+                  </button>
+                  <button class="k-opt">
+                    <span class="k-opt__dot" style="background: #6f8c6a"></span>苔绿
+                  </button>
+                  <button class="k-opt">
+                    <span class="k-opt__dot" style="background: #c07f8c"></span>淡粉
+                  </button>
+                </div>
+
+                <p class="k-note">纸色只影响纯色模式的卡片底色。</p>
+              </div>
+            </div>
+
+            <!-- 字体 -->
+            <div class="k-card">
+              <div class="k-card__head">
+                <button class="k-card__toggle">
+                  <span class="k-row__body">
+                    <span class="k-row__title">字体</span>
+                    <span class="k-row__meta">无衬线 · 中号 · 墨色</span>
+                  </span>
+                  <svg class="k-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 背景 -->
+            <div class="k-card">
+              <div class="k-card__head">
+                <button class="k-card__toggle">
+                  <span class="k-row__body">
+                    <span class="k-row__title">背景</span>
+                    <span class="k-row__meta">2 张 · 压纸色 18%</span>
+                  </span>
+                  <svg class="k-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 对话框配色 -->
+            <div class="k-card">
+              <div class="k-card__head">
+                <button class="k-card__toggle">
+                  <span class="k-row__body">
+                    <span class="k-row__title">对话框配色</span>
+                    <span class="k-row__meta">粉青蓝</span>
+                  </span>
+                  <svg class="k-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 星球颜色 -->
+            <div class="k-card">
+              <div class="k-card__head">
+                <button class="k-card__toggle">
+                  <span class="k-row__body">
+                    <span class="k-row__title">星球颜色</span>
+                    <span class="k-row__meta">跟随文字</span>
+                  </span>
+                  <svg class="k-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 效果预览（用真的收敛浮签） -->
+            <div class="k-card">
+              <div class="k-card__head">
+                <span class="k-row__body">
+                  <span class="k-row__title">效果预览</span>
+                  <span class="k-row__meta">改上面任何一项这里都会变</span>
+                </span>
+              </div>
+              <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px">
+                <div class="k-msg" data-role="me">
+                  <div class="k-bubble">那你以后说话短点</div>
+                </div>
+                <div class="k-msg" data-role="ai">
+                  <div class="k-bubble">好，从这条开始。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="k-navbar">
+            <div>对话</div>
+            <div>工具</div>
+            <div>玩乐</div>
+            <div data-active="true">我的</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h2>改的到底是什么（只有这 6 件事）</h2>
+      <p>
+        功能、开关、读写逻辑、默认值一个都没动 —— 只是同一批设置项换了一身统一的骨架。
+        左边那版在纯色模式下其实<b>连卡片边框都看不见</b>（`--aster-line` 在纯色下是透明的），
+        所以整页只剩一片灰字，这是"没条理"最直接的原因。
+      </p>
+      <table>
+        <tr>
+          <th>这里</th>
+          <th>现在</th>
+          <th>改后</th>
+        </tr>
+        <tr>
+          <td>页头</td>
+          <td>只有「我的空间」四个字</td>
+          <td><b>上方小注 + 标题 + 右侧项数</b>，三件套跟工具页一致</td>
+        </tr>
+        <tr>
+          <td>卡片</td>
+          <td>16px 圆角、无边框、和背景同色（等于隐形）</td>
+          <td>8px 圆角 + 1px 淡墨线 + 两层软纸影（看得见的一张纸）</td>
+        </tr>
+        <tr>
+          <td>每项标题</td>
+          <td>15px 常规字 + 12px 灰字</td>
+          <td>15px 粗体 + <b>10px 等宽大写</b>副信息（扫表快得多）</td>
+        </tr>
+        <tr>
+          <td>选项按钮</td>
+          <td>圆角方块 + 粉色底（跟纸世界不搭）</td>
+          <td>同一套 <code>.k-opt</code>：淡墨底 + 墨字 + 细边，热区 44px</td>
+        </tr>
+        <tr>
+          <td>说明文字</td>
+          <td>每块 2–4 段 11px 灰字</td>
+          <td>每个展开区只留 <b>一句</b>（长解释折进底部「说明」）</td>
+        </tr>
+        <tr>
+          <td>效果预览</td>
+          <td>假的 18px 圆角气泡</td>
+          <td>真的<b>收敛浮签</b>（对话页那个）—— 预览跟真页面从此是同一个东西</td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>

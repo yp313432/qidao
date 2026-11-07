@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { PromptDialog } from "@/components/shared/prompt-dialog";
+import { KButton, KEmpty, KFold, KOpt, KOpts, KSwitch } from "@/components/ui-kit";
 import { resolveAiName } from "@/lib/branding";
 import { buildManual } from "@/lib/manual";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -19,6 +20,13 @@ import { cn } from "@/lib/utils";
  * 两种注入方式，界面上分开摆：
  *   · 一直生效 → 进系统提示词（很少改动，前缀缓存不受影响）
  *   · 聊到才生效 → 挂在最后一条用户消息尾部（系统提示词不动）
+ *
+ * 2026-11-07 用户点过一遍之后的改动：
+ *  · 顶上那张"这里是给他的规矩…"说明卡 → 删（解释话不用写，页面自己会说话）；
+ *  · 全部换成标准件（`.k-card` / `KFold` / `KSwitch` / `KOpt` / `KButton`），不再自绘圆角卡；
+ *  · 「硬要求 · 说明书（内置）」→ 改名**内置系统提示词**，只留标题 + 一个"开"的开关 +
+ *    点开看全文（正文折在 `KFold` 里，平时不占地方）。那个开关是**只读指示**：
+ *    这份内置文本每轮强制注入，没有"关掉"这回事，所以是 disabled 的。
  */
 export function WorldbookView() {
   useActivity("在编世界书");
@@ -41,7 +49,6 @@ export function WorldbookView() {
   });
 
   const [adding, setAdding] = useState(false);
-  const [showBuiltin, setShowBuiltin] = useState(false);
   const [content, setContent] = useState("");
   const [keywords, setKeywords] = useState("");
   const [position, setPosition] = useState<"system" | "tail">("system");
@@ -53,9 +60,7 @@ export function WorldbookView() {
    * 页面宁可显示成"一直生效"，也绝不能崩。
    */
   const always = entries.filter((e) => e.position === "system" || (e.keywords ?? []).length === 0);
-  const triggered = entries.filter(
-    (e) => e.position === "tail" && (e.keywords ?? []).length > 0,
-  );
+  const triggered = entries.filter((e) => e.position === "tail" && (e.keywords ?? []).length > 0);
   const onCount = entries.filter((e) => e.enabled).length;
 
   function submit() {
@@ -76,71 +81,49 @@ export function WorldbookView() {
     setAdding(false);
   }
 
-  function Row({ e }: { e: WorldEntry }) {
-  /**
-   * 编辑弹层的状态（用户 m11475：原来的 `window.prompt` 是安卓原生白卡片，
-   * 而且**原文没带进去**，想加一句话也得整段重打）。
-   */
-  const [edit, setEdit] = useState<null | "content" | "keywords">(null);
+  function EntryCard({ e }: { e: WorldEntry }) {
+    /**
+     * 编辑弹层的状态（用户 m11475：原来的 `window.prompt` 是安卓原生白卡片，
+     * 而且**原文没带进去**，想加一句话也得整段重打）。
+     */
+    const [edit, setEdit] = useState<null | "content" | "keywords">(null);
+    const keys = e.keywords ?? [];
+
     return (
-      <article className="rounded-3xl border border-line bg-surface px-4 py-3.5">
-        <div className="flex items-start gap-2.5">
-          <button
-            type="button"
-            onClick={() => toggle(e.id)}
-            aria-label={e.enabled ? "关掉" : "打开"}
-            className={cn(
-              "mt-0.5 h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors",
-              e.enabled ? "bg-accent" : "bg-chip",
-            )}
-          >
-            <span
-              className={cn(
-                "block size-4 rounded-full bg-white shadow-sm transition-transform",
-                e.enabled && "translate-x-4",
-              )}
-            />
-          </button>
-          <div className="min-w-0 flex-1">
-            {e.title && <p className="text-[13px] font-medium text-fg">{e.title}</p>}
-            <p className={cn("text-[13px] leading-5", e.enabled ? "text-fg" : "text-muted")}>
-              {e.content}
-            </p>
-            {(e.keywords ?? []).length > 0 ? (
-              <p className="mt-1 text-[11px] text-subtle">
-                聊到 {(e.keywords ?? []).map((k) => `「${k}」`).join(" ")} 时才注入
-              </p>
-            ) : (
-              <p className="mt-1 text-[11px] text-subtle">一直生效</p>
-            )}
-            <div className="mt-2 flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEdit("content")}
-                className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
-              >
-                改内容
-              </button>
-              {e.position === "tail" && (
-                <button
-                  type="button"
-                  onClick={() => setEdit("keywords")}
-                  className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
-                >
-                  改关键词
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => remove(e.id)}
-                className="ml-auto flex items-center gap-1 rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
-              >
-                <Trash2 className="size-3" />
-                删除
-              </button>
-            </div>
+      <div className="k-card">
+        <div className="k-card__head">
+          <div className="k-row__body">
+            <span className="k-row__title">
+              {e.title ?? (keys.length ? "聊到才生效" : "一直生效")}
+            </span>
+            <span className="k-row__meta">
+              {keys.length > 0 ? keys.map((k) => `「${k}」`).join(" ") : "每次都会读到"}
+            </span>
           </div>
+          <KSwitch
+            checked={e.enabled}
+            onChange={() => toggle(e.id)}
+            label={`${e.enabled ? "关掉" : "打开"}这条世界书`}
+          />
         </div>
+
+        <p className={cn("mt-3 whitespace-pre-wrap", e.enabled ? "k-long" : "k-long opacity-60")}>
+          {e.content}
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <KButton onClick={() => setEdit("content")}>改内容</KButton>
+          {e.position === "tail" && <KButton onClick={() => setEdit("keywords")}>改关键词</KButton>}
+          <KButton
+            variant="icon"
+            className="ml-auto"
+            aria-label="删除这条"
+            onClick={() => remove(e.id)}
+          >
+            <Trash2 />
+          </KButton>
+        </div>
+
         <PromptDialog
           open={edit === "content"}
           title="改这条"
@@ -160,77 +143,61 @@ export function WorldbookView() {
           open={edit === "keywords"}
           title="改关键词"
           hint="用空格分开，比如：塔罗 抽卡 牌"
-          defaultValue={(e.keywords ?? []).join(" ")}
+          defaultValue={keys.join(" ")}
           onCancel={() => setEdit(null)}
           onConfirm={(next) => {
             setEdit(null);
             update(e.id, {
-              keywords: next.split(/[\s,，、]+/).map((k) => k.trim()).filter(Boolean),
+              keywords: next
+                .split(/[\s,，、]+/)
+                .map((k) => k.trim())
+                .filter(Boolean),
             });
           }}
         />
-      </article>
+      </div>
     );
   }
 
   return (
-    <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
+    <div className="k-page">
       <PageHeader
         title="世界书"
         right={
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            aria-label="加一条"
-            className="mr-1 flex size-11 items-center justify-center rounded-full"
-          >
-            <Plus className={cn("size-5 transition-transform", adding && "rotate-45")} strokeWidth={1.7} />
-          </button>
+          <span className="mr-1 flex items-center gap-2">
+            <span className="k-stat">开着 {onCount}</span>
+            <KButton
+              variant="icon"
+              aria-label={adding ? "收起" : "加一条"}
+              onClick={() => setAdding((v) => !v)}
+            >
+              <Plus
+                className={cn("transition-transform", adding && "rotate-45")}
+                strokeWidth={1.7}
+              />
+            </KButton>
+          </span>
         }
       />
 
-      <section className="px-4">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
-          <p className="text-[13px] leading-5">
-            这里是给{aiName}的<span className="text-fg">规矩</span>：他每次开口前都会读到。
-          </p>
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            现在开着 {onCount} 条（共 {entries.length} 条）。
-            想让回复短一点、别想太久 → 开「别想太久」和「先给结论」那两条；
-            思考链太长时，经过代理的流式连接容易被掐断，最后只剩一条空回复。
-          </p>
-        </div>
-      </section>
-
-      {/* 硬要求 + 说明书：这是**内置**的，每轮都强制注入，用户改不了（故意的） */}
-      <section className="mt-3 px-4">
-        <div className="rounded-3xl border border-accent/35 bg-surface px-4 py-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium">硬要求 · 说明书（内置）</p>
-              <p className="mt-0.5 text-[11px] text-muted">
-                诚实第一 · 让你做事就先做再说 · 做完如实汇报 · 不许猜 · 主动用权限
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowBuiltin((v) => !v)}
-              className="shrink-0 rounded-full bg-chip px-3 py-1.5 text-[12px] text-fg"
-            >
-              {showBuiltin ? "收起" : "看全文"}
-            </button>
-          </div>
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            这份东西**每轮都塞在系统提示词最前面** —— 换模型、换上游都一样读得到。
-            你在下面「一直生效」里加的条目会接在它后面。
-          </p>
-          {showBuiltin && (
-            <pre className="mt-2.5 max-h-80 overflow-y-auto rounded-2xl bg-chip px-3 py-2.5 text-[11px] leading-5 whitespace-pre-wrap text-muted">
-              {builtinText}
-            </pre>
-          )}
-          <button
-            type="button"
+      <div ref={scrollRef} className="k-scroll k-list k-nav-space mt-2 min-h-0 flex-1">
+        {/* 内置系统提示词：每轮强制注入、用户改不了（故意的），所以只给一个"开"的只读指示 */}
+        <KFold
+          title="内置系统提示词"
+          meta="每轮强制注入"
+          trailing={
+            <KSwitch
+              checked
+              disabled
+              onChange={() => {}}
+              label="内置系统提示词 · 一直开启，改不了"
+            />
+          }
+        >
+          <pre className="k-long">{builtinText}</pre>
+          <KButton
+            variant="dashed"
+            block
             onClick={() => {
               // 把"检验他有没有真读"的问句塞进输入框（不自动发，你自己按发送）
               useApp
@@ -241,88 +208,67 @@ export function WorldbookView() {
                 );
               void navigate({ to: "/" });
             }}
-            className="mt-2.5 h-10 w-full rounded-2xl bg-ink text-[13px] font-medium text-ink-fg"
           >
-            换过模型后点这里 → 让他复述一遍要求
-          </button>
-        </div>
-      </section>
+            换过模型后，让他复述一遍
+          </KButton>
+        </KFold>
 
-      {adding && (
-        <section className="mt-3 px-4">
-          <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={3}
-              placeholder="写给他的话，例如：思考别超过十步，先给结论"
-              className="w-full resize-none rounded-2xl bg-chip px-3 py-2.5 text-[13px] leading-5 outline-none"
-            />
-            <div className="mt-2 flex items-center gap-1.5">
-              {(["system", "tail"] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPosition(p)}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[11px]",
-                    position === p ? "bg-accent text-accent-fg" : "bg-chip text-muted",
-                  )}
-                >
-                  {p === "system" ? "一直生效" : "聊到才生效"}
-                </button>
-              ))}
-            </div>
-            {position === "tail" && (
-              <input
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                placeholder="关键词（空格分开），例如：论文 导师"
-                className="mt-2 h-10 w-full rounded-2xl bg-chip px-3 text-[13px] outline-none"
+        {adding && (
+          <div className="k-card">
+            <div className="flex flex-col gap-3">
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={3}
+                placeholder="写给他的话，例如：思考别超过十步，先给结论"
+                className="k-input k-long--input"
               />
-            )}
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!content.trim()}
-              className="mt-2 h-10 w-full rounded-2xl bg-ink text-[13px] font-medium text-ink-fg disabled:opacity-40"
-            >
-              加进世界书
-            </button>
+              <KOpts cols={2}>
+                {(["system", "tail"] as const).map((p) => (
+                  <KOpt key={p} active={position === p} onClick={() => setPosition(p)}>
+                    {p === "system" ? "一直生效" : "聊到才生效"}
+                  </KOpt>
+                ))}
+              </KOpts>
+              {position === "tail" && (
+                <input
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="关键词（空格分开），例如：论文 导师"
+                  className="k-input"
+                />
+              )}
+              <KButton variant="primary" block onClick={submit} disabled={!content.trim()}>
+                加进世界书
+              </KButton>
+            </div>
           </div>
-        </section>
-      )}
+        )}
 
-      <section className="mt-4 px-4">
-        <p className="mb-2 px-1 text-[12px] font-medium text-muted">一直生效（{always.length}）</p>
-        <div className="space-y-2.5">
+        <div className="flex flex-col gap-3">
+          <div className="k-sect">
+            <span className="k-sect__title">一直生效</span>
+            <span className="k-sect__act">{always.length}</span>
+          </div>
           {always.length === 0 ? (
-            <p className="rounded-3xl border border-line bg-surface px-4 py-5 text-center text-[12px] text-muted">
-              还没有常驻条目。
-            </p>
+            <KEmpty title="还没有常驻条目" hint="他每次开口前都会读到的规矩放这里。" />
           ) : (
-            always.map((e) => <Row key={e.id} e={e} />)
+            always.map((e) => <EntryCard key={e.id} e={e} />)
           )}
         </div>
-      </section>
 
-      <section className="mt-4 px-4">
-        <p className="mb-2 px-1 text-[12px] font-medium text-muted">聊到才生效（{triggered.length}）</p>
-        <div className="space-y-2.5">
+        <div className="flex flex-col gap-3">
+          <div className="k-sect">
+            <span className="k-sect__title">聊到才生效</span>
+            <span className="k-sect__act">{triggered.length}</span>
+          </div>
           {triggered.length === 0 ? (
-            <p className="rounded-3xl border border-line bg-surface px-4 py-5 text-center text-[12px] text-muted">
-              还没有触发条目。
-            </p>
+            <KEmpty title="还没有触发条目" hint="聊到某些词才注入的规矩放这里。" />
           ) : (
-            triggered.map((e) => <Row key={e.id} e={e} />)
+            triggered.map((e) => <EntryCard key={e.id} e={e} />)
           )}
         </div>
-      </section>
-
-      <p className="mt-4 px-5 text-[11px] leading-5 text-subtle">
-        「一直生效」的会进系统提示词（很少改动，所以不影响前缀缓存）；
-        「聊到才生效」的挂在你说那句话的后面 —— 系统提示词一个字不动。
-      </p>
+      </div>
     </div>
   );
 }

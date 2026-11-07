@@ -154,7 +154,7 @@ export function MemoryLibrary() {
 
       {/* 概况：他到底记得多少、整体还清不清晰 */}
       <section className="px-4">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="k-card">
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-2xl">{active.length}</span>
             <span className="text-[12px] text-muted">条还在用</span>
@@ -175,17 +175,15 @@ export function MemoryLibrary() {
       {/* 加一条 */}
       {adding && (
         <section className="mt-3 px-4">
-          <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+          <div className="k-card">
             <div className="mb-2 flex flex-wrap gap-1.5">
               {ALL_KINDS.map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setDraftKind(k)}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[11px]",
-                    draftKind === k ? "bg-fg text-bg" : "bg-chip text-muted",
-                  )}
+                  className="k-opt px-2.5 py-1 text-[11px]"
+                  data-active={draftKind === k ? "true" : undefined}
                 >
                   {KIND_LABEL[k]}
                 </button>
@@ -198,13 +196,13 @@ export function MemoryLibrary() {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && add()}
                 placeholder="一句话就行，比如「喜欢在晚上写东西」"
-                className="h-10 min-w-0 flex-1 rounded-2xl bg-chip px-3 text-[13px] outline-none"
+                className="k-input min-w-0 flex-1"
               />
               <button
                 type="button"
                 onClick={add}
                 disabled={!draft.trim()}
-                className="h-10 shrink-0 rounded-2xl bg-ink px-4 text-[13px] font-medium text-ink-fg disabled:opacity-40"
+                className="k-btn k-btn--primary shrink-0"
               >
                 记住
               </button>
@@ -238,7 +236,7 @@ export function MemoryLibrary() {
       {/* 搜索 + 筛选 */}
       {view !== "timeline" && (
       <section className="mt-3 px-4">
-        <div className="flex items-center gap-2 rounded-2xl bg-chip px-3">
+        <div className="k-input flex items-center gap-2">
           <Search className="size-4 shrink-0 text-muted" />
           <input
             value={query}
@@ -398,7 +396,7 @@ export function MemoryLibrary() {
             ) : (
               <div className="space-y-2">
                 {archived.map((m) => (
-                  <div key={m.id} className="rounded-2xl border border-line bg-surface px-3.5 py-3">
+                  <div key={m.id} className="k-card">
                     <p className="text-[10px] text-subtle">
                       {KIND_LABEL[m.kind]} · 想起过 {m.recallCount} 次
                     </p>

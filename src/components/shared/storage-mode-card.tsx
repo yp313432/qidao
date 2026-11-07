@@ -101,7 +101,7 @@ export function StorageModeCard() {
   return (
     <section className="mt-5 px-4">
       <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">存储方式（实验）</h2>
-      <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+      <div className="k-card">
         <div className="flex items-baseline justify-between">
           <p className="text-[15px] font-medium">
             {mode === "v2" ? "新存储 · 一个库多张表" : "老存储 · 一条大记录"}
@@ -153,7 +153,7 @@ export function StorageModeCard() {
               type="button"
               disabled={busy}
               onClick={() => void switchTo("legacy")}
-              className="rounded-full border border-line px-3.5 py-1.5 text-[12px] disabled:opacity-50"
+              className="k-btn"
             >
               切回老存储
             </button>
@@ -162,7 +162,7 @@ export function StorageModeCard() {
               type="button"
               disabled={busy}
               onClick={() => void switchTo("v2")}
-              className="rounded-full border border-accent/50 bg-accent/10 px-3.5 py-1.5 text-[12px] text-accent disabled:opacity-50"
+              className="k-btn k-btn--primary"
             >
               {busy ? "正在搬…" : "切到新存储（先搬老档）"}
             </button>
@@ -174,7 +174,7 @@ export function StorageModeCard() {
           起因：用户真机上"打开就变初始页"时，界面上看不出是哪一份空了/读失败了，
           只能靠点一点试 —— 这张表让下一次一眼定位（也让我排障不用猜）。
         */}
-        <details className="mt-3 rounded-2xl border border-line bg-chip/40 px-3 py-2">
+        <details className="mt-3">
           <summary className="cursor-pointer text-[12px] text-muted">存储自检（两份各有多少东西）</summary>
           {check ? (
             <ul className="mt-2 space-y-1 text-[11px] leading-4 text-muted">
@@ -207,7 +207,7 @@ export function StorageModeCard() {
                     setArmed(null);
                     void restore("mirror");
                   }}
-                  className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
+                  className="k-btn px-2.5 py-1 text-[11px]"
                 >
                   {armed === "mirror" ? "确定用安全带里的设置恢复？" : "只用安全带里的设置恢复"}
                 </button>
@@ -225,7 +225,7 @@ export function StorageModeCard() {
                       setArmed(null);
                       void restore("snapshot", s.key);
                     }}
-                    className="rounded-full border border-line px-2.5 py-1 text-[11px] disabled:opacity-40"
+                    className="k-btn px-2.5 py-1 text-[11px]"
                   >
                     {armed === s.key
                       ? "确定回到这版？"

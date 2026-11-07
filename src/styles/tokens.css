@@ -76,6 +76,25 @@
   --k-font-mono: var(--font-mono);
 
   /*
+    正文字体三档（外观 → 字体）的字体栈。
+
+    ⚠️ 2026-11-07 修（用户 m03042："选了这个字体我不知道它变的是哪一块，好像
+    只有那个很小的那种小块变了"）。原来 `[data-font=…]` **只覆盖 `--font-sans`**，
+    而它只有 `body` 一个消费者；全站二十多处显式写 `var(--font-serif)`
+    （刊头、页头标题、浮签气泡、kit 的 `--k-font-serif`），数字走 `--font-mono`。
+    所以真正会变的只有"没写字体、从 body 继承"的那几处 —— 正是那排 token 用量。
+    现在三档一起换（等宽档连 mono 也换），选了就是整页都变。
+
+    中文能不能真变，取决于**设备上有没有那个字体**：安卓 WebView 一般没有楷体 /
+    宋体（Songti SC、SimSun 是 macOS/Windows 的名字），只有思源系列 Noto CJK，
+    所以补了 `Noto Serif CJK SC`；楷体档没有可信的安卓等价物，落到衬线。
+  */
+  --k-stack-serif: "Source Serif 4", "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", "SimSun",
+    "Iowan Old Style", Georgia, serif;
+  --k-stack-kai: "Kaiti SC", "KaiTi", "楷体", "STKaiti", "Noto Serif CJK SC", "Songti SC", serif;
+  --k-stack-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /*
     ── 材质槽位 ────────────────────────────────────────────────
     下面这一组是**唯一**由 modes/*.css 覆盖的东西。
     默认值 = 半磨砂的安全值，任何一个模式没写全也不会崩。

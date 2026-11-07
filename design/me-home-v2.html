@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>结构 B 第一批 · 改后长这样</title>
+    <style>
+      /*
+        看图用的静态样张，不是产品代码。
+        色值 = 真机纯色（cream）实测：
+          bg #f6f3ee / canvas #ece6dc / ink #1c1917 / muted #7a746c
+          subtle #b0aaa2 / accent #c17b5a
+        卡片 = 1px 墨 18% 线 + 8px 角 + 两层软纸影
+        （= solid.css 的 --k-line-soft / --k-card-radius / --k-card-shadow）
+      */
+      :root {
+        --bg: #f6f3ee;
+        --canvas: #ece6dc;
+        --ink: #1c1917;
+        --muted: #7a746c;
+        --subtle: #b0aaa2;
+        --accent: #c17b5a;
+        --line: rgba(28, 25, 23, 0.55);
+        --line-soft: rgba(28, 25, 23, 0.18);
+        --chip: rgba(28, 25, 23, 0.07);
+        --radius: 8px;
+        --shadow: 0 1px 2px rgba(28, 25, 23, 0.1), 0 10px 24px rgba(28, 25, 23, 0.08);
+        --sans: "DM Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        --serif: "Source Serif 4", Georgia, "Songti SC", serif;
+        --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px 24px 56px;
+        background: #ded8cd;
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      h2.title {
+        font: 500 20px/1.3 var(--serif);
+        margin: 0 0 6px 4px;
+      }
+      p.sub {
+        font: 12px/1.6 var(--sans);
+        color: #575148;
+        margin: 0 0 22px 4px;
+        max-width: 980px;
+      }
+      .stage {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .col {
+        width: 390px;
+        flex: none;
+      }
+      .cap {
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #575148;
+        margin: 0 0 10px 4px;
+      }
+      .phone {
+        width: 390px;
+        min-height: 780px;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--bg);
+        border: 1px solid rgba(28, 25, 23, 0.14);
+        box-shadow: 0 18px 44px rgba(28, 25, 23, 0.16);
+        display: flex;
+        flex-direction: column;
+      }
+      .scroll {
+        flex: 1;
+        padding: 14px 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .navbar {
+        margin-top: auto;
+        display: flex;
+        border-top: 1px solid var(--line-soft);
+        background: var(--bg);
+      }
+      .navbar span {
+        flex: 1;
+        text-align: center;
+        padding: 12px 0 14px;
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+      .navbar span.on {
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      /* ── 页头 ── */
+      .kicker {
+        font: 11px/1.3 var(--sans);
+        color: var(--muted);
+        margin: 0;
+      }
+      h1.page {
+        font: 500 23px/1.2 var(--serif);
+        margin: 3px 0 0;
+      }
+
+      /* ── 标准件：卡 / 行 / 折叠头 / 组标题 ── */
+      .card {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background: var(--bg);
+        box-shadow: var(--shadow);
+      }
+      .sect {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: 6px 0 -2px;
+        padding: 0 4px;
+      }
+      .sect__title {
+        font: 700 10px/1 var(--mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .sect__rule {
+        flex: 1;
+        height: 1px;
+        background: var(--line-soft);
+      }
+      .sect__act {
+        font: 10px/1 var(--mono);
+        color: var(--subtle);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line-soft);
+        min-height: 56px;
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+      .tile {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius);
+        background: var(--chip);
+        display: grid;
+        place-items: center;
+        font: 13px/1 var(--serif);
+        color: var(--muted);
+      }
+      .row__body {
+        flex: 1;
+        min-width: 0;
+      }
+      .row__title {
+        font: 600 14px/1.35 var(--sans);
+      }
+      .row__meta {
+        font: 11.5px/1.4 var(--sans);
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .chev {
+        flex: none;
+        color: var(--subtle);
+        font: 12px/1 var(--sans);
+      }
+
+      /* ── 首页那张会塌的大卡片（静止态）── */
+      .cover {
+        position: relative;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background: var(--bg);
+        box-shadow: var(--shadow);
+        padding: 26px 16px 18px;
+        text-align: center;
+        overflow: hidden;
+      }
+      .cover .exlibris {
+        position: absolute;
+        top: 11px;
+        left: 14px;
+        font: 9px/1 var(--mono);
+        letter-spacing: 0.18em;
+        color: var(--subtle);
+      }
+      .cover .vol {
+        position: absolute;
+        top: 11px;
+        right: 14px;
+        font: 9px/1 var(--mono);
+        letter-spacing: 0.14em;
+        color: var(--subtle);
+      }
+      .cover .rule {
+        position: absolute;
+        top: 30px;
+        left: 14px;
+        right: 14px;
+        height: 1px;
+        background: var(--line-soft);
+      }
+      .avatar {
+        width: 72px;
+        height: 72px;
+        margin: 12px auto 0;
+        border-radius: 50%;
+        background: var(--canvas);
+        border: 1px solid var(--line-soft);
+        display: grid;
+        place-items: center;
+        font: 500 26px/1 var(--serif);
+        color: var(--muted);
+      }
+      .nameLine {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .nameLine .nm {
+        font: 500 23px/1.2 var(--serif);
+      }
+      .gender {
+        width: 28px;
+        height: 28px;
+        border-radius: 2px;
+        border: 1px solid var(--line-soft);
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font: 500 14px/1 var(--serif);
+      }
+      .gender[data-on="true"] {
+        border-color: var(--line);
+        color: var(--ink);
+        background: var(--chip);
+      }
+      .cover .hint {
+        font: 11px/1.5 var(--sans);
+        color: var(--subtle);
+        margin-top: 9px;
+      }
+
+      /* ── 塌下去之后（滚到顶时的样子）── */
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background: var(--bg);
+        box-shadow: var(--shadow);
+      }
+      .bar .av {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--canvas);
+        border: 1px solid var(--line-soft);
+        display: grid;
+        place-items: center;
+        font: 500 12px/1 var(--serif);
+        color: var(--muted);
+      }
+      .bar .nm {
+        font: 600 13px/1 var(--sans);
+        flex: 1;
+      }
+
+      /* ── 设置页里铺开的内容块 ── */
+      .blk {
+        padding: 14px;
+      }
+      .blk__title {
+        font: 600 13.5px/1.3 var(--sans);
+        margin: 0 0 2px;
+      }
+      .blk__hint {
+        font: 11px/1.5 var(--sans);
+        color: var(--subtle);
+        margin: 0 0 10px;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        border-top: 1px solid var(--line-soft);
+        padding-top: 8px;
+        margin-top: 8px;
+      }
+      .field:first-of-type {
+        border-top: 0;
+        margin-top: 0;
+        padding-top: 0;
+      }
+      .field .lb {
+        font: 13px/1.35 var(--sans);
+      }
+      .field .val {
+        font: 11.5px/1 var(--mono);
+        color: var(--muted);
+      }
+      .opts {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .opt {
+        min-height: 44px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        font: 12.5px/1.2 var(--sans);
+        color: var(--muted);
+        background: transparent;
+      }
+      .opt[data-on="true"] {
+        border-color: var(--line);
+        color: var(--ink);
+        font-weight: 700;
+        background: var(--chip);
+        box-shadow: var(--shadow);
+      }
+      .sw {
+        width: 40px;
+        height: 22px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--ink);
+        position: relative;
+      }
+      .sw::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--bg);
+        transform: translateX(18px);
+      }
+      .sw[data-off="true"] {
+        background: transparent;
+        border-color: var(--line-soft);
+      }
+      .sw[data-off="true"]::after {
+        background: var(--line-soft);
+        transform: none;
+      }
+      .note {
+        font: 11px/1.6 var(--sans);
+        color: var(--subtle);
+        border-left: 2px solid var(--line-soft);
+        padding: 2px 0 2px 10px;
+        margin: 12px 0 0;
+      }
+      .legend {
+        max-width: 1080px;
+        margin: 34px auto 0;
+        font: 12.5px/1.75 var(--sans);
+        color: #4a453d;
+      }
+      .legend h3 {
+        font: 600 13px/1.4 var(--mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #575148;
+        margin: 18px 0 6px;
+      }
+      .legend ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .legend code {
+        font: 11.5px/1 var(--mono);
+        background: rgba(28, 25, 23, 0.06);
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 class="title">结构 B 第一批 · 改完长这样</h2>
+    <p class="sub">
+      三屏都是按真代码里的数值画的（纯色 · 奶油白）。左：改完的「我的」首页；中：对话设置页（铺开，不再套一层）；
+      右：通知页（同样铺开）。下面图例写了具体动了什么。
+    </p>
+
+    <div class="stage">
+      <!-- ① 我的首页 -->
+      <div class="col">
+        <p class="cap">① 我的 · <b>首页</b></p>
+        <div class="phone">
+          <div class="scroll">
+            <div class="cover">
+              <span class="exlibris">EX LIBRIS · 栖岛</span>
+              <span class="vol">VOL.02 · 2026.11</span>
+              <span class="rule"></span>
+              <div class="avatar">y</div>
+              <div class="nameLine">
+                <span class="nm">yan</span>
+                <span class="gender" data-on="true">♀</span>
+              </div>
+              <div class="hint">点头像可以换一张 · 点名字可以改 · 名字后面那颗是称呼</div>
+            </div>
+
+            <div class="sect">
+              <span class="sect__title">他</span><span class="sect__rule"></span
+              ><span class="sect__act">01</span>
+            </div>
+            <div class="card">
+              <div class="row">
+                <span class="tile">✳</span>
+                <span class="row__body">
+                  <span class="row__title">AI 概览</span>
+                  <span class="row__meta">他是谁 · 能知道什么 · 记得你什么</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+            </div>
+
+            <div class="sect">
+              <span class="sect__title">我的设置</span><span class="sect__rule"></span
+              ><span class="sect__act">06</span>
+            </div>
+            <div class="card">
+              <div class="row">
+                <span class="tile">◧</span>
+                <span class="row__body">
+                  <span class="row__title">账号与资料</span>
+                  <span class="row__meta">认识的日子</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+              <div class="row">
+                <span class="tile">◇</span>
+                <span class="row__body">
+                  <span class="row__title">外观</span>
+                  <span class="row__meta">材质 · 纸色 · 字体 · 背景</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+              <div class="row">
+                <span class="tile">✎</span>
+                <span class="row__body">
+                  <span class="row__title">对话</span>
+                  <span class="row__meta">思考过程 · 回复长短 · 分段 · 表情包</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+              <div class="row">
+                <span class="tile">◔</span>
+                <span class="row__body">
+                  <span class="row__title">主动与通知</span>
+                  <span class="row__meta">多久找你 · 半夜静音 · 写在日记里</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+              <div class="row">
+                <span class="tile">◍</span>
+                <span class="row__body">
+                  <span class="row__title">语音</span>
+                  <span class="row__meta">声音 · 语速 · 朗读 · 转文字</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+              <div class="row">
+                <span class="tile">⛨</span>
+                <span class="row__body">
+                  <span class="row__title">隐私与数据</span>
+                  <span class="row__meta">他能不能定位 · 记忆 · 备份与导出</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+            </div>
+
+            <div class="sect">
+              <span class="sect__title">关于</span><span class="sect__rule"></span
+              ><span class="sect__act">01</span>
+            </div>
+            <div class="card">
+              <div class="row">
+                <span class="tile">⚙</span>
+                <span class="row__body">
+                  <span class="row__title">关于与高级</span>
+                  <span class="row__meta">版本 · 自定义上游 · 用量与诊断</span>
+                </span>
+                <span class="chev">›</span>
+              </div>
+            </div>
+
+            <p class="note" style="margin-top: 2px">往下滚，上面那张大卡会收成一条 46px 的窄条。</p>
+            <div class="bar" style="margin-top: 6px">
+              <span class="av">y</span><span class="nm">yan</span><span class="gender">♀</span>
+            </div>
+          </div>
+          <div class="navbar">
+            <span>对话</span><span>工具</span><span>玩乐</span><span class="on">我的</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 对话设置 -->
+      <div class="col">
+        <p class="cap">② 对话 · <b>铺开</b></p>
+        <div class="phone">
+          <div class="scroll">
+            <p class="kicker">功能区</p>
+            <h1 class="page">对话</h1>
+
+            <div class="card blk">
+              <p class="blk__title">思考过程</p>
+              <p class="blk__hint">他先写一段心里话，再开口。</p>
+              <div class="field">
+                <span class="lb">显示思考过程</span><span class="sw" data-off="false"></span>
+              </div>
+              <div class="field">
+                <span class="lb">最大输出</span><span class="val">2048</span>
+              </div>
+            </div>
+
+            <div class="card blk">
+              <p class="blk__title">说话方式</p>
+              <p class="blk__hint">一次回几条、要不要分行。</p>
+              <div class="opts">
+                <span class="opt" data-on="true">一句话</span><span class="opt">分段</span
+                ><span class="opt">看情况</span><span class="opt">关掉</span>
+              </div>
+            </div>
+
+            <div class="card blk">
+              <p class="blk__title">表情包</p>
+              <p class="blk__hint">他会在句尾补一个贴纸。</p>
+              <div class="field">
+                <span class="lb">启用表情包</span><span class="sw" data-off="false"></span>
+              </div>
+              <div class="field">
+                <span class="lb">常用</span><span class="val">12 个</span>
+              </div>
+            </div>
+
+            <p class="note">进去就是一屏能滑完的设置，没有"点开卡片再看一行字"这种来回。</p>
+          </div>
+          <div class="navbar">
+            <span>对话</span><span>工具</span><span>玩乐</span><span class="on">我的</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 通知 -->
+      <div class="col">
+        <p class="cap">③ 主动与通知 · <b>铺开</b></p>
+        <div class="phone">
+          <div class="scroll">
+            <p class="kicker">功能区</p>
+            <h1 class="page">主动与通知</h1>
+
+            <div class="card blk">
+              <p class="blk__title">通知</p>
+              <p class="blk__hint">系统通知能不能弹、什么时候弹。</p>
+              <div class="field">
+                <span class="lb">允许通知</span><span class="sw" data-off="false"></span>
+              </div>
+              <div class="field">
+                <span class="lb">半夜不打扰</span><span class="val">23:00 – 07:00</span>
+              </div>
+              <div class="field">
+                <span class="lb">他多久找你一次</span><span class="val">每 2 小时</span>
+              </div>
+              <div class="field">
+                <span class="lb">在忙的时候</span><span class="val">少说两句</span>
+              </div>
+              <div class="field">
+                <span class="lb">写进日记</span><span class="sw" data-off="true"></span>
+              </div>
+            </div>
+
+            <p class="note">原来这些全藏在一张"通知"折叠卡里，要点开才看得见；现在进去直接铺开。</p>
+          </div>
+          <div class="navbar">
+            <span>对话</span><span>工具</span><span>玩乐</span><span class="on">我的</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h3>这一轮改了什么</h3>
+      <ul>
+        <li>
+          <b>头像 / 名字 / 称呼回到首页大卡片</b>：点头像换图、点名字改名，名字后面跟一颗
+          <code>♀ / ♂ / ·</code>，点一下轮换。这样"账号与资料"就不用单列一张卡了。
+        </li>
+        <li>
+          <b>`账号与资料` 只剩「认识的日子」</b>：那一页现在只有一张卡，加新东西以后再加。
+        </li>
+        <li>
+          <b>对话 / 主动与通知 / 语音 三页改成铺开</b>：不再"进去只有一条 → 再点开一条"，
+          进去就是一屏能滑完的设置项（各自的小标题还在，只是不再套一层折叠）。
+        </li>
+        <li><b>`AI 概览` 和 `关于与高级` 同步成同一套标准件</b>：图标块、行、折叠头、大数字都换成 kit 的写法。</li>
+        <li>
+          <b>字体那档修好了</b>：以前 <code>data-font</code> 只换正文 <code>--font-sans</code>，
+          而全站标题、气泡、数字都写死了别的字族 —— 所以只有 token 用量那一小块会变。
+          现在三档一起换，选了就是整页都变（中文能不能真变取决于手机里有没有那个字体）。
+        </li>
+      </ul>
+
+      <h3>没动什么</h3>
+      <ul>
+        <li>所有设置的字段名、默认值、取值范围：<b>一个都没改</b>，改的只是长相。</li>
+        <li>大卡片的塌陷动画、底部四格导航、图标、版本号。</li>
+        <li>纯色之外的两套材质（磨砂 / 液态）—— 那两套之后单独做。</li>
+      </ul>
+    </div>
+  </body>
+</html>

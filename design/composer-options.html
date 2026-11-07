@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>输入条四选一 · 栖岛纯色（柔和纸）</title>
+    <style>
+      /* ─── 真实色值：全部取自 src/styles.css 的 cream 纸色 + 纯色材质块 ─── */
+      :root {
+        --bg: #f6f3ee; /* --aster-bg */
+        --canvas: #ece6dc; /* --aster-canvas */
+        --ink: #1c1917; /* --aster-ink */
+        --muted: #7a746c; /* --aster-muted */
+        --subtle: #b0aaa2; /* --aster-subtle */
+        --accent: #c17b5a; /* --aster-accent */
+        --line: color-mix(in oklab, var(--ink) 18%, transparent); /* 气泡/卡片同一条线 */
+        --line-strong: color-mix(in oklab, var(--ink) 26%, transparent);
+        --ai-bg: color-mix(in oklab, var(--accent) 6%, var(--bg));
+        --me-bg: color-mix(in oklab, var(--ink) 6%, var(--bg));
+        --soft-shadow:
+          0 1px 2px color-mix(in oklab, var(--ink) 10%, transparent),
+          0 10px 24px color-mix(in oklab, var(--ink) 8%, transparent);
+        --serif: "Source Serif 4", "Songti SC", Georgia, serif;
+        --sans: "DM Sans", "PingFang SC", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px 20px 60px;
+        background: #ded8cf;
+        font-family: var(--sans);
+        color: #2b2621;
+      }
+      .head {
+        max-width: 1720px;
+        margin: 0 auto 22px;
+      }
+      .head h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .head p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #5d564e;
+      }
+      .row {
+        display: flex;
+        gap: 22px;
+        align-items: flex-start;
+        max-width: 1720px;
+        margin: 0 auto;
+        flex-wrap: wrap;
+      }
+      .col {
+        width: 390px;
+        flex: none;
+      }
+      .col > h2 {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .col > h2 b {
+        color: var(--accent);
+      }
+      .col > .note {
+        margin: 0 0 10px;
+        font-size: 11.5px;
+        line-height: 1.65;
+        color: #5d564e;
+        min-height: 46px;
+      }
+
+      /* ─── 手机画布：390 × 手机比例的纸 ─── */
+      .phone {
+        width: 390px;
+        height: 620px;
+        background: var(--bg);
+        border: 1px solid color-mix(in oklab, var(--ink) 14%, transparent);
+        border-radius: 18px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 30px rgba(43, 38, 33, 0.14);
+      }
+      .topbar {
+        flex: none;
+        padding: 14px 16px 10px;
+        font-family: var(--serif);
+        font-size: 13px;
+        color: var(--muted);
+        border-bottom: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+        display: flex;
+        justify-content: space-between;
+      }
+      .stream {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 16px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        overflow: hidden;
+      }
+
+      /* ─── 收敛浮签气泡（现行标准件 .k-bubble 的真值） ─── */
+      .msg {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .msg[data-role="me"] {
+        align-items: flex-end;
+      }
+      .msg__head {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .bubble {
+        position: relative;
+        max-width: 100%;
+        width: max-content;
+        padding: 11px 12px 7px;
+        border: 1px solid var(--line);
+        border-radius: 4px 4px 10px 4px;
+        background: var(--ai-bg);
+        color: var(--ink);
+        font-family: var(--serif);
+        font-size: 15px;
+        line-height: 1.85;
+        rotate: -0.4deg;
+      }
+      .msg[data-role="me"] .bubble {
+        border-radius: 4px 4px 4px 10px;
+        background: var(--me-bg);
+        rotate: 0.25deg;
+      }
+      .bubble::before {
+        content: "";
+        position: absolute;
+        top: -5px;
+        left: 20px;
+        width: 34px;
+        height: 10px;
+        background: color-mix(in oklab, var(--accent) 30%, transparent);
+        rotate: -2deg;
+        pointer-events: none;
+      }
+      .msg[data-role="me"] .bubble::before {
+        left: auto;
+        right: 20px;
+        background: color-mix(in oklab, var(--ink) 16%, transparent);
+        rotate: 1.5deg;
+      }
+      .ghost {
+        border-style: dashed;
+        background: none;
+        box-shadow: none;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .ghost::before {
+        display: none;
+      }
+
+      /* ─── 输入条公共零件 ─── */
+      .composer {
+        flex: none;
+        padding: 10px 12px 16px;
+      }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+      }
+      .field {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 4px 6px 2px;
+      }
+      .field__input {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 16px; /* 16px：iOS 不缩放 */
+        line-height: 1.7;
+        color: var(--subtle);
+        font-family: var(--serif);
+        padding: 4px 0;
+      }
+      .ctl {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 2px 0;
+      }
+      .knob {
+        width: 36px;
+        height: 36px;
+        flex: none;
+        border-radius: 999px;
+        background: var(--canvas);
+        color: color-mix(in oklab, var(--ink) 70%, transparent);
+        display: grid;
+        place-items: center;
+        font-size: 15px;
+        border: 0;
+        /* 视觉 36px，热区靠外层 padding 补到 44px */
+        outline: 1px dashed transparent;
+      }
+      .knob--accent {
+        color: var(--accent);
+      }
+      .spacer {
+        flex: 1 1 auto;
+      }
+
+      /* ─── ① 现状：玻璃浮块（纯色下被 .paper-env 改成 4px 纸壳）─── */
+      .now .shell {
+        border-radius: 4px;
+        border: 1px solid var(--line-strong);
+        background: var(--bg);
+        font-family: var(--serif);
+        box-shadow:
+          0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent),
+          0 8px 18px color-mix(in oklab, var(--ink) 9%, transparent);
+        position: relative;
+      }
+      /* 信封 V 形封口线：左上一条斜线 + 右上一条斜线，交汇在中间 */
+      .now .shell::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 26px;
+        border-radius: 4px 4px 0 0;
+        background-image:
+          linear-gradient(
+            to bottom right,
+            transparent calc(50% - 0.5px),
+            color-mix(in oklab, var(--ink) 22%, transparent) 50%,
+            transparent calc(50% + 0.5px)
+          ),
+          linear-gradient(
+            to bottom left,
+            transparent calc(50% - 0.5px),
+            color-mix(in oklab, var(--ink) 22%, transparent) 50%,
+            transparent calc(50% + 0.5px)
+          );
+        background-size:
+          50% 100%,
+          50% 100%;
+        background-position:
+          left top,
+          right top;
+        background-repeat: no-repeat;
+        pointer-events: none;
+      }
+      /* 邮票发送钮（现状就是邮票：虚线齿孔 + 陶色票面 + 斜 2°） */
+      .stamp {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        flex: none;
+        border-radius: 3px;
+        border: 1.5px dashed color-mix(in oklab, var(--ink) 38%, transparent);
+        background: var(--bg);
+        rotate: -2deg;
+        display: grid;
+        place-items: center;
+        box-shadow:
+          0 2px 6px color-mix(in oklab, var(--ink) 12%, transparent),
+          0 8px 16px color-mix(in oklab, var(--ink) 10%, transparent);
+      }
+      .stamp::before {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        background: var(--accent);
+      }
+      .stamp span {
+        position: relative;
+        font-family: var(--serif);
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bg);
+      }
+
+      /* ─── ② A 纸签壳：跟气泡同一条线 / 8px 角 / 同一套软影 ─── */
+      .va .shell {
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        box-shadow: var(--soft-shadow);
+      }
+      .va .field__input {
+        color: var(--subtle);
+      }
+
+      /* ─── ③ B 纸签壳 + 圆形实心发送 ─── */
+      .vb .shell {
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        box-shadow: var(--soft-shadow);
+      }
+      .send-round {
+        width: 36px;
+        height: 36px;
+        flex: none;
+        border-radius: 999px;
+        background: var(--ink);
+        color: var(--bg);
+        display: grid;
+        place-items: center;
+        font-size: 15px;
+        border: 0;
+      }
+
+      /* ─── ④ C 两行式：上引用/附件行，下输入 + 右圆钮 ─── */
+      .vc .shell {
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        box-shadow: var(--soft-shadow);
+        padding: 8px 8px 6px;
+        gap: 4px;
+      }
+      .vc .quote {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 6px;
+        border-left: 2px solid color-mix(in oklab, var(--ink) 24%, transparent);
+        color: var(--muted);
+        font-size: 12px;
+        font-family: var(--serif);
+      }
+      .vc .att {
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        background: var(--canvas);
+        border: 1px solid var(--line);
+        flex: none;
+      }
+      .vc .two {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+      }
+      .vc .field__input {
+        font-family: var(--serif);
+      }
+
+      .legend {
+        max-width: 1720px;
+        margin: 24px auto 0;
+        font-size: 12.5px;
+        line-height: 1.9;
+        color: #4a443d;
+        background: rgba(255, 255, 255, 0.56);
+        border: 1px solid rgba(43, 38, 33, 0.12);
+        border-radius: 12px;
+        padding: 14px 18px;
+      }
+      .legend b {
+        color: #2b2621;
+      }
+      .legend code {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 11.5px;
+        background: rgba(43, 38, 33, 0.07);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <h1>输入条：现状 vs 三个候选（纯色 · 柔和纸）</h1>
+      <p>
+        这是**静态样张**，不是 PS 图，色值全部取自 <code>src/styles.css</code> 的真实值（cream 纸色、纯色材质块、收敛浮签气泡）。
+        四条里的气泡完全一样，只有最下面那块输入条不同 —— 重点看那块。每条都是 390px 宽的手机画布。
+      </p>
+    </div>
+
+    <div class="row">
+      <!-- ① 现状 -->
+      <div class="col now">
+        <h2>① 现状（现在的样子）</h2>
+        <p class="note">玻璃浮块被 <code>.paper-env</code> 补丁成 4px 纸壳：墨 26% 边、信封 V 线、衬线正文；四个 36px 圆钮用 canvas 色；发送是邮票。<br />问题不在好看不好看，在它靠 <b>7 个补丁类</b>硬撑。</p>
+        <div class="phone">
+          <div class="topbar"><span>栖岛</span><span>今天</span></div>
+          <div class="stream">
+            <div class="msg" data-role="ai">
+              <div class="bubble">今天风大，窗台那盆薄荷我搬到屋里了。</div>
+            </div>
+            <div class="msg" data-role="me">
+              <div class="bubble">谢谢。晚上想听点安静的。</div>
+            </div>
+            <div class="msg" data-role="ai"><div class="bubble ghost">正在写回复…</div></div>
+          </div>
+          <div class="composer">
+            <div class="shell">
+              <div class="field"><div class="field__input">说点什么…</div></div>
+              <div class="ctl">
+                <div class="knob">＋</div>
+                <div class="knob knob--accent">☺</div>
+                <div class="knob">◍</div>
+                <div class="spacer"></div>
+                <div class="stamp"><span>寄</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② A -->
+      <div class="col va">
+        <h2>A 纸签壳 <b>（推荐）</b></h2>
+        <p class="note">换成本项目统一的一套值：<b>跟气泡同一条墨 18% 细线</b>、8px 圆角（和卡片/气泡一致）、同一套软纸影、去掉模糊。四个圆钮颜色由槽位给、热区补到 44px。<b>保留邮票发送</b>。布局与现在一模一样。</p>
+        <div class="phone">
+          <div class="topbar"><span>栖岛</span><span>今天</span></div>
+          <div class="stream">
+            <div class="msg" data-role="ai">
+              <div class="bubble">今天风大，窗台那盆薄荷我搬到屋里了。</div>
+            </div>
+            <div class="msg" data-role="me">
+              <div class="bubble">谢谢。晚上想听点安静的。</div>
+            </div>
+            <div class="msg" data-role="ai"><div class="bubble ghost">正在写回复…</div></div>
+          </div>
+          <div class="composer">
+            <div class="shell">
+              <div class="field"><div class="field__input">说点什么…</div></div>
+              <div class="ctl">
+                <div class="knob">＋</div>
+                <div class="knob knob--accent">☺</div>
+                <div class="knob">◍</div>
+                <div class="spacer"></div>
+                <div class="stamp"><span>寄</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ B -->
+      <div class="col vb">
+        <h2>B 纸签壳 + 圆形发送</h2>
+        <p class="note">壳和 A 完全一样，只把<b>邮票换成普通实心圆钮</b>。更安静、更"软件"，但少了一点纸世界的玩笑味。</p>
+        <div class="phone">
+          <div class="topbar"><span>栖岛</span><span>今天</span></div>
+          <div class="stream">
+            <div class="msg" data-role="ai">
+              <div class="bubble">今天风大，窗台那盆薄荷我搬到屋里了。</div>
+            </div>
+            <div class="msg" data-role="me">
+              <div class="bubble">谢谢。晚上想听点安静的。</div>
+            </div>
+            <div class="msg" data-role="ai"><div class="bubble ghost">正在写回复…</div></div>
+          </div>
+          <div class="composer">
+            <div class="shell">
+              <div class="field"><div class="field__input">说点什么…</div></div>
+              <div class="ctl">
+                <div class="knob">＋</div>
+                <div class="knob knob--accent">☺</div>
+                <div class="knob">◍</div>
+                <div class="spacer"></div>
+                <div class="send-round">↑</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ C -->
+      <div class="col vc">
+        <h2>C 两行式（会动布局）</h2>
+        <p class="note">上面一行引用/附件，下面输入 + 右侧圆钮（微信 / ChatGPT 那种）。<b>结构会变</b>：整块高约 110→120px，输入区域变窄，需要重写 <code>composer.tsx</code> 的 DOM。</p>
+        <div class="phone">
+          <div class="topbar"><span>栖岛</span><span>今天</span></div>
+          <div class="stream">
+            <div class="msg" data-role="ai">
+              <div class="bubble">今天风大，窗台那盆薄荷我搬到屋里了。</div>
+            </div>
+            <div class="msg" data-role="me">
+              <div class="bubble">谢谢。晚上想听点安静的。</div>
+            </div>
+            <div class="msg" data-role="ai"><div class="bubble ghost">正在写回复…</div></div>
+          </div>
+          <div class="composer">
+            <div class="shell">
+              <div class="quote"><div class="att"></div>引用他的上一句…</div>
+              <div class="two">
+                <div class="field__input">说点什么…</div>
+                <div class="send-round">↑</div>
+              </div>
+              <div class="ctl">
+                <div class="knob">＋</div>
+                <div class="knob knob--accent">☺</div>
+                <div class="knob">◍</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <b>三个候选的差别其实只有三处</b>：① 壳的线/圆角/影用哪一套（现状是补丁类自带的墨 26% + 4px；A/B/C 用气泡与卡片同一套墨 18% + 8px + 软影）；
+      ② 发送钮是邮票还是圆钮；③ 是一行还是两行。<br />
+      <b>不管选哪个，这些一律不动</b>：textarea 16px（防 iOS 缩放）、Enter 发送、四个钮的顺序与位置、加号/表情/语音弹层的全部逻辑、配额条、附件预览、贴纸面板、草稿与编辑态 —— 这些是"其他都不变"的部分。<br />
+      <b>A 的实际收益</b>（这些静态样张看不出来）：删掉 <code>paper-env</code> / <code>paper-model</code> / <code>paper-voice</code> / <code>paper-voice-rec</code> / <code>paper-stamp</code> / <code>paper-stamp-glyph</code> 共 7 个补丁类，
+      改成由 <code>--k-*</code> 槽位驱动 → 磨砂/液态以后换皮不用再给 composer 写第三套补丁；四个钮热区补到 44px（现在 36px）；离屏不再有 <code>backdrop-filter</code> 的合成层。
+    </div>
+  </body>
+</html>

@@ -11,18 +11,24 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAboutRouteImport } from './routes/_app/about'
+import { Route as AppChatSettingsRouteImport } from './routes/_app/chat-settings'
 import { Route as AppCoreRouteImport } from './routes/_app/core'
 import { Route as AppDataRouteImport } from './routes/_app/data'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
 import { Route as AppMeRouteImport } from './routes/_app/me'
 import { Route as AppMemoriesRouteImport } from './routes/_app/memories'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
+import { Route as AppNotifyRouteImport } from './routes/_app/notify'
 import { Route as AppPermissionsRouteImport } from './routes/_app/permissions'
 import { Route as AppPlayRouteImport } from './routes/_app/play'
+import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
+import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppSpaceRouteImport } from './routes/_app/space'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
 import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVoiceRouteImport } from './routes/_app/voice'
+import { Route as AppVoiceSettingsRouteImport } from './routes/_app/voice-settings'
 import { Route as AppWorldbookRouteImport } from './routes/_app/worldbook'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiHotRouteImport } from './routes/api/hot'
@@ -82,6 +88,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAboutRoute = AppAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatSettingsRoute = AppChatSettingsRouteImport.update({
+  id: '/chat-settings',
+  path: '/chat-settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCoreRoute = AppCoreRouteImport.update({
   id: '/core',
   path: '/core',
@@ -112,6 +128,11 @@ const AppMemoryRoute = AppMemoryRouteImport.update({
   path: '/memory',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNotifyRoute = AppNotifyRouteImport.update({
+  id: '/notify',
+  path: '/notify',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPermissionsRoute = AppPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
@@ -120,6 +141,16 @@ const AppPermissionsRoute = AppPermissionsRouteImport.update({
 const AppPlayRoute = AppPlayRouteImport.update({
   id: '/play',
   path: '/play',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPrivacyRoute = AppPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSpaceRoute = AppSpaceRouteImport.update({
@@ -140,6 +171,11 @@ const AppUsageRoute = AppUsageRouteImport.update({
 const AppVoiceRoute = AppVoiceRouteImport.update({
   id: '/voice',
   path: '/voice',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVoiceSettingsRoute = AppVoiceSettingsRouteImport.update({
+  id: '/voice-settings',
+  path: '/voice-settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppWorldbookRoute = AppWorldbookRouteImport.update({
@@ -390,18 +426,24 @@ const AppPlayToolsTasksRoute = AppPlayToolsTasksRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/about': typeof AppAboutRoute
+  '/chat-settings': typeof AppChatSettingsRoute
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
+  '/notify': typeof AppNotifyRoute
   '/permissions': typeof AppPermissionsRoute
   '/play': typeof AppPlayRouteWithChildren
+  '/privacy': typeof AppPrivacyRoute
+  '/profile': typeof AppProfileRoute
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
+  '/voice-settings': typeof AppVoiceSettingsRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/hot': typeof ApiHotRoute
@@ -453,17 +495,23 @@ export interface FileRoutesByFullPath {
   '/play/tools/': typeof AppPlayToolsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/about': typeof AppAboutRoute
+  '/chat-settings': typeof AppChatSettingsRoute
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
+  '/notify': typeof AppNotifyRoute
   '/permissions': typeof AppPermissionsRoute
+  '/privacy': typeof AppPrivacyRoute
+  '/profile': typeof AppProfileRoute
   '/space': typeof AppSpaceRoute
   '/system': typeof AppSystemRoute
   '/usage': typeof AppUsageRoute
   '/voice': typeof AppVoiceRoute
+  '/voice-settings': typeof AppVoiceSettingsRoute
   '/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/hot': typeof ApiHotRoute
@@ -518,18 +566,24 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/about': typeof AppAboutRoute
+  '/_app/chat-settings': typeof AppChatSettingsRoute
   '/_app/core': typeof AppCoreRoute
   '/_app/data': typeof AppDataRoute
   '/_app/env': typeof AppEnvRoute
   '/_app/me': typeof AppMeRoute
   '/_app/memories': typeof AppMemoriesRoute
   '/_app/memory': typeof AppMemoryRoute
+  '/_app/notify': typeof AppNotifyRoute
   '/_app/permissions': typeof AppPermissionsRoute
   '/_app/play': typeof AppPlayRouteWithChildren
+  '/_app/privacy': typeof AppPrivacyRoute
+  '/_app/profile': typeof AppProfileRoute
   '/_app/space': typeof AppSpaceRoute
   '/_app/system': typeof AppSystemRoute
   '/_app/usage': typeof AppUsageRoute
   '/_app/voice': typeof AppVoiceRoute
+  '/_app/voice-settings': typeof AppVoiceSettingsRoute
   '/_app/worldbook': typeof AppWorldbookRoute
   '/api/chat': typeof ApiChatRoute
   '/api/hot': typeof ApiHotRoute
@@ -585,18 +639,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
+    | '/chat-settings'
     | '/core'
     | '/data'
     | '/env'
     | '/me'
     | '/memories'
     | '/memory'
+    | '/notify'
     | '/permissions'
     | '/play'
+    | '/privacy'
+    | '/profile'
     | '/space'
     | '/system'
     | '/usage'
     | '/voice'
+    | '/voice-settings'
     | '/worldbook'
     | '/api/chat'
     | '/api/hot'
@@ -648,17 +708,23 @@ export interface FileRouteTypes {
     | '/play/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/about'
+    | '/chat-settings'
     | '/core'
     | '/data'
     | '/env'
     | '/me'
     | '/memories'
     | '/memory'
+    | '/notify'
     | '/permissions'
+    | '/privacy'
+    | '/profile'
     | '/space'
     | '/system'
     | '/usage'
     | '/voice'
+    | '/voice-settings'
     | '/worldbook'
     | '/api/chat'
     | '/api/hot'
@@ -712,18 +778,24 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/_app/about'
+    | '/_app/chat-settings'
     | '/_app/core'
     | '/_app/data'
     | '/_app/env'
     | '/_app/me'
     | '/_app/memories'
     | '/_app/memory'
+    | '/_app/notify'
     | '/_app/permissions'
     | '/_app/play'
+    | '/_app/privacy'
+    | '/_app/profile'
     | '/_app/space'
     | '/_app/system'
     | '/_app/usage'
     | '/_app/voice'
+    | '/_app/voice-settings'
     | '/_app/worldbook'
     | '/api/chat'
     | '/api/hot'
@@ -808,6 +880,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/about': {
+      id: '/_app/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AppAboutRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/chat-settings': {
+      id: '/_app/chat-settings'
+      path: '/chat-settings'
+      fullPath: '/chat-settings'
+      preLoaderRoute: typeof AppChatSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/core': {
       id: '/_app/core'
       path: '/core'
@@ -850,6 +936,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMemoryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/notify': {
+      id: '/_app/notify'
+      path: '/notify'
+      fullPath: '/notify'
+      preLoaderRoute: typeof AppNotifyRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/permissions': {
       id: '/_app/permissions'
       path: '/permissions'
@@ -862,6 +955,20 @@ declare module '@tanstack/react-router' {
       path: '/play'
       fullPath: '/play'
       preLoaderRoute: typeof AppPlayRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/privacy': {
+      id: '/_app/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof AppPrivacyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/space': {
@@ -890,6 +997,13 @@ declare module '@tanstack/react-router' {
       path: '/voice'
       fullPath: '/voice'
       preLoaderRoute: typeof AppVoiceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/voice-settings': {
+      id: '/_app/voice-settings'
+      path: '/voice-settings'
+      fullPath: '/voice-settings'
+      preLoaderRoute: typeof AppVoiceSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/worldbook': {
@@ -1312,18 +1426,24 @@ const AppPlayRouteWithChildren =
   AppPlayRoute._addFileChildren(AppPlayRouteChildren)
 
 interface AppRouteChildren {
+  AppAboutRoute: typeof AppAboutRoute
+  AppChatSettingsRoute: typeof AppChatSettingsRoute
   AppCoreRoute: typeof AppCoreRoute
   AppDataRoute: typeof AppDataRoute
   AppEnvRoute: typeof AppEnvRoute
   AppMeRoute: typeof AppMeRoute
   AppMemoriesRoute: typeof AppMemoriesRoute
   AppMemoryRoute: typeof AppMemoryRoute
+  AppNotifyRoute: typeof AppNotifyRoute
   AppPermissionsRoute: typeof AppPermissionsRoute
   AppPlayRoute: typeof AppPlayRouteWithChildren
+  AppPrivacyRoute: typeof AppPrivacyRoute
+  AppProfileRoute: typeof AppProfileRoute
   AppSpaceRoute: typeof AppSpaceRoute
   AppSystemRoute: typeof AppSystemRoute
   AppUsageRoute: typeof AppUsageRoute
   AppVoiceRoute: typeof AppVoiceRoute
+  AppVoiceSettingsRoute: typeof AppVoiceSettingsRoute
   AppWorldbookRoute: typeof AppWorldbookRoute
   AppIndexRoute: typeof AppIndexRoute
   AppToolsDocsRoute: typeof AppToolsDocsRoute
@@ -1333,18 +1453,24 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAboutRoute: AppAboutRoute,
+  AppChatSettingsRoute: AppChatSettingsRoute,
   AppCoreRoute: AppCoreRoute,
   AppDataRoute: AppDataRoute,
   AppEnvRoute: AppEnvRoute,
   AppMeRoute: AppMeRoute,
   AppMemoriesRoute: AppMemoriesRoute,
   AppMemoryRoute: AppMemoryRoute,
+  AppNotifyRoute: AppNotifyRoute,
   AppPermissionsRoute: AppPermissionsRoute,
   AppPlayRoute: AppPlayRouteWithChildren,
+  AppPrivacyRoute: AppPrivacyRoute,
+  AppProfileRoute: AppProfileRoute,
   AppSpaceRoute: AppSpaceRoute,
   AppSystemRoute: AppSystemRoute,
   AppUsageRoute: AppUsageRoute,
   AppVoiceRoute: AppVoiceRoute,
+  AppVoiceSettingsRoute: AppVoiceSettingsRoute,
   AppWorldbookRoute: AppWorldbookRoute,
   AppIndexRoute: AppIndexRoute,
   AppToolsDocsRoute: AppToolsDocsRoute,

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
 import { StorageModeCard } from "@/components/shared/storage-mode-card";
+import { KSwitch } from "@/components/ui-kit";
 import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
@@ -86,9 +87,9 @@ export function MemoryView() {
       <PageHeader title="上下文与内存" />
 
       {/* 预算 */}
-      <section className="mt-2 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">这一轮请求装了什么</h2>
-        <div className="rounded-3xl border border-line bg-surface px-4 py-4">
+      <section className="mt-2">
+        <h2 className="k-sect__title mb-2">这一轮请求装了什么</h2>
+        <div className="k-card">
           {!ctx ? (
             <p className="text-[12px] text-subtle">读取中…</p>
           ) : (
@@ -153,14 +154,14 @@ export function MemoryView() {
               </ul>
 
               {ctx.overBudget && (
-                <p className="mt-3 rounded-2xl bg-warn/15 px-3 py-2 text-[11px] leading-4 text-warn">
+                <p className="k-hint mt-3 text-warn">
                   光是系统提示词 + 工具定义就已经超过你设的 {ctx.budget} 了 ——
                   也就是说历史基本塞不进来。要么把预算调大，要么把「每次发多少工具」调成按需。
                 </p>
               )}
 
               {ctx.hasSummary && (
-                <p className="mt-3 rounded-2xl bg-chip px-3 py-2 text-[11px] leading-4 text-muted">
+                <p className="k-hint mt-3">
                   更早的对话已经压成摘要（约 {ctx.summaryTokens} tokens）继续带着走 ——
                   原文不再发出，
                   <span className="font-medium text-fg">省了约 {ctx.summarySaved} tokens</span>
@@ -169,7 +170,7 @@ export function MemoryView() {
               )}
 
               {ctx.folded > 0 && (
-                <p className="mt-3 rounded-2xl bg-chip px-3 py-2 text-[11px] leading-4 text-muted">
+                <p className="k-hint mt-3">
                   这一轮有 <span className="font-medium text-fg">{ctx.folded}</span> 条更早的消息
                   没有发出去
                   {ctx.foldedIntosummary > 0 ? (
@@ -189,11 +190,10 @@ export function MemoryView() {
 
       {/* 设置 */}
       <section className="mt-5 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">保留策略</h2>
-        <div className="divide-y divide-line rounded-3xl border border-line bg-surface px-4">
+        <h2 className="k-sect__title mb-2">保留策略</h2>
+        <div className="k-card divide-y divide-line">
           <Stepper
             label="上下文预算"
-            hint="这一轮请求的总量：系统提示词 + 工具 + 历史"
             value={`${settings.contextBudget} tokens`}
             onPrev={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, -1) })}
             onNext={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, 1) })}
@@ -205,33 +205,18 @@ export function MemoryView() {
             onPrev={() => patch({ keepRecent: step(KEEP_STEPS, settings.keepRecent, -1) })}
             onNext={() => patch({ keepRecent: step(KEEP_STEPS, settings.keepRecent, 1) })}
           />
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="text-[13px] font-medium">自动折叠</p>
-              <p className="mt-0.5 text-[11px] text-muted">关掉就一直按条数截断</p>
+          <div className="flex items-center justify-between gap-3 py-3">
+            <div className="k-row__body">
+              <p className="k-row__title">自动折叠</p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.autoCompact}
-              aria-label="自动折叠"
-              onClick={() => patch({ autoCompact: !settings.autoCompact })}
-              className={cn(
-                "relative h-7 w-12 shrink-0 rounded-full transition-colors",
-                settings.autoCompact ? "bg-ink" : "bg-fg/10",
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute top-0.5 left-0.5 size-6 rounded-full bg-elevated shadow-sm transition-transform",
-                  settings.autoCompact && "translate-x-5",
-                )}
-              />
-            </button>
+            <KSwitch
+              checked={settings.autoCompact}
+              onChange={() => patch({ autoCompact: !settings.autoCompact })}
+              label="自动折叠"
+            />
           </div>
           <Stepper
             label="每攒多少条摘一次"
-            hint="50 条约等于 25 轮对话"
             value={`${settings.summaryEvery ?? 50} 条`}
             disabled={!settings.autoCompact}
             onPrev={() => patch({ summaryEvery: step(SUMMARY_EVERY_STEPS, settings.summaryEvery ?? 50, -1) })}
@@ -243,7 +228,7 @@ export function MemoryView() {
           手动摘一次的入口：自动触发是"用到 80% 才摘"，如果他嫌晚
           （或者想立刻把前面的对话压掉），这里能现在就摘。
         */}
-        <div className="mt-3 rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="k-card mt-3">
           <p className="text-[13px] font-medium">更早的对话（摘要）</p>
           <p className="mt-0.5 text-[11px] leading-4 text-muted">
             {ctx?.hasSummary
@@ -282,7 +267,7 @@ export function MemoryView() {
                   })
                   .finally(() => setSummarizing(false));
               }}
-              className="rounded-full bg-chip px-3.5 py-2 text-[12px] font-medium disabled:opacity-40"
+              className="k-btn"
             >
               {summarizing ? "总结中…" : "现在就总结一次"}
             </button>
@@ -290,7 +275,7 @@ export function MemoryView() {
               <button
                 type="button"
                 onClick={() => useApp.getState().clearSummary(conversationId)}
-                className="rounded-full bg-chip px-3.5 py-2 text-[12px] text-muted"
+                className="k-btn text-muted"
               >
                 删掉摘要
               </button>
@@ -300,7 +285,7 @@ export function MemoryView() {
           {/* 点完的那句话 + 现在这版摘要的正文（不用跑去对话顶部找） */}
           {summaryMsg && <p className="mt-2 text-[11px] leading-4 text-ok">{summaryMsg}</p>}
           {activeSummaryText && (
-            <details className="mt-2 rounded-2xl bg-chip px-3.5 py-2.5">
+            <details className="mt-2">
               <summary className="cursor-pointer text-[12px] text-muted">
                 现在这版摘要（约 {activeSummaryText.length} 字）· 点开看
               </summary>
@@ -314,7 +299,7 @@ export function MemoryView() {
 
       {/* 缓存与用量 */}
       <section className="mt-5 px-4">
-        <h2 className="mb-2 flex items-center justify-between px-1 text-[12px] tracking-wide text-muted">
+        <h2 className="mb-2 flex items-center justify-between">
           <span>缓存命中与用量</span>
           {stats.count > 0 && (
             <button
@@ -326,7 +311,7 @@ export function MemoryView() {
             </button>
           )}
         </h2>
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="k-card">
           {stats.count === 0 ? (
             <p className="text-[12px] leading-5 text-subtle">
               还没有请求记录。发一条消息后，这里会显示输入/输出/缓存命中的真实数字，
@@ -377,8 +362,8 @@ export function MemoryView() {
 
       {/* 本地存储 */}
       <section className="mt-5 px-4">
-        <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">网页数据占用</h2>
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <h2 className="k-sect__title mb-2">网页数据占用</h2>
+        <div className="k-card">
           {!store ? (
             <p className="text-[12px] text-subtle">统计中…</p>
           ) : (
@@ -464,17 +449,18 @@ function Stepper({
   disabled,
 }: {
   label: string;
-  hint: string;
+  /** 一句补充。留空不渲染 —— 能看懂的项不再挂解释。 */
+  hint?: string;
   value: string;
   onPrev: () => void;
   onNext: () => void;
   disabled?: boolean;
 }) {
   return (
-    <div className={cn("flex items-center justify-between py-3", disabled && "opacity-50")}>
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium">{label}</p>
-        <p className="mt-0.5 text-[11px] text-muted">{hint}</p>
+    <div className={cn("flex items-center justify-between gap-3 py-3", disabled && "opacity-50")}>
+      <div className="k-row__body">
+        <p className="k-row__title">{label}</p>
+        {hint ? <p className="k-row__meta">{hint}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <button
@@ -482,7 +468,7 @@ function Stepper({
           aria-label={`${label} 减少`}
           disabled={disabled}
           onClick={onPrev}
-          className="flex size-8 items-center justify-center rounded-full bg-fg/8 text-fg"
+          className="k-btn k-btn--icon"
         >
           −
         </button>
@@ -492,7 +478,7 @@ function Stepper({
           aria-label={`${label} 增加`}
           disabled={disabled}
           onClick={onNext}
-          className="flex size-8 items-center justify-center rounded-full bg-fg/8 text-fg"
+          className="k-btn k-btn--icon"
         >
           ＋
         </button>

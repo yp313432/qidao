@@ -151,6 +151,7 @@
 
 .k-row__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--k-s-2);
   font-family: var(--k-font-num);
@@ -159,6 +160,23 @@
   letter-spacing: 0.04em;
   color: var(--k-muted);
   min-width: 0;
+}
+
+/* ── 图标方块：入口行左侧那块 32×32 的淡墨底 ─────────────────── */
+.k-tile {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  inline-size: var(--k-s-8);
+  block-size: var(--k-s-8);
+  border-radius: var(--k-card-radius);
+  background: var(--k-chip-bg);
+  color: var(--k-chip-fg);
+}
+
+.k-tile > svg {
+  inline-size: var(--k-t-4);
+  block-size: var(--k-t-4);
 }
 
 /* ── 标签 ───────────────────────────────────────────────────── */
@@ -439,6 +457,12 @@
 }
 
 /* ── 可展开卡片：一行 + 展开区（工具页三种列表共用）──────────── */
+
+/* 钉住的记忆卡：只换边线颜色，不另起一层框（用户 m03526：一层能解决就一层） */
+.k-card--pinned {
+  border-color: var(--k-accent);
+}
+
 .k-card__head {
   display: flex;
   align-items: flex-start;
@@ -787,12 +811,288 @@
   background: var(--k-surface);
 }
 
+/* ── 选择块：材质 / 纸色 / 字号 / 星球色 / 配色预设 ──────────────
+   以前这几样各写各的（圆角方块 + 粉底 + 胶囊），一页里三种长相。
+   收成一个 `.k-opt` 之后，「选一项」在全 App 只有一个样子：
+   透明底细边 —— 选中才变淡墨底 + 实线边 + 墨字。 */
+.k-opt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--k-s-2);
+  min-block-size: var(--k-tap);
+  padding-inline: var(--k-s-3);
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: transparent;
+  color: var(--k-muted);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-3);
+  line-height: var(--k-lh-1);
+  letter-spacing: 0.02em;
+  text-align: center;
+  transition:
+    background-color var(--k-d-2) var(--k-e-out),
+    color var(--k-d-2) var(--k-e-out),
+    border-color var(--k-d-2) var(--k-e-out),
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out);
+}
+
+.k-opt[data-active="true"] {
+  border-color: var(--k-line);
+  background: var(--k-chip-bg);
+  color: var(--k-fg);
+  font-weight: 700;
+  box-shadow: var(--k-card-shadow);
+}
+
+.k-opt:active {
+  translate: var(--k-press-shift) var(--k-press-shift);
+  box-shadow: var(--k-card-shadow-press);
+}
+
+.k-opt:focus-visible {
+  outline: 2px solid var(--k-fg);
+  outline-offset: 2px;
+}
+
+/* 两行的选择块（字体那种「名字 + 一句说明」）：靠左、上下排 */
+.k-opt--tall {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--k-s-1);
+  padding-block: var(--k-s-2);
+  text-align: start;
+}
+
+.k-opt__dot {
+  flex: 0 0 auto;
+  inline-size: var(--k-t-2);
+  block-size: var(--k-t-2);
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: 50%;
+}
+
+.k-opt__sub {
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--k-subtle);
+}
+
+/* 选择块的外框：几列网格，或者自动换行 */
+.k-opts {
+  display: grid;
+  gap: var(--k-s-2);
+}
+
+.k-opts[data-cols="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+
+.k-opts[data-cols="3"] {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.k-opts[data-cols="4"] {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.k-opts[data-cols="wrap"] {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+/* ── 滑杆行：标签 + 当前值 + 滑杆（触控高度也撑到 44px）────────── */
+.k-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-1);
+}
+
+.k-field[data-off="true"] {
+  opacity: 0.45;
+}
+
+.k-field__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--k-s-3);
+  font-family: var(--k-font-num);
+  font-size: var(--k-t-1);
+  letter-spacing: 0.08em;
+  color: var(--k-muted);
+}
+
+.k-field__val {
+  color: var(--k-fg);
+}
+
+.k-range {
+  inline-size: 100%;
+  min-block-size: var(--k-tap);
+  accent-color: var(--k-accent);
+  background: transparent;
+}
+
+/* ── 取色器一格（对话框配色 / 星球色 / 文字颜色都点它）────────── */
+.k-color {
+  inline-size: var(--k-tap);
+  block-size: var(--k-tap);
+  padding: 0;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-ctl-radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ── 缩略图（背景图那三格槽位）────────────────────────────────── */
+.k-thumb {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  inline-size: var(--k-tap);
+  block-size: var(--k-tap);
+  overflow: hidden;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: var(--k-chip-bg);
+  color: var(--k-subtle);
+}
+
+.k-thumb > img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.k-thumb > svg {
+  inline-size: var(--k-t-4);
+  block-size: var(--k-t-4);
+}
+
+/* ── 一句话说明（每个展开区底部只留一句；长解释折进 .k-note）──── */
+.k-hint {
+  margin: 0;
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-2);
+  color: var(--k-subtle);
+}
+
+/* ── 卡里的一小块（诊断信息 / 频率条 / 忙的状态）：不要再画一张圆卡 ────
+   纯色下旧代码爱用 `rounded-2xl bg-chip` 当"块"——半径 16px 比纸卡（8px）还圆，
+   一眼就看出来不是一套。这块用同一套变量画：淡墨底、细线、纸卡圆角。 */
+/* 一组内容 —— **不画框、不铺底、不留内边距**。
+   卡自己已经是那层框了，卡里再画框就成了"外一层、里一层"（用户 2026-11-07 明确不要）。
+   所以这里只负责"竖排 + 间距"，要分块靠外边距，不靠第二层纸。 */
+.k-inset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-2);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-t-2);
+  line-height: var(--k-lh-2);
+  color: var(--k-muted);
+}
+
+/* 旧调用点还挂着这个类，现在 k-inset 本来就没框没底，留着当空类。 */
+
+/* 警示用的那一块（导入失败的备份、停用的功能） */
+.k-inset[data-tone="warn"] {
+  color: var(--k-fg);
+}
+
+/* ── 卡里套卡时自动降级：`.k-sub` 嵌在 `.k-card` 里就只当标题用 ────
+   新页面把分类「铺开」之后，一个分类就是一张纸卡；但旧 `/system` 页仍然
+   把同样的分类塞在「聊天 / 通知 / 语音」这类折叠卡里面 —— 那会变成卡里套卡。
+   这条让它降级成「小标题 + 内容」，两种摆法共用同一份 JSX。 */
+.k-card .k-sub {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* ── 性别符号钮：名字后面那颗 ♀ / ♂ / ·（首页大卡片用）────────── */
+.k-gender {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  inline-size: var(--k-s-7);
+  block-size: var(--k-s-7);
+  padding: 0;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-ctl-radius);
+  background: transparent;
+  color: var(--k-muted);
+  font-family: var(--k-font-label);
+  font-size: var(--k-t-2);
+  line-height: 1;
+  transition:
+    color var(--k-d-2) var(--k-e-out),
+    border-color var(--k-d-2) var(--k-e-out),
+    translate var(--k-d-1) var(--k-e-out);
+}
+
+.k-gender[data-on="true"] {
+  border-color: var(--k-line);
+  color: var(--k-fg);
+}
+
+.k-gender:active {
+  translate: var(--k-press-shift) var(--k-press-shift);
+}
+
+.k-gender:focus-visible {
+  outline: 2px solid var(--k-fg);
+  outline-offset: 2px;
+}
+
+/* ── 会塌的主卡（「我的」封面 / 「AI 概览」顶层）：只给材质，布局交给页面 ──
+   不能直接用 `.k-card`：它自带 `position: relative` 和内边距，会跟页面上的
+   `absolute inset-0` 打架（kit.css 在 Tailwind utilities 之后，会盖掉 absolute）。 */
+.k-cover {
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  box-shadow: var(--k-card-shadow);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+}
+
+/* ── 主卡里那排大数字（允许 / 需询问 / 已拒绝）─────────────── */
+.k-num-lg {
+  margin: 0;
+  font-family: var(--k-font-serif);
+  font-size: var(--k-t-6);
+  line-height: var(--k-lh-1);
+  color: var(--k-fg);
+}
+
+.k-num-lg[data-tone="warn"] {
+  color: var(--k-warn);
+}
+
+.k-num-lg[data-tone="muted"] {
+  color: var(--k-muted);
+}
+
 /* ── 尊重系统设置：不要动效 ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .k-card,
   .k-row,
   .k-btn,
   .k-tab,
+  .k-opt,
+  .k-gender,
   .k-chev,
   .k-switch,
   .k-switch__knob {
@@ -800,7 +1100,8 @@
   }
   .k-row:active,
   .k-btn:active,
-  .k-tab:active {
+  .k-tab:active,
+  .k-opt:active {
     /* 用 `0 0` 而不是 `none`：Lightning CSS 会把 `translate: none` 整条删掉
        （design/ARCHITECTURE.md 坑 2），写了等于没写 */
     translate: 0 0;

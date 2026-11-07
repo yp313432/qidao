@@ -33,6 +33,13 @@ export const TAB_OWNED_PATHS: Record<string, string[]> = {
     "/memories",
     "/memory",
     "/env",
+    /* 2026-11-07 结构 B：设置拆成 6 页，新页补登在这里，否则点进去「我的」不亮 */
+    "/profile",
+    "/chat-settings",
+    "/notify",
+    "/voice-settings",
+    "/privacy",
+    "/about",
     /*
       ⚠️ /alarms 和 /tasks 从这份表里**拿掉了** ——
       它们已经挪到「玩乐 → 小日子」下面，路径变成
@@ -51,7 +58,9 @@ export const TAB_OWNED_PATHS: Record<string, string[]> = {
  */
 export function tabOwning(pathname: string): string | null {
   for (const tab of MAIN_TABS) {
-    if (tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) {
+    if (
+      tab.to === "/" ? pathname === "/" : pathname === tab.to || pathname.startsWith(`${tab.to}/`)
+    ) {
       return tab.to;
     }
   }

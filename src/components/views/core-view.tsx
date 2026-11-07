@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  Brain,
+  ChevronRight,
+  ShieldCheck,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { FileButton } from "@/components/shared/file-button";
 import { readImageFile } from "@/lib/image-file";
 import { PageHeader } from "@/components/shared/page-header";
@@ -9,14 +16,39 @@ import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
 
 /**
- * 「AI 概览」—— 文档里的"大玻璃主卡"。
+ * 「AI 概览」—— 他现在的样子（大幅主卡 + 三个入口）。
  *
  * AI核心说明第 3 节："AI概览：顶部大玻璃主卡。显示 AI 名称、头像、一句描述，
  * 以及'能感知多少项 / 正在使用多少项 / 待确认多少项'等概览。"
  *
  * 这一页基本**只读**：不提供任何开关，改权限去「感知权限」那一页。
  * 唯一的两个例外（用户 m14237："ai 的名字和头像挪到 ai 概览那里改"）：点头像换图、点名字改名。
+ *
+ * ── 2026-11-07 换成标准件（用户 m03042）───────────────────────
+ * 原话："它的 AI 概览点进去，那个是不还是原图标，没有同步纸片。"
+ * 病根是这一页还带着迁移前那一套：`rounded-3xl` + `border-line` + `bg-chip` 的圆卡、
+ * 24px 的 lucide 图标直接裸摆。现在：
+ *   · 主卡用 `.k-cover`（跟 `.k-card` 同一套变量：1px 发丝线、8px 纸角、两层软纸影）
+ *   · 三个入口换成 `.k-row`（工具页那种纸卡行）+ 32×32 的 `.k-tile` 装图标
+ *   · 灰色说明统一 `.k-hint`
+ * 塌陷动画（同一个头像、同一个名字连续缩进顶栏）一行没改，只换了外壳的材质。
  */
+const ENTRIES: { to: string; label: string; hint: string; icon: LucideIcon }[] = [
+  {
+    to: "/permissions",
+    label: "感知权限",
+    hint: `${PERMISSIONS.length} 项能力，按 ${GROUPS.length} 组收着`,
+    icon: ShieldCheck,
+  },
+  {
+    to: "/worldbook",
+    label: "怎么和你相处",
+    hint: "给他的规矩 · 说话风格 · 思考引导",
+    icon: BookOpen,
+  },
+  { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图", icon: Brain },
+];
+
 export function CoreView() {
   const settings = useApp((s) => s.settings);
   const patch = useApp((s) => s.patchSettings);
@@ -38,7 +70,7 @@ export function CoreView() {
   /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
   const needRef = useRef(0);
 
-  const HEAD_H = 352; // 主卡展开高度（行程 = 352-46 = 306px）
+  const HEAD_H = 340; // 主卡展开高度（行程 = 340-46 = 294px）
   const BAR_H = 46; // 收进顶栏后的高度
   const AV0 = 80;
   const AV1 = 24;
@@ -78,7 +110,7 @@ export function CoreView() {
     }
     if (nameRef.current) {
       const x = lerp((W - NAME_W) / 2, 8 + AV1 + 8, e);
-      const y = Math.min(lerp(150, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
+      const y = Math.min(lerp(146, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
       nameRef.current.style.transform = `translate(${x}px, ${y}px) scale(${lerp(1, 0.62, e)})`;
       const el2 = nameRef.current.firstElementChild as HTMLElement | null;
       if (el2) el2.style.textAlign = e > 0.5 ? "left" : "center";
@@ -176,137 +208,137 @@ export function CoreView() {
         >
           <div
             ref={headRef}
-            className="absolute inset-x-0 top-0 overflow-hidden rounded-3xl"
+            className="absolute inset-x-0 top-0 overflow-hidden"
             style={{ height: HEAD_H }}
           >
-          <div ref={cardRef} className="absolute inset-0 rounded-3xl border border-line bg-elevated" />
-          <div
-            ref={barRef}
-            className="absolute inset-x-0 top-0 h-[46px] rounded-3xl"
-            style={{
-              opacity: 0,
-              backgroundColor: "var(--aster-surface)",
-              backdropFilter: "blur(18px) saturate(1.5)",
-              WebkitBackdropFilter: "blur(18px) saturate(1.5)",
-              borderBottom: "0.5px solid var(--aster-line)",
-            }}
-          />
-          <span
-            ref={avRef}
-            /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
-            className="pointer-events-auto absolute left-0 top-0 block"
-            style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
-          >
-            <FileButton
-              ariaLabel="更换 AI 头像"
-              accept="image/*"
-              className="flex size-full items-center justify-center overflow-hidden rounded-full bg-chip"
-              onPick={(files) => {
-                const file = files[0];
-                if (file) readImageFile(file, (url) => patch({ aiAvatar: url }));
+            <div ref={cardRef} className="k-cover absolute inset-0" />
+            <div
+              ref={barRef}
+              className="absolute inset-x-0 top-0 h-[46px]"
+              style={{
+                opacity: 0,
+                borderRadius: "var(--k-card-radius)",
+                backgroundColor: "var(--aster-surface)",
+                backdropFilter: "blur(18px) saturate(1.5)",
+                WebkitBackdropFilter: "blur(18px) saturate(1.5)",
+                borderBottom: "0.5px solid var(--aster-line)",
               }}
+            />
+            <span
+              ref={avRef}
+              /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
+              className="pointer-events-auto absolute left-0 top-0 block"
+              style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
             >
-              {settings.aiAvatar ? (
-                <img src={settings.aiAvatar} alt={aiName} className="size-full object-cover" />
-              ) : (
-                <Sparkles className="size-7 text-accent" />
-              )}
-            </FileButton>
-          </span>
-          <span
-            ref={nameRef}
-            /* 同上：点名字要能进编辑态，得单独顶回可点击 */
-            className="pointer-events-auto absolute left-0 top-0 block"
-            style={{ width: NAME_W, transformOrigin: "0 0" }}
-          >
-            {editingName ? (
-              <input
-                autoFocus
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value.slice(0, 12))}
-                onBlur={() => {
-                  patch({ aiName: draftName.trim() });
-                  setEditingName(false);
+              <FileButton
+                ariaLabel="更换 AI 头像"
+                accept="image/*"
+                className="k-tile size-full overflow-hidden rounded-full"
+                onPick={(files) => {
+                  const file = files[0];
+                  if (file) readImageFile(file, (url) => patch({ aiAvatar: url }));
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+              >
+                {settings.aiAvatar ? (
+                  <img src={settings.aiAvatar} alt={aiName} className="size-full object-cover" />
+                ) : (
+                  <Sparkles className="size-7" />
+                )}
+              </FileButton>
+            </span>
+            <span
+              ref={nameRef}
+              /* 同上：点名字要能进编辑态，得单独顶回可点击 */
+              className="pointer-events-auto absolute left-0 top-0 block"
+              style={{ width: NAME_W, transformOrigin: "0 0" }}
+            >
+              {editingName ? (
+                <input
+                  autoFocus
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value.slice(0, 12))}
+                  onBlur={() => {
                     patch({ aiName: draftName.trim() });
                     setEditingName(false);
-                  }
-                  if (e.key === "Escape") setEditingName(false);
-                }}
-                maxLength={12}
-                aria-label="AI 名字"
-                placeholder={aiName}
-                className="w-full bg-transparent text-center font-serif text-xl outline-none placeholder:text-subtle"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftName(settings.aiName ?? "");
-                  setEditingName(true);
-                }}
-                aria-label="改 AI 的名字"
-                className="w-full text-center font-serif text-xl"
-              >
-                {aiName}
-              </button>
-            )}
-          </span>
-          <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 190 }}>
-            <p className="text-center text-[12px] leading-5 text-muted">
-              在 {settings.displayName || "你"} 的这个小世界里，陪你说话的那个
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-5">
-              <div>
-                <p className="font-serif text-2xl">{allow}</p>
-                <p className="mt-0.5 text-[11px] text-subtle">允许</p>
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      patch({ aiName: draftName.trim() });
+                      setEditingName(false);
+                    }
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                  maxLength={12}
+                  aria-label="AI 名字"
+                  placeholder={aiName}
+                  className="w-full bg-transparent text-center font-serif text-xl outline-none placeholder:text-subtle"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftName(settings.aiName ?? "");
+                    setEditingName(true);
+                  }}
+                  aria-label="改 AI 的名字"
+                  className="w-full text-center font-serif text-xl"
+                >
+                  {aiName}
+                </button>
+              )}
+            </span>
+            <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 178 }}>
+              <p className="k-hint text-center">
+                在 {settings.displayName || "你"} 的这个小世界里，陪你说话的那个
+              </p>
+              <div className="mt-[var(--k-s-4)] flex items-center justify-center gap-5">
+                {[
+                  { n: allow, label: "允许", tone: "" },
+                  { n: ask, label: "需询问", tone: "warn" },
+                  { n: deny, label: "已拒绝", tone: "muted" },
+                ].map((it) => (
+                  <div key={it.label} className="text-center">
+                    <p className="k-num-lg" data-tone={it.tone || undefined}>
+                      {it.n}
+                    </p>
+                    <p className="k-sect__title mt-1">{it.label}</p>
+                  </div>
+                ))}
               </div>
-              <div>
-                <p className="font-serif text-2xl text-warn">{ask}</p>
-                <p className="mt-0.5 text-[11px] text-subtle">需询问</p>
-              </div>
-              <div>
-                <p className="font-serif text-2xl text-muted">{deny}</p>
-                <p className="mt-0.5 text-[11px] text-subtle">已拒绝</p>
-              </div>
+              <p className="k-hint mt-[var(--k-s-3)] text-center">
+                他现在记得 {activeMemories} 条关于你的事
+              </p>
             </div>
-            <p className="mt-3 text-[11px] text-subtle">
-              他现在记得 {activeMemories} 条关于你的事
-            </p>
           </div>
         </div>
-        </div>
 
-        {/* 二级入口：跟「我的 → AI 核心」一致 */}
+        {/* 三个入口：跟工具页那排卡同一副骨架（.k-row + .k-tile） */}
         <section className="mt-5">
-          <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">往下看</h2>
-          <div className="space-y-2">
-            {[
-              { to: "/permissions", label: "感知权限", hint: `${PERMISSIONS.length} 项能力，按 ${GROUPS.length} 组收着` },
-              { to: "/worldbook", label: "怎么和你相处", hint: "给他的规矩 · 说话风格 · 思考引导" },
-              { to: "/memories", label: "他记得你什么", hint: "记忆库：列表 + 关系图" },
-            ].map((it) => (
-              <Link
-                key={it.to}
-                to={it.to}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-chip px-3.5 py-3"
-              >
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-medium">{it.label}</span>
-                  <span className="mt-0.5 block text-[11px] text-subtle">{it.hint}</span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-muted" />
-              </Link>
-            ))}
+          <div className="k-sect">
+            <p className="k-sect__title">往下看</p>
+            <span className="k-sect__act">{String(ENTRIES.length).padStart(2, "0")}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {ENTRIES.map((it) => {
+              const Icon = it.icon;
+              return (
+                <Link key={it.to} to={it.to} className="k-row">
+                  <span className="k-tile" aria-hidden="true">
+                    <Icon strokeWidth={1.6} />
+                  </span>
+                  <span className="k-row__body">
+                    <span className="k-row__title">{it.label}</span>
+                    <span className="k-row__meta">{it.hint}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden="true" />
+                </Link>
+              );
+            })}
           </div>
         </section>
 
-        <p className="mt-6 px-1 text-[11px] leading-5 text-subtle">
-          点名字能改、点头像能换；其他设置点上面那三项进去改。
-        </p>
-        {/* 占位：保证「主卡塌成顶栏」那 306px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
+        <p className="k-hint mt-6 px-1">点名字能改、点头像能换；其他设置点上面那三项进去改。</p>
+        {/* 占位：保证「主卡塌成顶栏」那 294px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
         <div ref={spacerRef} aria-hidden style={{ height: HEAD_H - BAR_H, flexShrink: 0 }} />
       </div>
     </div>

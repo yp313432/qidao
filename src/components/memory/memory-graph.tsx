@@ -208,7 +208,7 @@ export function MemoryGraph({
         const o = byId.get(id);
         if (!o) continue;
         const fade = Math.min(n.retention, o.retention);
-        ctx.strokeStyle = `rgba(150,150,150,${0.10 + fade * 0.22})`;
+        ctx.strokeStyle = `rgba(150,150,150,${0.1 + fade * 0.22})`;
         ctx.lineWidth = 0.8 + fade * 0.9;
         ctx.beginPath();
         ctx.moveTo(n.x, n.y);
@@ -273,7 +273,7 @@ export function MemoryGraph({
       <canvas
         ref={canvasRef}
         style={{ width: size.w, height: size.h, touchAction: "none" }}
-        className="rounded-3xl border border-line bg-surface"
+        className="rounded-[var(--k-card-radius)] border border-line bg-surface"
         onPointerDown={(e) => {
           const hit = hitTest(e.clientX, e.clientY);
           dragRef.current = {
@@ -296,8 +296,10 @@ export function MemoryGraph({
             if (node) {
               const canvas = canvasRef.current!;
               const rect = canvas.getBoundingClientRect();
-              node.x = (e.clientX - rect.left - size.w / 2 - transform.current.x) / transform.current.k;
-              node.y = (e.clientY - rect.top - size.h / 2 - transform.current.y) / transform.current.k;
+              node.x =
+                (e.clientX - rect.left - size.w / 2 - transform.current.x) / transform.current.k;
+              node.y =
+                (e.clientY - rect.top - size.h / 2 - transform.current.y) / transform.current.k;
               node.vx = 0;
               node.vy = 0;
               draw();
@@ -314,16 +316,22 @@ export function MemoryGraph({
           dragRef.current = { id: null, panning: false, lastX: 0, lastY: 0 };
         }}
         onWheel={(e) => {
-          transform.current.k = Math.max(0.4, Math.min(2.6, transform.current.k * (e.deltaY < 0 ? 1.08 : 0.93)));
+          transform.current.k = Math.max(
+            0.4,
+            Math.min(2.6, transform.current.k * (e.deltaY < 0 ? 1.08 : 0.93)),
+          );
           draw();
         }}
       />
 
       {/* 图例 + 缩放提示（加一层底色，免得压在节点上看不清） */}
-      <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-surface/78 px-2.5 py-1.5 text-[10px] text-subtle backdrop-blur-sm">
+      <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--k-card-radius)] bg-surface/78 px-2.5 py-1.5 text-[10px] text-subtle">
         {(Object.keys(KIND_COLOR) as Memory["kind"][]).map((k) => (
           <span key={k} className="inline-flex items-center gap-1">
-            <span className="size-1.5 rounded-full" style={{ background: `rgb(${KIND_COLOR[k]})` }} />
+            <span
+              className="size-1.5 rounded-full"
+              style={{ background: `rgb(${KIND_COLOR[k]})` }}
+            />
             {KIND_LABEL[k]}
           </span>
         ))}
