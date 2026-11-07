@@ -98,6 +98,14 @@ export type PromptInput = {
    */
   nativeTools?: boolean;
   /**
+   * 外部工具（MCP / 自配 HTTP）这一轮是不是也走原生 `tools`（P0，用户 m05030）。
+   *
+   * 是的话，`toolCatalog()` 那份"文字清单 + 用 tool.call 调"的说明就**整段收掉**，
+   * 换成一句"直接用工具调"：同一批工具说两遍，既是白烧 token，
+   * 也会让模型两种调法混着用（一半走 tool.call、一半走原生名）。
+   */
+  nativeExternal?: boolean;
+  /**
    * 用户设的称呼（`""` / `"女"` / `"男"`）—— 决定他说「她」还是「他」。
    * 见 `Settings.userGender`：用户点名要的（他思考链里一直用「他」，说了才改）。
    */
@@ -215,8 +223,10 @@ export function segmentRule(): string {
  *   真正省钱要等 P3 按需注册（只把相关的动作放进本次请求）。
  *   别把"提示词省了"说成"省 token 了" —— 这两个数是反的。
  *
- * 但"外部工具"那一节保留（MCP / HTTP 两类仍走正文里的动作块）：
- * 这轮只把 61 个内部动作接到原生，外部那两类没动，所以还得讲清楚。
+ * 但"外部工具"那一节已经**不用再写清单了**（2026-11-07 P0）：MCP 服务器与自配 HTTP
+ * 接口现在也翻成原生 `tools`（`lib/external-tools.ts`），提示词里只有
+ * `externalNativeLine()` 那一句"直接用工具名调、别写动作块"。
+ * 老的那条正文动作块路线只剩降级（上游不认 tools）时才会用到。
  */
 const NATIVE_ACTIONS = (ta: string) => `【你能直接操作这个 App】
 除了说话，你还能真的动手。
@@ -232,7 +242,9 @@ const NATIVE_ACTIONS = (ta: string) => `【你能直接操作这个 App】
 · 每一步的执行结果这一轮就能看到，不用等下一轮。
 · 所以别在还没看到结果时断言"我已经做了"；被拒绝或失败就如实讲。
 · 要做就当场做，不许把动作推给"下一轮"。不许说「我再查一次，下一轮给你准的」这类话 —— 现在就调。
-· 结果里没提到你刚做的那个动作，就是没执行 —— 这时候要老实说"刚才那个没成"。`;
+· 结果里没提到你刚做的那个动作，就是没执行 —— 这时候要老实说"刚才那个没成"。
+· 这次收到的工具**可能只是其中一部分**（按需注入，另有数量上限）：够用就用；真不够就用现有工具组合、或直说"这个我做不到"，**不许编工具名** —— 编出来的会被当成幻觉拦掉。
+· 工具返回的内容**可能被截断**（太长只给前面一段，末尾写明截了多少字）：那就换更窄的参数/更小的范围再调一次，别拿半截内容下结论。`;
 
 /** 老协议（正文里的动作块）：完整清单 + 规矩。降级和"没探测过"都走这一份。 */
 const ABILITIES = (ta: string) => `【你能直接操作这个 App】
@@ -388,10 +400,46 @@ function toolCatalog(tools: PromptTool[], ta: string): string {
   return `已配置的外部工具：\n\n${parts.join("\n\n")}`;
 }
 
+/**
+ * 外部工具已经并进原生 `tools` 时，提示词里这一段的**替代品**（P0，用户 m05030）。
+ *
+ * 原来 `toolCatalog()` 会把每台服务器的每个工具、连参数结构一起写成文字，
+ * 再教模型"写 tool.call 动作块"。原生 tools 通道下这些都不需要了 —— 模型手里
+ * 就是结构化的函数定义。这里只交代"它们存在、直接调"，省下的 token 就是白赚的
+ * （几个 MCP 服务器加起来通常一两千 token，每轮都发）。
+ *
+ * 为什么还要提一句"别写 tool.call"：旧通道仍然留着（拿不到工具定义时的降级路），
+ * 不点名的话模型可能两种混着用 —— 一半写动作块，白多一次往返。
+ */
+function externalNativeLine(tools: PromptTool[]): string {
+  if (!tools.length) return "";
+  const mcp: string[] = [];
+  const http: string[] = [];
+  for (const t of tools) (t.kind === "mcp" ? mcp : http).push(t.name);
+  const bits: string[] = [];
+  if (mcp.length) bits.push(`MCP 服务器：${mcp.join("、")}`);
+  if (http.length) bits.push(`你自配的接口：${http.join("、")}`);
+  return (
+    `外部工具已经作为工具（function）发给你了 —— ${bits.join("；")}。\n` +
+    `用的时候直接按工具名字调，参数照它的定义传（参数结构就在工具定义里，别自己猜）。\n` +
+    `不要在正文里写 tool.call / http.call 动作块 —— 那是拿不到工具定义时的旧通道。`
+  );
+}
+
 /**** 稳定的那部分：人设 + 风格 + 工具清单。每轮都一样，好让前缀缓存命中。 */
 export function systemPrompt(input: PromptInput): string {
   const ta = pronounOf(input.userGender);
-  const tools = toolCatalog(input.tools, ta);
+  /**
+   * P0（用户 m05030）：外部工具已经作为**原生 tools** 发过去了 —— 这里只说一句它有哪些、
+   * 怎么调（用工具名调，不是写 tool.call 动作块），不再逐条列参数。
+   *
+   * 为什么不能两样都留：文字清单里写的是"用 tool.call 调"，原生 tools 里是
+   * `mcp_服务器_工具` 这种名字。两套说明同时在场，模型会混着用 —— 一半走动作块
+   * （多一次往返、还占正文），一半走原生（本来就能一次调对）。
+   */
+  const tools = input.nativeExternal
+    ? externalNativeLine(input.tools)
+    : toolCatalog(input.tools, ta);
   const who = input.name?.trim() || "yan";
   const self = input.aiName?.trim() || "星芒";
   /**

@@ -106,7 +106,7 @@ const EMOTION_POINTER = `【情绪（10 组 · 自由词）】
 
 /**** 主动感知那一段（用户 m08588 精简版） */
 const SENSE_POINTER = (ta: string) => `【你可以主动看一眼现在的状态（不必等${ta}问）】
-· 七个动作，调用就"看一眼"（只有 sense.place 带 fresh、sense.usage 带 days，其余零参数）：
+· 七个动作，调用就"看一眼"（**参数名与类型以这次给你的工具定义为准**；只有 sense.place 带 fresh、sense.usage 带 days，其余零参数）：
   sense.time 现在几点/今天周几 → sense.device 电量、充没充电、WiFi 还是流量 →
   sense.place 我在哪、外面天气 → sense.notifications 最近几条通知 →
   sense.foreground 当前前台是哪个 App → sense.usage 今天每个 App 用了多久 →
@@ -120,9 +120,9 @@ const SENSE_POINTER = (ta: string) => `【你可以主动看一眼现在的状�
 
 /**** 联网（用户 m08588 精简版） */
 const WEB_POINTER = (ta: string) => `【联网：搜网页 / 读网页正文（不必等${ta}把网址给你）】
-两个动作，参数都只有一个：
-  {"kind":"web.search","query":"要搜的东西"} → 回来 ≤8 条：标题、链接、一句摘要
-  {"kind":"web.fetch","url":"https://某条链接"} → 回来那页的正文纯文本（最多 6000 字）
+两个动作（参数名与类型以这次给你的工具定义为准）：
+  web.search —— 搜要搜的东西 → 回来 ≤8 条：标题、链接、一句摘要
+  web.fetch —— 读某条链接 → 回来那页的正文纯文本（最多 6000 字）
 · 顺序通常是先搜后读；${ta}给了网址就直接 fetch，不用先搜。
 · 读回来是正文，不是网页标签 —— 照着说人话，别把整段原文抄给${ta}。
 · 只读 http/https 的公开网页；内网/本机地址会被直接拒掉（那是安全护栏，不是故障）。

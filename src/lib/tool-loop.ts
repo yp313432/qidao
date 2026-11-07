@@ -4,6 +4,16 @@ import type { ApiMessage, ChatDelta } from "@/lib/chat-client";
 import { parseToolArgs } from "@/lib/tool-wire";
 import type { AssembledToolCall } from "@/lib/tool-calls";
 import type { AppAction, ToolCallRecord } from "@/lib/types";
+// 外部工具（MCP / 自配 HTTP）走同一条原生 tools 通道 —— 见 `external-tools.ts` 的文件头
+import { matchExternalTool, type ExternalActionTool } from "@/lib/external-tools";
+
+/**
+ * 能塞进 `tools` 数组的东西：内置动作（`ActionTool`）+ 外部工具（`ExternalActionTool`）。
+ *
+ * 为什么不干脆都写成 `ActionTool`：MCP 服务器的 `inputSchema` 是**任意** JSON Schema，
+ * 硬套我们那张窄表会丢掉 `enum` / `additionalProperties` 这些模型真需要的字段。
+ */
+export type ToolDef = ActionTool | ExternalActionTool;
 
 /**
  * 原生 `tools` 的**多轮循环（agent loop）** —— P2 的核心，P6 补上"上限与如实收尾"。
@@ -45,11 +55,12 @@ import type { AppAction, ToolCallRecord } from "@/lib/types";
  * 一轮最多几**步**（一次工具执行算一步）—— agent loop 的步数上限。
  *
  * ⚠️ 2026-10 从 **6 抬到 12**：用户实测"经常停"（原话："动手上限解除吧，不然经常停"）。
- * 12 是折中：既让他一次把"删旧的 + 建新的 + 改外观"这种多步活干完，
- * 又不至于放任模型"调一下、再调一下"（每多一步 = 一次真金白银的往返）。
+ * 2026-11（m05030 P1）再抬到 **16**：12 步在多工具组合活上仍然会撞上限
+ * （"查一下 → 记进记忆 → 改个设置 → 写进日记 → 设个提醒" 就是五步，
+ * 中间任何一步参数返工就顶到了）。16 配 240 秒墙钟预算，够走完一个像样的任务。
  * 撞上限时照旧**如实说明**（`limitNote`），不许假装做完了。
  */
-export const TOOL_LOOP_MAX = 12;
+export const TOOL_LOOP_MAX = 16;
 
 /** 一整轮（从发出第一条消息到收尾）的墙钟预算：到点必须停下来并如实说明 */
 // 2026-10-31：150 秒读不完一轮多步的记忆库/文档 → 240 秒
@@ -152,7 +163,7 @@ export type ToolRoundResult = {
 /** 单轮请求：`messages` 由循环负责拼（含上一轮的 tool 回灌） */
 export type ToolRoundSend = (args: {
   messages: ApiMessage[];
-  tools: ActionTool[] | null;
+  tools: ToolDef[] | null;
   /** 这一轮有什么数据变化（给界面做节流刷新用） */
   onDelta: (d: ChatDelta) => void;
   signal?: AbortSignal;
@@ -263,6 +274,34 @@ export async function runOneAction(
   app: ActionQueue,
   deadline?: number,
 ): Promise<ToolCallOutcome> {
+  /**
+   * 外部工具（MCP / 自配 HTTP）—— P0 之后它们也是原生 tools，名字带 `mcp_` / `http_` 前缀。
+   * 这里先路由回 `tool.call` / `http.call` 两笔动作，再交给同一个闸门：
+   * 权限、确认卡片、actionLog 留痕跟内置动作一模一样。
+   */
+  const external = matchExternalTool(call.name);
+  if (external) {
+    const label =
+      external.kind === "mcp" ? `MCP · ${external.server}/${external.tool}` : `接口 · ${external.tool}`;
+    const parsedExt = parseToolArgs(call.args);
+    if (parsedExt.error) {
+      return {
+        ok: false,
+        category: "badargs",
+        title: `${label} 参数不对`,
+        notice: `❌ ${label} · 参数不是合法 JSON：${parsedExt.error}`,
+        result:
+          `「${label}」没执行：${parsedExt.error}。` +
+          `请按这个工具的参数结构重新写一个合法的 JSON 对象再调一次。`,
+      };
+    }
+    const action: AppAction =
+      external.kind === "mcp"
+        ? { kind: "tool.call", server: external.server, tool: external.tool, args: parsedExt.args }
+        : { kind: "http.call", tool: external.tool, args: parsedExt.args };
+    return await gateAction(action, app, signal, deadline);
+  }
+
   const kind = kindOfToolName(call.name);
   /**
    * 不是我们的工具名 —— 只可能是模型瞎编的。
@@ -315,6 +354,24 @@ export async function runOneAction(
   }
 
   const action = { kind, ...parsed.args } as AppAction;
+  return await gateAction(action, app, signal, deadline);
+}
+
+/**
+ * 把一笔动作交给闸门（权限判定 + 确认卡片都在那一侧），并等它的结果。
+ *
+ * ⚠️ 抽出来是为了让**外部工具**（MCP / 自配 HTTP）跟内置动作走**同一条**路：
+ * 它们也变成一笔 `tool.call` / `http.call` 动作，然后同样排队、同样过权限、同样在
+ * `actionLog` 里留痕。原来的写法是只有内置动作走这条路 —— 外部工具如果另开一条
+ * "直接执行"的分支，就会变成"一套过闸门、一套不过闸门"，那是最危险的走散。
+ */
+async function gateAction(
+  action: AppAction,
+  app: ActionQueue,
+  signal: AbortSignal | undefined,
+  deadline: number | undefined,
+): Promise<ToolCallOutcome> {
+  const kind = action.kind as string;
   const logBefore = new Set(app.getState().actionLog.map(stampOf));
   app.getState().requestAction(action, "AI");
 
@@ -523,6 +580,36 @@ async function waitForResolution(
 }
 
 /**
+ * 一条工具结果回灌给模型时最多带多少字。
+ *
+ * 为什么必须有上限（2026-11-07，用户 m05306："参考市面常规要求做限制"）：
+ * 工具结果是**普通消息**，会一直躺在历史里。MCP 服务器返回个几百 KB 的 JSON、
+ * HTTP 工具抓回来一整篇文章，都能把上下文挤掉 —— 而且每一轮都重发，费钱又变慢。
+ * 业界常见做法是"截断 + 明确告诉模型截断了"（Claude Code 的 Bash 输出、各种 agent 框架
+ * 都在 8k~30k 字符这个量级上切）。这里取 **8000 字**：够放下一页正文/一段 JSON 摘要，
+ * 又不会一条结果就吃掉四分之一的窗口。
+ *
+ * ⚠️ 只截**回给模型的那一份**：界面上的 `notice` / `result` 保持完整，
+ * 用户点开还能看到全部（"模型看不到"和"用户看不到"是两件事，别一起砍）。
+ */
+export const MAX_TOOL_RESULT_CHARS = 8000;
+
+/**
+ * 截断工具结果，并在尾巴上如实说明截了多少。
+ *
+ * **必须告诉模型"被截断了"**：不说的话它会以为这就是全部内容，
+ * 然后基于半截 JSON 继续推断，错得还很自信。
+ */
+function clipToolResult(text: string): string {
+  if (text.length <= MAX_TOOL_RESULT_CHARS) return text;
+  const kept = text.slice(0, MAX_TOOL_RESULT_CHARS);
+  return (
+    `${kept}\n\n…（结果共 ${text.length} 字，这里只给了前 ${MAX_TOOL_RESULT_CHARS} 字，` +
+    `后面的没发给你。需要完整内容就换个更窄的查询/参数再调一次。）`
+  );
+}
+
+/**
  * 把工具结果拼成回灌的消息（OpenAI 兼容：assistant 带 tool_calls，紧接着一条条 `role:"tool"`）。
  *
  * **顺序不能变**：先 assistant（带 `tool_calls`）再 tool 结果 —— 缺了前一条，
@@ -559,7 +646,7 @@ export function toolResultMessages(
   const results: ApiMessage[] = calls.map((c, i) => ({
     role: "tool",
     tool_call_id: c.id ?? `call_${i}`,
-    content: outcomes[i]?.result ?? outcomes[i]?.notice ?? "（没有结果）",
+    content: clipToolResult(outcomes[i]?.result ?? outcomes[i]?.notice ?? "（没有结果）"),
   }));
   return [assistant, ...results];
 }
@@ -684,6 +771,52 @@ function noteUnknownRepeats(
 }
 
 /**
+ * 外部工具在记录/界面里算哪一类动作。
+ *
+ * 内置动作名由 `kindOfToolName()` 认，外部工具名（`mcp_*` / `http_*`）它认不出来 ——
+ * 不补这一层，界面那一行就只剩个名字、没有"调 MCP 工具"这个语义，
+ * 与旁边内置动作的展示不一致（用户看历史时会以为那一行坏了）。
+ */
+function externalKind(callName: string): string | null {
+  const entry = matchExternalTool(callName);
+  if (!entry) return null;
+  return entry.kind === "mcp" ? "tool.call" : "http.call";
+}
+
+/**
+ * 同一个工具反复失败 → 往结果尾巴上钉一句"换路"（P1，用户 m05030）。
+ *
+ * 跟 `noteUnknownRepeats` 的分工要说清：
+ *   · 那个是**硬终止**（名字根本不存在，再试也不会成）；
+ *   · 这个是**软纠正**（工具存在、只是这次没成：少参数、被拒、对方 500、要授权）。
+ *     软纠正不能直接停 —— 少补一个参数就成的事，停了等于活没干。所以只提醒。
+ *
+ * `pending` / `skipped` **不算失败**：那不是"做错了"，是"还没结果"（等用户点确认 /
+ * 这一轮时间用完）。把它们算进去会让模型以为自己做错了，转头去解释一通。
+ */
+function noteRepeatedFailures(
+  calls: AssembledToolCall[],
+  outcomes: ToolCallOutcome[],
+  seen: Map<string, number>,
+): void {
+  calls.forEach((call, i) => {
+    const outcome = outcomes[i];
+    if (!outcome || outcome.ok) return;
+    if (outcome.category === "pending" || outcome.category === "skipped") return;
+    const times = (seen.get(call.name) ?? 0) + 1;
+    seen.set(call.name, times);
+    if (times < 2) return;
+    outcomes[i] = {
+      ...outcome,
+      result:
+        `${outcome.result}\n\n` +
+        `（提醒：这个工具这一轮已经失败第 ${times} 次了。别把同样的参数再发一遍 —— ` +
+        `换个参数、换个工具，或者直接告诉用户卡在哪、需要他做什么。）`,
+    };
+  });
+}
+
+/**
  * 跑完整个工具循环（agent loop）。
  *
  * 一轮的形状：发出 → 模型回 tool_calls → 客户端执行 → **结果立刻作为 tool 消息再发一次** →
@@ -700,7 +833,7 @@ function noteUnknownRepeats(
 export async function runToolLoop(input: {
   send: ToolRoundSend;
   baseMessages: ApiMessage[];
-  tools: ActionTool[] | null;
+  tools: ToolDef[] | null;
   runActions?: (
     calls: AssembledToolCall[],
     signal?: AbortSignal,
@@ -748,6 +881,15 @@ export async function runToolLoop(input: {
    * 名字换着花样来也躲不掉的那道闸门。
    */
   const unknownTotals = { n: 0 };
+  /**
+   * 同一个工具**这一轮里失败过几次**（P1，用户 m05030：让它学会换路）。
+   *
+   * 为什么需要：模型有个典型坏毛病 —— 一个工具报错，它把参数原样再发一遍，
+   * 期望这次能成。每一遍都是一次真金白银的往返，还把步数烧掉。
+   * 所以第二次失败起，我们在回给它的结果尾巴上钉一句"换个别的方式，或者直接告诉用户"。
+   * **不终止**（跟不存在动作那道硬闸不同）：失败可能是可修复的（少个参数、要授权）。
+   */
+  const failHits = new Map<string, number>();
   /** 停手是因为哪个名字（写进 `limitNote` 那句人话）；总量闸门触发时为空 */
   let stopUnknownName: string | undefined;
   /** 总量闸门触发时，一共试了几个（写进 `limitNote`） */
@@ -819,12 +961,16 @@ export async function runToolLoop(input: {
      * 返回值 = 该停手的理由（同名说名字 / 总量说次数），没命中就是 undefined。
      */
     const unknownStop = noteUnknownRepeats(r.toolCalls, outcomes, unknownHits, unknownTotals);
+    /**
+     * P1：同一个工具反复失败时，在结果尾巴上钉一句"换路"（见 `failHits` 的注释）。
+     * 必须在 `record` 之前改 —— 界面那一行和回灌给模型的内容要一致。
+     */
+    noteRepeatedFailures(r.toolCalls, outcomes, failHits);
     const record: ToolRoundRecord = {
       round,
       calls: r.toolCalls.map((c, i) => ({
         name: c.name,
-        kind: kindOfToolName(c.name),
-        args: c.args,
+        kind: kindOfToolName(c.name) ?? externalKind(c.name),        args: c.args,
         result: outcomes[i]?.result ?? "",
         notice: outcomes[i]?.notice ?? "",
         category: outcomes[i]?.category ?? "pending",

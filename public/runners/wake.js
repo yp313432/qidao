@@ -537,6 +537,15 @@ function cleanReply(raw, aiName) {
   var text = String(raw || "").trim();
   if (!text) return "";
   if (/^skip\b/i.test(text) || text === "SKIP") return "";
+  /**
+   * 沉默的第二种写法：`<silent>`。
+   *
+   * 2026-11-07 用户 m05637 之后，后台这条路的系统提示词由 `lib/proactive.ts` 的
+   * `proactiveEvent()` 生成（跟 App 内那条路同一个函数、同一个标记 `SILENT_MARK`）。
+   * 只认 SKIP 的话，App 内说"只输出 <silent>"、这里认不出 → 用户会收到一个字面
+   * 的 `<silent>`。所以两种都认。
+   */
+  if (/^<\s*silent\s*\/?>$/i.test(text) || /^\[\s*silent\s*\]$/i.test(text)) return "";
   return text
     .replace(/^["“”「」『』'']+|["“”「」『』'']+$/g, "")
     .replace(new RegExp("^" + aiName + "\\s*[:：]\\s*"), "")

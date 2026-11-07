@@ -3,6 +3,8 @@ import { historyForApi, streamChat, type ChatRequest } from "@/lib/chat-client";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import { runActions } from "@/lib/tool-loop";
+import { pickWorldEntries } from "@/lib/prompt";
+import { proactiveEvent } from "@/lib/proactive";
 import { stripActions, takeActions } from "@/lib/use-chat";
 import type { AssembledToolCall } from "@/lib/tool-calls";
 import type { AppAction } from "@/lib/types";
@@ -123,14 +125,19 @@ function clues(now: number): Clue[] {
    * ⚠️ 第一版只写了"天刚亮 / 天在暗"，结果一天里绝大多数时间**一条料都没有**，
    * 于是他永远不动（用户 m10324："点开 app 好久了，也没看到有动静"）。
    * 现在四个时段都算料，各自 30 分钟冷却一次。
+   *
+   * ⚠️ 2026-11-07 用户 m05528："这个自动发的消息好像人机，都差不多类型的"
+   * —— 根因就在这几条 note 上：它们原本是**环境描写**（"天在暗下来，花园里安静下来了"
+   * "夜里了，院子里只剩虫声"），原样进了提示词的「你注意到：」，模型于是照着复述，
+   * 每条主动消息都变成同一种布景句。现在只给**中性时间标签**，描写留给他自己想说才说。
    */
   const hour = new Date(now).getHours();
-  if (hour >= 5 && hour < 9) out.push({ kind: "morning", note: "天刚亮，花园里露水还没干" });
-  if (hour >= 9 && hour < 12) out.push({ kind: "forenoon", note: "上午的光刚好，院子里很安静" });
-  if (hour >= 12 && hour < 15) out.push({ kind: "noon", note: "中午了，日头正亮" });
-  if (hour >= 15 && hour < 18) out.push({ kind: "afternoon", note: "下午了，光开始斜" });
-  if (hour >= 18 && hour < 21) out.push({ kind: "dusk", note: "天在暗下来，花园里安静下来了" });
-  if (hour >= 21 || hour < 1) out.push({ kind: "night", note: "夜里了，院子里只剩虫声" });
+  if (hour >= 5 && hour < 9) out.push({ kind: "morning", note: "清晨" });
+  if (hour >= 9 && hour < 12) out.push({ kind: "forenoon", note: "上午" });
+  if (hour >= 12 && hour < 15) out.push({ kind: "noon", note: "中午" });
+  if (hour >= 15 && hour < 18) out.push({ kind: "afternoon", note: "下午" });
+  if (hour >= 18 && hour < 21) out.push({ kind: "dusk", note: "傍晚" });
+  if (hour >= 21 || hour < 1) out.push({ kind: "night", note: "夜里" });
 
   /**
    * **很久没说话**：看的是"最后一条消息的时间"，不是"用户最后动屏幕的时间"。
@@ -169,6 +176,20 @@ function clues(now: number): Clue[] {
   return fresh;
 }
 
+/**
+ * 他"记得关于她的事"里的前几条（只取生效中的）。
+ *
+ * 主动通道原来完全不读记忆 —— 所以主动消息永远是"在干嘛""想你了"这种放之四海皆可的话，
+ * 而正文那条路是带着记忆说话的。读进来之后他才能说出"你昨天说脖子疼"这种具体的话。
+ */
+function activeMemoryLines(limit: number): string[] {
+  const st = useApp.getState();
+  return (st.memories ?? [])
+    .filter((m) => m.status === "active" && m.content.trim())
+    .slice(-limit)
+    .map((m) => m.content.trim().slice(0, 60));
+}
+
 function clockText(now: number): string {
   return new Date(now).toLocaleString("zh-CN", {
     month: "numeric",
@@ -185,30 +206,53 @@ async function decide(now: number, found: Clue[]): Promise<{ text: string; actio
   /** 当前用的模型在**顶层**（`use-chat.ts:321` 同一个来源），不在 settings 里 */
   const model = st.model;
   const aiName = resolveAiName(settings.aiName);
-  const guidance = [
-    `现在是 ${clockText(now)}。你醒着，她就在 App 里（可能在聊天页，也可能在别的页面），刚还在动。`,
-    found.length > 0 ? `你注意到：\n${found.map((c) => `· ${c.note}`).join("\n")}` : "这会儿没什么特别的事。",
-    "",
-    "你可以自己决定这一会儿做什么 —— 也可以什么都不做。规矩：",
-    "1. 想做事就把动作写在正文末尾的 ```qidao 代码块里，**最多一个**。",
-    "2. 想跟她说话就直接写正文（一两句，像随口说的），不用解释你在干什么。",
-    "3. 不想说话就只写动作块，正文留空。",
-    "4. 不要复述这些规矩，也不要提「系统」、「提示词」。",
-    "",
-    "能做的动作：",
-    '  garden.walk {"place":"池塘|长椅|花圃|门廊|石板路口"}',
-    '  garden.fish.cast {"spot":"池塘"}   garden.fish.reel {}',
-    '  garden.flower.plant {"species":"rosa"}   garden.flower.water {"species":"rosa"}',
-    '  garden.flower.pick {"species":"rosa"}   diary.add {"body":"…"}   moment.post {"text":"…"}',
-  ].join("\n");
 
   /**
    * **带上最近的对话**：不带的话他"醒着"却不知道你们刚聊到哪儿，
    * 一开口就是"你好"或者重复问一遍 —— 用户会立刻发现不对。
    * 只取最近 6 条（不是全量）：这一拍的重点是"我现在想做什么"，不是回顾。
+   *
+   * 2026-11-07 用户 m05528："这个自动发的消息好像人机，都差不多类型的，是为啥，
+   * 有规定吗还是，能不能和正文的 ai 是同一个通道，总感觉像两个" →
+   * 所以这里补三样跟正文同源的东西：①最近 10 条（原来 6）②世界书 ③他最近自己说过的句子，
+   * 并在规矩里**明令禁止环境描写**（那是"人机感"的直接来源）。
    */
   const conv = st.conversations.find((c) => c.id === st.activeId) ?? st.conversations[0];
-  const history = conv ? historyForApi(conv.messages.slice(-8), { keepRecent: 6 }) : [];
+  const history = conv ? historyForApi(conv.messages.slice(-12), { keepRecent: 10 }) : [];
+  /** 他最近自己主动说过的句子 —— 用来防"每条都一个调调" */
+  const recentOwn = (conv?.messages ?? [])
+    .filter((m) => m.role === "assistant" && m.content.trim())
+    .slice(-3)
+    .map((m) => m.content.replace(/\s+/g, " ").trim().slice(0, 40));
+
+  /**
+   * ⚠️ 2026-11-07 用户 m05637："跟自动唤醒有关的都按着一套来，我不想看到出现两种人格"。
+   *
+   * 原来这里是**本文件自己写的一段 guidance**，措辞/规矩都跟定时那条、跟手机后台那条
+   * 不一样 —— 三条通道三套语气。现在统一交给 `lib/proactive.ts` 的 `proactiveEvent()`：
+   * 同一个函数、同样禁写环境、同样允许沉默、同样"别把机制说出来"。
+   *
+   * 跟另外两条路的差别只剩"有由头"（这里是醒着时看到的几件小事）和"能做的动作"
+   * （前台这条路能真的调动作）。
+   */
+  const guidance = proactiveEvent({
+    timeText: clockText(now),
+    who: settings.displayName || "她",
+    /** 醒着这条路的由头 = 他察觉到的几件小事（原来是"你注意到：…"那种布景句） */
+    intent: found.length > 0 ? found.map((c) => c.note).join("；") : undefined,
+    own: recentOwn,
+    memories: activeMemoryLines(3),
+    allowSilent: true,
+    actionHints: [
+      'garden.walk {"place":"池塘|长椅|花圃|门廊|石板路口"}',
+      'garden.fish.cast {"spot":"池塘"}   garden.fish.reel {}',
+      'garden.flower.plant {"species":"rosa"}   garden.flower.water {"species":"rosa"}',
+      'garden.flower.pick {"species":"rosa"}   diary.add {"body":"…"}   moment.post {"text":"…"}',
+    ],
+  });
+
+  /** 世界书：让主动通道读到跟正文**同一份**规矩（原来这里是空的，等于换了个脑子说话） */
+  const world = pickWorldEntries(st.worldBook ?? [], guidance);
 
   let acc = "";
   let failed = false;
@@ -217,6 +261,7 @@ async function decide(now: number, found: Clue[]): Promise<{ text: string; actio
       model,
       messages: [...history, { role: "user", content: guidance }],
       style: settings.replyStyle,
+      segmentEnabled: settings.segmentReply !== false,
       tools: [],
       customBaseUrl: settings.customBaseUrl || undefined,
       customApiKey: settings.customApiKey || undefined,
@@ -226,8 +271,8 @@ async function decide(now: number, found: Clue[]): Promise<{ text: string; actio
       aiName: aiName || undefined,
       persona: settings.persona || undefined,
       context: { now: clockText(now) },
-      worldAlways: [],
-      worldHit: [],
+      worldAlways: world.always,
+      worldHit: world.hit,
       permissions: settings.permissions,
     };
     await streamChat(

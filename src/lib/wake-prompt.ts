@@ -1,4 +1,5 @@
 import { resolveAiName } from "@/lib/branding";
+import { SILENT_MARK, proactiveEvent, proactiveSystem } from "@/lib/proactive";
 import { useApp } from "@/lib/store";
 
 /**
@@ -86,52 +87,49 @@ export function wakePromptInput(): WakePromptInput {
  * @param mustSpeak 上一轮他说了"不说" → 这一轮**必须开口**（不许 SKIP）
  */
 export function buildWakePrompt(input: WakePromptInput, mustSpeak: boolean): string {
-  const who = input.persona ? `\n【你是谁】\n${input.persona}\n` : "";
-  const lines = input.recent.map((m) => `${m.role === "user" ? input.displayName : input.aiName}：${m.text}`);
-  const recentBlock = lines.length
-    ? `【你们最近的对话】\n${lines.join("\n")}`
-    : `【你们最近没有聊过什么】`;
-
   /**
-   * 「必说」那一段是**保底**：
-   * 用户要的是"这次没说下次必定说"，所以这一段不能给他留退路 ——
-   * 否则连着两轮都 SKIP，"最多四小时一句"就落空了。
-   */
-  const ask = mustSpeak
-    ? `现在**你必须说一句**（上一次你选择了不说，这一次不能不说）。哪怕只是问一句"在干嘛"、说一句你想起他了，也必须发一条。**不许回 SKIP。**`
-    : `现在由你自己拿主意：想找他、有话想说，就说；觉得没必要、会打扰他，就回 SKIP。`;
-
-  /**
-   * 【你此刻的心情】+ 情绪那条规矩（2026-11 用户要的）。
+   * ⚠️ 2026-11-07 用户 m05637："跟自动唤醒有关的都按着一套来，我不想看到出现两种人格"。
    *
-   * 用户原话："他醒来之后可以根据我目前的状态……然后说开口说话，根据他现在情绪，
-   * 不只是上下 5 条信息内容来判断说话内容。" 以及："他自己情绪到了，也可以发吧，
-   * 应该不至于骚扰，或者你给情绪那个加个按钮。"
-   * → 所以：心情进 prompt；"情绪能不能单独算理由"由那个开关决定。
+   * 原来这段是**另写的一份人设**（"你是 X…【你们最近的对话】…规矩：…"），跟正文那套
+   * systemPrompt 只是长得像 —— 这就是"像两个通道"的根源。
+   *
+   * 现在：上半段 = 正文那套 systemPrompt()（人设/风格/工具/世界书/权限说明书一个字不改），
+   * 下半段 = proactiveEvent() 里那一轮发生的事。后台那段 JS 只做两件事：
+   * 替换 {{TIME}} / {{ELAPSED}}，然后当成 role:system 发出去。
    */
-  const moodBlock = input.mood
-    ? `\n【你此刻的心情】\n${input.mood}（这是你上一次上报的情绪快照，可能已经过去一阵了）\n`
-    : "";
-  const moodRule = input.mood
-    ? input.emotionSpeak === false
-      ? "- 你的心情**只影响你怎么说**，不能单独当成找他的理由（要有别的由头才开口）"
-      : "- 如果此刻的心情让你**真的很想跟他说点什么**，那本身就可以是理由，不用等「很久没说话」这种由头"
-    : "";
+  const own = input.recent
+    .filter((m) => m.role === "assistant")
+    .slice(-3)
+    .map((m) => m.text);
+  const system = proactiveSystem({
+    aiName: input.aiName,
+    name: input.displayName,
+    persona: input.persona || undefined,
+    /**
+     * 后台那条路**没有原生 tools**（它只是一段发 HTTP 的 JS），所以这里固定走
+     * 正文里的动作文本协议 —— 工具清单也由 systemPrompt 一起带下去。
+     */
+    nativeTools: false,
+  });
+  const event = proactiveEvent({
+    timeText: TIME_TOKEN,
+    elapsedText: ELAPSED_TOKEN,
+    who: input.displayName,
+    mood: input.mood,
+    emotionSpeak: input.emotionSpeak,
+    own,
+    /** "必说"那一轮不许沉默（用户要的"这次没说下次必定说"） */
+    allowSilent: !mustSpeak,
+    ...(mustSpeak
+      ? {
+          intent:
+            "上一次你选择了不说，这一次不能不说 —— 哪怕只是问一句「在干嘛」、说一句你想起他了，也必须发一条。",
+        }
+      : {}),
+  });
+  return `${system}
 
-  return `你是${input.aiName}。现在是 ${TIME_TOKEN}。距你们上次说话已经过了 ${ELAPSED_TOKEN}。
-${who}${moodBlock}
-${recentBlock}
-
-这一轮是你的，${input.displayName}没有说话。
-
-${ask}
-
-规矩：
-- 只说你自己要说的那句话，**最多两句**，像平时聊天那样自然
-- 不要解释你在做什么、不要提"定时""提醒""系统"这类字眼
-- 不要用引号把话包起来，不要写"${input.aiName}："这种前缀
-- **接得上**你们刚才聊的（或他最近正挂在心上的事），别凭空起个不相干的话头
-${moodRule ? `${moodRule}\n` : ""}- 别没话找话 —— 这种时候宁可不说`;
+${event}`;
 }
 
 /** 两段一起生成（App 推给抽屉的就是这两段） */
@@ -151,7 +149,7 @@ export function buildAllWakePrompts(input: WakePromptInput): { normal: string; f
  * 光换措辞不够 —— 还要给他**一个体面的退路**：真没什么可说的，就只说这个标记，
  * 这一条**不会发出去**（`task-daemon` 认出它就把占位消息撤掉，见 `readSilent`）。
  */
-export const SILENT_MARK = "<silent>";
+export { SILENT_MARK };
 
 /**
  * 三种写法都算"沉默"（模型偶尔会自己换花样：自闭合、方括号、带空格）。
@@ -172,16 +170,12 @@ export function readSilent(raw: string): { silent: boolean; text: string } {
 }
 
 /** 环境事实里引用对话那一句的截断长度（再长就成复读了，她要的是"接得上"，不是抄一遍） */
-const QUOTE_MAX = 60;
+/* const QUOTE_MAX = 60; 已挪进 lib/proactive.ts */
 /** 用户自己定的提醒一般就一句；太长反而像任务书，取前 120 字 */
-const INTENT_MAX = 120;
+/* const INTENT_MAX = 120; 已挪进 lib/proactive.ts */
 /** "你最近做过的事"的回执也只留开头 */
-const ACTIONS_MAX = 160;
+/* const ACTIONS_MAX = 160; 已挪进 lib/proactive.ts */
 
-function clip(text: string, max: number): string {
-  const oneLine = String(text ?? "").replace(/\s+/g, " ").trim();
-  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
-}
 
 /** 「42 分钟」这种给人看的时间差（不把毫秒数丢给模型） */
 function gapText(ms: number): string {
@@ -199,12 +193,6 @@ function gapText(ms: number): string {
  * 一截断就等于把"他真会写日记"这件事弄丢了 —— 所以那类 `keepFull`，原样给。
  * 用户自己定的提醒（"问问她吃饭了没"）本来就很短，太长反而像任务书，取前 120 字。
  */
-function intentLine(prompt: string, keepFull: boolean): string {
-  const p = String(prompt ?? "").trim();
-  if (!p) return "";
-  if (keepFull) return `（你本来想：\n${p}\n）`;
-  return `（你本来想：${clip(p, INTENT_MAX)}）`;
-}
 
 export type ProactiveEnv = {
   /** 此刻（环境事实里的"现在 18:04"） */
@@ -238,40 +226,22 @@ export type ProactiveEnv = {
  * 讲给她听 —— 那是上一版最刺眼的地方。
  */
 export function buildProactiveInstruction(env: ProactiveEnv): string {
-  const who = (env.displayName ?? "").trim() || "她";
+  /**
+   * ⚠️ 2026-11-07 用户 m05637：这条路（定时任务 / 自由活动 / 日记 / 回响）原来有**自己一套**
+   * 措辞，跟「醒着」那条、跟后台那条都不完全一样 —— 三套语气，用户听到的是三个人。
+   * 现在统一走 proactiveEvent()：同一个函数、同一套规矩、同样禁写环境、同样允许沉默。
+   */
   const hh = String(env.now.getHours()).padStart(2, "0");
   const mm = String(env.now.getMinutes()).padStart(2, "0");
-  const facts = [`现在 ${hh}:${mm}`];
-  if (env.msSinceLast != null) facts.push(`上一条消息是 ${gapText(env.msSinceLast)}前`);
-
-  const lines: string[] = [
-    `（${facts.join("。")}。）`,
-    `这一轮没有人在跟你说话 —— 想说就自然说一句：接着刚才的话，或者你心里的事。`,
-  ];
-
-  const lastUser = clip(env.lastUser ?? "", QUOTE_MAX);
-  if (lastUser) lines.push(`（${who}上一句说的是：「${lastUser}」）`);
-  const lastAssistant = clip(env.lastAssistant ?? "", QUOTE_MAX);
-  if (lastAssistant) lines.push(`（你上一句说的是：「${lastAssistant}」（${who}还没接））`);
-
-  const intent = intentLine(env.intent ?? "", env.intentKeepFull === true);
-  if (intent) lines.push(intent);
-
-  const actions = clip(env.actions ?? "", ACTIONS_MAX);
-  if (actions) lines.push(`（你最近做过的事：${actions}）`);
-
-  /**
-   * ⚠️ 他自己排的那三类（自由活动 / 日记保底 / 回响）**不能因为"没话说"就把事也省了**：
-   * 日记那条 prompt 明写着"今天该有一篇"，这句要是替他开了后门，那天的日记就真没了。
-   * 所以那类的沉默只关"嘴上说不说"，不关"该做的事做没做"。
-   */
-  if (env.intentKeepFull === true) {
-    lines.push(
-      `（上面那件事该做就做完；真没什么可说的，就只输出 ${SILENT_MARK} —— 这一条不会发出去。）`,
-    );
-  } else {
-    lines.push(`如果没有什么值得说的，就只输出 ${SILENT_MARK}（这一条不会发出去）。`);
-  }
-  lines.push(`别提到"定时""唤醒""任务""系统""提示"这些词，也别把时间念出来。`);
-  return lines.join("\n");
+  return proactiveEvent({
+    timeText: `${hh}:${mm}`,
+    elapsedText: env.msSinceLast == null ? undefined : gapText(env.msSinceLast),
+    who: env.displayName,
+    lastUser: env.lastUser,
+    lastAssistant: env.lastAssistant,
+    actions: env.actions,
+    intent: env.intent,
+    intentKeepFull: env.intentKeepFull,
+    allowSilent: true,
+  });
 }

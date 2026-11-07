@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
+import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
 import { buildContext } from "@/lib/awareness";
 import { DEFAULT_STICKER_GROUP, stickerGroupList } from "@/lib/stickers";
 import { resolveAiName } from "@/lib/branding";
@@ -33,6 +34,7 @@ import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
 import { partsFor } from "@/lib/segment";
 import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
+import { buildExternalTools, MAX_TOOLS_PER_REQUEST } from "@/lib/external-tools";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import type { AppAction, Attachment, ChatMessage, ChatStep } from "@/lib/types";
@@ -222,7 +224,7 @@ export function stripActionLines(text: string): string {
 }
 
 export function stripActions(text: string): string {
-  return stripActionLines(
+  const cleaned = stripActionLines(
     text
       .replace(STRICT_BLOCK, "")
       .replace(/```[ \t]*qidao[\s\S]*$/i, "")
@@ -230,6 +232,12 @@ export function stripActions(text: string): string {
   )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  /**
+   * ⑤ **别人的原生 tool-call JSON 也不许显示**（2026-11-07 用户 m05479：接 Gemini 时
+   * 气泡正文变成 `[{"name":"default_api:emotion_report","arguments":{…}}]`）。
+   * 上面四条只认 `qidao` 块和 `"kind"` 裸 JSON，认不出这种 `name + arguments` 的形态。
+   */
+  return stripForeignCalls(cleaned);
 }
 
 /** 取出回复里的动作。四层兜底，尽量别把模型的动作丢掉。 */
@@ -250,6 +258,31 @@ export function takeActions(text: string): AppAction[] {
 
   // ③ 正文里直接写的裸 JSON（没包代码块）
   for (const obj of scanObjects(text)) collectFrom(obj, out);
+  if (out.length) return out;
+
+  /**
+   * ④ **别人的原生 tool-call JSON**（Gemini 漏在正文里那种）。
+   *
+   * 用户 m05479 实机截图：`[{"name":"default_api:emotion_report","arguments":{…}}]`
+   * 直接显示在气泡里 —— 它既不是 `qidao` 块也不是 `kind` 裸 JSON，前三层都认不出。
+   * 这里把它收回来**当动作执行**（能认的 kind 就执行，认不出名字的就不执行），
+   * 正文那边由 `stripActions()` 抹掉，用户至少不会再看到一坨 JSON。
+   */
+  const foreign = scanForeignCalls(text).calls.filter((c) => c.kind);
+  for (const call of foreign) {
+    let fields: Record<string, unknown> = {};
+    if (call.args) {
+      try {
+        const parsed: unknown = JSON.parse(call.args);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          fields = parsed as Record<string, unknown>;
+        }
+      } catch {
+        fields = {};
+      }
+    }
+    out.push({ kind: call.kind, ...fields } as AppAction);
+  }
   return out;
 }
 
@@ -528,6 +561,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 探测说支持、结果上游报了 400，降级重试时要立刻按文本协议重拼提示词，
        * 否则模型手里拿的是"按工具调用"的说明、却没有 tools 可用。
        */
+      /**
+       * 这一轮的外部工具（MCP / 自配 HTTP）是不是走**原生 tools**（P0）。
+       * 走原生时提示词里那份文字清单要收掉 —— 否则同一批工具会被说两遍：
+       * 一遍是结构化定义（模型真按它调），一遍是"用 tool.call 调"的自然语言说明。
+       */
+      let externalNative = false;
       const buildReq = (nativeTools: boolean) => {
         const base = {
           model,
@@ -563,6 +602,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           nativeTools,
           // "这一轮只发了一部分" → 提示词里要带上兜底说明（不然他会以为自己做不到）
           selectiveTools: nativeTools && selective,
+          // 外部工具已经并进 tools 了 → 提示词里那句文字清单换成一句"直接用工具调"
+          nativeExternal: nativeTools && externalNative,
         };
       };
 
@@ -645,6 +686,19 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       /** 原生 tools 那条路：拼好 messages + 循环。同步抛错（真的异常）由外层接住转成重试。 */
       const runNative = async (state: AttemptState): Promise<void> => {
+        /**
+         * P0：外部工具并进原生 `tools`（见 `lib/external-tools.ts`）。
+         * 建在这一步之前 —— `buildReq()` 要看这个标志决定提示词里要不要再列一遍清单。
+         *
+         * **数量预算（2026-11-07，用户 m05306「参考市面常规要求做限制」）**：
+         * 内置动作和外部工具挤的是同一个 `tools` 数组，而 OpenAI 兼容上游对一次请求
+         * 的工具条数常见上限是 128（超了整轮 400，模型那边表现为"完全没回话"）。
+         * 所以外部工具只能拿 `120 − 这轮内置动作数` 的余量：内置的必须全发
+         * （它们带着几个必用动作，如 emotion.report），外部的是"锦上添花"，先让位。
+         */
+        const builtinTools = actionToolsFor(kindsSent);
+        const extTools = await buildExternalTools(MAX_TOOLS_PER_REQUEST - builtinTools.length);
+        externalNative = extTools.length > 0;
         const reqActive = buildReq(true);
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
         /**
@@ -666,7 +720,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           : assembled;
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
-        const known = new Set(actionToolsFor(kindsSent).map((t) => t.function.name));
+        const known = new Set([...builtinTools, ...extTools].map((t) => t.function.name));
         const send: ToolRoundSend = (() => {
           const inner =
             (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim()
@@ -704,7 +758,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           send,
           baseMessages: withSummary,
           // P3：只发这一轮用得上的（没筛就发全部，顺序都跟着 ACTION_SCHEMA 走）
-          tools: actionToolsFor(kindsSent),
+          // P0（agent）：外部工具接在后面 —— MCP / 自配 HTTP 跟内置动作同一个通道
+          tools: [...builtinTools, ...extTools],
           signal: ac.signal,
           onDelta,
           /**

@@ -231,3 +231,58 @@ npm run dev       # 真机/浏览器看效果
 
 34. **两张"会塌的主卡"必须共用一个外壳组件，头像尺寸跟卡片高度是绑定的**（2026-11-07 用户 m04868："这个头像是不是不对，怎么变这么小…两个卡片用一样的就行，因为是一类"）：上一轮把封面高度从 300 压到 210 时顺手把头像 80 缩成 72，比例就散了；另一张（`core-view.tsx`）还是 80 —— 两张同类卡片自己长。现在抽成 `src/components/me/identity-card.tsx`（页面只传头像/名字/称呼/说明块 + refs），几何常量也一次定死：头像 104、收起 28、名字槽位 240、头像上沿 34、名字上沿 154、说明块 190。⚠️ **改高度必同步重算头像**：`AV0 / HEAD_H ≈ 0.5` 是这张卡的视觉比例。
 35. **"居中"被旁边的符号拽偏，是因为它们同在一个 flex 行里**（同一个 m04868："名字在头像下面不居中，看着会显歪"）：居中的是"名字 + ♀"这个整体，一宽一窄就把名字推歪。修法：名字单独占一行、父级 `justify-content:center`，符号用 `position:absolute; inset-inline-start:100%; margin-inline-start:8px` 挂到名字右边 —— **不占布局宽度**，名字才是真居中。⚠️ 垂直居中必须用 `transform: translateY(-50%)` 而不是 `translate: 0 -50%`：`.k-gender:active` 会写 `translate`（按下位移），两者是不同属性，用 transform 才不会在按下的瞬间跳回原位。
+
+36. **外部工具要并进原生 `tools` 数组，而不是继续写成提示词里的文字清单**（2026-11-07 用户 m05030："先做 0 和 1"）：
+    P0 之前 MCP / 自配接口的每个工具都由 `lib/prompt.ts` 的 `toolCatalog()` 压成一行文字塞进系统提示词 —— 模型得从散文里猜参数结构、每轮重发（几个服务器一两千 token）、没法并行、名字一改就靠猜。
+    现在：`lib/external-tools.ts` 把 `st.mcp`（只 `enabled`）与 `st.httpTools` 翻成标准 function 定义（名字 `mcp_<服务器>_<工具>` / `http_<工具>`，只留 `[a-z0-9_]`、≤60 字符、撞名补 `_2`），`use-chat.ts` 把 `[...actionToolsFor(kinds), ...extTools]` 一起发给上游，`tool-loop.ts` 的 `runOneAction()` 先用 `matchExternalTool()` 认名字、直接构造 `{kind:"tool.call"|"http.call"}` 交给闸门。
+    ⚠️ 三条硬约束：①**参数 schema 要原样透传**（MCP 的 `inputSchema` 是任意 JSON Schema，收窄会丢 `enum`/`additionalProperties`，所以 `chat-client.ts` 的 `actionTools` 类型故意放宽成 `parameters: unknown`）；②`external-tools.ts` **模块顶层不许 import store**（要动态 `await import()`），否则纯 node 的验收脚本会被 zustand/DOM 拖死；③旧文本协议**保留作降级**（上游不认 tools 时才走），并且提示词里要明确"不要写 tool.call 动作块"，否则模型两种通道混用、白多一次往返。
+37. **同一工具反复失败时给"换路"提示，而不是直接停手**（P1，同一个 m05030）：`noteUnknownRepeats()` 处理的是"名字根本不存在"→ **硬终止**；但"工具存在、这次没成"（少参数/被拒/对方 500/要授权）属于**可修复失败**，停了等于活没干。所以在结果尾巴钉一句「这个工具这一轮已经失败第 N 次了，别把同样的参数再发一遍 —— 换参数、换工具，或者直接告诉用户卡在哪」。判定口径：`pending` / `skipped` **不算失败**（那是"还没结果"，不是"做错了"），算进去会让模型误以为自己错了、转头去道歉。同时把 `TOOL_LOOP_MAX` 从 12 抬到 16（"查一下 → 记进记忆 → 改个设置 → 写进日记 → 设提醒"就是五步，任一步返工就顶到 12）。
+
+38. **一次请求的 `tools` 条数有硬上限，必须自己算预算**（2026-11-07 用户 m05306"参考市面常规要求做限制"）：OpenAI Chat Completions 与 Gemini 的 function calling 都写明**一次最多 128 个工具**（Anthropic 没写死条数，但官方建议工具定义别占太多上下文），超了整轮 400 —— 模型那边表现是"完全没回话"，用户看到的是突然变哑巴，最难查。
+    现在 `lib/external-tools.ts` 有 `MAX_TOOLS_PER_REQUEST = 120`（留 8 个余量），`use-chat.ts` 发请求前算 `buildExternalTools(120 − builtinTools.length)`：**内置动作必须全发，外部工具是"锦上添花"，先让位**（内置里有 `emotion.report` 这类必用项）。被丢掉几个记在 `externalToolsSkipped()`。
+    同时把工具描述的 300 字硬编码收敛成 `MAX_DESC_CHARS = 240`：MCP 服务端给的 description 可能是一整段 markdown，几十个工具每轮重发就是长期税。
+    ⚠️ 预算逻辑做成纯函数 `buildExternalToolDefs(mcp, httpTools, limit)` 才测得了 —— `buildExternalTools()` 要动态 import store（zustand），在 `node --test` 里跑不起来。
+
+39. **工具结果要截断，而且要"告诉模型被截断了"**（同一个 m05306）：工具结果是普通消息，会一直躺在历史里，MCP 返回几百 KB JSON 或抓回一整篇文章就能把上下文挤掉、每轮重发还费钱。
+    `lib/tool-loop.ts` 的 `MAX_TOOL_RESULT_CHARS = 8000` + `clipToolResult()`：只在**回给模型的那一份**上切，尾巴写明"共 N 字，这里只给前 8000 字，需要完整就换更窄的参数再调"—— 不说的话模型会拿半截 JSON 继续推断，还错得很自信。⚠️ 界面的 `notice`/`result` **保持全文**（"模型看不到"和"用户看不到"是两件事，别一起砍）。
+
+40. **工具通道一改，系统提示词要跟着改，否则两份定义会走散**（用户 m05332："改了之后之前的系统注入提示词，是不是也要更新一下" —— 是要）：
+    必须同步的三处：①`lib/prompt.ts` 里 `NATIVE_ACTIONS` 那段 JSDoc 原本写着"MCP/HTTP 仍走正文动作块"，P0 之后已经过时；②`NATIVE_ACTIONS` 正文补两条新事实（"这次的工具可能只是其中一部分，不许编工具名"、"结果可能被截断，换更窄的参数再调"）；③`lib/manual.ts` 的 `SENSE_POINTER` / `WEB_POINTER` 原先把参数用散文（甚至 JSON 示例）复述了一遍 —— 那是**同一份定义的两套呈现**，改成"参数名与类型以这次给你的工具定义为准"，只留判断规则（什么时候用、失败怎么讲）。
+    ⚠️ 情绪那段（`EMOTION_POINTER`）故意保留 JSON 示例：它是唯一允许"写在正文动作块里"的动作（按需注入时可能没进 tools），删了模型就不知道字段名。
+
+- **41. 别人的工具调用 JSON 会漏进气泡**（2026-11-07 用户 m05479，接 Gemini 时实测）：
+  模型（或中转）可能把 functionCall **当正文文本**吐出来 ——
+  `[{"name":"default_api:emotion_report","arguments":{…}}]`。
+  它既不含 ` `qidao `围栏、也不含` "kind" `，所以 ` takeActions() `认不出、` stripActions() `也砍不掉，用户就看到一坨 JSON。
+补丁 =` lib/foreign-calls.ts `：配平扫描 ` name + arguments `（也认 Gemini 的 ` functionCall ` 形态）、
+名字换算成我们的 kind（` default_api:emotion_report `→` emotion.report `）、
+**流式没配平就先把尾巴藏起来**；` takeActions() ` 第 ④ 层执行它、` stripActions() ` 第 ⑤ 层抹掉它。
+  教训：凡是"让模型在正文里表达结构化意图"的通道，都要有**反向识别 + 兜底隐藏**两层。
+
+- **42. 主动消息"人机感"的根因是提示词里塞了环境描写**（2026-11-07 用户 m05528）：
+  `lib/awake.ts` 的 clue note 原本写着「天在暗下来，花园里安静下来了」「夜里了，院子里只剩虫声」，
+  原样进了「你注意到：」→ 模型照着复述 → 每条主动消息都是同一种布景句。
+  修法不是换措辞，而是**只给事实标签**（清晨/上午/傍晚）+ 提示词里明令禁止写天气天光，
+  并把"他最近说过的话"喂回去防重复；两条通道（前台 `awake.ts` / 后台 `wake-prompt.ts`）口径必须一致。
+  另：主动通道现在也读**同一份**世界书与人设（原来 `worldAlways: []`，等于换了个脑子）。
+
+- **43. 主动通道必须共用同一份 system prompt，否则就是"两种人格"**（2026-11-07 用户 m05637：
+  "自由活动还有定时啥的反正跟自动唤醒有关的都按着一套来，我不想看到出现两种人格"）：
+  原来有三套写法 —— 前台 `lib/awake.ts` 自己拼 guidance、定时/自由活动走
+  `lib/wake-prompt.ts` 的 `buildProactiveInstruction()`、手机后台那段 JS 用 App 推下去的
+  `cfg_prompt_normal/force`（`buildWakePrompt()`）。三套人设/语气/规矩都不一样。
+  现在收成 `lib/proactive.ts` 两个函数：
+  · `proactiveSystem()` = **正文那套** `systemPrompt()`（人设/风格/工具/世界书/权限说明书一个字不改）
+  · `proactiveEvent()` = 这一轮发生的事（几点、隔了多久、上一句谁说的、心情、他最近说过什么、
+  记得她什么、这次的由头）+ 输出规矩（禁写环境、禁提系统与时间、允许沉默 `<silent>`）
+  **分工的理由**：正文每轮重算 system 会打死前缀缓存，而且时间和"隔了多久"每轮都变 ——
+  所以 system 稳定、事件每轮变（主流 agent 也是这个分工）。
+  手机后台那段的模板正文 = `proactiveSystem()` + 带 `{{TIME}}`/`{{ELAPSED}}` 占位符的
+  `proactiveEvent()`；后台只做"替换时间 + 当 role:system 发出去"。
+
+- **44. 后台 runner 的沉默标记要两种都认**（2026-11-07，坑 43 的连带）：
+  `public/runners/wake.js` 的 `cleanReply()` 原来只认 `SKIP`；App 内那条路统一说"只输出
+  `<silent>`"之后，后台认不出就会把字面量 `<silent>` 当正文发出去。
+  现在两种都认（`SKIP` / `<silent>` / `[silent]`）。
+  教训：**跨进程共享的"协议字符串"改一处就要把另一头的解析一起改** —— 它不在 TypeScript 的
+  类型检查范围里，只能靠人记。

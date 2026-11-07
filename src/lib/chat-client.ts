@@ -4,7 +4,6 @@ import type { ChatMessage, PermissionMode, ReplyStyle } from "./types";
 import { attachmentsToText } from "./attachments";
 import { assembleMessages } from "./prompt";
 import type { PromptTool } from "./prompt";
-import type { ActionTool } from "./action-schema";
 import { createDeltaAccumulator, type WireToolCall } from "./tool-calls";
 import { looksLikeToolsUnsupported } from "./tool-wire";
 import { isNativeApp } from "./platform";
@@ -98,7 +97,16 @@ export type ChatRequest = {
    * 走服务端时由 `/api/chat` 透传给上游，走直连时由 `streamDirect` 直接带上。
    * 不发就是老路子：动作写在正文的 ```qidao 代码块里（见 use-chat 的 takeActions）。
    */
-  actionTools?: ActionTool[];
+  /**
+   * 这一轮发给上游的 `tools`。
+   *
+   * 类型故意比 `ActionTool` 宽一点（`parameters: unknown`）：MCP 工具的 `inputSchema`
+   * 是任意 JSON Schema，不是我们那张窄表 —— 见 `lib/external-tools.ts` 的文件头。
+   */
+  actionTools?: {
+    type: "function";
+    function: { name: string; description: string; parameters: unknown };
+  }[];
   /**
    * 已经拼好的 messages（工具循环自带系统提示词 + tool 回灌时用，避免二次拼装）。
    *
