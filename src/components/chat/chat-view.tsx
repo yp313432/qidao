@@ -1180,7 +1180,6 @@ export function ChatView() {
                                     mine
                                     convId={conv!.id}
                                     msgId={m.id}
-                                    solid={solidPaper}
                                   />
                                 ))}
                               </div>
@@ -1188,11 +1187,15 @@ export function ChatView() {
                             {(body || rest.length > 0) && (
                               <div
                                 {...quotePress(m.id, body)}
+                                data-role="me"
                                 className={cn(
-                                  "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tr-none bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
+                                  /* 换壳（2026-11-07 阶段 3）：气泡本体交给 .k-bubble，
+                                     纯色模式下它就是"收敛浮签"（斜 0.4° + 胶带 + 衬线字），
+                                     磨砂/液态还是平面气泡 —— 两套视觉由材质变量决定，这里不判断材质。
+                                     留在外面的只有布局：w-max（宽度跟着文字走，用户点名要的）、
+                                     space-y（气泡内多段的间距）、长按与选区的手感。 */
+                                  "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
                                   pics.length > 0 && "mt-1",
-                                  /* 纸世界 Step3：我的浮签（壳类只在纯色材质挂，frost 路径字节不变） */
-                                  solidPaper && "paper-slip paper-slip-me",
                                 )}
                               >
                                 {rest.length > 0 && (
@@ -1235,7 +1238,6 @@ export function ChatView() {
                                   att={a}
                                   convId={conv!.id}
                                   msgId={m.id}
-                                  solid={solidPaper}
                                 />
                               ))}
                           </div>
@@ -1339,12 +1341,14 @@ export function ChatView() {
                                     key={i}
                                     ref={hideIfRenderedEmpty}
                                     {...quotePress(m.id, cleanPartForRender(p))}
+                                    data-role="ai"
                                     className={cn(
-                                      "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] rounded-[18px] border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
-                                      i === 0 && "rounded-tl-none",
+                                      /* 换壳（阶段 3）：他的一段 = 一个 .k-bubble；
+                                         分段浮现的 bubble-in 保留（它只动 opacity/transform，
+                                         浮签的 rotate 是独立的 rotate 属性，不会被按死）。
+                                         圆角只留一个整体角，不再靠 i === 0 切上面那只角。 */
+                                      "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation]",
                                       fresh && "bubble-in",
-                                      /* 纸世界 Step3：他的浮签（分段渲染逻辑不动，只挂壳类） */
-                                      solidPaper && "paper-slip paper-slip-him",
                                     )}
                                     style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
                                   >
@@ -1360,10 +1364,10 @@ export function ChatView() {
                             <div
                               ref={hideIfRenderedEmpty}
                               {...quotePress(m.id, cleanForRender(liveText))}
+                              data-role="ai"
                               className={cn(
-                                "w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5 rounded-[18px] rounded-tl-none border border-line bg-chip px-3.5 py-2.5 text-[1em] leading-[1.7]",
-                                /* 纸世界 Step3：他的浮签（流式同壳） */
-                                solidPaper && "paper-slip paper-slip-him",
+                                /* 换壳（阶段 3）：流式那条同壳，只是多一个段间距 */
+                                "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
                               )}
                             >
                               {/*
@@ -1384,10 +1388,8 @@ export function ChatView() {
                               )}
                             </div>
                           ) : pendingPlaceholder ? (
-                            /* 纸世界 Step3：虚线签（选样卡 F 的 .slip.typing） */
-                            <p className={solidPaper ? "paper-slip-typing" : "thinking-shimmer text-sm"}>
-                              正在写回复…
-                            </p>
+                            /* 占位气泡：虚线纸签（.k-bubble--ghost 只把底和影去掉、线变虚） */
+                            <p className="k-bubble k-bubble--ghost">正在写回复…</p>
                           ) : null;
                         })()}
                         {/*
@@ -1930,14 +1932,11 @@ function VoiceBubble({
   mine,
   convId,
   msgId,
-  solid,
 }: {
   att: Attachment;
   mine?: boolean;
   convId?: string;
   msgId?: string;
-  /** 纸世界 Step3：纯色材质下语音气泡同步套浮签壳 */
-  solid?: boolean;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -2079,17 +2078,12 @@ function VoiceBubble({
         onPointerLeave={up}
         onPointerCancel={up}
         style={{ minWidth }}
+        data-role={mine ? "me" : "ai"}
         className={cn(
-          "flex select-none items-center gap-2 rounded-[18px] px-2.5 py-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
-          mine ? "rounded-tr-none" : "rounded-tl-none",
-          // 跟着全局玻璃走（`--aster-surface` 就是 B 档那层），只用自己的暖边区分左右
-          mine
-            ? "border-accent/30 bg-surface text-fg"
-            : "border-line bg-surface text-fg",
-          "border",
+          /* 换壳（阶段 3）：语音气泡也走 .k-bubble。它不挂在 .k-msg 里，
+             所以自己带 data-role，纯色下的左右圆角/纸色/胶带仍由材质变量决定。 */
+          "k-bubble flex select-none items-center gap-2 [-webkit-touch-callout:none] [touch-action:manipulation]",
           gone && "opacity-60",
-          /* 纸世界 Step3：纯色材质下语音气泡也是浮签 */
-          solid && (mine ? "paper-slip paper-slip-me" : "paper-slip paper-slip-him"),
         )}
       >
         <audio
@@ -2166,8 +2160,10 @@ function VoiceBubble({
               <div
                 className={cn(
                   "glass-menu absolute w-[168px] rounded-[13px] border border-line py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]",
-                  /* 纸世界 Step3 补：语音菜单同步纸卡壳 */
-                  solid && "paper-card",
+                  /* 纸世界 Step3 补：语音菜单同步纸卡壳。
+                     不必再用 JS 判断材质 —— .paper-card 的规则全都挂在
+                     [data-material="solid"] 下，非纯色时它就是个空类名。 */
+                  "paper-card",
                 )}
                 data-contrast=""
                 style={{

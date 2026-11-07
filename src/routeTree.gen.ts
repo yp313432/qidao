@@ -47,6 +47,7 @@ import { Route as AppToolsHttpRouteImport } from './routes/_app/tools/http'
 import { Route as AppToolsMcpRouteImport } from './routes/_app/tools/mcp'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushSubscribeRouteImport } from './routes/api/push/subscribe'
+import { Route as DesignPreviewChatRouteImport } from './routes/design.preview.chat'
 import { Route as AppPlayGamesIndexRouteImport } from './routes/_app/play.games.index'
 import { Route as AppPlayGamesGobangRouteImport } from './routes/_app/play.games.gobang'
 import { Route as AppPlayGamesTruthRouteImport } from './routes/_app/play.games.truth'
@@ -261,6 +262,11 @@ const ApiPushSubscribeRoute = ApiPushSubscribeRouteImport.update({
   path: '/api/push/subscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DesignPreviewChatRoute = DesignPreviewChatRouteImport.update({
+  id: '/design/preview/chat',
+  path: '/design/preview/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPlayGamesIndexRoute = AppPlayGamesIndexRouteImport.update({
   id: '/games/',
   path: '/games/',
@@ -418,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
+  '/design/preview/chat': typeof DesignPreviewChatRoute
   '/play/': typeof AppPlayIndexRoute
   '/tools/': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
@@ -480,6 +487,7 @@ export interface FileRoutesByTo {
   '/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
+  '/design/preview/chat': typeof DesignPreviewChatRoute
   '/play': typeof AppPlayIndexRoute
   '/tools': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
@@ -545,6 +553,7 @@ export interface FileRoutesById {
   '/_app/tools/mcp': typeof AppToolsMcpRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
+  '/design/preview/chat': typeof DesignPreviewChatRoute
   '/_app/play/': typeof AppPlayIndexRoute
   '/_app/tools/': typeof AppToolsIndexRoute
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
@@ -610,6 +619,7 @@ export interface FileRouteTypes {
     | '/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
+    | '/design/preview/chat'
     | '/play/'
     | '/tools/'
     | '/play/games/gobang'
@@ -672,6 +682,7 @@ export interface FileRouteTypes {
     | '/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
+    | '/design/preview/chat'
     | '/play'
     | '/tools'
     | '/play/games/gobang'
@@ -736,6 +747,7 @@ export interface FileRouteTypes {
     | '/_app/tools/mcp'
     | '/api/push/key'
     | '/api/push/subscribe'
+    | '/design/preview/chat'
     | '/_app/play/'
     | '/_app/tools/'
     | '/_app/play/games/gobang'
@@ -777,6 +789,7 @@ export interface RootRouteChildren {
   OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
+  DesignPreviewChatRoute: typeof DesignPreviewChatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1045,6 +1058,13 @@ declare module '@tanstack/react-router' {
       path: '/api/push/subscribe'
       fullPath: '/api/push/subscribe'
       preLoaderRoute: typeof ApiPushSubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design/preview/chat': {
+      id: '/design/preview/chat'
+      path: '/design/preview/chat'
+      fullPath: '/design/preview/chat'
+      preLoaderRoute: typeof DesignPreviewChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/play/games/': {
@@ -1348,6 +1368,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
+  DesignPreviewChatRoute: DesignPreviewChatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

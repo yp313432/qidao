@@ -86,6 +86,8 @@
   */
   --k-font-ui: var(--k-font-sans);
   --k-font-num: var(--k-font-mono);
+  /* 小标签（标签条、胶囊）的字族：工程蓝图用等宽，柔和一点的皮肤换成无衬线 */
+  --k-font-label: var(--k-font-mono);
   --k-line: var(--aster-line);
   --k-line-soft: color-mix(in oklab, var(--aster-fg) 12%, transparent);
   --k-border-w: 1px;
@@ -118,6 +120,37 @@
   /* 分段标签条：选中那格是"抬起来的一块"，纯色模式下会被覆盖成实墨块 */
   --k-tab-on-bg: var(--k-surface);
   --k-tab-on-fg: var(--k-fg);
+  /*
+    选中标签的"压边记号"：一道贴着底边的墨线。
+
+    高度给 0 就完全没有（工程蓝图那一版不需要它，它靠整块涂黑表达选中）；
+    想把选中做成"纸上压一道线"的皮肤，只改这两个值，标签条的结构一行不动。
+  */
+  --k-tab-mark-h: 0px;
+  --k-tab-mark: transparent;
+
+  /* 聊天气泡。这里给的是"平面气泡"的默认值 —— 磨砂 / 液态什么都不用改就长这样；
+     纯色模式在 modes/solid.css 里把这些槽位换成"收敛浮签"（纸签、微斜、胶带、衬线字），
+     .k-bubble 的结构一行不动。数字沿用 2026-11 定稿的 Step3 消息区 F 浮签。 */
+  --k-bubble-radius: var(--k-card-radius);
+  --k-bubble-radius-ai: var(--k-bubble-radius);
+  --k-bubble-radius-me: var(--k-bubble-radius);
+  --k-bubble-me-bg: color-mix(in oklab, var(--aster-fg) 9%, transparent);
+  --k-bubble-me-fg: var(--aster-fg);
+  --k-bubble-ai-bg: var(--k-surface);
+  --k-bubble-ai-fg: var(--k-fg);
+  --k-bubble-pad: var(--k-s-3) var(--k-s-4);
+  --k-bubble-font: var(--k-font-ui);
+  --k-bubble-lh: var(--k-lh-2);
+  --k-bubble-line: var(--k-line-soft);
+  --k-bubble-tilt-ai: 0deg;
+  --k-bubble-tilt-me: 0deg;
+  /* 胶带：默认 0×0 + 全透明 = 根本不存在；纯色模式才给它尺寸和颜色 */
+  --k-bubble-tape-w: 0px;
+  --k-bubble-tape-h: 0px;
+  --k-bubble-tape-ai: transparent;
+  --k-bubble-tape-me: transparent;
+  --k-bubble-tape-shadow: transparent;
 
   /* 展开区里的滚动上限：响应体 / 长正文。
      写死高度会让不同字号的模式互相看着别扭，所以收成槽位统一给。 */

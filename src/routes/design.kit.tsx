@@ -61,7 +61,7 @@ function KitShowcase() {
   }, [material, palette]);
 
   return (
-    <div className="k-page k-nav-space min-h-dvh">
+    <div className="k-stage k-page k-nav-space min-h-dvh">
       <KHead title="标准件" meta="/design/kit" />
 
       {/* ── 现场切换材质 / 纸色 ─────────────────────────────── */}
@@ -91,6 +91,11 @@ function KitShowcase() {
               </KButton>
             ))}
           </div>
+          <span className="k-row__meta">纯色皮肤</span>
+          <span className="k-row__meta">
+            柔和纸（2026-11-07 定）：淡墨发丝线 · 8px 卡角 · 两层软纸影 · 无衬线正文 ·
+            选中标签压一道墨线
+          </span>
         </div>
       </KCard>
 

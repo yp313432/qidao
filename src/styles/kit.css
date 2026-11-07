@@ -168,7 +168,7 @@
   border-radius: var(--k-card-radius);
   background: var(--k-chip-bg);
   color: var(--k-chip-fg);
-  font-family: var(--k-font-num);
+  font-family: var(--k-font-label);
   font-size: var(--k-t-1);
   line-height: 1.2;
   letter-spacing: 0.1em;
@@ -409,7 +409,7 @@
   border-radius: var(--k-card-radius);
   background: transparent;
   color: var(--k-muted);
-  font-family: var(--k-font-num);
+  font-family: var(--k-font-label);
   font-size: var(--k-t-2);
   line-height: var(--k-lh-1);
   letter-spacing: 0.08em;
@@ -425,12 +425,17 @@
   border-color: var(--k-tab-on-bg);
   background: var(--k-tab-on-bg);
   color: var(--k-tab-on-fg);
-  box-shadow: var(--k-card-shadow);
+  /* 第一层是皮肤的"压边记号"（高度 0 时无感），第二层仍是卡片影 */
+  box-shadow:
+    inset 0 calc(-1 * var(--k-tab-mark-h)) 0 var(--k-tab-mark),
+    var(--k-card-shadow);
 }
 
 .k-tab:active {
   translate: var(--k-press-shift) var(--k-press-shift);
-  box-shadow: var(--k-card-shadow-press);
+  box-shadow:
+    inset 0 calc(-1 * var(--k-tab-mark-h)) 0 var(--k-tab-mark),
+    var(--k-card-shadow-press);
 }
 
 /* ── 可展开卡片：一行 + 展开区（工具页三种列表共用）──────────── */
@@ -604,6 +609,184 @@
   margin: 0;
 }
 
+/* ── 消息：头像在上、气泡另起一行（原对话页定稿的"方案丁"）─────────
+
+   为什么要把它收进 kit：用户 2026-11-07 担心"迁到标准件会不会把之前
+   做好的对话界面弄没了"。答案就是这一块 —— 定稿的**版式**（头像在上、
+   气泡另起一行、我的靠右他的靠左、宽度跟着文字走、左右留白一致）
+   原样搬进 kit，被收敛掉的只有散落的边框/圆角/阴影/字号写法。
+*/
+.k-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s-2);
+  min-inline-size: 0;
+}
+
+.k-msg[data-role="ai"] {
+  align-items: flex-start;
+}
+
+.k-msg[data-role="me"] {
+  align-items: flex-end;
+}
+
+.k-msg__head {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s-2);
+  color: var(--k-muted);
+  font-family: var(--k-font-label);
+  font-size: var(--k-t-1);
+  letter-spacing: 0.04em;
+}
+
+.k-msg__meta {
+  color: var(--k-muted);
+  font-family: var(--k-font-label);
+  font-size: var(--k-t-1);
+}
+
+/* 气泡本体。它长什么样全由 tokens.css 的 --k-bubble-* 决定：
+   磨砂/液态 = 平面气泡（默认值），纯色 = 收敛浮签（modes/solid.css 换值）。
+   纸世界那三件事——微斜、大小角、衬线墨字、胶带——都在这里只写一遍。
+   胶带是伪元素：默认 0×0 全透明，等于不存在；不进 DOM、不挡点击、不动热区。 */
+.k-bubble {
+  position: relative;
+  max-inline-size: 100%;
+  padding: var(--k-bubble-pad);
+  border: var(--k-border-w) solid var(--k-bubble-line);
+  border-radius: var(--k-bubble-radius-ai);
+  background: var(--k-bubble-ai-bg);
+  color: var(--k-bubble-ai-fg);
+  font-family: var(--k-bubble-font);
+  /* 字号故意不给：聊天气泡要跟着"设置里的字号"走，由 o 上的 fontSize 继承下来 */
+  font-size: 1em;
+  line-height: var(--k-bubble-lh);
+  overflow-wrap: anywhere;
+  rotate: var(--k-bubble-tilt-ai);
+}
+
+/* 占位气泡（"正在写回复…"）：只留虚线与淡字，不铺纸、不投影 */
+.k-bubble--ghost {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+  color: var(--k-muted);
+}
+
+/* "我"那一侧的气泡：挂在 .k-msg 里的走前者，独立一整个的（语音条）自己带 data-role 走后者 */
+.k-msg[data-role="me"] .k-bubble,
+.k-bubble[data-role="me"] {
+  border-radius: var(--k-bubble-radius-me);
+  background: var(--k-bubble-me-bg);
+  color: var(--k-bubble-me-fg);
+  rotate: var(--k-bubble-tilt-me);
+}
+
+.k-bubble::before {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * (var(--k-bubble-tape-h) / 2));
+  inline-size: var(--k-bubble-tape-w);
+  block-size: var(--k-bubble-tape-h);
+  box-shadow: 0 var(--k-border-w) calc(var(--k-border-w) * 2) var(--k-bubble-tape-shadow);
+  pointer-events: none;
+}
+
+.k-msg[data-role="ai"] .k-bubble::before,
+.k-bubble[data-role="ai"]::before {
+  inset-inline-start: 20px;
+  background: var(--k-bubble-tape-ai);
+  rotate: -2deg;
+}
+
+.k-msg[data-role="me"] .k-bubble::before,
+.k-bubble[data-role="me"]::before {
+  inset-inline-end: 20px;
+  background: var(--k-bubble-tape-me);
+  rotate: 1.5deg;
+}
+
+/* 气泡里的段落与列表：把浏览器默认外边距收干净，段落间距由变量给 */
+.k-bubble p {
+  margin: 0;
+}
+
+.k-bubble p + p {
+  margin-block-start: var(--k-s-3);
+}
+
+.k-bubble ul,
+.k-bubble ol {
+  margin: 0;
+  padding-inline-start: var(--k-s-5);
+}
+
+.k-bubble strong {
+  font-weight: 600;
+}
+
+/* 附件（图/文件）在气泡里的占位块 */
+.k-media {
+  inline-size: 100%;
+  max-inline-size: 15rem;
+  aspect-ratio: 4 / 3;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: var(--k-chip-bg);
+  color: var(--k-muted);
+  font-family: var(--k-font-label);
+  font-size: var(--k-t-1);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* 正在写回复：三个小点。只在真的要等的时候出现，所以成本可以忽略 */
+.k-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--k-muted);
+}
+
+.k-typing > i {
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: k-typing-dot 1.2s var(--k-e-out) infinite;
+}
+
+.k-typing > i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.k-typing > i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes k-typing-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── 底部输入条：贴底、随安全区留白 ─────────────────────────── */
+.k-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--k-s-2);
+  padding: var(--k-s-2) var(--k-page-x) calc(var(--k-s-2) + var(--k-safe-b));
+  border-block-start: var(--k-border-w) solid var(--k-line-soft);
+  background: var(--k-surface);
+}
+
 /* ── 尊重系统设置：不要动效 ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .k-card,
@@ -618,7 +801,13 @@
   .k-row:active,
   .k-btn:active,
   .k-tab:active {
-    translate: none;
+    /* 用 `0 0` 而不是 `none`：Lightning CSS 会把 `translate: none` 整条删掉
+       （design/ARCHITECTURE.md 坑 2），写了等于没写 */
+    translate: 0 0;
+  }
+  .k-typing > i {
+    animation: none;
+    opacity: 0.6;
   }
   .k-card[data-open="true"] .k-chev {
     rotate: 0deg;

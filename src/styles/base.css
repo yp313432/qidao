@@ -41,6 +41,7 @@
 
 .k-hstack {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--k-s-3);
   min-width: 0;
@@ -71,6 +72,16 @@
    paint 隔离会把它裁掉 —— 那是视觉回归，不是优化。 */
 .view-enter ol > li[id^="msg-"] {
   contain: layout;
+}
+
+/* 预览页的"舞台"：把内容抬到纸纹层上面。
+   底纸 `.background-canvas` 是 `fixed inset-0 z-0` —— 它比"普通流里的文字"画得晚，
+   所以没有外层定位的行内内容会被整片纸色盖住（表现为"打开是一片空白"）。
+   真页面不用管：AppShell 那层已经是 `relative z-10`。只有不挂 `_app` 的
+   设计预览页（/design/kit、/design/preview/*）需要自己抬一层。 */
+.k-stage {
+  position: relative;
+  z-index: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

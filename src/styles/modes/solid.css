@@ -1,8 +1,15 @@
 /*
-  模式：纯色 —— 「工程蓝图」（用户 2026-11-07 选定的方向 C）。
+  模式：纯色 —— 「柔和纸」。
 
-  这一版的气质：粗黑线、硬位移阴影、直角、等宽字、几乎零圆角、零透明。
-  它不是"没有效果的磨砂"，而是**另一种明确的美学**：像一张打好的工程图。
+  这一版的气质：发丝淡墨线、8px 纸卡圆角、两层软纸影、正文无衬线、
+  数字与代码仍用等宽打头，按下去只沉 1px。选中的标签不像工程图那样整块
+  涂黑，而是淡墨底 + 墨字 + 底边压一道墨线。
+
+  来历（别删）：2026-11-07 先按用户选的方向 C 做了"工程蓝图"（2px 黑线、
+  4px 硬位移影、直角、全等宽）。用户装包后说"是变了也不卡了，但是吧，
+  跟我之前的风格也不搭呀"，只勾了「整体太工程图，不像纸世界」。于是拿三个
+  候选皮肤（柔和纸 / 便签纸 / 暖图纸）在 /design/kit 上现场比，用户选了
+  **柔和纸**。所以这一版是"结构不变、把皮肤拉回纸世界"的结果。
 
   铁律：这个文件里只许写 [data-material="solid"] 的变量块。
     · 不许出现任何类名选择器 / 元素选择器（那是"补丁"，正是这次要根除的）；
@@ -14,28 +21,35 @@
 */
 
 [data-material="solid"] {
-  /* 字：等宽打头，中文自动落到系统字，读起来像终端/图纸 */
-  --k-font-ui: var(--k-font-mono);
+  /* 字：正文走无衬线（中文自动落到系统字，不再有"终端感"）；
+     数字、代码、键值仍用等宽，扫表时对齐；小标签也回到无衬线 */
+  --k-font-ui: var(--k-font-sans);
   --k-font-num: var(--k-font-mono);
+  --k-font-label: var(--k-font-sans);
 
-  /* 线：纯色模式要看得见骨架，所以线是实墨色，不是透明 */
-  --k-line: var(--aster-ink);
-  --k-line-soft: color-mix(in oklab, var(--aster-ink) 26%, transparent);
-  --k-border-w: 2px;
+  /* 线：发丝线，淡墨 55% —— 骨架要看得见，但不能是黑框 */
+  --k-line: color-mix(in oklab, var(--aster-ink) 55%, transparent);
+  --k-line-soft: color-mix(in oklab, var(--aster-ink) 18%, transparent);
+  --k-border-w: 1px;
 
-  /* 角：图纸没有圆角。控件留 2px，避免手机上像毛刺 */
-  --k-card-radius: 2px;
-  --k-ctl-radius: 2px;
+  /* 角：纸卡 8px；控件 10px */
+  --k-card-radius: 8px;
+  --k-ctl-radius: 10px;
 
-  /* 影：不用扩散阴影（糊、慢），用一块硬阴影把卡片"抬"出纸面 */
-  --k-card-shadow: 4px 4px 0 var(--aster-ink);
-  --k-card-shadow-press: 1px 1px 0 var(--aster-ink);
-  --k-press-shift: 3px;
+  /* 影：两层软纸影 —— 近一层压边、远一层抬起。不用硬位移阴影，
+     那东西在手机上看着厚，而且会把卡片"顶"成一块板 */
+  --k-card-shadow:
+    0 1px 2px color-mix(in oklab, var(--aster-ink) 10%, transparent),
+    0 10px 24px color-mix(in oklab, var(--aster-ink) 8%, transparent);
+  --k-card-shadow-press:
+    0 1px 1px color-mix(in oklab, var(--aster-ink) 8%, transparent),
+    0 3px 10px color-mix(in oklab, var(--aster-ink) 6%, transparent);
+  --k-press-shift: 1px;
 
   /*
     不透明：`none` 而不是 `blur(0px)`。
     blur(0) 仍会建合成层，纯色模式一张卡片一层，滚动就掉帧 ——
-    这是这次"不流畅"里最实的一刀，必须在源头就断掉。
+    这是"不流畅"里最实的一刀，必须在源头就断掉。换皮肤也没有把它换回来。
   */
   --k-backdrop: none;
 
@@ -44,19 +58,47 @@
   --k-ctl-on-fg: var(--aster-bg);
   --k-ctl-off-bg: transparent;
   --k-ctl-off-knob: color-mix(in oklab, var(--aster-ink) 30%, transparent);
-  --k-chip-bg: var(--aster-ink);
-  --k-chip-fg: var(--aster-bg);
+  --k-chip-bg: color-mix(in oklab, var(--aster-ink) 7%, transparent);
+  --k-chip-fg: var(--aster-ink);
 
   /* 控件几何：白点留 4px 边距，位移 = 40 − 14 − 8 = 18px */
   --k-track-w: 40px;
   --k-track-h: 22px;
   --k-knob: 14px;
 
-  /* 分段标签条：选中的那格直接压成实墨块（图纸上"涂黑"的那一条） */
-  --k-tab-on-bg: var(--aster-ink);
-  --k-tab-on-fg: var(--aster-bg);
+  /* 分段标签条：淡墨底 + 墨字 + 底边压一道墨线（--k-tab-mark-h 给 0 就没有） */
+  --k-tab-on-bg: color-mix(in oklab, var(--aster-ink) 6%, transparent);
+  --k-tab-on-fg: var(--aster-ink);
+  --k-tab-mark-h: 3px;
+  --k-tab-mark: var(--aster-ink);
 
   /* 动效：位移短促、走同一根曲线（快速到位，不拖尾） */
   --k-dur-move: var(--k-d-2);
   --k-ease-move: var(--k-e-move);
+
+  /*
+    聊天气泡 = 「收敛浮签」。
+    用户 2026-11-07 在 /design/preview/chat 上比了三档（原味浮签 / 收敛浮签 /
+    平面气泡）后选的是**收敛浮签**："行，那就要这个收敛的吧"。
+    相对 Step3 原稿（斜 0.8°、墨 28% 线、46×13 胶带）：斜度砍半到 0.4°、
+    线降到淡墨 18%、胶带缩到 34×10 —— 保留纸签的身份，压掉手抖感，
+    旋转幅度小了文字也少一层重绘（低端机上更稳）。
+    磨砂 / 液态不覆盖这些槽位，所以它们仍是平面气泡 —— 那两个模式靠玻璃，
+    纸签跟玻璃是两套东西，不要混。
+  */
+  --k-bubble-pad: 11px 12px 7px;
+  --k-bubble-font: var(--k-font-serif);
+  --k-bubble-lh: 1.85;
+  --k-bubble-line: color-mix(in oklab, var(--aster-ink) 18%, transparent);
+  --k-bubble-ai-bg: color-mix(in oklab, var(--aster-accent) 6%, var(--aster-bg));
+  --k-bubble-me-bg: color-mix(in oklab, var(--aster-ink) 6%, var(--aster-bg));
+  --k-bubble-radius-ai: 4px 4px 10px 4px;
+  --k-bubble-radius-me: 4px 4px 4px 10px;
+  --k-bubble-tilt-ai: -0.4deg;
+  --k-bubble-tilt-me: 0.25deg;
+  --k-bubble-tape-w: 34px;
+  --k-bubble-tape-h: 10px;
+  --k-bubble-tape-ai: color-mix(in oklab, var(--aster-accent) 30%, transparent);
+  --k-bubble-tape-me: color-mix(in oklab, var(--aster-ink) 16%, transparent);
+  --k-bubble-tape-shadow: color-mix(in oklab, var(--aster-ink) 10%, transparent);
 }
