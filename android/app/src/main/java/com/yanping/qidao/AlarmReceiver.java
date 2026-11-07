@@ -3,7 +3,6 @@ package com.yanping.qidao;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 
 /**
  * 闹钟到点的那一下（`AlarmManager.setAlarmClock` 到点会广播到这里）。
@@ -38,13 +37,16 @@ public class AlarmReceiver extends BroadcastReceiver {
       ring.putExtra("minute", minute);
       ring.putExtra("text", text);
       ring.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        /*
-         * Q 起可以显式声明"这次启动来自闹钟，请给我后台启动豁免"。
-         * 不写的话在某些 ROM 上会被判成普通后台启动而静默失败。
-         */
-        ring.addFlags(Intent.FLAG_ACTIVITY_REQUIRE_NON_BACKGROUND);
-      }
+      /*
+       * 曾经在这里加过 `Intent.FLAG_ACTIVITY_REQUIRE_NON_BACKGROUND` —— 那个常量**不存在**
+       * （CI `compileReleaseJavaWithJavac` 直接报 cannot find symbol），而且方向也是反的。
+       *
+       * 后台启动 Activity 的豁免**不是靠 flag 申请的**：只要这条定时来自
+       * `AlarmManager.setAlarmClock()`，系统（Android 12+ 的 background activity start
+       * restrictions）就把这次启动当成"闹钟在响"，直接放行。
+       * 真正能显式声明意图的 API 是 `ActivityOptions.setPendingIntentBackgroundActivityStartMode`，
+       * 但它只作用于 `PendingIntent` 的发送方（API 34+），跟我们这条 `startActivity` 无关。
+       */
       ctx.startActivity(ring);
     } catch (Exception e) {
       /*

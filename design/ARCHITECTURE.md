@@ -329,3 +329,20 @@ npm run dev       # 真机/浏览器看效果
   「封装成 App 后」的占位（`status: "system"`）。零权限层做出来之后，它们被
   `clipboard` / `calendar_write` 两个真项取代 —— 否则权限页会同时出现「能用」和「等一下再说」
   两套说法，用户不知道该信哪个。
+
+- **51. 原生代码只有 CI 能编译，所以「常量凭记忆写」是必踩的坑**（2026-11-07 #264 构建失败）：
+  我在 `AlarmReceiver` 里写了 `Intent.FLAG_ACTIVITY_REQUIRE_NON_BACKGROUND` —— **没有这个常量**，
+  CI 的 `:app:compileReleaseJavaWithJavac` 一条 `error: cannot find symbol` 就整批挂掉
+  （`tsc`/eslint/守卫全绿也没用，它们根本看不到 `.java`）。
+  两条硬规矩：① 写任何 `Xxx.CONST` 之前先确认它在 SDK 里真实存在（不确定就不写）；
+  ② 后台启动 Activity 的豁免**不是靠 flag 申请的** —— 只要定时来自 `setAlarmClock()`，
+  系统就放行；能显式声明的是 `ActivityOptions.setPendingIntentBackgroundActivityStartMode`（API 34+，
+  只作用于 PendingIntent 发送方）。
+
+- **52. 沙盒里看 CI 日志的办法**（PowerShell / curl 的 TLS 在沙盒里握手失败，
+  报 `SEC_E_NO_CREDENTIALS`；`Invoke-RestMethod` 报「基础连接已经关闭」）：
+  只有 **node 的 openssl** 能握手。用 node 写 `http.request({method:"CONNECT"})` 打通
+  `127.0.0.1:10808` 代理，再 `tls.connect` 到 `api.github.com:443`；日志接口是 302 →
+  `results-receiver.actions.githubusercontent.com`，返回 **chunked** 编码，要自己 dechunk
+  才是合法 zip。定位顺序：`/runs` → `/runs/{id}/jobs`（看哪一步红）→ 下载 logs zip →
+  在那个步骤的 txt 里 grep `error:`。
