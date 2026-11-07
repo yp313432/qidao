@@ -23,3 +23,11 @@ test-tone.wav
 
 # npm 缓存（构建时为了绕开沙箱指到工作区里，别提交）
 .npm-cache/
+
+# 历史遗留：截图目录与动画渲染中间帧（2026-11 清理）
+# screenshots/ 里那 13 张早期截图已从仓库移除；frames*/ 是一次性渲染产物。
+screenshots/
+frames/
+frames-*/
+frames3d/
+preview-assets/
