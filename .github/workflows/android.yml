@@ -25,6 +25,9 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    # 发 Release 直链需要写权限（GITHUB_TOKEN 默认只读）
+    permissions:
+      contents: write
     steps:
       - name: 取代码
         uses: actions/checkout@v4
@@ -160,10 +163,63 @@ jobs:
             exit 1
           fi
 
-      - name: 把 APK 传上来（构建完在这一页底部下载）
+      - name: 给 APK 一个稳定的名字，并算 SHA-256
+        # 为什么要有这一步：GitHub 的 artifact **永远打包成 zip** ——
+        # 手机上装不了、电脑上还得解压一次。用户的 D 盘里因此堆了七十多个
+        # 「栖岛-APK (77).zip」和七十多个解压目录（2026-11 用户反馈）。
+        #
+        # 解法：把 apk 拷成固定名字，作为 **Release 资产**发出去。
+        # Release 资产是不打包的原始文件，点一下就是 .apk，可直接传手机安装；
+        # 而且每次覆盖同一个名字 → 下载链接永久固定、不会越堆越多：
+        #   https://github.com/<owner>/<repo>/releases/download/apk-latest/qidao-latest.apk
+        #
+        # 顺带把 SHA-256 打进当页摘要：杀毒软件对新 APK 报「检测到病毒」是
+        # 名声问题（自签名、无历史），有校验值至少能自己核对文件没被改。
+        run: |
+          set -euo pipefail
+          src=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
+          mkdir -p out
+          cp "$src" out/qidao-latest.apk
+          ( cd out && sha256sum qidao-latest.apk > SHA256SUMS.txt )
+          sha=$(awk '{print $1}' out/SHA256SUMS.txt)
+          mb=$(awk -v b="$(stat -c%s out/qidao-latest.apk)" 'BEGIN{printf "%.1f", b/1048576}')
+          {
+            echo "## 栖岛 APK"
+            echo ""
+            echo "- 文件：\`qidao-latest.apk\`（${mb} MB，**不用解压**）"
+            echo "- SHA-256：\`${sha}\`"
+            echo "- 提交：\`${GITHUB_SHA}\`"
+            echo "- 直链（固定不变，可收藏）："
+            echo "  https://github.com/${GITHUB_REPOSITORY}/releases/download/apk-latest/qidao-latest.apk"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 发成 Release 直链（.apk 原文件，不再发 zip）
+        # permissions: contents: write 在 job 顶部声明（见文件开头），否则建不了 release。
+        uses: softprops/action-gh-release@v2
+        with:
+          # 固定 tag：每次构建覆盖同一个 release 的同一个资产名，
+          # 所以下载链接永远是这个，不会像 artifact 那样每次生成新文件名。
+          tag_name: apk-latest
+          name: 栖岛 APK（自动构建，最新）
+          make_latest: false
+          body: |
+            自动构建，提交 `${{ github.sha }}`。
+
+            下载 `qidao-latest.apk` 直接装（不用解压）。
+            校验值看 `SHA256SUMS.txt`。
+
+            装不上或被浏览器/杀软拦：这是自签名、无商店分发的 APK，
+            请选择「保留」或在手机上直接下载安装。
+          files: |
+            out/qidao-latest.apk
+            out/SHA256SUMS.txt
+
+      - name: 备份一份 artifact（带版本号，自动过期）
+        # 备份用途：Release 那边万一挂掉还能从这一页底部取。
+        # 文件名带 run_number 便于对照，保留 14 天就够 —— 反正 Release 有直链。
         uses: actions/upload-artifact@v4
         with:
-          name: 栖岛-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          name: 栖岛-APK-${{ github.run_number }}
+          path: out/qidao-latest.apk
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 14
