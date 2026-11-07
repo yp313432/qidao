@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
+import { announceAssistantMessage } from "@/lib/announce";
 import { buildContext } from "@/lib/awareness";
 import { resolveAiName } from "@/lib/branding";
-import { isChatPageActive, wakeShouldYield } from "@/lib/chat-presence";
-import { pushChatNotice } from "@/lib/inapp-notice";
+import { wakeShouldYield } from "@/lib/chat-presence";
 import { historyForApi, streamChat, type ApiMessage } from "@/lib/chat-client";
 import { localNotify } from "@/lib/notify";
 import { runAction } from "@/lib/actions";
@@ -443,17 +443,13 @@ export function TaskDaemon() {
        * **App 内横幅**（用户 2026-11-01："我在其它页面，他发了消息我其实不知道，
        * 要进入聊天才知道……要自然有动效那种"）。
        *
-       * 只在"不在聊天页"时弹：在聊天页消息就直接落进对话，再弹一条横幅是多余的。
+       * ⚠️ 原来只给"他自己排的唤醒"接了这条（`isSystemWake(due)`）—— 你自己定的定时任务
+       * 到点说话时**不弹**，同样是在别的页面、同样会漏。2026-11-07（用户 m04650：
+       * "横幅只触发过一次，不怎么弹"）改成统一走 `announceAssistantMessage`：
+       * 人在对话页不弹（消息直接落进对话），不在才弹。
        * 系统通知（`localNotify`）仍然照发 —— 那个是 App 在后台时用的，两者不冲突。
        */
-      if (isSystemWake(due) && !isChatPageActive()) {
-        pushChatNotice({
-          name: aiName,
-          avatar: useApp.getState().settings.aiAvatar || "",
-          body: shown,
-          conversationId,
-        });
-      }
+      announceAssistantMessage({ conversationId, body: shown });
       busy.current = false;
     };
 

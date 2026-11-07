@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
+import { IdentityCard } from "@/components/me/identity-card";
 
 /**
  * 「AI 概览」—— 他现在的样子（大幅主卡 + 三个入口）。
@@ -70,11 +71,15 @@ export function CoreView() {
   /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
   const needRef = useRef(0);
 
-  const HEAD_H = 340; // 主卡展开高度（行程 = 340-46 = 294px）
+  /*
+   * 尺寸跟「我的」那张卡同一套（用户 m04868："两个卡片用一样的就行，因为是一类"）：
+   * 头像 80 → 104、名字槽位 220 → 240、高度 340 → 320（这一张多出一排数据行，所以比「我的」高）。
+   */
+  const HEAD_H = 320; // 主卡展开高度（行程 = 320-46 = 274px）
   const BAR_H = 46; // 收进顶栏后的高度
-  const AV0 = 80;
+  const AV0 = 104;
   const AV1 = 24;
-  const NAME_W = 220;
+  const NAME_W = 240;
   /**
    * 收起后第一张卡与顶栏之间留的空隙（用户："距离可以没有重叠" —— 宁可留缝，不要压住）。
    * 这个值只在这里定义一次，need 计算和验收都以它为准。
@@ -105,12 +110,14 @@ export function CoreView() {
     if (avRef.current) {
       const scale = lerp(1, AV1 / AV0, e);
       const x = lerp((W - AV0) / 2, 8, e);
-      const y = Math.min(lerp(24, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
+      // 起点 34：跟「我的」同一套卡片几何（头像上沿 34px）
+      const y = Math.min(lerp(34, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
       avRef.current.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
     if (nameRef.current) {
       const x = lerp((W - NAME_W) / 2, 8 + AV1 + 8, e);
-      const y = Math.min(lerp(146, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
+      // 起点 154 = 头像 34 + 104 之后 16px 的间距
+      const y = Math.min(lerp(154, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
       nameRef.current.style.transform = `translate(${x}px, ${y}px) scale(${lerp(1, 0.62, e)})`;
       const el2 = nameRef.current.firstElementChild as HTMLElement | null;
       if (el2) el2.style.textAlign = e > 0.5 ? "left" : "center";
@@ -211,84 +218,71 @@ export function CoreView() {
             className="absolute inset-x-0 top-0 overflow-hidden"
             style={{ height: HEAD_H }}
           >
-            <div ref={cardRef} className="k-cover absolute inset-0" />
-            <div
-              ref={barRef}
-              className="absolute inset-x-0 top-0 h-[46px]"
-              style={{
-                opacity: 0,
-                borderRadius: "var(--k-card-radius)",
-                backgroundColor: "var(--aster-surface)",
-                backdropFilter: "blur(18px) saturate(1.5)",
-                WebkitBackdropFilter: "blur(18px) saturate(1.5)",
-                borderBottom: "0.5px solid var(--aster-line)",
-              }}
-            />
-            <span
-              ref={avRef}
-              /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
-              className="pointer-events-auto absolute left-0 top-0 block"
-              style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
-            >
-              <FileButton
-                ariaLabel="更换 AI 头像"
-                accept="image/*"
-                className="k-tile size-full overflow-hidden rounded-full"
-                onPick={(files) => {
-                  const file = files[0];
-                  if (file) readImageFile(file, (url) => patch({ aiAvatar: url }));
-                }}
-              >
-                {settings.aiAvatar ? (
-                  <img src={settings.aiAvatar} alt={aiName} className="size-full object-cover" />
-                ) : (
-                  <Sparkles className="size-7" />
-                )}
-              </FileButton>
-            </span>
-            <span
-              ref={nameRef}
-              /* 同上：点名字要能进编辑态，得单独顶回可点击 */
-              className="pointer-events-auto absolute left-0 top-0 block"
-              style={{ width: NAME_W, transformOrigin: "0 0" }}
-            >
-              {editingName ? (
-                <input
-                  autoFocus
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value.slice(0, 12))}
-                  onBlur={() => {
-                    patch({ aiName: draftName.trim() });
-                    setEditingName(false);
+            {/*
+              主卡走共用组件 —— 和「我的」封面是同一套 A 版藏书票
+              （用户 m04868："两个卡片用一样的就行，因为是一类"）。
+              头像换图、名字点改的逻辑原样保留；塌陷动画仍由上面的 onScroll 写 transform。
+            */}
+            <IdentityCard
+              refs={{ card: cardRef, bar: barRef, avatar: avRef, name: nameRef, copy: fadeRef }}
+              avatarSize={AV0}
+              nameWidth={NAME_W}
+              avatar={
+                <FileButton
+                  ariaLabel="更换 AI 头像"
+                  accept="image/*"
+                  className="flex size-full items-center justify-center rounded-full"
+                  onPick={(files) => {
+                    const file = files[0];
+                    if (file) readImageFile(file, (url) => patch({ aiAvatar: url }));
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                >
+                  {settings.aiAvatar ? (
+                    <img src={settings.aiAvatar} alt={aiName} className="size-full object-cover" />
+                  ) : (
+                    <Sparkles className="size-8" />
+                  )}
+                </FileButton>
+              }
+              name={
+                editingName ? (
+                  <input
+                    autoFocus
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value.slice(0, 12))}
+                    onBlur={() => {
                       patch({ aiName: draftName.trim() });
                       setEditingName(false);
-                    }
-                    if (e.key === "Escape") setEditingName(false);
-                  }}
-                  maxLength={12}
-                  aria-label="AI 名字"
-                  placeholder={aiName}
-                  className="w-full bg-transparent text-center font-serif text-xl outline-none placeholder:text-subtle"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftName(settings.aiName ?? "");
-                    setEditingName(true);
-                  }}
-                  aria-label="改 AI 的名字"
-                  className="w-full text-center font-serif text-xl"
-                >
-                  {aiName}
-                </button>
-              )}
-            </span>
-            <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 178 }}>
-              <p className="k-hint text-center">
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        patch({ aiName: draftName.trim() });
+                        setEditingName(false);
+                      }
+                      if (e.key === "Escape") setEditingName(false);
+                    }}
+                    maxLength={12}
+                    size={Math.max(2, Math.min(12, (draftName || aiName).length))}
+                    aria-label="AI 名字"
+                    placeholder={aiName}
+                    className="min-w-0 bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftName(settings.aiName ?? "");
+                      setEditingName(true);
+                    }}
+                    aria-label="改 AI 的名字"
+                    className="whitespace-nowrap text-center font-serif text-2xl"
+                  >
+                    {aiName}
+                  </button>
+                )
+              }
+            >
+              <p className="k-hint">
                 在 {settings.displayName || "你"} 的这个小世界里，陪你说话的那个
               </p>
               <div className="mt-[var(--k-s-4)] flex items-center justify-center gap-5">
@@ -305,10 +299,8 @@ export function CoreView() {
                   </div>
                 ))}
               </div>
-              <p className="k-hint mt-[var(--k-s-3)] text-center">
-                他现在记得 {activeMemories} 条关于你的事
-              </p>
-            </div>
+              <p className="k-hint mt-[var(--k-s-3)]">他现在记得 {activeMemories} 条关于你的事</p>
+            </IdentityCard>
           </div>
         </div>
 

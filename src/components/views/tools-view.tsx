@@ -70,7 +70,8 @@ export function ToolsView() {
 
   return (
     <div className="k-page min-h-0 flex flex-1 flex-col">
-      <KHead kicker="功能区" title="工具" />
+      {/* 用户 m04650："工具上面有一个功能区，这三个灰色的小字删掉吧，没有用" */}
+      <KHead title="工具" />
 
       <div className="k-tabs">
         {TABS.map((t) => (

@@ -18,6 +18,7 @@ import { Avatar } from "@/components/shared/avatar";
 import { FileButton } from "@/components/shared/file-button";
 import { BUILD_TAG } from "@/lib/branding";
 import { useScrollMemory } from "@/lib/ux";
+import { IdentityCard } from "./identity-card";
 
 /**
  * 「我的」首页：资料卡 + 三组入口 + 版本号。
@@ -148,18 +149,22 @@ export function MeHub() {
   const nameRef = useRef<HTMLSpanElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
-  const hintRef = useRef<HTMLParagraphElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const spacerRef = useRef<HTMLDivElement>(null);
   /** 滚到底所需的总可滚量：内容贴住「顶栏底边 + GAP」时刚好用完（挂载时实测） */
   const needRef = useRef(0);
 
-  /* 资料卡收窄（268 → 210）：称呼钮挪走之后原来的高度是空的 */
-  const HEAD_H = 210; // 展开时资料卡的高度（塌陷行程 = 210-46 = 164px）
+  /*
+   * 卡片尺寸（2026-11-07 换 A 藏书票之后重算，见 design/identity-card.html）：
+   *   头像 72 → 104（结构 B 那轮缩过头，用户 m04868："怎么变这么小"）
+   *   高度 210 → 204：卡片里只剩头像 + 名字，提示行挪到卡片外面（用户："卡片里只留身份信息"）
+   *   名字槽位 220 → 240：字号跟上头像之后要留够位置
+   */
+  const HEAD_H = 204; // 展开时卡片的高度（塌陷行程 = 204-46 = 158px）
   const BAR_H = 46; // 收进顶栏后的高度
-  const AV0 = 72; // 头像展开尺寸
+  const AV0 = 104; // 头像展开尺寸
   const AV1 = 28; // 头像收起尺寸
-  const NAME_W = 220; // 名字输入框宽度（居中时靠它算落点）
+  const NAME_W = 240; // 名字槽位宽度（居中时靠它算落点）
   /**
    * 收起后第一张卡与顶栏之间留的空隙。
    *
@@ -203,13 +208,14 @@ export function MeHub() {
     if (avRef.current) {
       const scale = lerp(1, AV1 / AV0, e);
       const x = lerp((W - AV0) / 2, 16, e);
-      // 始终留在容器可见范围内（高度在收缩，别让它被 overflow 裁掉）
+      // 起点 34 = 卡片内边距 22 + 右上角小字让出的位移（A 版样张量的）
       const y = Math.min(lerp(34, (BAR_H - AV1) / 2, e), Math.max(headH - AV0 * scale - 4, 0));
       avRef.current.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
     if (nameRef.current) {
       const x = lerp((W - NAME_W) / 2, 16 + AV1 + 8, e);
-      const y = Math.min(lerp(114, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
+      // 起点 154 = 头像 34 + 104 之后 16px 的间距
+      const y = Math.min(lerp(154, BAR_H / 2 - 15, e), Math.max(headH - 26, 0));
       nameRef.current.style.transform = `translate(${x}px, ${y}px) scale(${lerp(1, 0.58, e)})`;
       if (nameInputRef.current) nameInputRef.current.style.textAlign = e > 0.5 ? "left" : "center";
     }
@@ -222,7 +228,6 @@ export function MeHub() {
        */
       fadeRef.current.style.pointerEvents = p > 0.34 ? "none" : "auto";
     }
-    if (hintRef.current) hintRef.current.style.opacity = fade;
     if (titleRef.current) titleRef.current.style.opacity = String(1 - clamp01(p / 0.22));
   };
 
@@ -340,93 +345,72 @@ export function MeHub() {
           className="absolute inset-x-0 top-0 overflow-hidden"
           style={{ height: HEAD_H }}
         >
-          <div
-            ref={cardRef}
-            className="me-head-card absolute inset-0 rounded-3xl border border-line bg-surface"
-          />
-          <p className="me-exlibris">EX LIBRIS · 栖岛</p>
-          <p className="me-rule" />
-          <p className="me-rule2" />
-          <p className="me-vol">VOL.02 · 2026.11</p>
-          <div
-            ref={barRef}
-            className="me-bar absolute inset-x-0 top-0 h-[46px] rounded-3xl"
-            style={{
-              opacity: 0,
-              backgroundColor: "var(--aster-surface)",
-              backdropFilter: "blur(18px) saturate(1.5)",
-              WebkitBackdropFilter: "blur(18px) saturate(1.5)",
-              borderBottom: "0.5px solid var(--aster-line)",
-            }}
-          />
-          <span
-            ref={avRef}
-            /* 外层 pointer-events: none，头像要能点，所以这里单独顶回来 */
-            className="pointer-events-auto absolute left-0 top-0 block"
-            style={{ width: AV0, height: AV0, transformOrigin: "0 0" }}
-          >
-            <span className="me-av-ring" aria-hidden="true" />
-            <FileButton
-              ariaLabel="更换我的头像"
-              accept="image/*"
-              className="flex size-full items-center justify-center rounded-full"
-              onPick={(files) => {
-                const file = files[0];
-                if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
-              }}
-            >
-              <Avatar role="user" size={AV0} />
-            </FileButton>
-          </span>
-          <span
-            ref={nameRef}
-            /* 同上：名字要能输入/聚焦，得单独顶回可点击 */
-            className="pointer-events-auto absolute left-0 top-0 flex items-center justify-center gap-2"
-            style={{ width: NAME_W, transformOrigin: "0 0" }}
-          >
-            <input
-              ref={nameInputRef}
-              value={settings.displayName}
-              onChange={(e) => patch({ displayName: e.target.value.slice(0, 24) })}
-              placeholder="你的名字"
-              aria-label="显示名"
-              maxLength={24}
-              /* size 跟着字数走：宽度收在文字上，性别符号才贴得住名字（不再拉满 220px） */
-              size={Math.min(24, Math.max(2, (settings.displayName || "你的名字").length))}
-              className="min-w-0 bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
-            />
-            {/*
-              称呼就在名字后面那颗符号上（用户 m03042："名字后面跟着一个性别的那个符号就行"）。
-              点一下轮换：不说 → 用「她」→ 用「他」→ 不说。
-              以前这是一排三个按钮（「不说 / 用她 / 用他」），占一整行还只是改一个字段。
+          {/*
+              卡片外壳走共用组件（跟「AI 概览」主卡同一套 A 版藏书票）：
+              1px 墨框 + 内圈细线 + 右上 EX LIBRIS 角标 + 头像那圈虚线。
+              头像和名字仍然由本页传给组件（换头像、改名字的逻辑原样不动），
+              塌陷动画也仍然由上面的 onScroll 写 transform 驱动。
             */}
-            <button
-              type="button"
-              className="k-gender"
-              data-on={settings.userGender ? "true" : undefined}
-              aria-label={`他怎么称呼你：${GENDER_CYCLE[genderIndex].hint}（点一下换下一个）`}
-              title={GENDER_CYCLE[genderIndex].hint}
-              onClick={() =>
-                patch({
-                  userGender: GENDER_CYCLE[(genderIndex + 1) % GENDER_CYCLE.length].value,
-                })
-              }
-            >
-              {GENDER_CYCLE[genderIndex].symbol}
-            </button>
-          </span>
-          <div ref={fadeRef} className="absolute inset-x-0" style={{ top: 146 }}>
-            {/*
-              称呼改成名字后面那颗符号之后，这里只留一行提示。
-              其余资料（认识的日子）在「账号与资料」页。
-            */}
-            <p ref={hintRef} className="text-center text-[11px] text-subtle">
-              {settings.userAvatar ? "点头像可以换一张" : "点头像上传一张"}
-              <span className="text-subtle"> · 点名字可以改 · 名字后面那颗是称呼</span>
-            </p>
-          </div>
+          <IdentityCard
+            refs={{ card: cardRef, bar: barRef, avatar: avRef, name: nameRef, copy: fadeRef }}
+            avatarSize={AV0}
+            nameWidth={NAME_W}
+            avatar={
+              <FileButton
+                ariaLabel="更换我的头像"
+                accept="image/*"
+                className="flex size-full items-center justify-center rounded-full"
+                onPick={(files) => {
+                  const file = files[0];
+                  if (file) readImageFile(file, (url) => patch({ userAvatar: url }));
+                }}
+              >
+                <Avatar role="user" size={AV0} />
+              </FileButton>
+            }
+            name={
+              <input
+                ref={nameInputRef}
+                value={settings.displayName}
+                onChange={(e) => patch({ displayName: e.target.value.slice(0, 24) })}
+                placeholder="你的名字"
+                aria-label="显示名"
+                maxLength={24}
+                /* size 跟着字数走：宽度收在文字上，称呼符号才贴得住名字 */
+                size={Math.min(24, Math.max(2, (settings.displayName || "你的名字").length))}
+                className="min-w-0 bg-transparent text-center font-serif text-2xl outline-none placeholder:text-subtle"
+              />
+            }
+            gender={
+              /*
+               * 称呼就在名字后面那颗符号上（用户 m03042："名字后面跟着一个性别的那个符号就行"）。
+               * 点一下轮换：不说 → 用「她」→ 用「他」→ 不说。
+               * 位置由 `.k-idcard__gender` 绝对定位到名字右边 8px 外，**不参与居中**。
+               */
+              <button
+                type="button"
+                className="k-gender"
+                data-on={settings.userGender ? "true" : undefined}
+                aria-label={`他怎么称呼你：${GENDER_CYCLE[genderIndex].hint}（点一下换下一个）`}
+                title={GENDER_CYCLE[genderIndex].hint}
+                onClick={() =>
+                  patch({
+                    userGender: GENDER_CYCLE[(genderIndex + 1) % GENDER_CYCLE.length].value,
+                  })
+                }
+              >
+                {GENDER_CYCLE[genderIndex].symbol}
+              </button>
+            }
+          />
         </div>
       </div>
+
+      {/* 提示行挪到卡片外面（用户 m04868：卡片里只留身份信息） */}
+      <p className="mt-2 px-5 text-center text-[11px] text-subtle">
+        {settings.userAvatar ? "点头像可以换一张" : "点头像上传一张"} · 点名字可以改 ·
+        名字后面那颗是称呼
+      </p>
 
       {/*
         三组入口（结构 B）：

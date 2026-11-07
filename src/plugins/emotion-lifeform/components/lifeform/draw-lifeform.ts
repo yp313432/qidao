@@ -192,13 +192,17 @@ function drawLotus(
       ctx.lineWidth = 0.9;
       ctx.stroke();
 
-      /* ③ 一道竖向高光（往玻璃感靠一点） */
+      /* ③ 一道竖向高光（往玻璃感靠一点）
+         ── 2026-11-07：用户 m04214「光球颜色分不清，可能是太多白光、太柔」──
+         原来这层高光是 96~98% 亮度、正白光叠加（lighter），把花瓣的色相整个吃掉。
+         现在把亮度降到 84~88%、饱和度提到 62~66%，并把强度压到原来的六成 ——
+         高光仍在（玻璃感不丢），但它是"带颜色的亮"，不再洗成白色。 */
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       const hg = ctx.createLinearGradient(0, 0, 0, -len);
-      hg.addColorStop(0.4, hsla(warm, 40, 96, 0));
-      hg.addColorStop(0.76, hsla(warm, 44, 96, (0.1 + row.light * 0.16) * (0.5 + bright * 0.5)));
-      hg.addColorStop(1, hsla(warm, 40, 98, 0));
+      hg.addColorStop(0.4, hsla(warm, 58, 84, 0));
+      hg.addColorStop(0.76, hsla(warm, 64, 86, (0.06 + row.light * 0.1) * (0.5 + bright * 0.5)));
+      hg.addColorStop(1, hsla(warm, 58, 88, 0));
       strokeLoop(ctx, pts);
       ctx.fillStyle = hg;
       ctx.fill();

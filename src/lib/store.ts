@@ -1216,14 +1216,16 @@ export const useApp = create<AppState>()(
       /**
        * 他上报的一笔情绪事件（新词表）—— 插件的「当前状态」看第 0 条、轨迹看整列。
        *
-       * 留最近 60 条：插件那边一屏能看十几条轨迹，60 条够翻好几屏，
-       * 而每条都很小（几个词 + 六个 0~1 的数），不占地方。
+       * 留最近 400 条：原来只留 60 条，用户 m04214 翻轨迹发现"再往前就没了"。
+       * 每条都很小（几个词 + 六个 0~1 的数，约 200 字节），400 条 ≈ 80KB，
+       * 存档放得下。**分页交给展示层**（`panels.tsx` 的轨迹一次先给 30 条），
+       * 这里不必再截到"一屏的量"。
        */
       addEmotionEvent: (e) => {
         const id = uid("emo");
         const at = e.at ?? Date.now();
         set((st) => ({
-          emotionEvents: [{ ...e, id, at }, ...st.emotionEvents].slice(0, 60),
+          emotionEvents: [{ ...e, id, at }, ...st.emotionEvents].slice(0, 400),
         }));
         return id;
       },

@@ -768,13 +768,13 @@
 [data-material="solid"] .paper-env .paper-model > span:last-child {
   color: color-mix(in srgb, var(--aster-ink) 46%, transparent);
 }
-/* E3 双章之二：邮戳注销章，斜盖邮票左上（56px 双圈 + 11·02 + QIDAO） */
+/* E3 双章之二：邮戳注销章，斜盖邮票左上（双圈 + 11·02 + QIDAO）；56px→34px 收进票面，别压到语音钮（m04214） */
 [data-material="solid"] .pm-postmark {
   position: absolute;
-  top: -16px;
-  left: -12px;
-  width: 56px;
-  height: 56px;
+  top: 1px;
+  left: 1px;
+  width: 34px;
+  height: 34px;
   transform: rotate(-11deg);
   mix-blend-mode: multiply;
   pointer-events: none;

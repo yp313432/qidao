@@ -59,8 +59,10 @@ export const TERTIARY_PARENT: Record<string, string> = {
   // 「模型与用量」下面一项
   "/memory": "/usage",
 
-  // 「系统」下面一项
-  "/env": "/system",
+  // 「关于与高级」下面一项（结构 B 之后「开发与纠错」这一组搬进了 /about；
+  //  原来这里指向 /system，从环境自检退出会先落回那张已下线的「系统」页，
+  //  看起来就像转场里夹了一层别的页面 —— 用户 m04469 第 4 条）
+  "/env": "/about",
 
   /*
     玩乐区 —— 两级子分区：
@@ -253,10 +255,16 @@ export function backLabelOf(path: string): string {
     "/me": "返回我的",
     "/play": "返回玩乐",
     "/core": "返回 AI 概览",
-    "/space": "返回我的空间",
+    "/space": "返回外观",
     "/usage": "返回模型与用量",
     "/data": "返回数据",
     "/system": "返回系统",
+    "/about": "返回关于与高级",
+    "/notify": "返回主动与通知",
+    "/voice-settings": "返回语音",
+    "/privacy": "返回隐私与数据",
+    "/chat-settings": "返回对话设置",
+    "/profile": "返回账号与资料",
     "/play/tools": "返回小日子",
     "/play/games": "返回小游戏",
     "/play/garden": "返回花园",

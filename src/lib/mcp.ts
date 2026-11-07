@@ -470,15 +470,19 @@ export async function probeServer(server: McpServer): Promise<McpProbe> {
       serverVersion: session.serverInfo?.version,
       protocolVersion: session.protocolVersion,
       message: [
-        `握手成功${session.serverInfo?.name ? ` · 服务端 ${session.serverInfo.name}${session.serverInfo.version ? ` ${session.serverInfo.version}` : ""}` : ""}`,
-        `协议 ${session.protocolVersion}${session.sessionId ? ` · 会话 ${session.sessionId.slice(0, 12)}…` : "（对方无状态，没有会话号）"}`,
-        tools.length
-          ? `拿到 ${tools.length} 个工具：${tools.map((t) => t.name).slice(0, 12).join("、")}${tools.length > 12 ? " …" : ""}`
-          : "连通，但这个服务器没暴露任何工具",
+        `握手成功${
+          session.serverInfo?.name
+            ? ` · ${session.serverInfo.name}${session.serverInfo.version ? ` ${session.serverInfo.version}` : ""}`
+            : ""
+        }`,
+        tools.length ? `拿到 ${tools.length} 个工具` : "连通，但这个服务器没暴露任何工具",
         noteFailed,
       ]
+        // 一行摘要就够了（用户 m04214：展开区上面已经把工具名逐个列成 chip 了，
+        // 这里再列一遍「拿到 11 个工具：get_current_time、…」是纯重复；
+        // 协议版本 / 会话号那种技术细节也不该占用户的屏幕）。
         .filter(Boolean)
-        .join("\n"),
+        .join(" · "),
     });
   } catch (err) {
     return done({ ok: false, tools: [], message: networkFailure(err, url) });

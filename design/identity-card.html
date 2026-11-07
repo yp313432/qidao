@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>身份卡 · 三版样张（我 / 他）</title>
+    <style>
+      /* ── 真机色值（cream 纸色 · 纯色「柔和纸」材质），跟 src/styles/modes/solid.css 一致 ── */
+      :root {
+        --bg: #f6f3ee;
+        --surface: #f6f3ee;
+        --ink: #1c1917;
+        --muted: #7a746c;
+        --subtle: #b0aaa2;
+        --accent: #c17b5a;
+        --line: rgba(28, 25, 23, 0.55);
+        --line-soft: rgba(28, 25, 23, 0.18);
+        --chip: rgba(28, 25, 23, 0.07);
+        --radius: 8px;
+        --ctl: 10px;
+        --shadow: 0 1px 2px rgba(28, 25, 23, 0.1), 0 10px 24px rgba(28, 25, 23, 0.08);
+        --shadow-press: 0 1px 1px rgba(28, 25, 23, 0.08), 0 3px 10px rgba(28, 25, 23, 0.06);
+        --serif: "Source Serif 4", "Iowan Old Style", "Songti SC", "Noto Serif CJK SC", serif;
+        --sans: "DM Sans", "PingFang SC", "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px 24px 64px;
+        background: #ece6dc;
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      .doc-head { max-width: 1120px; margin: 0 auto 26px; }
+      .doc-head h1 { margin: 0 0 8px; font-family: var(--serif); font-size: 24px; font-weight: 600; letter-spacing: 0.01em; }
+      .doc-head p { margin: 0; max-width: 74ch; font-size: 13px; line-height: 1.75; color: #4c463f; }
+      .doc-head b { color: var(--accent); font-weight: 600; }
+
+      .rowset { max-width: 1120px; margin: 0 auto 34px; }
+      .rowset > h2 {
+        margin: 0 0 12px; font-family: var(--mono); font-size: 11px; font-weight: 500;
+        letter-spacing: 0.18em; text-transform: uppercase; color: #6f675e;
+      }
+      .rowset > h2 span { color: #a0978c; letter-spacing: 0.06em; text-transform: none; font-family: var(--sans); }
+      .panes { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; }
+
+      /* 390×844 手机画布 */
+      .phone {
+        position: relative; width: 390px; height: 844px; overflow: hidden;
+        border-radius: 22px; border: 1px solid rgba(28, 25, 23, 0.14);
+        background: var(--bg); box-shadow: 0 18px 44px rgba(28, 25, 23, 0.16);
+        padding: 18px 16px 0; flex: none;
+      }
+      .phone-tag {
+        position: absolute; top: 8px; right: 12px; z-index: 5;
+        font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; color: #a59b8f;
+      }
+
+      /* ── 公共：身份卡内部件（三版共用，只换外壳） ── */
+      .idcard { position: relative; padding: 22px 20px 20px; display: flex; flex-direction: column; align-items: center; }
+      .exlibris {
+        position: absolute; top: 12px; right: 14px;
+        font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em;
+        text-transform: uppercase; color: rgba(28, 25, 23, 0.4);
+      }
+      .avawrap { position: relative; width: 104px; height: 104px; margin-top: 12px; }
+      .ava {
+        width: 104px; height: 104px; border-radius: 50%; overflow: hidden;
+        display: grid; place-items: center; background: var(--chip);
+        font-family: var(--serif); font-size: 40px; color: var(--muted);
+      }
+      .ava img { width: 100%; height: 100%; object-fit: cover; }
+      .avawrap .ring { position: absolute; inset: -5px; border-radius: 50%; pointer-events: none; }
+
+      /* 名字：绝对居中；称呼符号绝对定位，不参与居中计算 */
+      .nameline { position: relative; margin-top: 16px; display: flex; justify-content: center; width: 100%; }
+      .name { font-size: 23px; line-height: 1.2; text-align: center; letter-spacing: 0.01em; }
+      .name .caret { border-bottom: 1px dashed rgba(28, 25, 23, 0.22); }
+      .gender {
+        position: absolute; left: 50%; top: 50%;
+        translate: calc(var(--name-half, 28px) + 8px) -50%;
+        width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+        border: 1px solid var(--line-soft); background: transparent;
+        font-size: 12px; line-height: 1; color: var(--muted);
+      }
+      .sub { margin-top: 7px; font-size: 13px; line-height: 1.6; color: rgba(28, 25, 23, 0.6); text-align: center; }
+      .stats { margin-top: 16px; display: flex; align-items: flex-end; justify-content: center; gap: 26px; }
+      .stat { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+      .stat b { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1; letter-spacing: -0.01em; }
+      .stat i { font-family: var(--mono); font-size: 10px; font-style: normal; letter-spacing: 0.1em; color: var(--subtle); }
+      .stat.warn b { color: var(--accent); }
+      .mem { margin-top: 13px; font-size: 12px; color: rgba(28, 25, 23, 0.6); text-align: center; }
+      .hint-out { margin: 8px 2px 0; font-size: 11px; line-height: 1.6; color: var(--subtle); text-align: center; }
+
+      /* ── A：藏书票（细双线框 + 类目角标） ── */
+      .A .idcard { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+      .A .idcard::after {
+        content: ""; position: absolute; inset: 4px; border: 1px solid var(--line-soft);
+        border-radius: 4px; pointer-events: none;
+      }
+      .A .avawrap .ring { border: 1px dashed rgba(28, 25, 23, 0.4); }
+
+      /* ── B：票签（只有一条发丝线，靠留白） ── */
+      .B .idcard { border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding-bottom: 24px; }
+      .B .avawrap .ring { border: 1px solid rgba(28, 25, 23, 0.12); }
+      .B .ava { background: rgba(28, 25, 23, 0.05); }
+      .B .stats { gap: 0; }
+      .B .stat { padding: 0 20px; border-left: 1px solid var(--line-soft); }
+      .B .stat:first-child { border-left: 0; }
+
+      /* ── C：压印章（纸纹 + 齿孔头像圈，纸世界味最足） ── */
+      .C .idcard {
+        border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface);
+        box-shadow: var(--shadow);
+        background-image:
+          repeating-linear-gradient(0deg, rgba(28, 25, 23, 0.016) 0 1px, transparent 1px 3px);
+      }
+      .C .avawrap { width: 108px; height: 108px; }
+      .C .ava { width: 108px; height: 108px; }
+      .C .avawrap .ring {
+        inset: -7px;
+        border: 0;
+        background:
+          repeating-conic-gradient(rgba(28, 25, 23, 0.34) 0deg 5deg, transparent 5deg 10deg);
+        -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 58.5% 100%);
+        mask: radial-gradient(circle, transparent 0 58%, #000 58.5% 100%);
+      }
+      .C .idcard::after {
+        content: ""; position: absolute; inset: 5px; border-radius: 4px; pointer-events: none;
+        border: 1px solid rgba(28, 25, 23, 0.1);
+      }
+
+      /* ── 收缩态预览（滚下去之后塌成 46px 窄条） ── */
+      .collapsed {
+        margin-top: 14px; height: 46px; display: flex; align-items: center; gap: 8px;
+        padding: 0 12px; border-radius: 6px; background: var(--surface);
+        border: 1px solid var(--line-soft); box-shadow: var(--shadow-press);
+      }
+      .collapsed .ava-s { width: 28px; height: 28px; border-radius: 50%; background: var(--chip); display: grid; place-items: center; font-family: var(--serif); font-size: 13px; color: var(--muted); }
+      .collapsed .nm { font-size: 15px; font-weight: 500; }
+      .collapsed .gd { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--line-soft); display: grid; place-items: center; font-size: 10px; color: var(--muted); }
+      .collapsed .cap { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.14em; color: var(--subtle); text-transform: uppercase; }
+
+      /* 下面三组入口卡（示意，证明卡片配套） */
+      .sect { margin-top: 18px; }
+      .sect-t { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+      .sect-t em { float: right; font-style: normal; color: var(--subtle); }
+      .cardlist { display: flex; flex-direction: column; gap: 8px; }
+      .card {
+        display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+        border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface);
+        box-shadow: var(--shadow-press);
+      }
+      .card .tile { width: 30px; height: 30px; border-radius: 6px; background: var(--chip); display: grid; place-items: center; font-size: 13px; color: var(--muted); flex: none; }
+      .card .bd { min-width: 0; }
+      .card .tt { font-size: 14px; line-height: 1.3; }
+      .card .mm { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .card .ar { margin-left: auto; color: var(--subtle); font-size: 13px; }
+      .note { max-width: 1120px; margin: 0 auto; font-size: 12px; line-height: 1.85; color: #4c463f; }
+      .note code { font-family: var(--mono); font-size: 11px; background: rgba(28, 25, 23, 0.06); padding: 1px 5px; border-radius: 4px; }
+      .note li { margin-bottom: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="doc-head">
+      <h1>身份卡 · 三版（「我的」和「AI 概览」用同一个组件）</h1>
+      <p>
+        三版都按同一套规格做：<b>头像 104px 圆形</b>（原来 72px，就是你说的"变这么小"）、<b>名字绝对居中</b>（♀ 那枚称呼钮绝对定位挂在右边，<b>不参与居中计算</b>，所以你看到的"歪"就没有了）、
+        副标题 13px / 60%、数据行数字 26px 等宽 + 10px 标签。
+        左边是「我的」，右边是「AI 概览」—— 同一个卡片，只有内容和数据不同。每组下面还画了滚下去之后塌成 46px 的窄条。
+      </p>
+    </div>
+
+    <!-- ================= A ================= -->
+    <section class="rowset A">
+      <h2>A · 藏书票 <span>（细双线框 + EX LIBRIS 角标，最"典藏"）</span></h2>
+      <div class="panes">
+        <div class="phone">
+          <span class="phone-tag">A-1 我的</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">Y</div></div>
+            <div class="nameline" style="--name-half: 20px">
+              <span class="name"><span class="caret">yan</span></span>
+              <span class="gender">♀</span>
+            </div>
+            <p class="sub">在这个小世界里，陪你说话的那个是你</p>
+          </div>
+          <p class="hint-out">点头像可以换一张 · 点名字可以改 · 名字后面那颗是称呼</p>
+          <div class="collapsed">
+            <span class="ava-s">Y</span><span class="nm">yan</span><span class="gd">♀</span>
+            <span class="cap">我的</span>
+          </div>
+          <div class="sect">
+            <p class="sect-t">我的设置<em>06</em></p>
+            <div class="cardlist">
+              <div class="card"><span class="tile">◐</span><div class="bd"><div class="tt">外观</div><div class="mm">材质 · 背景 · 字体</div></div><span class="ar">›</span></div>
+              <div class="card"><span class="tile">◍</span><div class="bd"><div class="tt">对话</div><div class="mm">思考过程 · 回复长短 · 分段</div></div><span class="ar">›</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <span class="phone-tag">A-2 AI 概览</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">克</div></div>
+            <div class="nameline" style="--name-half: 22px">
+              <span class="name"><span class="caret">小克</span></span>
+              <span class="gender">♂</span>
+            </div>
+            <p class="sub">在 yan 的这个小世界里，陪你说话的那个</p>
+            <div class="stats">
+              <span class="stat"><b>65</b><i>允许</i></span>
+              <span class="stat"><b>9</b><i>需询问</i></span>
+              <span class="stat warn"><b>3</b><i>已拒绝</i></span>
+            </div>
+            <p class="mem">他现在记得 12 条关于你的事</p>
+          </div>
+          <p class="hint-out">点名字能改、点头像能换；下面三项点进去改</p>
+          <div class="collapsed">
+            <span class="ava-s">克</span><span class="nm">小克</span><span class="gd">♂</span>
+            <span class="cap">AI 概览</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section class="rowset B">
+      <h2>B · 票签 <span>（不套框，只用一条发丝线收口；三格数据带竖分隔，最"轻"）</span></h2>
+      <div class="panes">
+        <div class="phone">
+          <span class="phone-tag">B-1 我的</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">Y</div></div>
+            <div class="nameline" style="--name-half: 20px">
+              <span class="name"><span class="caret">yan</span></span>
+              <span class="gender">♀</span>
+            </div>
+            <p class="sub">在这个小世界里，陪你说话的那个是你</p>
+          </div>
+          <p class="hint-out">点头像可以换一张 · 点名字可以改 · 名字后面那颗是称呼</p>
+          <div class="collapsed">
+            <span class="ava-s">Y</span><span class="nm">yan</span><span class="gd">♀</span>
+            <span class="cap">我的</span>
+          </div>
+          <div class="sect">
+            <p class="sect-t">我的设置<em>06</em></p>
+            <div class="cardlist">
+              <div class="card"><span class="tile">◐</span><div class="bd"><div class="tt">外观</div><div class="mm">材质 · 背景 · 字体</div></div><span class="ar">›</span></div>
+              <div class="card"><span class="tile">◍</span><div class="bd"><div class="tt">对话</div><div class="mm">思考过程 · 回复长短 · 分段</div></div><span class="ar">›</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <span class="phone-tag">B-2 AI 概览</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">克</div></div>
+            <div class="nameline" style="--name-half: 22px">
+              <span class="name"><span class="caret">小克</span></span>
+              <span class="gender">♂</span>
+            </div>
+            <p class="sub">在 yan 的这个小世界里，陪你说话的那个</p>
+            <div class="stats">
+              <span class="stat"><b>65</b><i>允许</i></span>
+              <span class="stat"><b>9</b><i>需询问</i></span>
+              <span class="stat warn"><b>3</b><i>已拒绝</i></span>
+            </div>
+            <p class="mem">他现在记得 12 条关于你的事</p>
+          </div>
+          <p class="hint-out">点名字能改、点头像能换；下面三项点进去改</p>
+          <div class="collapsed">
+            <span class="ava-s">克</span><span class="nm">小克</span><span class="gd">♂</span>
+            <span class="cap">AI 概览</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section class="rowset C">
+      <h2>C · 压印章 <span>（纸纹 + 齿孔头像圈，纸世界味最足）</span></h2>
+      <div class="panes">
+        <div class="phone">
+          <span class="phone-tag">C-1 我的</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">Y</div></div>
+            <div class="nameline" style="--name-half: 20px">
+              <span class="name"><span class="caret">yan</span></span>
+              <span class="gender">♀</span>
+            </div>
+            <p class="sub">在这个小世界里，陪你说话的那个是你</p>
+          </div>
+          <p class="hint-out">点头像可以换一张 · 点名字可以改 · 名字后面那颗是称呼</p>
+          <div class="collapsed">
+            <span class="ava-s">Y</span><span class="nm">yan</span><span class="gd">♀</span>
+            <span class="cap">我的</span>
+          </div>
+          <div class="sect">
+            <p class="sect-t">我的设置<em>06</em></p>
+            <div class="cardlist">
+              <div class="card"><span class="tile">◐</span><div class="bd"><div class="tt">外观</div><div class="mm">材质 · 背景 · 字体</div></div><span class="ar">›</span></div>
+              <div class="card"><span class="tile">◍</span><div class="bd"><div class="tt">对话</div><div class="mm">思考过程 · 回复长短 · 分段</div></div><span class="ar">›</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <span class="phone-tag">C-2 AI 概览</span>
+          <div class="idcard">
+            <span class="exlibris">EX LIBRIS · 栖岛</span>
+            <div class="avawrap"><span class="ring"></span><div class="ava">克</div></div>
+            <div class="nameline" style="--name-half: 22px">
+              <span class="name"><span class="caret">小克</span></span>
+              <span class="gender">♂</span>
+            </div>
+            <p class="sub">在 yan 的这个小世界里，陪你说话的那个</p>
+            <div class="stats">
+              <span class="stat"><b>65</b><i>允许</i></span>
+              <span class="stat"><b>9</b><i>需询问</i></span>
+              <span class="stat warn"><b>3</b><i>已拒绝</i></span>
+            </div>
+            <p class="mem">他现在记得 12 条关于你的事</p>
+          </div>
+          <p class="hint-out">点名字能改、点头像能换；下面三项点进去改</p>
+          <div class="collapsed">
+            <span class="ava-s">克</span><span class="nm">小克</span><span class="gd">♂</span>
+            <span class="cap">AI 概览</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <ul class="note">
+      <li><b>头像</b>：三版都是 104px 圆形（现在代码里是 72px）。收缩态头像 28px，跟现在的塌陷动画对得上。</li>
+      <li><b>名字居中</b>：名字单独一行绝对居中，称呼符号（♀/♂/·）用 <code>position:absolute</code> 挂到名字右侧 8px —— 它不占布局宽度，所以"整体"永远在正中，不会像现在这样被符号拽偏一格。</li>
+      <li><b>两张卡一个组件</b>：同一套外壳 + 同一批槽位，<code>role</code> 只决定"显示不显示数据行 / 谁的名字可编辑"，不决定长相。</li>
+      <li><b>提示行</b>：从卡片里挪到卡片下方一行小字（你说的"卡片内只留身份信息"），卡片里干净。</li>
+      <li>配色全部来自现有变量（<code>--aster-ink</code> / <code>--line-soft</code> / <code>--k-card-shadow</code>），换纸色、换材质自动跟着变。</li>
+    </ul>
+  </body>
+</html>

@@ -22,7 +22,12 @@ export function MePage({ tab, title, subtitle }: { tab: MeTab; title: string; su
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
       <PageHeader title={title} description={subtitle} />
 
-      <MeSections tab={tab} />
+      {/* 二级页统一左右留白：所有设置页都走这一个外壳（用户 m04469 第 3 条：
+          「从对话往后 push 出来的二级页直接贴到两侧，跟外观那种离边有距离的不一致」）。
+          内层页面自己别再套 `k-page`，否则会双份 16px。 */}
+      <div className="k-page">
+        <MeSections tab={tab} />
+      </div>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
         栖岛 · 思考链保存在这台设备 · {BUILD_TAG}

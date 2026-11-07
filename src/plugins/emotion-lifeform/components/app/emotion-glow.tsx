@@ -108,26 +108,38 @@ export function groupOf(
 }
 
 /**
- * 只取 ISO 字符串里**记录自带的墙上时间**（`2026-10-09T09:10:00+08:00` → `09:10`）。
+ * 情绪事件的时间 → 屏幕上那个钟点（**本机时间**）。
  *
- * 不能用 `Intl` / `getHours()` —— 服务端（UTC）和浏览器（Asia/Shanghai）会算出
- * 两个不同的钟点，SSR 与首屏一对不上就是 hydration mismatch，整棵树重画。
+ * ── 2026-11 修正（用户 m04214 实机："现在都 7 点半，他报的却是 11 点半"）──
+ * 原来这里只从 ISO 字符串里抠墙上时间：`new Date(at).toISOString()` 是 **UTC**，
+ * 所以抠出来的是 UTC 的钟点 —— 用户在 UTC+8 时，"19:30 报的"会显示成 11:30。
+ *
+ * 现在按**真时刻**走：`Date.parse(iso)` 得到 epoch，再用**本机时区**格式化。
+ * 栖岛里情绪事件是端上 `Date.now()` 写的（`lib/store.ts` 的 `addEmotionEvent`），
+ * epoch 本身是对的，错的只是显示这一层。
+ *
+ * 关于原来的顾虑（SSR 与浏览器时区不同 → hydration mismatch）：这一页是
+ * `"use client"` 挂进来的（`src/components/play/plugins/emotion-lifeform.tsx`），
+ * 首屏不在服务端渲染，所以直接按本机时区格式化是安全的。
  */
+const CLOCK_FMT = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 export function formatClock(iso: string): string {
-  const wall = /T(\d{2}):(\d{2})/.exec(iso);
-  if (wall) return `${wall[1]}:${wall[2]}`;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "--:--";
-  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "--:--";
+  return CLOCK_FMT.format(new Date(at));
 }
 
-/** 一天里的第几分钟 —— 同样按记录自带的时区算，跟 `formatClock` 对齐 */
+/** 一天里的第几分钟（本机时区）——跟 `formatClock` 对齐，给光带的 x 轴用 */
 export function clockMinutes(iso: string): number {
-  const wall = /T(\d{2}):(\d{2})/.exec(iso);
-  if (wall) return Number(wall[1]) * 60 + Number(wall[2]);
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 0;
-  return date.getUTCHours() * 60 + date.getUTCMinutes();
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return 0;
+  const date = new Date(at);
+  return date.getHours() * 60 + date.getMinutes();
 }
 
 /** 手写英文句的统一样式（21px / 16px、暖白、微微倾斜） */

@@ -1,15 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { MePage } from "@/components/views/me-sections";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
- * 数据。只有备份 / 恢复 —— 记忆库和世界书在「AI 概览」那一层，这里不重复。
+ * 结构 B（2026-11）之后「数据」不再单列一页：备份与恢复搬进了
+ * 「隐私与数据」(/privacy)。老链接与 AI 的界面动作还指着 /data，
+ * 所以留个转场，别白屏。
  */
 export const Route = createFileRoute("/_app/data")({
-  component: () => (
-    <MePage
-      tab="data"
-      title="数据"
-      subtitle="换手机、清缓存之前，先导出一份"
-    />
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: "/privacy", replace: true });
+  },
 });

@@ -82,8 +82,12 @@ export function MemoryView() {
 
   const hitRate = stats.prompt > 0 ? Math.round((stats.cached / stats.prompt) * 100) : 0;
 
+  // `.k-page` 补左右 16px 留白：跟其它二级页保持一致（用户 m04469 第 3 条）
   return (
-    <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
+    <div
+      ref={scrollRef}
+      className="k-page flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav"
+    >
       <PageHeader title="上下文与内存" />
 
       {/* 预算 */}

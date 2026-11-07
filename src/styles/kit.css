@@ -1085,6 +1085,117 @@
   color: var(--k-muted);
 }
 
+/* ── 身份卡：「我的」封面 与「AI 概览」主卡共用一套外壳 ────────────
+   用户 m04868："这个头像是不是不对，怎么变这么小，2名字在头像下面不居中，
+   看着会显歪，然后就是两个卡片用一样的就行，因为是一类…可以弄个好看点的样式吗，
+   给图我看看" → 看了 design/identity-card.html 之后他选了 A（藏书票）。
+
+   结构是「一张纸卡 + 三个绝对定位槽位」：头像 / 名字 / 说明块。
+   三个槽位的位置仍然由页面用 style.transform 驱动（塌陷动画那套一行没改），
+   所以这里只给起点、材质和内圈那道细线。 */
+.k-idcard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: var(--k-border-w) solid var(--k-line);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  box-shadow: var(--k-card-shadow);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+}
+
+/* 内圈细线：藏书票那种"框里还有一道框"的典藏感 */
+.k-idcard::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* 右上角那行小字（EX LIBRIS · 栖岛） */
+.k-idcard__mark {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 14px;
+  margin: 0;
+  font-family: var(--k-font-num);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--k-subtle);
+}
+
+/* 收进顶栏之后浮上来的那一条（页面控制 opacity） */
+.k-idcard__bar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  block-size: 46px;
+  border-radius: var(--k-card-radius);
+  border-block-end: var(--k-border-w) solid var(--k-line-soft);
+  background: var(--k-surface);
+  -webkit-backdrop-filter: var(--k-backdrop);
+  backdrop-filter: var(--k-backdrop);
+}
+
+/* 头像槽位：位置/缩放由页面写 transform，这里只给锚点与那圈虚线 */
+.k-idcard__ava {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: block;
+  transform-origin: 0 0;
+}
+
+.k-idcard__ava::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: var(--k-border-w) dashed var(--k-line);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* 名字槽位：宽度由页面给（塌陷时按它算落点），内部居中后再由称呼符号往右挂 */
+.k-idcard__name {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  justify-content: center;
+  transform-origin: 0 0;
+}
+
+/* 名字与称呼都只围着自己的内容宽：居中算的是"名字"，符号绝对定位挂到右边 8px 外，
+   所以名字永远在正中（原来是名字和 ♀ 同在一个 flex 行里，居中的是两者之和 → 看着歪） */
+.k-idcard__namewrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+}
+
+.k-idcard__gender {
+  position: absolute;
+  inset-inline-start: 100%;
+  inset-block-start: 50%;
+  margin-inline-start: var(--k-s-2);
+  /* 用 transform 而不是 `translate`：`.k-gender:active` 会写 `translate`，
+     两个是不同属性，按下去不会把垂直居中冲掉 */
+  transform: translateY(-50%);
+}
+
+/* 说明块（副标题 / 数据行 / 记得几条）：只淡出，不做位移 */
+.k-idcard__copy {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 190px;
+  text-align: center;
+}
+
 /* ── 尊重系统设置：不要动效 ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .k-card,

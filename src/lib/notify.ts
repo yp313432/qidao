@@ -46,6 +46,8 @@ type NativeNotify = {
       id: number;
       title: string;
       body: string;
+      /** 走哪个渠道 —— 渠道的重要性决定它会不会在顶部弹横幅，见下面的 `CHANNEL_ID` */
+      channelId?: string;
       schedule?: {
         at?: Date;
         allowWhileIdle?: boolean;
@@ -63,6 +65,16 @@ type NativeNotify = {
   }) => Promise<unknown>;
   cancel: (opts: { notifications: { id: number }[] }) => Promise<void>;
   getPending?: () => Promise<{ notifications: { id: number }[] }>;
+  /** 建/改通知渠道（安卓 8+）。老版本插件没有这个方法，所以要可选。 */
+  createChannel?: (opts: {
+    id: string;
+    name: string;
+    description?: string;
+    /** 1 最小 ~ 5 最高；**只有 5（IMPORTANCE_HIGH）才会弹横幅** */
+    importance?: number;
+    visibility?: number;
+    vibration?: boolean;
+  }) => Promise<void>;
   /** 安卓 12+ 的"精确定时"授权（有些版本没有这个方法） */
   checkExactNotificationSetting?: () => Promise<{ exact_alarm?: string }>;
   changeExactNotificationSetting?: () => Promise<{ exact_alarm?: string }>;
@@ -195,6 +207,51 @@ export async function swRegistration(): Promise<ServiceWorkerRegistration | null
   return swReg;
 }
 
+/* ------------------------------- 通知渠道 ------------------------------- */
+
+/**
+ * **安卓的「横幅通知」（heads-up）靠的是渠道重要性，不是通知本身。**
+ *
+ * ⚠️ 用户 m04650："横幅通知你要看一下，它只触发过一次，不怎么弹" —— 查下来是这里：
+ * Capacitor 插件自己建的那个 `default` 渠道用的是 **IMPORTANCE_DEFAULT**（见
+ * `node_modules/@capacitor/local-notifications/android/.../LocalNotificationManager.kt:85`
+ * `val importance = android.app.NotificationManager.IMPORTANCE_DEFAULT`）。
+ * 8.0 以后**只有 IMPORTANCE_HIGH 的渠道才会在屏幕顶部弹横幅**，DEFAULT 只会静静落进通知栏
+ * —— 所以「弹过一次」（大概那次恰好在前台/或系统放宽）之后就再也不弹了，不是偶发。
+ *
+ * 而且**渠道建好之后重要性就改不动了**（系统规定：文字/描述能改，重要性归用户），
+ * 所以不能去"修"那个 default 渠道 —— 只能换一个新的、重要性 HIGH 的渠道，
+ * 发通知时显式带上 `channelId`。
+ *
+ * `importance: 5` = IMPORTANCE_HIGH；`visibility: 1` = 锁屏显示内容。
+ * 渠道名会出现在「设置 → 通知 → 栖岛」里，所以叫「他的消息」而不是 QIDAO_CHANNEL。
+ */
+const CHANNEL_ID = "qidao";
+
+/**
+ * 建好渠道就返回它的 id，建不出来返回 `undefined`。
+ *
+ * ⚠️ **不能建失败还硬带 `channelId`**：插件文档写着"渠道不存在这条通知就不会发"
+ * —— 宁可不弹横幅，也不能让它连通知栏都进不去。
+ */
+async function ensureChannel(api: NativeNotify): Promise<string | undefined> {
+  if (!api.createChannel) return undefined;
+  try {
+    await api.createChannel({
+      id: CHANNEL_ID,
+      name: "他的消息",
+      description: "他主动开口、以及你定的定时提醒",
+      importance: 5,
+      visibility: 1,
+      vibration: true,
+    });
+    return CHANNEL_ID;
+  } catch {
+    /* 建不了就退回默认渠道，通知照样能落进通知栏，只是不弹横幅 */
+    return undefined;
+  }
+}
+
 /* ------------------------------- 发通知 ------------------------------- */
 
 /** 立刻弹一条本地通知。App 里走安卓系统通知栏，网页里走 Notification / SW。 */
@@ -222,12 +279,14 @@ export async function scheduleNative(o: {
       const asked = await n.api.requestPermissions();
       if (asked.display !== "granted") return false;
     }
+    const channelId = await ensureChannel(n.api);
     await n.api.schedule({
       notifications: [
         {
           id: o.id,
           title: o.title,
           body: o.body,
+          channelId,
           sound: o.sound === false ? undefined : "default",
           schedule: o.daily
             ? {
@@ -300,12 +359,14 @@ export async function localNotify(title: string, body: string): Promise<boolean>
         const asked = await n.api.requestPermissions();
         if (asked.display !== "granted") return false;
       }
+      const channelId = await ensureChannel(n.api);
       await n.api.schedule({
         notifications: [
           {
             id: Math.floor(Date.now() % 2147483647),
             title,
             body,
+            channelId,
           },
         ],
       });

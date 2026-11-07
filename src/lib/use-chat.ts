@@ -13,6 +13,7 @@ import {
 } from "@/lib/chat-client";
 import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
 import { ACTION_PERMISSION } from "@/lib/action-meta";
+import { announceAssistantMessage } from "@/lib/announce";
 import {
   actionFeedback,
   assembleMessages,
@@ -1089,6 +1090,13 @@ export function useChatStream(opts: UseChatOpts = {}) {
         // 过程线（想 → 做 → 想）—— 点开思考链时按这个顺序显示
         steps: state.steps.length > 0 ? [...state.steps] : undefined,
       });
+      /**
+       * **不在对话页就弹一条横幅**（用户 m04650："横幅只触发过一次，不怎么弹"）。
+       *
+       * 场景：你发了消息、等不及就切去别的页面，回复到了 —— 原来这条路上**一句话都没有**，
+       * 只能自己想起回对话页去看。现在补上（判断"人在不在对话页"跟唤醒让路共用一面旗子）。
+       */
+      announceAssistantMessage({ conversationId, body: finalText });
       /**
        * 摘要：**原生 / 文本协议两条路都要跑**，而且失败绝不能影响这一轮。
        *

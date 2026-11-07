@@ -308,6 +308,17 @@ const SPARK_FLOOR = 104;
  * x 不再是"24 小时里的第几分钟"——那样当天的记录全挤在晚上几个小时里，
  * 曲线会在右边一小段扭成一团（用户 2026-11-01 实机截图）。
  * 现在按当天最早到最晚这一段时间自适应铺满整条光带。
+ *
+ * ── 2026-11-07 修正（用户 m04214："轨迹那条线有时候不知道怎么就乱了"）──
+ * 两个真 bug 都在这一层：
+ *   ① **y 轴没自适应**：原来固定按 0~100 画，而实际强度常年落在 55~65 之间，
+ *      于是整条线被压成一根近乎水平的细线，看着就是"乱"。现在取当天最低/最高
+ *      值、各向外留 10% 余量（最少 8 个点的量程），小幅波动也能看出起伏；
+ *      只有一笔时居中。
+ *   ② **贝塞尔过冲**：控制点按相邻点差值的 1/6 取，数据一平就会在端点外甩出
+ *      一小段"竖尾巴"。现在把控制点的 y **夹在两端点之间**（只许在两点间走），
+ *      平的数据就是平的线。
+ * 数据点少于 3 个时不画折线，改画散点（两点连直线没有信息量）。
  */
 function buildSpark(events: EmotionEvent[]): {
   points: SparkPoint[];
@@ -319,10 +330,21 @@ function buildSpark(events: EmotionEvent[]): {
   const latest = Math.max(...minutes);
   const span = Math.max(1, latest - earliest);
   const PAD = 12;
+
+  /* y 轴自适应：留 10% 余量，最小量程 8 个点 */
+  const values = events.map((event) => Math.max(0, Math.min(100, event.intensity)));
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const margin = Math.max(4, (high - low) * 0.1);
+  const yMin = Math.max(0, low - margin);
+  const yMax = Math.min(100, high + margin);
+  const yRange = Math.max(8, yMax - yMin);
+
   const points: SparkPoint[] = events.map((event, index) => {
     const x = PAD + ((minutes[index] - earliest) / span) * (SPARK_WIDTH - PAD * 2);
-    const intensity = Math.max(4, Math.min(100, event.intensity));
-    const y = SPARK_FLOOR - (intensity / 100) * (SPARK_FLOOR - 10);
+    const value = Math.max(0, Math.min(100, event.intensity));
+    const ratio = Math.max(0, Math.min(1, (value - yMin) / yRange));
+    const y = SPARK_FLOOR - ratio * (SPARK_FLOOR - 10);
     return {
       id: event.eventId,
       x: Math.max(6, Math.min(SPARK_WIDTH - 6, x)),
@@ -339,6 +361,10 @@ function buildSpark(events: EmotionEvent[]): {
     };
   }
 
+  /* 控制点的 y 夹在两端点之间：平的数据不许甩出竖尾巴 */
+  const clampY = (y: number, a: number, b: number) =>
+    Math.min(Math.max(y, Math.min(a, b)), Math.max(a, b));
+
   let line = `M ${points[0].x} ${points[0].y}`;
   for (let index = 0; index < points.length - 1; index += 1) {
     const p0 = points[index - 1] ?? points[index];
@@ -346,15 +372,48 @@ function buildSpark(events: EmotionEvent[]): {
     const p2 = points[index + 1];
     const p3 = points[index + 2] ?? p2;
     const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c1y = clampY(p1.y + (p2.y - p0.y) / 6, p1.y, p2.y);
     const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
+    const c2y = clampY(p2.y - (p3.y - p1.y) / 6, p1.y, p2.y);
     line += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
   const last = points[points.length - 1];
   const area = `${line} L ${last.x.toFixed(2)} ${SPARK_FLOOR} L ${points[0].x.toFixed(2)} ${SPARK_FLOOR} Z`;
   return { points, line, area };
 }
+
+/**
+ * 把"接连报同一件事"的几笔并成一行（用户 m04214："一句话报一次有点频繁"）。
+ *
+ * 底层一笔都不删（`emotionEvents` 里仍是逐条，长按能单独删、详情能单独看），
+ * **只在展示层合并**：同一主情绪、相邻两笔间隔 ≤ 10 分钟 → 并成一行，
+ * 显示成「心疼她 ×3」+ 取其中最高的强度。这样 13:44 / 13:45 / 13:46 连着
+ * 报的四条几乎一样的东西，在轨迹里只占一行。
+ */
+const MERGE_WINDOW_MS = 10 * 60 * 1000;
+
+type Burst = { head: EmotionEvent; count: number; peak: number };
+
+function mergeBursts(newestFirst: EmotionEvent[]): Burst[] {
+  const out: Burst[] = [];
+  for (const event of newestFirst) {
+    const last = out[out.length - 1];
+    const gap =
+      last === undefined
+        ? Number.POSITIVE_INFINITY
+        : Math.abs(Date.parse(last.head.timestamp) - Date.parse(event.timestamp));
+    if (last !== undefined && last.head.primaryEmotion === event.primaryEmotion && gap <= MERGE_WINDOW_MS) {
+      last.count += 1;
+      last.peak = Math.max(last.peak, event.intensity);
+      continue;
+    }
+    out.push({ head: event, count: 1, peak: event.intensity });
+  }
+  return out;
+}
+
+/** 轨迹一次给多少行（往下滚再要，用户 m04214："只能看 60 条"） */
+const TRACK_PAGE = 30;
 
 export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) => void }) {
   const scenes = useEmotionStore((store) => store.scenes);
@@ -391,6 +450,13 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
   );
   const spark = useMemo(() => buildSpark(ordered), [ordered]);
   const current = spark.points.find((point) => point.id === sceneId) ?? spark.points[spark.points.length - 1];
+
+  /* 列表：从新到旧 → 合并连报的同一件事 → 先给 30 行，"看更早的"再要 30 行。
+     光带（上面那张图）仍然用**未合并**的原始序列，曲线才是真实起伏。 */
+  const bursts = useMemo(() => mergeBursts([...ordered].reverse()), [ordered]);
+  const [visible, setVisible] = useState(TRACK_PAGE);
+  const rows = bursts.slice(0, visible);
+  const rest = bursts.length - rows.length;
 
   return (
     <div className="relative px-5 pb-8">
@@ -446,11 +512,12 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
       </div>
 
       <ol className="mt-6 flex flex-col">
-        {[...ordered].reverse().map((event, index, list) => {
+        {rows.map((burst, index, list) => {
+          const event = burst.head;
           const group = groupOf(event);
           const active = event.eventId === sceneId;
           const quote = event.evidenceRefs[0]?.quote;
-          const last = index === list.length - 1;
+          const last = index === list.length - 1 && rest === 0;
           return (
             <li key={event.eventId} className="grid grid-cols-[40px_15px_1fr] gap-2.5 pb-3.5 last:pb-1">
               <span className="pt-[3px] text-[11px] tabular-nums" style={{ color: "#7f7688" }}>
@@ -497,9 +564,14 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
               >
                 <p className="text-[13px]" style={{ color: "#ece3d6" }}>
                   {event.primaryEmotion}
+                  {burst.count > 1 ? (
+                    <span className="ml-1.5 text-xs" style={{ color: "rgba(154,144,166,.9)" }}>
+                      ×{burst.count}
+                    </span>
+                  ) : null}
                 </p>
                 <p className="mt-0.5 text-[11px]" style={{ color: "#8f8699" }}>
-                  {group.letter} {group.name} · 强度 {event.intensity}
+                  {group.letter} {group.name} · 强度 {burst.peak}
                 </p>
                 {quote ? (
                   <p className="mt-1 text-[11px] leading-[1.6]" style={{ color: PAPER.muted }}>
@@ -511,6 +583,21 @@ export function TrackScreen({ onOpenDetail }: { onOpenDetail: (eventId: string) 
           );
         })}
       </ol>
+
+      {rest > 0 ? (
+        <button
+          type="button"
+          onClick={() => setVisible((value) => value + TRACK_PAGE)}
+          className="mt-4 w-full rounded-md border px-3 py-2.5 text-xs"
+          style={{
+            borderColor: "rgba(255,255,255,.08)",
+            background: "rgba(255,255,255,.03)",
+            color: "rgba(167,157,180,.9)",
+          }}
+        >
+          看更早的 {Math.min(TRACK_PAGE, rest)} 笔（还剩 {rest} 笔）
+        </button>
+      ) : null}
 
       <ScriptLine size={16} opacity={0.62} rotate={-1} className="mt-5 text-right">
         Nothing wasted, nothing lost.

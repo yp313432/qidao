@@ -73,7 +73,8 @@ export function SpacePage() {
   const tintHint = "粉青蓝 · 按模式自动配浓度";
 
   return (
-    <div className="k-page k-list k-nav-space">
+    /* 左右留白由外壳 `MePage` 的 `.k-page` 统一给（用户 m04469 第 3 条），这里不再套一层 */
+    <div className="k-list k-nav-space">
       <KFold
         title="材质"
         meta={material === "solid" ? `${matName} · ${palName}` : matName}

@@ -26,7 +26,7 @@ const base = (patch: Partial<VisualParams>): VisualParams => ({
 
 export const FAMILIES: Record<string, VisualParams> = {
   平静: base({
-    hue: 268,
+    hue: 272,
     hue2: 250,
     coreBrightness: 0.52,
     pulseHz: 0.32,
@@ -65,7 +65,10 @@ export const FAMILIES: Record<string, VisualParams> = {
     filamentReach: 0.4,
   }),
   心动: base({
-    hue: 332,
+    /* 2026-11-07 用户 m04214："光球颜色分不清，略微拉开一点，但还是要柔和"。
+       原来 心动 332 / 渴望 342 / 暧昧 318 三个挤在 24° 里，肉眼几乎一样。
+       现在拉开成 340 / 314 / 292（各差 26~48°），亮度和饱和度不动 —— 只动色相。 */
+    hue: 340,
     hue2: 18,
     coreBrightness: 0.8,
     pulseHz: 0.78,
@@ -85,7 +88,7 @@ export const FAMILIES: Record<string, VisualParams> = {
     filamentReach: 0.36,
   }),
   恼怒: base({
-    hue: 12,
+    hue: 18,
     hue2: 350,
     coreBrightness: 0.7,
     pulseHz: 0.95,
@@ -107,7 +110,8 @@ export const FAMILIES: Record<string, VisualParams> = {
     gather: 0.4,
   }),
   失落: base({
-    hue: 226,
+    /* 好奇 196 / 不安 210 / 失落 236 —— 三个冷色也要站得开 */
+    hue: 236,
     hue2: 260,
     coreBrightness: 0.38,
     pulseHz: 0.28,
@@ -169,7 +173,7 @@ export const FAMILIES: Record<string, VisualParams> = {
     gather: 0.28,
   }),
   渴望: base({
-    hue: 342,
+    hue: 314,
     hue2: 24,
     coreBrightness: 0.86,
     pulseHz: 0.62,
@@ -190,7 +194,7 @@ export const FAMILIES: Record<string, VisualParams> = {
     gather: 0.72,
   }),
   暧昧: base({
-    hue: 318,
+    hue: 292,
     hue2: 28,
     coreBrightness: 0.76,
     pulseHz: 0.7,
@@ -210,7 +214,8 @@ export const FAMILIES: Record<string, VisualParams> = {
     filamentReach: 0.42,
   }),
   介意: base({
-    hue: 8,
+    /* 恼怒 18 / 介意 352：原来 12 与 8 只差 4°，两个红球是同一颗 */
+    hue: 352,
     hue2: 286,
     coreBrightness: 0.64,
     pulseHz: 0.88,
@@ -230,7 +235,8 @@ export const FAMILIES: Record<string, VisualParams> = {
     gather: 0.74,
   }),
   克制: base({
-    hue: 262,
+    /* 同上：平静 272 / 克制 246 / 不安 210 三个原来都挤在 252~268，看图上分不出 */
+    hue: 246,
     hue2: 340,
     coreBrightness: 0.6,
     pulseHz: 0.55,
@@ -250,8 +256,8 @@ export const FAMILIES: Record<string, VisualParams> = {
     filamentReach: 0.26,
   }),
   不安: base({
-    hue: 252,
-    hue2: 210,
+    hue: 210,
+    hue2: 190,
     coreBrightness: 0.58,
     pulseHz: 0.72,
     stability: 0.42,

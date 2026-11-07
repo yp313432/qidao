@@ -1867,9 +1867,13 @@ export function ChatView() {
                     */}
                     <div
                       className={cn(
-                        "flex items-center gap-0.5 rounded-2xl border border-line bg-chip py-1 pr-0.5 pl-3.5",
-                        c.id === activeId && "glass-active",
+                        // 底：透明，只留间距 —— 一整列都画框会让人分不清"哪条是现在这条"
+                        // （用户 m04469 第 1 条：当前会话反而没框、没选中的有框，反了）。
+                        // 选中态才给底色 + 边框；边框常驻但透明，避免切会话时行高跳一下。
+                        "flex items-center gap-0.5 rounded-2xl border border-transparent py-1 pr-0.5 pl-3.5",
+                        c.id === activeId && "border-line bg-chip",
                       )}
+                      data-active={c.id === activeId ? "true" : undefined}
                     >
                       <button
                         type="button"

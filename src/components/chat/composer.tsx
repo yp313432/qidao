@@ -438,6 +438,19 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
    */
   useDismissOutside(cardRef, closeAll, plusOpen || modelOpen || reasonOpen || stickerOpen);
 
+  /*
+    键盘一弹起来也收浮层（用户 m04469 第 2 条）。
+    光靠 textarea 的 onFocus 不够：输入框已经是焦点时，键盘还可能从别处收起再弹起，
+    而此时浮层正压在上面。`visualViewport` 的高度变化就是"键盘出现/消失"的信号。
+  */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportResize = () => closeAll();
+    vv.addEventListener("resize", onViewportResize);
+    return () => vv.removeEventListener("resize", onViewportResize);
+  }, [closeAll]);
+
   // 模型弹层的 Esc 关闭（模态层该有的手感）
   useEffect(() => {
     if (!modelPickOpen) return;
@@ -992,6 +1005,13 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           rows={1}
           value={value}
           disabled={disabled}
+          /*
+            一碰输入框就把上面那些浮层（＋附件面板 / 模型与推理等级卡 / 表情包）收掉。
+            用户 m04469 第 2 条："我点开加号选图片，然后又点对话框要打字，
+            但这个卡片只能点一下空白处才消失" —— 点输入框的意图是打字，
+            浮层留在原地只会把输入框顶出可视区。
+          */
+          onFocus={closeAll}
           onChange={(e) => {
             // 标记"用户动过"——这样删成空也会被存下来（不然旧草稿会复活）
             editedRef.current = true;
@@ -1022,7 +1042,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           placeholder={`和${aiName}聊聊…`}
           className="min-h-9 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
         />
-        <div className="flex items-center gap-2 px-1 pb-1">
+        {/* 底部控件行：间距从 gap-2(8px) 放到 gap-3(12px)、左右留白从 px-1 放到
+            px-2，四枚钮才各自站得住（用户 m04214 截图："语音和发送贴边了"）。
+            真正的元凶是邮戳章向外伸出 12px，已在 styles.css 的 .pm-postmark 收进票面。 */}
+        <div className="flex items-center gap-3 px-2 pb-1">
           <div className="relative">
             <button
               type="button"
