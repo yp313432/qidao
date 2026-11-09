@@ -440,3 +440,20 @@ npm run dev       # 真机/浏览器看效果
   （`linear-gradient(180deg, color-mix(in oklab, var(--aster-bg) 92%, white), var(--aster-bg) 46%)`）
   - `.lq-stage[data-settings="true"] .lq-page { visibility: hidden }`。
     玻璃叠玻璃就是"两块糊在一起"（用户原话），所以底层要整层藏，不是压暗、不是模糊。
+
+- **65. 换材质 ≠ 换实现（这条最贵，用户连着两次点名）**：
+  液态那一版我另写了一套对话页（`src/liquid/components/liquid-chat.tsx`，446 行），
+  结果把纯色已有的能力全丢了 —— 气泡壳、分段（`|||` 会原样露出来）、键盘跟随、
+  模型选择（写死"小克·均衡"）、加号上传、表情包。用户原话（m09209）：
+  "你那对话框呢框去哪儿了？气泡呢？…你的按钮就是放着好看的吗？功能一个都接不上啊。"
+  判据（用户 m09221）："UI 跟功能，它俩是绑定的一块，我只是把它俩打包挪了个地方。"
+
+  规矩：**换材质只换外壳，不换实现**。同一份 `ChatView`、同一套 kit、同一批 store 动作，
+  差异写进材质变量（`src/styles/modes/*.css`）或外壳位置（入口从底导挪进抽屉）。
+  真要"设计新界面"，那是另一件事，得先说、先出图、先定，不许顺手重写。
+
+- **66. 铺满全屏的垫底层不许带实底**：`.lq-canvas` 曾经写 `background: var(--aster-bg)`，
+  一层 `position: fixed; inset: 0` 的实底把用户的纸色/背景图整块盖住
+  （用户 m09260："这个应该也是可以换背景的呀"）。垫底层只能给玻璃提供柔光
+  （`::before/::after` 的 radial-gradient，本身是半透明的），底色留给 app-shell 的
+  `.background-canvas` 那一层。

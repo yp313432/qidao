@@ -28,7 +28,11 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--aster-bg);
+  /* 底色必须是透明的：用户换的纸色/背景图在 app-shell 的 .background-canvas 上，
+     这一层只负责给玻璃提供可折射的柔光块（::before/::after 自己带色）。
+     曾经写成 `background: var(--aster-bg)` 实底，把用户的背景整块盖掉
+     （用户 m09260："这个应该也是可以换背景的呀"）。 */
+  background: transparent;
 }
 
 .lq-canvas::before,

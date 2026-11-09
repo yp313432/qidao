@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import { materialOf } from "@/lib/material";
+import { useApp } from "@/lib/store";
 import { DrawerMood } from "@/components/chat/drawer-crab";
 
 /**
@@ -318,11 +321,26 @@ export function DrawerSky() {
  * 十种形态的映射在 `drawer-crab.tsx` 里。
  */
 export function DrawerCosmos() {
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
   return (
     <div className="relative h-[180px] shrink-0 overflow-hidden">
       {/* 粒子沿用 --decor，细闪那套不动 */}
       <Sparkles count={26} />
       <DrawerMood />
+      {/*
+        液态没有底部导航（用户要的），那条「我的」入口原本就没了 ——
+        按用户 m09221 的原则（"UI 跟功能是绑定的一块，我只是把它俩打包挪了个地方"），
+        入口挪进抽屉底部：头像那屏（一级）→ 八项列表（二级）全都在 `/me`。
+      */}
+      {liquid && (
+        <Link
+          to="/me"
+          className="lq-glass absolute inset-x-3 bottom-3 flex h-11 items-center justify-center rounded-full text-sm"
+        >
+          我的 · 设置
+        </Link>
+      )}
     </div>
   );
 }
