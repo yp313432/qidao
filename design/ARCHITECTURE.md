@@ -396,3 +396,47 @@ npm run dev       # 真机/浏览器看效果
 - **59. 液态玻璃的旧实现别照抄**：`modes/liquid.css` 里封存的还是 `blur(5px) + 白 6%`
   那版；用户 m06627 要的是"非常透，直接没有一点模糊"。真正开工时按新方向重写这一档，
   不要拿旧变量当基准微调。
+
+- **60. 开屏那种"一次性大素材"放 `src/lib/`，不要放组件里**：矢量路径加起来
+  36KB，塞进 `splash.tsx` 会把部件顶到结构棘轮上限之外，也让人读不到组件逻辑。
+  现在拆成 `src/lib/splash-art.ts`（纯数据）+ `src/components/shell/splash.tsx`
+  （只管时间轴）+ `src/styles/splash.css`（只管观感）。
+
+- **61. 开屏的三个硬约束**（改成别的写法之前先看这条）：
+  ① **颜色一律 `currentColor` / `--aster-*`**，别在 TSX 或新 CSS 里写 hex ——
+  守卫拦着（TSX 402 / 旧 CSS 576 两条线只许降），而且写死颜色后深色主题下
+  开屏会变成"亮纸配亮线"。
+  ② **时间轴只能由一条 rAF 推**：墨迹散开要逐帧改 `feDisplacementMap` 的
+  `scale`、手写字要逐帧推裁切窗口宽度，CSS 动画表达不了"参数随进度连续变化"；
+  拆成多个 CSS 动画对不齐（v1~v5 就是这么糊在一起的）。
+  ③ **必须有兜底**：`prefers-reduced-motion` 直接不播、9 秒看门狗强制撤层、
+  播放间隔 4 小时（`qidao.splash.at`）。真机想反复看开屏用 `?splash=1`。
+
+- **62. 液态是「另一个 App」，不是纯色的另一套皮肤**（2026-11 用户 m07704/m07707 定的）：
+  纯色侧**冻结**（只修 bug，不再动观感）；液态重新设计，布局和交互都可以不一样
+  （透明顶栏、抽屉导航、**没有底部导航**）。所以液态自成一份代码：
+  `src/liquid/styles/*.css`（玻璃原语）、`src/liquid/components/*`（外壳/对话区）、
+  `src/liquid/lib/glass-light.ts`（光跟手指）。
+  **唯一必须共用的是数据层**：`store` / `settings` / `actions` / `plugins` ——
+  这一层分叉就会变成两份真相。样式守卫里给液态单开一组硬线（禁 hex、禁
+  `!important`、禁 `backdrop-filter`、禁 Tailwind 任意值、单文件 ≤500 行），
+  它跟纯色那套棘轮**互不污染**。
+
+- **63. 玻璃的三件事，缺一件就不像玻璃**（液态 C 配方）：
+  ① 边缘透镜 —— 四条边内圈各压一层白渐变，光是"厚玻璃在边缘折亮一圈"才有厚度；
+  ② 光跟手指 —— `--mx/--my` 由一个**全局委托**的 `pointermove` 写（rAF 合并、
+  不进 React state），`.lq-glass::before` 的 `radial-gradient` 跟着走；
+  ③ 按下回弹 —— `:active` 用 `cubic-bezier(.18,1.36,.36,1)` 缩到 `.966` 并扫一道斜光。
+  另外 **玻璃背后必须有东西可透**：液态底是 `.lq-canvas` 上两层很淡的柔光色块
+  （`color-mix(--aster-accent)` + 慢漂移动画），纯白底上叠玻璃永远像白纸糊白纸。
+
+- **64. 液态接真数据的三条规矩**（用户 m08214："就把之前那些东西放到现在该放的位置"）：
+  ① **分派只有一个入口**：`src/routes/_app/index.tsx` 按材质二选一 ——
+  `materialOf(s.settings) === "liquid"` 给 `LiquidShell + LiquidChat`，否则给 `ChatView`。
+  两个世界只共用数据层（store / `useChatStream` / `Markdown`），样式一行都不互相 import。
+  ② **液态没有底部导航**：在 `src/components/shell/app-shell.tsx` 里**不渲染**那层 `<nav>`，
+  不是用 CSS 藏起来 —— 藏起来还占位，会把 `main.lq-page` 顶上去（跟 m07978 同一类错）。
+  ③ **"进入新一层页面"必须真的换层**：设置页用实底
+  （`linear-gradient(180deg, color-mix(in oklab, var(--aster-bg) 92%, white), var(--aster-bg) 46%)`）
+  - `.lq-stage[data-settings="true"] .lq-page { visibility: hidden }`。
+    玻璃叠玻璃就是"两块糊在一起"（用户原话），所以底层要整层藏，不是压暗、不是模糊。

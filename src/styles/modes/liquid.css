@@ -1,9 +1,9 @@
 /*
-  模式：液态玻璃 —— 极透。背景的彩色直接映进来，靠"边亮 + 底透"做厚度。
+  模式：液态玻璃 —— 零模糊、极透（用户 m07516 定的 A 配方「水膜」）。
 
-  和半磨砂的关键区别（用户 2026-10 的原话是"液态玻璃还是不太透"）：
-    · 模糊只有 5px，能看见背景结构；糊到 20px 就退化成磨砂了；
-    · 表面白度极低（靠 --aster-surface 那套主题变量给），边更亮；
+  和半磨砂（已下线）的关键区别：
+    · **完全没有模糊** —— 背景的结构、线、色块原样透上来，一糊就退化成磨砂；
+    · 玻璃本身几乎不上色（表面只给 34% 的透明白），"厚度"全靠上缘那道亮边；
     · 圆角最大、影子最淡 —— 像一块贴在背景上的玻璃片。
 
   这里只写变量，写法约束同 modes/solid.css 顶部注释。
@@ -13,6 +13,9 @@
   --k-font-ui: var(--k-font-sans);
   --k-font-num: var(--k-font-mono);
 
+  /* 表面：几乎透明的水膜。不要写死色值 —— 派生自主题，深色纸下自动变深 */
+  --k-surface: color-mix(in oklab, var(--aster-surface) 34%, transparent);
+
   --k-line: color-mix(in oklab, #ffffff 30%, transparent);
   --k-line-soft: color-mix(in oklab, var(--aster-fg) 8%, transparent);
   --k-border-w: 1px;
@@ -20,11 +23,24 @@
   --k-card-radius: 20px;
   --k-ctl-radius: 999px;
 
-  --k-card-shadow: 0 6px 20px color-mix(in oklab, var(--aster-fg) 6%, transparent);
-  --k-card-shadow-press: 0 2px 8px color-mix(in oklab, var(--aster-fg) 6%, transparent);
+  /* 玻璃片的"厚度"：上缘一道亮边 + 左右薄亮边 + 一层很淡的外影。
+     纯色的 `--k-card-shadow` 是两层软影，这里换成一圈透镜，看着才像一片玻璃。 */
+  --k-card-shadow:
+    inset 0 1px 0 color-mix(in oklab, #ffffff 88%, transparent),
+    inset 1px 0 0 color-mix(in oklab, #ffffff 44%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, var(--aster-fg) 7%, transparent),
+    0 6px 20px color-mix(in oklab, var(--aster-fg) 8%, transparent);
+  --k-card-shadow-press:
+    inset 0 1px 0 color-mix(in oklab, #ffffff 70%, transparent),
+    0 2px 8px color-mix(in oklab, var(--aster-fg) 7%, transparent);
   --k-press-shift: 0px;
 
-  --k-backdrop: blur(5px) saturate(1.7);
+  /* 跟着指针走的光斑（`.k-card::before` / `.lq-glass::before` 读它）。
+     纯色下这个变量是 transparent，等于那层不存在 —— 结构只有一份。 */
+  --k-glass-light: color-mix(in oklab, #ffffff 52%, transparent);
+
+  /* 零模糊：整条声明给 none，而不是 blur(0px)（那仍会建合成层，白花性能） */
+  --k-backdrop: none;
 
   --k-ctl-on-bg: var(--aster-accent);
   --k-ctl-on-fg: var(--aster-accent-fg);

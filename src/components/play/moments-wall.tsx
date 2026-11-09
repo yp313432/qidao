@@ -4,6 +4,7 @@ import { ChevronLeft, Heart, ImagePlus, Send } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
 import { FileButton } from "@/components/shared/file-button";
 import { resolveAiName } from "@/lib/branding";
+import { materialOf } from "@/lib/material";
 import { readImageFile } from "@/lib/image-file";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";
 import { useApp } from "@/lib/store";
@@ -55,6 +56,8 @@ export function MomentsWall() {
   const settings = useApp((s) => s.settings);
   const moments = useApp((s) => s.moments);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  /** 液态没有底部导航：返回目标按液态层级表算（用户 m08548） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const myName = settings.displayName || "我";
   const cover = settings.momentsCover || "";
 
@@ -221,8 +224,8 @@ export function MomentsWall() {
         {/* 返回 + 标题固定在最上层（不跟封面一起缩放） */}
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1 px-2 inset-top-50 pb-1">
           <Link
-            to={(parentOf(pathname) ?? "/play") as never}
-            aria-label={backLabelOf(pathname)}
+            to={(parentOf(pathname, liquid) ?? "/play") as never}
+            aria-label={backLabelOf(pathname, liquid)}
             className="pointer-events-auto flex size-11 shrink-0 items-center justify-center"
             style={{ color: onLight ? "var(--aster-fg)" : "#fff", filter: onLight ? "none" : "drop-shadow(0 1px 3px rgba(0,0,0,.5))" }}
           >

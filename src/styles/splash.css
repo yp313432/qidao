@@ -1,0 +1,79 @@
+/*
+  开屏动画（一次性）。
+
+  规矩：
+    · 这里**不出现任何色值** —— 墨线用 `currentColor` 接 `--aster-ink`，
+      玫瑰与手写字接 `--aster-accent`，纸面接 `--aster-bg`。所以深色主题下
+      开屏会自动变成"深纸浅线"，不需要第二套图。
+    · 也不出现 Tailwind 任意值：节奏与层级都在这个文件里。
+
+  为什么是 fixed + 高 z-index：它要盖住外壳、底部导航和所有浮层。
+*/
+
+.k-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--aster-bg);
+  transition: opacity 260ms ease;
+}
+
+.k-splash--out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.k-splash__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--aster-ink);
+}
+
+/* 玫瑰与手写字换色 —— 都只是继承 currentColor，没有第二份矢量 */
+.k-splash__rose,
+.k-splash__word {
+  color: var(--aster-accent);
+}
+
+/*
+  遮罩：笔画只在遮罩里用，用来看"画到哪儿露出哪儿"。
+  ⚠️ 这里的白色**不是配色**，是遮罩的油墨 —— SVG 遮罩默认按亮度算，
+  深色 currentColor 的亮度接近 0，会让整幅画直接隐形（踩过）。
+  所以：① 显式 `mask-type: alpha`（按不透明度算，跟颜色彻底无关）
+        ② 同时留 `white` 兜底 —— 万一浏览器不认 mask-type，亮度也是 1。
+*/
+.k-splash__mask {
+  mask-type: alpha;
+}
+
+.k-splash__draw {
+  stroke: white;
+  fill: none;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
+
+/* 散开时飞出的墨点：墨色一撮、玫瑰色一撮（类名由组件挂） */
+.k-splash__speck {
+  fill: currentColor;
+}
+
+.k-splash__speck-rose {
+  fill: var(--aster-accent);
+}
+
+@keyframes k-splash-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 兜底：policy 已经会跳过，这里再挡一次（比如运行时才切开关） */
+  .k-splash {
+    display: none;
+  }
+}

@@ -80,6 +80,26 @@
     border-color var(--k-d-1) var(--k-e-out);
 }
 
+/*
+  液态玻璃那道"跟着手指走的光斑"（用户 m07635："没有那种滑过去有水玻璃的感觉"）。
+
+  纯色下 `--k-glass-light` 是 `transparent`，这层等于不存在 —— 所以两条
+  材质共用同一份结构，不用为液态另写一套卡片。坐标由 `src/liquid/lib/glass-light.ts`
+  写在元素自身（`--mx` / `--my`），不进 React state。
+*/
+.k-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    58% 46% at var(--mx, 50%) var(--my, -8%),
+    var(--k-glass-light, transparent),
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
 /* ── 列表行：主力组件（原来的 .tool-card 就是它） ───────────── */
 .k-row {
   position: relative;

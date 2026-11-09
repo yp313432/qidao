@@ -1,0 +1,1279 @@
+/*
+ * 液态世界 · 玻璃原语（C 配方）+ 液态底
+ *
+ * 这一层只属于液态：纯色侧一行都不引用它。
+ * 三条硬规矩（`scripts/guard-styles.mjs` 里有机器检查）：
+ *   1. 不许写 hex 色值 —— 颜色只能 rgba(255,255,255/x) 这种「玻璃白」或 color-mix(--aster-*)
+ *   2. 不许用 backdrop-filter —— 用户要的是零模糊
+ *   3. 不许用 !important
+ *
+ * 玻璃的三件事（缺一件就不像玻璃）：
+ *   边缘透镜：四条边内圈各压一层白渐变，光在厚玻璃边缘会折亮一圈
+ *   光跟手指：--mx / --my 由 src/liquid/lib/glass-light.ts 写进来，::before 的光斑跟着走
+ *   按下回弹：:active 用带回弹的曲线缩一下，同时一道斜向流光扫过
+ */
+
+:root {
+  --lq-spring: cubic-bezier(0.18, 1.36, 0.36, 1);
+  --lq-ease: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --lq-drawer-ease: cubic-bezier(0.18, 1.2, 0.3, 1);
+  --lq-r-card: 18px;
+  --lq-r-chip: 14px;
+  --lq-r-float: 26px;
+}
+
+/* ── 液态底：淡淡的柔光色块，玻璃得有东西可折射 ────────────────── */
+.lq-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--aster-bg);
+}
+
+.lq-canvas::before,
+.lq-canvas::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  will-change: transform;
+}
+
+.lq-canvas::before {
+  background:
+    radial-gradient(
+      42% 34% at 22% 16%,
+      color-mix(in oklab, var(--aster-accent) 30%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      38% 30% at 82% 24%,
+      color-mix(in oklab, var(--aster-accent) 16%, transparent),
+      transparent 74%
+    );
+  animation: lq-drift-a 26s ease-in-out infinite alternate;
+}
+
+.lq-canvas::after {
+  background:
+    radial-gradient(
+      46% 36% at 68% 78%,
+      color-mix(in oklab, var(--aster-accent) 22%, transparent),
+      transparent 76%
+    ),
+    radial-gradient(
+      52% 40% at 12% 88%,
+      color-mix(in oklab, var(--aster-ink) 10%, transparent),
+      transparent 78%
+    );
+  animation: lq-drift-b 34s ease-in-out infinite alternate;
+}
+
+@keyframes lq-drift-a {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.1);
+  }
+}
+
+@keyframes lq-drift-b {
+  from {
+    transform: translate3d(2%, 4%, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-4%, -3%, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lq-canvas::before,
+  .lq-canvas::after {
+    animation: none;
+  }
+}
+
+/* ── 玻璃 ────────────────────────────────────────────────────── */
+.lq-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--lq-r, var(--lq-r-card));
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.09) 62%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 10px 26px rgba(30, 22, 14, 0.1);
+  transition:
+    transform 0.42s var(--lq-spring),
+    box-shadow 0.42s var(--lq-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 光斑：位置由 --mx / --my 决定（手指按哪亮哪） */
+.lq-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 46% at var(--mx, 50%) var(--my, -8%),
+    rgba(255, 255, 255, 0.92),
+    rgba(255, 255, 255, 0.32) 42%,
+    rgba(255, 255, 255, 0) 74%
+  );
+  opacity: 0.72;
+}
+
+/* 流光：按下时斜着扫过一次 */
+.lq-glass::after {
+  content: "";
+  position: absolute;
+  inset: -40% -70%;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    112deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.85) 49%,
+    transparent 60%
+  );
+}
+
+.lq-glass:active {
+  transform: scale(0.966);
+}
+
+.lq-glass:active::after {
+  animation: lq-sweep 0.72s var(--lq-ease);
+}
+
+@keyframes lq-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-90%);
+  }
+  22% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(90%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lq-glass,
+  .lq-glass:active {
+    transition: none;
+    transform: none;
+  }
+  .lq-glass:active::after {
+    animation: none;
+  }
+}
+
+.lq-glass--chip {
+  --lq-r: var(--lq-r-chip);
+}
+
+.lq-glass--float {
+  --lq-r: var(--lq-r-float);
+}
+
+.lq-glass--pane {
+  --lq-r: 0 24px 24px 0;
+}
+
+/* ── 世界骨架：舞台 / 页 / 抽屉（3D 折角） ────────────────────── */
+.lq {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: var(--aster-ink);
+  font-size: 14px;
+}
+
+.lq-stage {
+  position: absolute;
+  inset: 0;
+  perspective: 1400px;
+  perspective-origin: 8% 50%;
+}
+
+.lq-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 0 50%;
+  background: transparent;
+  transition:
+    transform 0.52s var(--lq-ease),
+    border-radius 0.52s var(--lq-ease),
+    box-shadow 0.52s var(--lq-ease);
+}
+
+.lq-stage[data-open="true"] .lq-page {
+  transform: translateX(78px) rotateY(-20deg) scale(0.945);
+  border-radius: 22px 0 0 22px;
+  box-shadow: -26px 0 54px rgba(50, 38, 26, 0.3);
+}
+
+/* 页面被折过去之后，左边那道夹角的暗面 */
+.lq-fold {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(46, 34, 22, 0.3),
+    rgba(46, 34, 22, 0.12) 32%,
+    transparent 66%
+  );
+  transition: opacity 0.52s var(--lq-ease);
+}
+
+.lq-stage[data-open="true"] .lq-fold {
+  opacity: 1;
+}
+
+.lq-drawer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 5;
+  display: flex;
+  width: 272px;
+  flex-direction: column;
+  gap: 10px;
+  border-start-end-radius: 28px;
+  border-end-end-radius: 28px;
+  padding: calc(env(safe-area-inset-top, 0px) + 22px) 13px
+    calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translateX(-104%);
+  transition: transform 0.52s var(--lq-drawer-ease);
+  /* 整块抽屉是玻璃：比对话页更白、更厚，因为它是"压在最上面那层" */
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.22) 46%),
+    color-mix(in oklab, var(--aster-surface) 16%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.62),
+    inset 1px 0 0 rgba(255, 255, 255, 0.5),
+    18px 0 44px rgba(70, 52, 38, 0.16);
+}
+
+.lq-stage[data-open="true"] .lq-drawer {
+  transform: none;
+}
+
+.lq-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  padding: 0;
+  background: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.52s var(--lq-ease);
+}
+
+.lq-stage[data-open="true"] .lq-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── 顶栏：透明，只有几个玻璃小方钮 ──────────────────────────── */
+.lq-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 6px;
+}
+
+.lq-top__gap {
+  flex: 1;
+}
+
+/* 刊头电讯行（「讯」小印 + 他知道的事）—— 纯色那版是纸上的点线，这里透明底只留字 */
+.lq-top__wire {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.lq-stamp {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--aster-bg);
+  background: color-mix(in oklab, var(--aster-accent) 62%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.lq-wire__text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lq-ico {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+}
+
+.lq-ico svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── 抽屉内部：**对话列表** ──────────────────────────────────────
+   内容照纯色（`src/components/chat/chat-view.tsx:1830-1920`）：
+   标题「对话」+ 关闭、「新对话」胶囊、会话行（选中才给底和框）、⋯ 菜单。
+   液态变的只是壳（玻璃、3D 折角），列表本身不换。 */
+.lq-drawer__head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 2px 6px;
+}
+
+/* 品牌行：只留「栖 岛」两个字（用户 m08052：齿轮去掉，设置走底部头像） */
+.lq-drawer__brand {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  opacity: 0.62;
+}
+
+.lq-drawer__close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  color: inherit;
+  background: none;
+}
+
+.lq-drawer__close svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* ── 两块：对话 / 功能 ───────────────────────────────────────────
+   对话块自己带滚动（框内可滑、上下渐隐）；功能块比它再多糊一层（--frost）
+   好让"哪块是列表、哪块是入口"一眼分开（用户 m08112）。 */
+.lq-block {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lq-block:first-of-type {
+  flex: 1;
+}
+
+.lq-block__cap {
+  flex: 0 0 auto;
+  padding-inline-start: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  opacity: 0.46;
+}
+
+.lq-block--frost {
+  flex: 0 0 auto;
+  border-radius: 16px;
+  padding: 9px 9px 10px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.5) 1px, transparent 0) 0 0 / 3px 3px,
+    linear-gradient(170deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.3));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 6px 16px rgba(70, 52, 38, 0.06);
+}
+
+.lq-tiles {
+  display: grid;
+  gap: 7px;
+}
+
+.lq-tile {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 11px;
+  padding: 0 10px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.lq-tile svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.72;
+}
+
+.lq-tile[data-todo="true"] {
+  border: 1px dashed rgba(255, 255, 255, 0.5);
+  background: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+.lq-tile__soon {
+  margin-inline-start: auto;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.lq-convs {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0 0 6px;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* 框内滚动：上下各留一条渐隐，滑到边上不会"硬切"（用户 m08108：对话多了不能翻不了） */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 11px,
+    black calc(100% - 14px),
+    transparent 100%
+  );
+}
+
+.lq-convs::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.lq-conv {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  padding: 0 2px 0 11px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+.lq-conv[data-on="true"] {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 4px 12px rgba(70, 52, 38, 0.07);
+}
+
+.lq-conv__time {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  opacity: 0.42;
+  font-variant-numeric: tabular-nums;
+}
+
+.lq-conv__row {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lq-conv__more {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 0;
+  color: inherit;
+  background: none;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.lq-conv__menu {
+  display: flex;
+  gap: 6px;
+  padding: 0 6px 6px 14px;
+}
+
+.lq-conv__act {
+  border: 0;
+  border-radius: 10px;
+  padding: 6px 9px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+  font: inherit;
+  font-size: 11.5px;
+}
+
+/* ── 底部两件：左「我的头像」（点了进设置） / 右「新建会话」玻璃胶囊 ── */
+.lq-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding-block-start: 2px;
+}
+
+.lq-me {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 14px;
+  padding: 3px 8px 3px 3px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+}
+
+.lq-me__ava {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.68);
+}
+
+.lq-me__meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lq-me__name {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lq-me__hint {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  opacity: 0.45;
+  white-space: nowrap;
+}
+
+.lq-newchat {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: inherit;
+  /* 玻璃描边款（用户 m08139 定的），不是深墨实心 */
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.34));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.76),
+    0 4px 12px rgba(70, 52, 38, 0.08);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.lq-newchat svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+/* ── 设置页：从底部头像点进来，一屏玻璃 ────────────────────────── */
+.lq-settings {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
+    calc(env(safe-area-inset-bottom, 0px) + 16px);
+  transform: translateX(100%);
+  transition: transform 0.44s var(--lq-drawer-ease);
+  /* 设置是**另一层页面**，不是叠在对话上的浮层（用户 m08214）：
+     底要是实的，底下的对话页在它打开时整个让位，否则两层糊在一起。 */
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--aster-bg) 92%, white) 0%,
+    var(--aster-bg) 46%
+  );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+  pointer-events: none;
+}
+
+/* 打开设置 = 换页：对话那一层直接藏起来（不是压暗、不是模糊），
+   这样设置页里那些半透明行卡只会透出自己的底色，不会透出消息和输入条。 */
+.lq-stage[data-settings="true"] .lq-page {
+  visibility: hidden;
+}
+
+.lq-stage[data-settings="true"] .lq-settings {
+  transform: none;
+  pointer-events: auto;
+}
+
+.lq-settings__head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.lq-settings__title {
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+
+.lq-settings__list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.lq-settings__list::-webkit-scrollbar {
+  width: 0;
+}
+
+.lq-setrow {
+  display: flex;
+  width: 100%;
+  height: 46px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+  font: inherit;
+  text-align: left;
+}
+
+.lq-setrow__t {
+  font-size: 13.5px;
+}
+
+.lq-setrow__d {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 10.5px;
+  opacity: 0.42;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lq-setrow__chev {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  opacity: 0.35;
+}
+
+/* ── 搜索条（纯色在 `chat-view.tsx:846` 起） ───────────────────── */
+.lq-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 6px;
+}
+
+.lq-find__box {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.lq-find__box svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  opacity: 0.6;
+}
+
+.lq-find__input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.lq-find__count {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.lq-find__nav {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  background: none;
+}
+
+.lq-find__nav svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+/* ── 用量行（纯色 `chat-view.tsx:1443-1474`） ─────────────────── */
+.lq-meta {
+  margin-block-start: 4px;
+  padding-inline: 2px;
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+/* ── 引用条（纯色 `chat-view.tsx:388` 的 QuoteBar） ───────────── */
+.lq-quote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px 6px;
+  border-radius: 12px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+  font-size: 11.5px;
+}
+
+.lq-quote__text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.lq-quote__x {
+  border: 0;
+  color: inherit;
+  background: none;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+/* ── 长按菜单（纯色 `chat-view.tsx:1481-1540`） ──────────────── */
+.lq-menu-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--aster-ink) 32%, transparent);
+}
+
+.lq-menu {
+  width: 100%;
+  max-width: 16rem;
+  border-radius: 24px;
+  padding: 8px;
+}
+
+.lq-menu__item {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 12px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+/* ── 对话区 ──────────────────────────────────────────────────── */
+.lq-thread {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 6px 16px 18px;
+  overscroll-behavior: contain;
+}
+
+/* ── 消息：**照纯色的方案丁** ──────────────────────────────────
+   纯色那边（`src/components/chat/chat-view.tsx` 第 1014-1064 行）不是
+   "头像和气泡并排"，而是竖着一列：
+     第一行 = 头像(26) + 名字 + 状态胶囊 + 时间（我的那侧整体靠右）
+     第二行 = 气泡自己一行，能长到整条边距
+   并排会让气泡被头像往里顶、左右边距不一样 —— 那是当初被否掉的做法。 */
+.lq-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lq-msg[data-mine="true"] {
+  align-items: flex-end;
+}
+
+.lq-msg__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 2px;
+}
+
+.lq-msg__name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lq-msg__time {
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.lq-msg__chip {
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+}
+
+.lq-msg[data-mine="true"] .lq-bubble {
+  border-radius: 20px 4px 20px 20px;
+}
+
+.lq-bubble {
+  padding: 12px 15px;
+  border-radius: 4px 20px 20px 20px;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lq-bubble__time {
+  margin-block-start: 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+}
+
+/* ── 输入条：两行。上行打字，下行一排按钮（跟纯色一致） ─────── */
+.lq-composer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding: 10px 12px 8px;
+}
+
+.lq-composer__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lq-composer__grow {
+  flex: 1;
+}
+
+.lq-composer__btn {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.lq-composer__btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lq-composer__btn[data-tone="send"] {
+  background: var(--aster-ink);
+  color: var(--aster-bg);
+  box-shadow: none;
+}
+
+.lq-composer__model {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 12px;
+  padding: 8px 11px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lq-composer__input {
+  width: 100%;
+  min-height: 26px;
+  max-height: 120px;
+  resize: none;
+  border: 0;
+  padding: 2px 2px 6px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.lq-composer__input::placeholder {
+  color: currentColor;
+  opacity: 0.42;
+}
+
+/* ── 思考链入口：**一行**，照纯色原样 ────────────────────────────
+   纯色那边（`src/components/chat/chat-view.tsx:1286-1309`）是：
+     一根细竖线 +「想了 N 秒」+「· 动了 N 次手」+「点开看」，点开从底部弹一层。
+   用户 m07911："之前那个思考链不是一个竖线，后面说想了多少秒，动了几步手嘛，
+   那个也不变。然后点那里从底部下面弹开，那个也不变。" */
+.lq-proc {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 2px 4px 2px 2px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.lq-proc__bar {
+  width: 2px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+.lq-proc__sub {
+  opacity: 0.55;
+}
+
+/* ── 开发预览页的提示（只在 /design/liquid 用） ─────────────────
+   浮在最上面、不占布局：它要是进流里，`.lq-page` 的定位祖先就变成它，
+   页面会缩成内容高度、输入条浮在半空（用户 m07978）。 */
+.lq-dev__badge {
+  position: fixed;
+  inset: calc(env(safe-area-inset-top, 0px) + 8px) 0 auto;
+  z-index: 40;
+  width: fit-content;
+  margin: 0 auto;
+  border-radius: var(--lq-r-chip);
+  padding: 7px 12px;
+  color: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  opacity: 0.66;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ── 接真数据后补的几个零件 ───────────────────────────────────────
+   （消息列表用 `<ul>`、空态、流式纯文本、占位气泡、输入框包一层、会话空态） */
+.lq-thread__list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 2px 0 6px;
+  list-style: none;
+}
+
+.lq-empty {
+  padding: 40px 8px;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  opacity: 0.42;
+  text-align: center;
+}
+
+.lq-convs__empty {
+  padding: 14px 4px;
+  font-size: 11.5px;
+  opacity: 0.4;
+}
+
+/* 流式期间只上纯文本（不解析 Markdown，长文一起重排会卡） */
+.lq-bubble__live,
+.lq-bubble__ghost {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lq-bubble__ghost {
+  opacity: 0.5;
+}
+
+/* 输入框外包一层：引用条要贴在它上面，气泡样式别和外框混在一起 */
+.lq-composer__inputwrap {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* ── 重命名弹层（会话行 ⋯ → 重命名）─────────────────────────────
+   用户 m08387："重命名删除就在对话列表后面三个点，点开出现一个弹层进行选择"。
+   弹层是**悬在抽屉之上的独立一层**，所以底压深、盒子用 float 玻璃。 */
+.lq-rename {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--aster-ink) 18%, transparent);
+}
+
+.lq-rename__box {
+  display: flex;
+  width: min(320px, 100%);
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--lq-r-float);
+  padding: 18px 18px 14px;
+}
+
+.lq-rename__title {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  opacity: 0.62;
+}
+
+.lq-rename__input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--aster-ink) 16%, transparent);
+  padding: 6px 2px 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+
+.lq-rename__row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.lq-rename__btn {
+  border: 0;
+  border-radius: var(--lq-r-chip);
+  padding: 8px 14px;
+  background: color-mix(in oklab, var(--aster-ink) 6%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.lq-rename__btn--go {
+  background: color-mix(in oklab, var(--aster-ink) 88%, transparent);
+  color: var(--aster-bg);
+}
+
+/* ── 液态下的二级页（`AppShell` 在能液态化的路由上给外层加 `.lq-skin`）─────
+   纯色那套 kit 组件**不用重写**：`.k-card` / `.k-row` 的颜色、阴影、圆角本来就
+   吃 `--k-surface` / `--k-card-shadow` / `--k-card-radius` / `--k-glass-light`，
+   液态皮肤（`src/styles/modes/liquid.css`）一换，它们自己就变成玻璃片。
+
+   这里只补纯色下用不到的两件事：① 页面底色让开，露出底下那层会漂的底光
+   ② 内容抬到 z-index 1，别被 fixed 的底光压住。 */
+.lq-skin {
+  isolation: isolate;
+}
+
+.lq-skin main,
+.lq-skin .k-page {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+/* 没有底部导航之后，二级页的最后一行会贴着屏边 —— 液态自己让出安全区。
+   纯色那边有底部 tab 兜着，所以这条只挂在 .lq-skin 上（用户 m08548）。 */
+.lq-skin .k-page {
+  padding-bottom: calc(var(--k-s-6, 24px) + env(safe-area-inset-bottom, 0px));
+}
+
+/* 液态的「回对话页」钮（渲染在 app-shell，只在顶级页出现）。
+   无底导之后，工具 / 玩乐 / 我的三张落地页没有别的路回去（用户 m08548）。 */
+.lq-back {
+  position: fixed;
+  left: 12px;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--aster-fg);
+  text-decoration: none;
+}
+
+.lq-back:active {
+  transform: scale(0.94);
+}
+
+/* 左上角有返回钮了，标题得让开一格（只让 k-head 那类左对齐标题；
+   玩乐首页是居中标题，不冲突，就别动它） */
+.lq-skin .k-head {
+  padding-left: 46px;
+}

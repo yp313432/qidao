@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
+import { materialOf } from "@/lib/material";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";
+import { useApp } from "@/lib/store";
 
 /**
  * 二级页统一的顶部：左上角返回 + 标题 +（可选）右边一个动作。
@@ -58,8 +60,9 @@ export function PageHeader({
 }) {
   // 当前路径 —— 用来查"我的上一级是谁"
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const target = to ?? parentOf(pathname) ?? "/me";
-  const label = backLabel ?? backLabelOf(pathname);
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+  const target = to ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/me");
+  const label = backLabel ?? backLabelOf(pathname, liquid);
 
   return (
     <header className="px-2 inset-top-50 pb-1">

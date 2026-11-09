@@ -21,17 +21,22 @@ import { Lock, SlidersHorizontal } from "lucide-react";
 import { KButton, KCard, KFold, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { resolveAiName } from "@/lib/branding";
 import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { CHAT_FONT_SIZES } from "@/lib/ux";
 import { FONTS, TONES } from "./me-options";
 import { ImageRow } from "./me-widgets";
 
 /**
- * 材质只剩纯色一档：半磨砂 2026-11 下线、液态还没做（用户 m06619）。
- * 所以外观页不再有「材质」单选 —— 只有一个选项的单选就是凑数控件。
- * 液态上线时把选择器加回来，判断口径统一走 `src/lib/material.ts`。
+ * 材质两档：纯色 / 液态。半磨砂 2026-11 下线（用户 m06619）。
+ * 液态的**长相**还在样张阶段（`qidao-liquid-glass.html` 定的是 A 配方：零模糊、极透），
+ * 但开关必须先存在 —— 否则用户没法跳过去看。判断口径统一走 `src/lib/material.ts`。
  */
+const MATERIALS = [
+  { id: "solid", label: "纯色" },
+  { id: "liquid", label: "液态" },
+] as const;
+
 const PALETTES = [
   { id: "cream", label: "奶油白", dot: "#f6f3ee" },
   { id: "blue", label: "雾蓝", dot: "#5b7f9e" },
@@ -48,9 +53,14 @@ export function SpacePage() {
   const patch = useApp((s) => s.patchSettings);
   const background = settings.background;
   /** 哪一组是展开的（null = 全收起，一屏能看完） */
-  const [openFold, setOpenFold] = useState<null | "paper" | "bg" | "font" | "tint" | "date">(null);
+  const [openFold, setOpenFold] = useState<
+    null | "material" | "paper" | "bg" | "font" | "tint" | "date"
+  >(null);
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
+
+  const material = materialOf(settings);
+  const materialName = MATERIALS.find((x) => x.id === material)?.label ?? "纯色";
 
   const palette = settings.palette ?? "cream";
   const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
@@ -68,6 +78,25 @@ export function SpacePage() {
   return (
     /* 左右留白由外壳 `MePage` 的 `.k-page` 统一给（用户 m04469 第 3 条），这里不再套一层 */
     <div className="k-list k-nav-space">
+      <KFold
+        title="材质"
+        meta={materialName}
+        open={openFold === "material"}
+        onToggle={() => setOpenFold(openFold === "material" ? null : "material")}
+      >
+        <KOpts cols={2}>
+          {MATERIALS.map((x) => (
+            <KOpt
+              key={x.id}
+              active={material === x.id}
+              onClick={() => patch({ material: x.id })}
+            >
+              {x.label}
+            </KOpt>
+          ))}
+        </KOpts>
+      </KFold>
+
       <KFold
         title="纸色"
         meta={palName}

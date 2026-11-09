@@ -12,6 +12,8 @@ import { GiftAlert } from "@/components/overlays/gift-alert";
 import { GlobalToast } from "@/components/shared/global-toast";
 import { ChatNoticeBanner } from "@/components/overlays/chat-notice-banner";
 import { GlassHighlight } from "@/components/shared/glass-highlight";
+import { mountGlassLight } from "@/liquid/lib/glass-light";
+import { LiquidBack } from "@/liquid/components/liquid-back";
 import { PlayerHost } from "@/components/daemons/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
 import { ReminderDaemon } from "@/components/daemons/reminder-daemon";
@@ -20,16 +22,17 @@ import { TaskDaemon } from "@/components/daemons/task-daemon";
 import { WakePlan } from "@/components/daemons/wake-plan";
 import { WakeDaemon } from "@/components/daemons/wake-daemon";
 import { UiEffects } from "@/components/shared/ui-effects";
-import { hidesNav } from "@/lib/nav-tree";
+import { ROOT_PATHS, hidesNav } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
 import { installBreadcrumbs } from "@/lib/breadcrumbs";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
 import { NavEtch } from "@/components/shell/nav-icons";
 import { PerfProbe } from "@/components/shell/perf-probe";
+import { Splash } from "@/components/shell/splash";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
 import { useApp } from "@/lib/store";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 const TABS = MAIN_TABS;
 
@@ -76,6 +79,33 @@ export function AppShell() {
   const hydrated = useApp((s) => s.hydrated);
   /** 纸世界（qidao-docs/纸世界-落地清单.md）：纯色材质下底部导航换 F 邮票版。 */
   const solidPaper = useApp((s) => isSolid(s.settings));
+  /**
+   * 液态世界**没有底部导航**（用户 m07494："不要纯色那版底部导航栏，只剩下一个对话框"）。
+   * 导航全在抽屉里，所以这一层整块不渲染 —— 不是藏起来，是不挂，
+   * 免得占位把 `main.lq-page` 挤上去。
+   */
+  const liquidWorld = useApp((s) => materialOf(s.settings) === "liquid");
+
+  /**
+   * 哪些页能穿液态这层皮（用户 m08509："能做液态玻璃的做液态…像原来的花园，
+   * 你做不了液态吧，你就不做"）。
+   *
+   * 花园 / 游戏 / 插件 / 音乐播放器是**自己带场景**的页（canvas、第三方界面、
+   * 全屏播放），再套一层玻璃只会互相打架，所以它们保持原样；
+   * 剩下的纯列表页（设置各组、工具、记忆、听书列表…）都是 kit 组件搭的，
+   * 换了变量就自动玻璃化。
+   */
+  const liquidSkin =
+    liquidWorld && !/^\/(play\/(garden|games|plugins|player)|plugins?)(\/|$)/.test(pathname);
+
+  /**
+   * 液态下**能液态化的二级页**也要有"光跟手指走"。首页那层由 `LiquidShell` 自己挂，
+   * 这里只补其它页，避免同一个监听器挂两遍。
+   */
+  useEffect(() => {
+    if (!liquidSkin || pathname === "/") return;
+    return mountGlassLight();
+  }, [liquidSkin, pathname]);
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。
@@ -198,7 +228,10 @@ export function AppShell() {
     //   · 页面背景**铺满**（外壳不给内边距，谁的背景都能铺到最上面）
     //   · **每一页自己的顶栏**吃 `--q-inset-top`（见各 header 的 `pt-[max(...)]`）
     <div
-      className="relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg"
+      className={cn(
+        "relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg",
+        liquidSkin && "lq-skin",
+      )}
       /**
        * 键盘让位：`max(原生推的, 网页兜底算的)`。
        * 外壳整体缩一条键盘高的下内边距 → 页面里的输入框被顶到键盘上面；
@@ -207,7 +240,12 @@ export function AppShell() {
        */
       style={{ paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
     >
+      {/* 液态：二级页也要有那层会漂的底光。首页由 `LiquidShell` 自己铺，别铺两遍 */}
+      {liquidSkin && pathname !== "/" ? <div className="lq-canvas" aria-hidden /> : null}
       <GlassHighlight />
+      {/* 开屏：一条线画出人形与玫瑰 → 墨迹散开 → 手写 waiting for you。
+          冷启动且距上次超过 4 小时才播，判断在组件内部（见 lib/splash-policy）。 */}
+      <Splash />
       {/* 切页流畅度浮层：默认完全不出现，只在 ?perf=1 / 改 PERF_FORCE 时亮 */}
       <PerfProbe />
       {/* 「高亮某处 / 滚动到某处」这类界面动作由它执行 */}
@@ -251,10 +289,13 @@ export function AppShell() {
       <GlobalToast />
       {/* 他主动发消息、而你不在聊天页时，从顶部滑下一条横幅（点了直接进聊天） */}
       <ChatNoticeBanner />
+      {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
+          这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
+      {liquidSkin && (ROOT_PATHS as readonly string[]).includes(pathname) ? <LiquidBack /> : null}
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </div>
-      {!hideNav && (
+      {!hideNav && !liquidWorld && (
         /**
          * 底部导航：**全宽 + 贴着屏幕下边缘**的一层薄玻璃。
          *

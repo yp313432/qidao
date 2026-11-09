@@ -141,9 +141,13 @@ export const ROOT_PATHS = ["/", "/tools", "/play", "/me"] as const;
  *   2. 玩乐区二级页（/play/xxx）→ /play
  *   3. 其余二级页 → /me（「我的」里的板块）
  *
+ * `liquid` = 液态世界（用户 m08548："没有底部导航栏了，所以你记得做好适配，
+ * 还有返回键啥的"）：那边**只有对话页 `/` 是首页**，工具/玩乐/我的三个 tab
+ * 都是被抽屉推进来的，所以它们的返回目标改成 `/`，而不是"没有上一级"。
+ *
  * 返回 null 表示"这是首页，不该有返回钮"。
  */
-export function parentOf(path: string): string | null {
+export function parentOf(path: string, liquid = false): string | null {
   // 去掉查询串/末尾斜杠，别让 "/memory/" 这种写法漏掉
   const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
 
@@ -151,8 +155,11 @@ export function parentOf(path: string): string | null {
   const explicit = TERTIARY_PARENT[p];
   if (explicit) return explicit;
 
-  // 2) 顶级 tab：没有上一级
-  if ((ROOT_PATHS as readonly string[]).includes(p)) return null;
+  // 2) 顶级 tab：纯色下它就是首页（没有上一级）；液态下除了对话页都回对话页
+  if ((ROOT_PATHS as readonly string[]).includes(p)) {
+    if (!liquid || p === "/") return null;
+    return "/";
+  }
 
   // 3) 玩乐区的房间 → 回玩乐首页
   if (p.startsWith("/play/")) {
@@ -188,7 +195,7 @@ export function parentOf(path: string): string | null {
  *
  * 网页版**不用**它（浏览器里"历史返回"才是对的），只有原生壳会调。
  */
-export function systemBackTarget(path: string): string | "exit" {
+export function systemBackTarget(path: string, liquid = false): string | "exit" {
   const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
 
   /*
@@ -201,7 +208,7 @@ export function systemBackTarget(path: string): string | "exit" {
   if (p === "/") return "exit";
   if ((ROOT_PATHS as readonly string[]).includes(p)) return "/";
 
-  return parentOf(p) ?? "exit";
+  return parentOf(p, liquid) ?? "exit";
 }
 
 /**
@@ -243,15 +250,16 @@ export function hidesNav(path: string): boolean {
  * 这个页面该不该显示返回钮。
  * 顶级 tab 不显示（用户从底部导航直接到它们，没有"上一级"）。
  */
-export function hasBackButton(path: string): boolean {
-  return parentOf(path) !== null;
+export function hasBackButton(path: string, liquid = false): boolean {
+  return parentOf(path, liquid) !== null;
 }
 
 /** 给返回钮一个说人话的标签（无障碍 + 长按提示用） */
-export function backLabelOf(path: string): string {
-  const parent = parentOf(path);
+export function backLabelOf(path: string, liquid = false): string {
+  const parent = parentOf(path, liquid);
   if (!parent) return "返回";
   const names: Record<string, string> = {
+    "/": "返回对话",
     "/me": "返回我的",
     "/play": "返回玩乐",
     "/core": "返回 AI 概览",

@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
+import { materialOf } from "@/lib/material";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";
+import { useApp } from "@/lib/store";
 
 /**
  * 玩乐区各页统一的顶部：返回 + 标题 +（可选）右边一个动作。
@@ -28,8 +30,9 @@ export function PlayHeader({
   backLabel?: string;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const target = backTo ?? parentOf(pathname) ?? "/play";
-  const label = backLabel ?? backLabelOf(pathname);
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+  const target = backTo ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/play");
+  const label = backLabel ?? backLabelOf(pathname, liquid);
 
   return (
     <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">

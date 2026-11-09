@@ -45,6 +45,16 @@ const LAYER_DIR = "src/styles";
 const MODE_DIR = "src/styles/modes";
 const MODE_NAMES = ["solid", "liquid"];
 
+/*
+ * 液态世界是**另一个 App**（用户 2026-11 定的）：布局、交互都可以和纯色不一样，
+ * 所以它的样式不写进 src/styles（那边是纯色的旧账），而是自成一份。
+ * 但它自己也有规矩，而且是从零开始的硬线（没有"历史遗留"这个借口）：
+ * 不许 hex、不许 !important、不许 backdrop-filter（要零模糊）、单文件 ≤500 行。
+ */
+const LIQUID_DIR = "src/liquid";
+const LIQUID_CSS_DIR = "src/liquid/styles";
+const LIQUID_MAX_FILE_LINES = 500;
+
 /** 允许写变量的模式文件必须是这几种材质之一。 */
 const MODE_SELECTOR_RE = /^\[[a-zA-Z-]+="[^"]+"\](?:\[[a-zA-Z-]+="[^"]+"\])*$/;
 const DATA_MATERIAL_RE = /\[data-material\s*[~|^$*]?=\s*"(\w+)"\]/g;
@@ -195,8 +205,64 @@ export function auditLayerFile(rel, source) {
   return violations;
 }
 
-/** 从 src/styles.css 出发，收集所有被 @import 到的 CSS 文件。 */
-export function collectImported(root) {
+/**
+ * 液态世界的样式文件（`src/liquid/styles/*.css`）。
+ *
+ * 允许的东西和纯色侧不同：玻璃的白高光只能靠 `rgba(255,255,255,…)` 写，
+ * 主题色必须 `color-mix(in oklab, var(--aster-…) x%, transparent)` 派生。
+ * 所以这里禁的是 hex（写死颜色就换不了主题）、`!important`、跨档选择器、以及
+ * `backdrop-filter`（用户要的是**零模糊**的液态）。
+ */
+export function auditLiquidCss(rel, source) {
+  const violations = [];
+  const css = stripComments(source);
+  const flag = (re, message) => {
+    const local = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+    let m;
+    while ((m = local.exec(css)) !== null) {
+      violations.push({ file: rel, line: css.slice(0, m.index).split("\n").length, message });
+    }
+  };
+
+  flag(/#[0-9a-fA-F]{3,8}\b/g, "液态样式里不许写 hex 色值 —— 用 rgba() 玻璃白或 color-mix(--aster-*)");
+  flag(/!important\b/g, "液态样式里不许用 !important");
+  flag(DATA_MATERIAL_RE, "液态世界不需要 [data-material=…] —— 这一层只在液态生效");
+  flag(/backdrop-filter\s*:/g, "液态不模糊 —— 不许用 backdrop-filter，厚度靠边缘透镜和光斑做");
+  return violations;
+}
+
+/** 液态世界的组件/脚本：不许 hex、不许 Tailwind 任意值、单文件 ≤500 行。 */
+export function auditLiquidSource(rel, source) {
+  const violations = [];
+  const lines = source.split("\n").length;
+  if (lines > LIQUID_MAX_FILE_LINES) {
+    violations.push({
+      file: rel,
+      line: 0,
+      message: `${lines} 行，超过液态的单文件上限 ${LIQUID_MAX_FILE_LINES} 行 —— 拆开，别在这边重演旧城的 2254 行`,
+    });
+  }
+  const hex = /#[0-9a-fA-F]{3,8}\b/g;
+  let m;
+  while ((m = hex.exec(source)) !== null) {
+    violations.push({
+      file: rel,
+      line: source.slice(0, m.index).split("\n").length,
+      message: "液态组件里不许写色值字面量 —— 颜色只能留在 CSS 的 token 里",
+    });
+  }
+  const arb = new RegExp(TAILWIND_ARBITRARY_RE.source, "g");
+  while ((m = arb.exec(source)) !== null) {
+    violations.push({
+      file: rel,
+      line: source.slice(0, m.index).split("\n").length,
+      message: "液态组件里不许写 Tailwind 任意值 —— 样式写进 lq-* 类",
+    });
+  }
+  return violations;
+}
+
+/** 从 src/styles.css 出发，收集所有被 @import 到的 CSS 文件。 */export function collectImported(root) {
   const seen = new Set();
   const queue = [];
   if (!existsSync(join(root, ENTRY_REL))) return seen;
@@ -368,6 +434,15 @@ export function runGuard({ root = DEFAULT_ROOT, update = false } = {}) {
   for (const rel of listFiles(root, LAYER_DIR, [".css"])) {
     if (isModeFile(rel) || rel === "src/styles.css") continue;
     violations.push(...auditLayerFile(rel, readText(join(root, rel))));
+  }
+
+  // 2b. 液态世界：自成一套规矩（不在 src/styles 里，所以不走上面的分层检查）
+  for (const rel of listFiles(root, LIQUID_CSS_DIR, [".css"])) {
+    violations.push(...auditLiquidCss(rel, readText(join(root, rel))));
+  }
+  for (const rel of listFiles(root, LIQUID_DIR, [".tsx", ".ts"])) {
+    if (/\.d\.ts$/.test(rel) || /\.test\.|\.spec\./.test(rel)) continue;
+    violations.push(...auditLiquidSource(rel, readText(join(root, rel))));
   }
 
   // 3. 每个样式文件都必须被 src/styles.css 引到（防止写了没人用的死层）
