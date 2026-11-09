@@ -732,18 +732,18 @@
   width: 0;
 }
 
+/* 设置里的八项 = 二级列表：和动态空间/插件/音乐那些列表用同一块玻璃（`.lq-glass`），
+   这里只留尺寸与排版，玻璃的渐变/透镜/光斑/按压回弹全由 `.lq-glass` 给。 */
 .lq-setrow {
   display: flex;
   width: 100%;
-  height: 46px;
+  height: 52px;
   align-items: center;
   gap: 10px;
   border: 0;
-  border-radius: 14px;
-  padding: 0 12px;
+  border-radius: var(--lq-r, var(--lq-r-card));
+  padding: 0 14px;
   color: inherit;
-  background: rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
   font: inherit;
   text-align: left;
 }

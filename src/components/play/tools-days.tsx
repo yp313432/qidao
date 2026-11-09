@@ -4,6 +4,7 @@ import { CalendarHeart, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-r
 import { SceneBackdrop } from "@/components/shell/background-layer";
 import { PlayHeader } from "@/components/views/play-header";
 import { countdown, dayDiff, sortDates, startOfDay } from "@/lib/days";
+import { materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { cn, formatClock } from "@/lib/utils";
 
@@ -12,6 +13,8 @@ const WEEK = ["一", "二", "三", "四", "五", "六", "日"];
 /** 重要日子：上面一个日历，下面一列倒数。 */
 export function ToolsDays() {
   const settings = useApp((s) => s.settings);
+  // 液态：小日子是**二级列表**（一级「小日子」点进来），倒数列换成玻璃片
+  const liquid = materialOf(settings) === "liquid";
   const dates = useApp((s) => s.dates);
   // 日历要把"那天所有的东西"都显示出来，不只是重要日子
   const diary = useApp((s) => s.diary);
@@ -215,8 +218,9 @@ export function ToolsDays() {
                   <li key={d.id}>
                     <div
                       className={cn(
-                        "flex items-center gap-3 rounded-3xl border border-line px-4 py-3",
-                        past ? "bg-surface/60" : "bg-surface",
+                        "flex items-center gap-3 px-4 py-3",
+                        liquid ? "lq-glass" : "rounded-3xl border border-line",
+                        !liquid && (past ? "bg-surface/60" : "bg-surface"),
                       )}
                     >
                       <div className="min-w-0 flex-1">

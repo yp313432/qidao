@@ -96,7 +96,10 @@ export function AppShell() {
    * 换了变量就自动玻璃化。
    */
   const liquidSkin =
-    liquidWorld && !/^\/(play\/(garden|games|plugins|player)|plugins?)(\/|$)/.test(pathname);
+    liquidWorld &&
+    !/^\/(play\/(garden|games|player|add|plugins\/.+)|play\/space\/(moments|diary|letters)|tools\/(mcp|http|docs)|profile|space|chat-settings|notify|voice-settings|privacy|about)(\/|$)/.test(
+      pathname,
+    );
 
   /**
    * 「回对话页」钮只属于**液态的三张落地页**（工具 / 玩乐 / 我的）。

@@ -58,6 +58,49 @@ describe("parentOf：液态（没有底部导航）", () => {
     assert.equal(parentOf("/env", true), "/");
   });
 
+  it("六个功能的列表页是二级 —— 上一级是对话页", () => {
+    for (const p of [
+      "/tools",
+      "/play/space",
+      "/play/days",
+      "/play/garden",
+      "/play/plugins",
+      "/play/listen",
+    ]) {
+      assert.equal(parentOf(p, true), "/", `${p} 的上一级该是对话页`);
+    }
+  });
+
+  it("三级页只退到它所属的二级列表，绝不一步跳回对话页（用户 m09110）", () => {
+    // 工具编辑器 → 工具列表
+    assert.equal(parentOf("/tools/mcp", true), "/tools");
+    assert.equal(parentOf("/tools/http", true), "/tools");
+    assert.equal(parentOf("/tools/docs", true), "/tools");
+    // 具体插件 / 插件编辑器 → 插件目录
+    assert.equal(parentOf("/play/plugins/kimo", true), "/play/plugins");
+    assert.equal(parentOf("/play/plugins/edit", true), "/play/plugins");
+    // 播放页 / 加歌 → 音乐列表
+    assert.equal(parentOf("/play/player", true), "/play/listen");
+    assert.equal(parentOf("/play/add", true), "/play/listen");
+    // 花园里的房间 → 花园（池塘里的竹篮退池塘、转盘的塔罗退转盘）
+    assert.equal(parentOf("/play/garden/qi", true), "/play/garden");
+    assert.equal(parentOf("/play/garden/cesta", true), "/play/garden/stagno");
+    assert.equal(parentOf("/play/garden/tarot", true), "/play/garden/tavolo");
+  });
+
+  it("动态空间的三个三级页退回二级目录，不是一路跳回对话页", () => {
+    /*
+      用户 m08921："动态点进去、日记点进去、信点进去保持不变，那个叫三级。"
+      二级目录（/play/space）底下的这三页是唯一的例外 —— 退回来落在目录上，
+      三级页本身维持原样（不挂液态度量）。
+    */
+    assert.equal(parentOf("/play/space/moments", true), "/play/space");
+    assert.equal(parentOf("/play/space/diary", true), "/play/space");
+    assert.equal(parentOf("/play/space/letters", true), "/play/space");
+    // 纯色那张表一点没动
+    assert.equal(parentOf("/play/space/moments"), "/play/space");
+  });
+
   it("末尾斜杠 / 查询串不影响判断", () => {
     assert.equal(parentOf("/tools/", true), "/");
     assert.equal(parentOf("/tools?x=1", true), "/");
@@ -72,6 +115,13 @@ describe("hasBackButton / backLabelOf", () => {
 
   it("返回对话页的标签念作「返回对话」", () => {
     assert.equal(backLabelOf("/tools", true), "返回对话");
+  });
+
+  it("设置的三级页念作「返回设置」（回到的是设置层，不是对话页）", () => {
+    assert.equal(backLabelOf("/profile", true), "返回设置");
+    assert.equal(backLabelOf("/notify", true), "返回设置");
+    // 纯色那边仍然是回「我的」
+    assert.equal(backLabelOf("/profile"), "返回我的");
   });
 });
 

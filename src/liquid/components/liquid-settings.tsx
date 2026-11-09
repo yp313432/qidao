@@ -45,9 +45,10 @@ export function LiquidSettings() {
           <li key={row.title}>
             <button
               type="button"
-              className="lq-setrow"
+              className="lq-setrow lq-glass"
               onClick={() => {
-                setSettings(false);
+                /* 不在这里关设置层：`settingsMemory` 记住"用户是从设置进来的"，
+                   三级页返回 `/` 时会自动停在设置列表（三级 → 二级）。 */
                 void nav({ to: row.to });
               }}
             >

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Disc3, Headphones, Link2, Plus, Trash2 } from "lucide-react";
 import { PlayHeader } from "@/components/views/play-header";
 import { kindLabel } from "@/lib/music-embed";
+import { materialOf } from "@/lib/material";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ export function MusicListView() {
   const playing = usePlayer((s) => s.playing);
   const embeds = useApp((s) => s.musicEmbeds);
   const currentEmbedId = useApp((s) => s.currentEmbedId);
+  // 液态：音乐列表是**二级列表**（一级「音乐」点进来），条目换成玻璃片
+  const liquid = materialOf(useApp((s) => s.settings)) === "liquid";
   const navigate = useNavigate();
 
   function openLocal(id: string) {
@@ -77,7 +80,7 @@ export function MusicListView() {
                     <div
                       className={cn(
                         "flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
-                        active ? "glass-active" : "bg-surface",
+                        liquid ? "lq-glass" : active ? "glass-active" : "bg-surface",
                       )}
                     >
                       <button
@@ -149,7 +152,7 @@ export function MusicListView() {
                     <div
                       className={cn(
                         "flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
-                        active ? "glass-active" : "bg-surface",
+                        liquid ? "lq-glass" : active ? "glass-active" : "bg-surface",
                       )}
                     >
                       <button

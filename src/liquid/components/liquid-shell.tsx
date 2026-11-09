@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { mountGlassLight } from "@/liquid/lib/glass-light";
-import { LiquidShellCtx } from "@/liquid/lib/drawer-state";
+import { LiquidShellCtx, settingsMemory } from "@/liquid/lib/drawer-state";
 
 /**
  * 液态世界的外框：柔光底 + 3D 舞台。
@@ -20,7 +20,12 @@ import { LiquidShellCtx } from "@/liquid/lib/drawer-state";
 
 export function LiquidShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [settings, setSettings] = useState(false);
+  /* 初值来自模块级记忆：从设置的三级页返回时，还停在设置列表上 */
+  const [settings, setSettingsState] = useState(() => settingsMemory.get());
+  const setSettings = (value: boolean) => {
+    settingsMemory.set(value);
+    setSettingsState(value);
+  };
 
   /* 光跟手指：一个全局委托，卸载时自己摘掉 */
   useEffect(() => mountGlassLight(), []);

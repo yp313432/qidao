@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * **插件** —— 玩乐区里的一个新区：一个目录装所有插件。
@@ -23,6 +23,9 @@ import { isSolid } from "@/lib/material";
  */
 export function PluginHub() {
   const solidPaper = useApp((s) => isSolid(s.settings));
+  // 液态：这是**二级列表**（一级「插件」点进来的目录），卡片换成玻璃片；
+  // 点进具体某个插件（三级）维持原样 —— 用户 m08921/m08995。
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const customs = useApp((s) => s.settings.customPlugins);
   const plugins = catalogOf(customs);
 
@@ -40,7 +43,8 @@ export function PluginHub() {
                   to="/play/plugins/$slug"
                   params={{ slug: p.slug }}
                   className={cn(
-                    "flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5",
+                    "flex items-center gap-3 px-4 py-3.5",
+                    liquid ? "lq-glass" : "rounded-3xl border border-line bg-elevated",
                     solidPaper && "pp-entry",
                     off && "opacity-45",
                   )}

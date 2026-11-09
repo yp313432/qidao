@@ -4,7 +4,7 @@ import { SceneBackdrop } from "@/components/shell/background-layer";
 import { PlayHeader } from "@/components/views/play-header";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * 动态空间 —— 现在是**目录**，不是三个页签。
@@ -30,6 +30,8 @@ export function SpaceView() {
   const letters = useApp((s) => s.letters);
   // 纸世界（纯色）：三颗胶囊换成三张错落的纸片；磨砂/液态保持原样。
   const solidPaper = isSolid(settings);
+  // 液态：这张是**二级目录**，三张入口卡换成玻璃片（三级页不动 —— 用户 m08921）
+  const liquid = materialOf(settings) === "liquid";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -47,6 +49,7 @@ export function SpaceView() {
         <ul className="mt-4 space-y-2.5">
           <Entry
             solid={solidPaper}
+            liquid={liquid}
             to="/play/space/moments"
             title="动态"
             hint={moments.length > 0 ? `朋友圈 · ${moments.length} 条` : "朋友圈：发一条、点赞、评论"}
@@ -54,6 +57,7 @@ export function SpaceView() {
           />
           <Entry
             solid={solidPaper}
+            liquid={liquid}
             to="/play/space/diary"
             title="日记"
             hint={diary.length > 0 ? `共 ${diary.length} 篇` : "一天至少给自己留一篇"}
@@ -61,6 +65,7 @@ export function SpaceView() {
           />
           <Entry
             solid={solidPaper}
+            liquid={liquid}
             to="/play/space/letters"
             title="信"
             hint={letters.length > 0 ? `共 ${letters.length} 封` : "他写给你的信"}
@@ -83,19 +88,22 @@ function Entry({
   hint,
   icon,
   solid,
+  liquid,
 }: {
   to: string;
   title: string;
   hint: string;
   icon: React.ReactNode;
   solid?: boolean;
+  liquid?: boolean;
 }) {
   return (
     <li>
       <Link
         to={to as never}
         className={cn(
-          "flex items-center gap-3 rounded-3xl border border-line bg-elevated px-4 py-3.5",
+          "flex items-center gap-3 px-4 py-3.5",
+          liquid ? "lq-glass" : "rounded-3xl border border-line bg-elevated",
           solid && "pp-entry",
         )}
       >

@@ -18,6 +18,22 @@ export type LiquidShellState = {
 
 export const LiquidShellCtx = createContext<LiquidShellState | null>(null);
 
+/**
+ * 设置层的开合要**跨路由记住**。
+ *
+ * 层级是：头像 → 设置（一级）→ 八项列表（二级）→ 每一项的页面（三级）。
+ * 三级是独立路由，从它返回 `/` 时 `LiquidShell` 会重新挂载，
+ * 状态只放在组件里就会丢 —— 用户会落回对话页而不是设置列表（用户 m09048）。
+ */
+let settingsOpen = false;
+
+export const settingsMemory = {
+  get: () => settingsOpen,
+  set: (value: boolean) => {
+    settingsOpen = value;
+  },
+};
+
 export function useLiquidShell(): LiquidShellState {
   const value = useContext(LiquidShellCtx);
   if (!value) throw new Error("useLiquidShell 只能用在 <LiquidShell> 里面");
