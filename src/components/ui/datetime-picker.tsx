@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useBackdropDismiss } from "./use-backdrop-dismiss";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * **自绘的日期 / 时间选择器**（用户第 7 条："改对话名称和选择时间……
@@ -223,8 +224,8 @@ export function DateTimeField({
   /** 点空白处返回（统一规则；滚轮拖完松手不会误关） */
   const backdrop = useBackdropDismiss(() => setOpen(false));
   const [draft, setDraft] = useState(value);
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = useApp((s) => isSolid(s.settings));
   const openIt = () => {
     setDraft(value);
     setOpen(true);

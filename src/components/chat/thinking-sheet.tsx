@@ -5,6 +5,7 @@ import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import type { ChatStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * 思考链 —— 从底部弹出来的一层（Claude 那种）。
@@ -60,7 +61,7 @@ export function ThinkingSheet({
   const [dragging, setDragging] = useState(false);
   const startY = useRef(0);
   /* 纸世界 Step3 补：纯色材质下思考链这层换纸卡壳（用户点名适配） */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  const solidPaper = useApp((s) => isSolid(s.settings));
 
   // Esc 关闭（桌面端顺手）
   useEffect(() => {

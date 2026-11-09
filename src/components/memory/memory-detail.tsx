@@ -4,6 +4,7 @@ import { ALL_KINDS, KIND_HINT, KIND_LABEL, retention } from "@/lib/memory";
 import type { Memory, MemoryKind } from "@/lib/types";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * 记忆详情面板（从底部升起）。
@@ -53,8 +54,8 @@ export function MemoryDetail({
   const [draft, setDraft] = useState(memory?.content ?? "");
   const [kind, setKind] = useState<MemoryKind>(memory?.kind ?? "profile");
   const [tagText, setTagText] = useState((memory?.tags ?? []).join(" "));
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = useApp((s) => isSolid(s.settings));
 
   useEffect(() => {
     if (!memory) return;

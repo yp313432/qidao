@@ -11,7 +11,6 @@
 @import "./styles/base.css";
 @import "./styles/kit.css";
 @import "./styles/modes/solid.css";
-@import "./styles/modes/frost.css";
 @import "./styles/modes/liquid.css";
 
 /* 本地字体（原本走 Google Fonts 外链，国内网络会阻塞首屏渲染） */
@@ -236,21 +235,6 @@
   --aster-flash-a: 0;
 }
 
-/* ── 半磨砂：毛玻璃，能看见背景轮廓但糊成一层 ── */
-[data-material="frost"] {
-  --aster-surface: color-mix(in oklab, var(--aster-bg) 62%, transparent);
-  --aster-elevated: color-mix(in oklab, var(--aster-bg) 72%, transparent);
-  --aster-chip: color-mix(in oklab, var(--aster-bg) 38%, transparent);
-  --aster-line: color-mix(in oklab, #ffffff 26%, transparent);
-  --aster-blur: 20px;
-  --aster-sat: 1.5;
-  --aster-shadow: 0 4px 18px color-mix(in oklab, var(--aster-fg) 10%, transparent);
-  --aster-glass-highlight: color-mix(in oklab, #ffffff 45%, transparent);
-  --aster-sheen: color-mix(in oklab, #ffffff 20%, transparent);
-  --aster-gleam-a: 0.4;
-  --aster-flash-a: 0.12;
-}
-
 /* ── 液态玻璃：极透，背景的彩色直接映进来；边只有 0.5px ── */
 [data-material="liquid"] {
   /*
@@ -340,7 +324,7 @@
    光斑，换成一张水彩纸——晕染三团 + 水痕圈 + 印刷网点 + 纸纹颗粒 +
    纤维。晕染色全部从主题 --aster-accent 派生，换 [data-palette]
    时色相自动跟着变。选择器全部锁在 [data-material="solid"]，
-   frost / liquid 一行不碰。 */
+   液态玻璃一行不碰。 */
 
 /* 换纸色时晕染要"化开"而不是硬跳：自定义属性注册成 <color> 才能
    transition。不支持 @property 的老 WebView 自动退回硬切换（=现状），
@@ -417,7 +401,7 @@
    规格照概念稿，色值换成主题变量：线/墨字用 --aster-ink，纸底用
    --aster-bg，「讯」印用 --aster-accent。五个控件的 onClick/aria/44px
    热区一个不动——34px 方钮是 ::before 画的视觉框，热区还是整个 44px。
-   frost / liquid 一行不碰：新 DOM 只在 solid 分支渲染（chat-view.tsx），
+   液态玻璃一行不碰：新 DOM 只在 solid 分支渲染（chat-view.tsx），
    这里的选择器全部锁在 [data-material="solid"]。 */
 
 /* 刊头容器：定位锚 + 自成 stacking context（垂枝 z:-1 画在实底纸上、
@@ -560,7 +544,7 @@
   font-family: var(--font-serif);
   color: var(--aster-ink);
 }
-[data-material="solid"] .paper-card button {
+[data-material="solid"] .paper-card button:not(.data-pill):not([data-pill]) {
   color: var(--aster-ink);
 }
 /* 按下（触屏）= 墨底白字胶囊 */
@@ -788,7 +772,7 @@
    拉丁小注按落地清单口径塞进原 label 行——nav 高度（--aster-nav-h）不变。 */
 
 /* 导航条本体：纸条替玻璃 —— 直角 + 顶上一条淡墨分界线（box-shadow 往上投，
-   不占布局高度：nav 总高保持和 frost 一致，--aster-nav-h 一行没动） */
+   不占布局高度：nav 总高保持不变，--aster-nav-h 一行没动） */
 [data-material="solid"] .glass-nav-bar {
   border-radius: 0;
   box-shadow: 0 -1px 0 color-mix(in srgb, var(--aster-ink) 13%, transparent);
@@ -4931,7 +4915,7 @@ html.q-paused * {
 }
 
 /* 纯色（实色纸）模式：纸是不透明的浅色，字必须跟着纸走深，
-   否则「白纸 + 用户选的浅字」会看不见。玻璃（frost/liquid）不适用这条。 */
+   否则「白纸 + 用户选的浅字」会看不见。玻璃（液态）不适用这条。 */
 [data-material="solid"] {
   /* !important 是必须的：用户字色是写在 <html> 的 inline style 上，普通声明压不过 */
   --aster-fg: var(--aster-ink) !important;

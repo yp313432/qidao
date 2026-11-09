@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * **插件** —— 玩乐区里的一个新区：一个目录装所有插件。
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils";
  * 点进**具体某个插件**才整页铺满（跟时感一样，见 `pluginBySlug` 那条路由）。
  */
 export function PluginHub() {
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  const solidPaper = useApp((s) => isSolid(s.settings));
   const customs = useApp((s) => s.settings.customPlugins);
   const plugins = catalogOf(customs);
 

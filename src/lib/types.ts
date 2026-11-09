@@ -388,16 +388,19 @@ export type Conversation = {
 export type ThemeId = "dawn" | "dusk" | "ink";
 
 /**
- * 材质（用户 2026-10 定的三档，取代原来「黎明/黄昏/墨色」那三个主题选项）。
+ * 材质（2026-11 收敛成两档，取代原来三档）：
  *
- * - `solid`  实色卡：不模糊、不开 backdrop-filter，靠线和一点阴影分层
- * - `frost`  半磨砂：毛玻璃，看得见背景轮廓但糊成一层
- * - `liquid` 液态玻璃：极透，背景的彩色直接映进来
+ * - `solid`  纯色：实色卡，不模糊、不开 backdrop-filter，靠线和一点阴影分层
+ * - `liquid` 液态玻璃：极透、**一点模糊都不要**，背景的彩色直接映进来（未上线）
+ *
+ * 半磨砂 `frost` 已下线（用户 m06619）。老存档里的 `frost` 由
+ * `src/lib/material.ts` 的 `normalizeMaterial()` 在存档边界落回 `solid`。
  *
  * 跟 `theme`（配色）是正交的两件事：`data-theme` 管底/字/强调色，
- * `data-material` 管卡片怎么画。CSS 见 styles.css 里那三块 `[data-material=…]`。
+ * `data-material` 管卡片怎么画 —— 每个材质一套变量，写在
+ * `src/styles/modes/<id>.css`，文件里**只有变量、没有选择器**，两套互不引用。
  */
-export type MaterialId = "solid" | "frost" | "liquid";
+export type MaterialId = "solid" | "liquid";
 
 /** 纯色模式下的纸色（只有 `material === "solid"` 时有意义） */
 export type PaletteId = "cream" | "blue" | "green" | "pink";
@@ -475,7 +478,7 @@ export type Settings = {
   /** 我自己的头像（dataURL，空表示用名字首字） */
   userAvatar: string;
   theme: ThemeId;
-  /** 材质三档（默认 frost = 现在这版毛玻璃） */
+  /** 材质两档（默认 `solid` = 纯色纸；`liquid` 未上线） */
   material?: MaterialId;
   /** 纯色模式的纸色（默认奶油白） */
   palette?: PaletteId;

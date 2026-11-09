@@ -75,12 +75,14 @@ import type {
   ThemeId,
 } from "./types";
 import { uid } from "./utils";
+import { materialOf, normalizeMaterial } from "./material";
 import { BOARD as GOBANG_BOARD, boardFull, emptyBoard, idx, inb, lineOfFive } from "./gobang";
 
 const defaultSettings: Settings = {
   displayName: "yan",
   theme: "dawn",
-  material: "frost",
+  /** 材质只剩两档：纯色（在线）/ 液态（未上线）。`frost` 已下线，见 lib/material.ts */
+  material: "solid",
   palette: "cream",
   bgPaper: 12,
   showThinking: true,
@@ -1964,7 +1966,16 @@ export const useApp = create<AppState>()(
           // 思考链已经不再归档了（存了也只看得到一次，纯占地方）——
           // 每次加载都清空，把老版本存下的那 18.8KB 腾出来。
           thinkingArchive: [],
-          settings: { ...current.settings, ...(saved.settings ?? {}) },
+          /**
+           * 材质在存档边界统一兜一次：老档里的 `frost`（半磨砂，2026-11 下线）
+           * 在这里落回纯色 —— 不让一条已下线的值活到 `applyAppearance()` 里
+           * 去 `data-material="frost"`（那套变量已经删了，页面会变成裸样式）。
+           */
+          settings: {
+            ...current.settings,
+            ...(saved.settings ?? {}),
+            material: normalizeMaterial(saved.settings?.material),
+          },
         };
       },
       partialize: (s) => ({
@@ -2097,11 +2108,11 @@ export function applyAppearance(settings: Settings) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   /*
-    材质与纸色：`data-material` 决定卡片怎么画（见 styles.css 那三块），
-    `data-palette` 只在纯色模式下有意义（换纸的色相）。
-    压纸色只在纯色模式下生效，其它材质强制 0（玻璃压了就糊）。
+    材质与纸色：`data-material` 决定卡片怎么画（纯色一套变量、液态一套变量，
+    两套文件互不引用），`data-palette` 只在纯色模式下有意义（换纸的色相）。
+    压纸色只在纯色模式下生效，液态强制 0（压了就糊）。
   */
-  const material = settings.material ?? "frost";
+  const material = materialOf(settings);
   root.dataset.material = material;
   root.dataset.palette = settings.palette ?? "cream";
   const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 12)) : 0;

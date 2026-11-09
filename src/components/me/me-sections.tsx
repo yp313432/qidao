@@ -39,12 +39,12 @@ import { SpacePage } from "./space-page";
 import { relShort } from "./me-format";
 import { KButton, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { ProbeLine, Section, Group, Sub, Row } from "./me-widgets";
+import { isSolid } from "@/lib/material";
 
 /**
  * 四个 tab 的区块 JSX（我的空间 / 模型与用量 / 数据 / 系统）。
  *
- * 四个 tab 共用**同一份状态与副作用**（都是 settings 里的字段），所以还是一个组件：
- * 拆成四个组件就得把几十个状态用 props 传下去，只会更容易出错。
+ * 四个 tab 共用**同一份状态与副作用**（都是 settings 里的字段），所以还是一个组件 —— 拆开就得把几十个状态用 props 传下去，更容易出错。
  * 想再拆，先把状态抽成一个 hook（见 design/ARCHITECTURE.md 的 D2 备注）。
  */
 
@@ -94,8 +94,8 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const [designMsg, setDesignMsg] = useState("");
   const [designUrl, setDesignUrl] = useState("");
   const settings = useApp((s) => s.settings);
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = isSolid(settings);
   /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
   /** "听"单独配的那家有没有密钥（没有就跟随主配置） */

@@ -354,3 +354,45 @@ npm run dev       # 真机/浏览器看效果
   正解是一次赋值（`final String text = raw == null || raw.isEmpty() ? "闹钟" : raw;`），
   不要"先声明再补默认值"。顺带记住：javac 的 attr 阶段和 flow 阶段是分开报的，
   一次只看到一条错，说明**后面可能还藏着**，改完要整文件再读一遍。
+
+- **54. 老城的 `[data-material]` 覆盖层会压过 kit 自己的选择器**（2026-11 用户 m06419）：
+  `src/styles.css` 里 `[data-material="solid"] .paper-card button { color: var(--aster-ink) }`
+  特异性 (0,2,1)，压过 `.data-pill` 的 (0,1,0) → 纯色模式下模型选择/推理等级弹层里
+  **选中那行是墨底 + 墨字，整行看不见**。修法是把那条规则限定成
+  `… button:not(.data-pill):not([data-pill])`。
+  教训：光看组件代码看不出来 —— 命中要算特异性；这类"底色改了、字没跟着反白"的
+  症状先去看 `styles.css` 里有没有 `[data-material=…] .paper-card` 一类的后代规则。
+
+- **55. 折线图的 x 轴必须和排序用同一把尺子**（`emotion-lifeform/components/app/panels.tsx`）：
+  事件按 `Date.parse(timestamp)` 排序，x 却用"当天第几分钟"（`clockMinutes`）→
+  跨天时 x 从最右跳回最左，折线折返成带白点的尖刺；只有一个点时
+  `M x y L x FLOOR Z` 又是一根零宽竖线。
+  现在：x 用 epoch（`SPARK_WINDOW_MS = 26h` 窗口内）、同 x 相距 <1px 的点合并、
+  少于 2 个点不画面积。**凡是"按时间排序却按时间轴画"的图，两个地方都得取同一个量。**
+
+- **56. 分段回复要边流边切，不能收尾再切开**（用户 m06419 第 3 条）：
+  原来流式期间只渲染 `firstSegment(content)`，收尾时才把整条换成多段 →
+  用户看到的是"一整条消息，过一两秒突然裂成几条"。
+  现在 `<SegmentBubbles>`（`src/components/chat/segment-bubbles.tsx`）在流式期间就用
+  `splitSegments` 同一函数切，写完的段当场定格、最后一段继续长；收尾的 `partsFor`
+  用同一份旋钮，所以不会重排。JSX 抽出去也是为了 `chat-view.tsx` 的行数棘轮。
+
+- **57. 材质从三档收成两档（2026-11 用户 m06619 / m06627）**：
+  半磨砂 `frost` 下线，只留 **纯色（唯一在线）** 与 **液态（未上线，方向是零模糊的极透）**。
+  要动的四处，漏一处就会在"升级过的老用户"手机上行出现裸样式（那套变量已经删了，
+  `data-material="frost"` 找不到任何 `--k-*`，卡片透明、线全丢）：
+  ① `src/lib/types.ts` 的 `MaterialId`；② `src/lib/store.ts` 的默认值与
+  **存档边界** `merge()` 里的 `normalizeMaterial()`；③ `src/styles/modes/frost.css`
+  与 `src/styles.css` 里那份 `[data-material="frost"]` 变量块（一并删掉 `@import`）；
+  ④ 切换器（外观页那一栏直接撤掉 —— 只剩一档的单选就是凑数控件）。
+
+- **58. 判断材质只准走 `src/lib/material.ts`**：`isSolid()` / `materialOf()` /
+  `normalizeMaterial()`。之前 15 个组件各写一遍
+  `(settings.material ?? "frost") === "solid"` —— 加一档就要改十几处，
+  漏一处就是"液态下还在走纸卡分支"。另外守卫里加了一条硬规则：
+  `modes/solid.css` 里出现 `[data-material="liquid"]` 直接失败（反之亦然），
+  **两档的皮肤不许互相照顾**，这是它们"互不干扰"的机械保证。
+
+- **59. 液态玻璃的旧实现别照抄**：`modes/liquid.css` 里封存的还是 `blur(5px) + 白 6%`
+  那版；用户 m06627 要的是"非常透，直接没有一点模糊"。真正开工时按新方向重写这一档，
+  不要拿旧变量当基准微调。

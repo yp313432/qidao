@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { TINT_ALPHAS, TINT_VARS, hexToRgba, normalizeTint } from "@/lib/composer-tint";
 import { useApp } from "@/lib/store";
+import { materialOf } from "@/lib/material";
 
 /**
  * 把「我的 → 个性化 → 对话框玻璃配色」里挑的颜色写进 `--q-tint-1/2/3`。
@@ -14,7 +15,7 @@ import { useApp } from "@/lib/store";
  */
 export function ComposerTint() {
   const tint = useApp((s) => s.settings.composerTint);
-  const material = useApp((s) => s.settings.material ?? "frost");
+  const material = useApp((s) => materialOf(s.settings));
 
   useEffect(() => {
     const root = document.documentElement;

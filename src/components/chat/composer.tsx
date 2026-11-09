@@ -32,6 +32,7 @@ import type { Attachment } from "@/lib/types";
 import { useDismissOutside } from "@/lib/ux";
 import { cn, uid } from "@/lib/utils";
 import { useApp } from "@/lib/store";
+import { isSolid } from "@/lib/material";
 
 type Props = {
   onSend: (text: string, attachments?: Attachment[]) => void;
@@ -145,8 +146,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const navigate = useNavigate();
   const model = useApp((s) => s.model);
   const settings = useApp((s) => s.settings);
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = isSolid(settings);
   const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));

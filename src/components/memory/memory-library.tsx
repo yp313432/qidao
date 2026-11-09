@@ -12,6 +12,7 @@ import type { MemoryKind } from "@/lib/types";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 type SortKey = NonNullable<SearchOptions["sort"]>;
 
@@ -48,8 +49,8 @@ export function MemoryLibrary() {
   const deleteMemory = useApp((s) => s.deleteMemory);
   const confirmMemory = useApp((s) => s.confirmMemory);
   const togglePinMemory = useApp((s) => s.togglePinMemory);
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = useApp((s) => isSolid(s.settings));
 
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<MemoryKind | "all">("all");

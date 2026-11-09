@@ -21,6 +21,7 @@ import { useApp } from "@/lib/store";
 import { refreshPlaceAndWeather } from "@/lib/where-am-i";
 import { resolveAiName } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * 玩乐区首页。
@@ -50,7 +51,7 @@ export function PlayHub() {
   const settings = useApp((s) => s.settings);
   const aiName = resolveAiName(settings.aiName);
   const myName = settings.displayName || "你";
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  const solidPaper = isSolid(settings);
 
   // 纸世界（纯色）：窗台静物版。磨砂/液态保持原来的橱窗版。
   if (solidPaper) return <PaperPlayHub aiName={aiName} myName={myName} />;

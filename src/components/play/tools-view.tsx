@@ -10,6 +10,7 @@ import { PlayHeader } from "@/components/views/play-header";
 import { countdown, sortDates } from "@/lib/days";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * 小日子：一个抽屉，装着过日子用的几样东西。
@@ -29,7 +30,7 @@ export function ToolsView() {
   const todos = useApp((s) => s.todos);
   const reminders = useApp((s) => s.reminders);
   const tasks = useApp((s) => s.tasks);
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  const solidPaper = isSolid(settings);
 
   const openTodos = todos.filter((t) => !t.done).length;
   const next = sortDates(dates)[0] ?? null;

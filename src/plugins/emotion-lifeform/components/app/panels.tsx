@@ -21,7 +21,6 @@ import {
   EmotionOrb,
   PAPER,
   SCRIPT_FONT,
-  clockMinutes,
   formatClock,
   groupOf,
   scriptStyle,
@@ -302,37 +301,38 @@ const SPARK_WIDTH = 340;
 const SPARK_HEIGHT = 110;
 const SPARK_FLOOR = 104;
 
-/**
- * 把每笔铺到光带上，y 由强度决定。
- *
- * x 不再是"24 小时里的第几分钟"——那样当天的记录全挤在晚上几个小时里，
- * 曲线会在右边一小段扭成一团（用户 2026-11-01 实机截图）。
- * 现在按当天最早到最晚这一段时间自适应铺满整条光带。
- *
- * ── 2026-11-07 修正（用户 m04214："轨迹那条线有时候不知道怎么就乱了"）──
- * 两个真 bug 都在这一层：
- *   ① **y 轴没自适应**：原来固定按 0~100 画，而实际强度常年落在 55~65 之间，
- *      于是整条线被压成一根近乎水平的细线，看着就是"乱"。现在取当天最低/最高
- *      值、各向外留 10% 余量（最少 8 个点的量程），小幅波动也能看出起伏；
- *      只有一笔时居中。
- *   ② **贝塞尔过冲**：控制点按相邻点差值的 1/6 取，数据一平就会在端点外甩出
- *      一小段"竖尾巴"。现在把控制点的 y **夹在两端点之间**（只许在两点间走），
- *      平的数据就是平的线。
- * 数据点少于 3 个时不画折线，改画散点（两点连直线没有信息量）。
- */
+/** 光带只看最近这段时间：再往前就是"另一天"了，画在一起没有意义 */
+const SPARK_WINDOW_MS = 26 * 60 * 60 * 1000;
+
 function buildSpark(events: EmotionEvent[]): {
   points: SparkPoint[];
   line: string;
   area: string;
 } {
-  const minutes = events.map((event) => clockMinutes(event.timestamp));
-  const earliest = Math.min(...minutes);
-  const latest = Math.max(...minutes);
-  const span = Math.max(1, latest - earliest);
+  /**
+   * ── 2026-11-07 第二次修正（用户 m06419："情绪库的线条"还是乱）──
+   * 上一版只改了 y，**x 仍按"当天第几分钟"**（`clockMinutes`）算，
+   * 而列表是按**完整时间戳**排的 —— 只要记录跨天（昨天 23:50 + 今天 00:10），
+   * x 就从最右跳回最左：折线当场折返，画出来是一根带白点的尖刺，
+   * 强度再平也一样难看。**跟颜色、跟 y 轴都没关系。**
+   *
+   * 现在两端用同一把尺子（epoch 毫秒）：x 单调不减 → 折返不可能发生；
+   * 只画最近 26 小时；同一像素宽度内的几笔并成一个点（取强度高的那笔），
+   * 免得竖直方向上堆出一根"孤立竖线"。
+   */
+  const layout = events
+    .map((event) => ({ event, ms: Date.parse(event.timestamp) }))
+    .filter((row) => Number.isFinite(row.ms));
+  if (layout.length === 0) return { points: [], line: "", area: "" };
+
+  const latestMs = layout[layout.length - 1].ms;
+  const kept = layout.filter((row) => latestMs - row.ms <= SPARK_WINDOW_MS);
+  const firstMs = kept[0].ms;
+  const spanMs = Math.max(60_000, latestMs - firstMs);
   const PAD = 12;
 
   /* y 轴自适应：留 10% 余量，最小量程 8 个点 */
-  const values = events.map((event) => Math.max(0, Math.min(100, event.intensity)));
+  const values = kept.map((row) => Math.max(0, Math.min(100, row.event.intensity)));
   const low = Math.min(...values);
   const high = Math.max(...values);
   const margin = Math.max(4, (high - low) * 0.1);
@@ -340,25 +340,36 @@ function buildSpark(events: EmotionEvent[]): {
   const yMax = Math.min(100, high + margin);
   const yRange = Math.max(8, yMax - yMin);
 
-  const points: SparkPoint[] = events.map((event, index) => {
-    const x = PAD + ((minutes[index] - earliest) / span) * (SPARK_WIDTH - PAD * 2);
-    const value = Math.max(0, Math.min(100, event.intensity));
+  const points: SparkPoint[] = [];
+  for (const row of kept) {
+    const x = Math.max(
+      6,
+      Math.min(
+        SPARK_WIDTH - 6,
+        PAD + ((row.ms - firstMs) / spanMs) * (SPARK_WIDTH - PAD * 2),
+      ),
+    );
+    const value = Math.max(0, Math.min(100, row.event.intensity));
     const ratio = Math.max(0, Math.min(1, (value - yMin) / yRange));
     const y = SPARK_FLOOR - ratio * (SPARK_FLOOR - 10);
-    return {
-      id: event.eventId,
-      x: Math.max(6, Math.min(SPARK_WIDTH - 6, x)),
-      y,
-    };
-  });
+    const prev = points[points.length - 1];
+    /* 同一段 x 上的几笔并成一个点：留强度高的（y 更小），
+       否则两笔挨着画会得到一根竖直短线，看着像"抽了一下" */
+    if (prev && Math.abs(prev.x - x) < 1) {
+      if (y < prev.y) {
+        prev.y = y;
+        prev.id = row.event.eventId;
+      }
+      continue;
+    }
+    points.push({ id: row.event.eventId, x, y });
+  }
 
   if (points.length < 2) {
+    /* 只有一笔：只画那个点（调用方用 <circle>），**不画面积** ——
+       单点的面积路径是一条零宽的竖线，在手机上就是一根莫名其妙的竖杠 */
     const only = points[0];
-    return {
-      points,
-      line: only ? `M ${only.x} ${only.y}` : "",
-      area: only ? `M ${only.x} ${only.y} L ${only.x} ${SPARK_FLOOR} Z` : "",
-    };
+    return { points, line: only ? `M ${only.x} ${only.y}` : "", area: "" };
   }
 
   /* 控制点的 y 夹在两端点之间：平的数据不许甩出竖尾巴 */

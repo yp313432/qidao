@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 export type PromptDialogProps = {
   open: boolean;
@@ -45,8 +46,8 @@ export function PromptDialog({
 }: PromptDialogProps) {
   const [value, setValue] = useState(defaultValue);
   const box = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
-  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），frost/liquid 路径不变 */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
+  const solidPaper = useApp((s) => isSolid(s.settings));
 
   // 每次打开都重新填一遍原文（这是"不重新打"的关键）
   useEffect(() => {

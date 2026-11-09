@@ -29,6 +29,7 @@ import { PerfProbe } from "@/components/shell/perf-probe";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
 import { useApp } from "@/lib/store";
+import { isSolid } from "@/lib/material";
 
 const TABS = MAIN_TABS;
 
@@ -74,7 +75,7 @@ export function AppShell() {
   const hideNav = hidesNav(pathname);
   const hydrated = useApp((s) => s.hydrated);
   /** 纸世界（qidao-docs/纸世界-落地清单.md）：纯色材质下底部导航换 F 邮票版。 */
-  const solidPaper = useApp((s) => (s.settings.material ?? "frost") === "solid");
+  const solidPaper = useApp((s) => isSolid(s.settings));
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。

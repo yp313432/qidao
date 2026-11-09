@@ -4,6 +4,7 @@ import { SceneBackdrop } from "@/components/shell/background-layer";
 import { PlayHeader } from "@/components/views/play-header";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * 动态空间 —— 现在是**目录**，不是三个页签。
@@ -28,7 +29,7 @@ export function SpaceView() {
   const diary = useApp((s) => s.diary);
   const letters = useApp((s) => s.letters);
   // 纸世界（纯色）：三颗胶囊换成三张错落的纸片；磨砂/液态保持原样。
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  const solidPaper = isSolid(settings);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

@@ -21,20 +21,17 @@ import { Lock, SlidersHorizontal } from "lucide-react";
 import { KButton, KCard, KFold, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { resolveAiName } from "@/lib/branding";
 import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
+import { isSolid } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { CHAT_FONT_SIZES } from "@/lib/ux";
 import { FONTS, TONES } from "./me-options";
 import { ImageRow } from "./me-widgets";
 
-const MATERIALS = [
-  {
-    id: "solid",
-    label: "纯色",
-    hint: "实色卡片，字最清楚；背景会自动压一层纸色，不然卡片像贴纸",
-  },
-  { id: "frost", label: "半磨砂", hint: "毛玻璃：半透、糊一层，什么背景都能搭" },
-  { id: "liquid", label: "液态玻璃", hint: "极透：背景的颜色直接映进卡片，最贵的一档" },
-] as const;
+/**
+ * 材质只剩纯色一档：半磨砂 2026-11 下线、液态还没做（用户 m06619）。
+ * 所以外观页不再有「材质」单选 —— 只有一个选项的单选就是凑数控件。
+ * 液态上线时把选择器加回来，判断口径统一走 `src/lib/material.ts`。
+ */
 const PALETTES = [
   { id: "cream", label: "奶油白", dot: "#f6f3ee" },
   { id: "blue", label: "雾蓝", dot: "#5b7f9e" },
@@ -51,15 +48,11 @@ export function SpacePage() {
   const patch = useApp((s) => s.patchSettings);
   const background = settings.background;
   /** 哪一组是展开的（null = 全收起，一屏能看完） */
-  const [openFold, setOpenFold] = useState<null | "material" | "bg" | "font" | "tint" | "date">(
-    null,
-  );
+  const [openFold, setOpenFold] = useState<null | "paper" | "bg" | "font" | "tint" | "date">(null);
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
 
-  const material = settings.material ?? "frost";
   const palette = settings.palette ?? "cream";
-  const matName = MATERIALS.find((m) => m.id === material)?.label ?? "半磨砂";
   const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
   const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(
     Boolean,
@@ -76,41 +69,23 @@ export function SpacePage() {
     /* 左右留白由外壳 `MePage` 的 `.k-page` 统一给（用户 m04469 第 3 条），这里不再套一层 */
     <div className="k-list k-nav-space">
       <KFold
-        title="材质"
-        meta={material === "solid" ? `${matName} · ${palName}` : matName}
-        open={openFold === "material"}
-        onToggle={() => setOpenFold(openFold === "material" ? null : "material")}
+        title="纸色"
+        meta={palName}
+        open={openFold === "paper"}
+        onToggle={() => setOpenFold(openFold === "paper" ? null : "paper")}
       >
-        <div className="k-tabs">
-          {MATERIALS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className="k-tab"
-              data-active={material === m.id ? "true" : undefined}
-              onClick={() => patch({ material: m.id })}
+        <KOpts cols={2}>
+          {PALETTES.map((x) => (
+            <KOpt
+              key={x.id}
+              active={palette === x.id}
+              dot={x.dot}
+              onClick={() => patch({ palette: x.id })}
             >
-              {m.label}
-            </button>
+              {x.label}
+            </KOpt>
           ))}
-        </div>
-        {material === "solid" && (
-          <>
-            <p className="k-sect__title">纸的颜色</p>
-            <KOpts cols={2}>
-              {PALETTES.map((x) => (
-                <KOpt
-                  key={x.id}
-                  active={palette === x.id}
-                  dot={x.dot}
-                  onClick={() => patch({ palette: x.id })}
-                >
-                  {x.label}
-                </KOpt>
-              ))}
-            </KOpts>
-          </>
-        )}
+        </KOpts>
       </KFold>
 
       <KFold
@@ -270,7 +245,9 @@ export function SpacePage() {
           disabled={!bgUnlocked}
           onChange={(v) => patch({ background: { ...background, opacity: v } })}
         />
-        {material === "solid" && (
+        {/* 压纸色只在纯色模式下有意义（液态是极透，压了就糊）——
+            材质判断走 lib/material.ts，别自己写 `settings.material === …` */}
+        {isSolid(settings) && (
           <>
             <KSlider
               label="背景压纸色"

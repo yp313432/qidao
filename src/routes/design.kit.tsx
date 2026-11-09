@@ -31,7 +31,6 @@ import type { MaterialId, PaletteId } from "@/lib/types";
 
 const MATERIALS: { id: MaterialId; label: string }[] = [
   { id: "solid", label: "纯色" },
-  { id: "frost", label: "磨砂" },
   { id: "liquid", label: "液态" },
 ];
 

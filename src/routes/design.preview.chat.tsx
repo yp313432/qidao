@@ -57,7 +57,6 @@ if (
 
 const MATERIALS: { id: MaterialId; label: string }[] = [
   { id: "solid", label: "纯色" },
-  { id: "frost", label: "磨砂" },
   { id: "liquid", label: "液态" },
 ];
 

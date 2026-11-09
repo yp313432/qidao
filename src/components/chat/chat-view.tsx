@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { prettySize } from "@/lib/attachments";
 import { setChatPageActive } from "@/lib/chat-presence";
-import { firstSegment } from "@/lib/segment";
+import { firstSegment, splitSegments, stripInvisible } from "@/lib/segment";
 import { Avatar } from "@/components/shared/avatar";
 
 /**
@@ -348,6 +348,7 @@ function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
   el.style.display = hasText || hasMedia ? "" : "none";
 }
 import { Markdown } from "@/components/shared/markdown";
+import { SegmentBubbles } from "@/components/chat/segment-bubbles";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
@@ -365,6 +366,7 @@ import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
+import { isSolid } from "@/lib/material";
 
 /**
  * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
@@ -491,10 +493,10 @@ export function ChatView() {
 
   /*
     纸世界 · Step2 刊头（qidao-docs/纸世界-落地清单.md）：纯色材质下顶部
-    这一行的壳换成「纸刊头」。frost / liquid 的渲染路径一个字节不变——
+    这一行的壳换成「纸刊头」。液态 的渲染路径一个字节不变——
     新 DOM 只走 solidPaper 分支；.mast-btn 是惰性挂钩类，玻璃下没有样式。
   */
-  const solidPaper = (settings.material ?? "frost") === "solid";
+  const solidPaper = isSolid(settings);
   const wireText = `${
     activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""
   }${nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}`;
@@ -739,7 +741,7 @@ export function ChatView() {
         {/*
           纸世界 · Step2：垂枝 C（qidao-docs/概念-纸刊头装饰-v1.html 的"标本枝"）。
           背景装饰层：z:-1 + pointer-events:none，画在实底纸上、按钮后面——
-          压不到功能也盖不着点击。只在纯色材质渲染（frost/liquid 没有这个 DOM）。
+          压不到功能也盖不着点击。只在纯色材质渲染（液态 没有这个 DOM）。
         */}
         {solidPaper && (
           /* 装饰层：水彩花枝斜横着搭在顶栏右角（用户 m01956：向左斜一点、斜横着放，
@@ -1313,14 +1315,11 @@ export function ChatView() {
                         {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
                         {/*
-                          **分段回复**（2026-11 用户要的："像发消息似的，可以发好几条"）：
-                          · 流式期间**只显示第一段** —— 后面的等他写完再一条条冒出来。
-                            不这么做的话，整条先显示出来、收尾再重排，内容会跳一下。
-                          · 收尾后按 `m.parts` 一条一个气泡，**段间用 CSS 延迟**依次浮现
-                            （延迟 = 设置里那个旋钮）。为什么不用计时器逐条挂载：
-                            那样翻回历史会**重播一遍动画**，而且每多一条就多一份状态。
-                          · `bubble-in` 只在"刚生成的那 20 秒内"加：老消息渲染出来就是全的。
-                        */}
+                          **分段回复**：一段一个气泡（JSX 见 `segment-bubbles.tsx`）。
+                          · 流式期间就按同一套口径切 —— 写完的段当场定格，最后一段继续长，
+                            不收尾再重排（用户 m06419 第 3 条）。
+                          · 段间浮现靠 CSS 延迟（不挂计时器：翻历史会重播动画）；
+                            `bubble-in` 只在生成后 20 秒内加。 */}
                         {(() => {
                           /**
                            * 语音模式下**正文不再单独出一个气泡**（用户 m11599：
@@ -1328,34 +1327,40 @@ export function ChatView() {
                            * 文字没有丢：它就在语音气泡下面那行转写里。
                            */
                           if ((m.attachments ?? []).some((a) => a.kind === "audio")) return null;
-                          const parts =
-                            !streaming && visibleParts.length > 1 ? visibleParts : null;
                           const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
                           const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
 
-                          if (parts) {
+                          /**
+                           * ⭐ **边写边分**（用户 m06419 第 3 条："把所有的话放在一整条消息里，
+                           * 过一两秒才能把它切割成几条消息"）。收尾时 `partsFor` 用的是同一个
+                           * 函数、同一份旋钮 —— 所以这里切出来的段就是最终结果，不会重排。
+                           */
+                          const live =
+                            streaming && settings.segmentReply !== false
+                              ? splitSegments(stripInvisible(m.content ?? ""), {
+                                  maxParts: settings.segmentMaxParts,
+                                  maxSentences: settings.segmentMaxSentences,
+                                })
+                              : null;
+                          const shownParts =
+                            live && live.length > 1
+                              ? live
+                              : !streaming && visibleParts.length > 1
+                                ? visibleParts
+                                : null;
+
+                          if (shownParts) {
                             return (
-                              <div className="space-y-1.5">
-                                {parts.map((p, i) => (
-                                  <div
-                                    key={i}
-                                    ref={hideIfRenderedEmpty}
-                                    {...quotePress(m.id, cleanPartForRender(p))}
-                                    data-role="ai"
-                                    className={cn(
-                                      /* 换壳（阶段 3）：他的一段 = 一个 .k-bubble；
-                                         分段浮现的 bubble-in 保留（它只动 opacity/transform，
-                                         浮签的 rotate 是独立的 rotate 属性，不会被按死）。
-                                         圆角只留一个整体角，不再靠 i === 0 切上面那只角。 */
-                                      "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation]",
-                                      fresh && "bubble-in",
-                                    )}
-                                    style={fresh ? { animationDelay: `${i * delay}ms` } : undefined}
-                                  >
-                                    <Markdown text={cleanPartForRender(p)} />
-                                  </div>
-                                ))}
-                              </div>
+                              <SegmentBubbles
+                                parts={shownParts}
+                                liveTail={Boolean(live && live.length > 1)}
+                                delay={delay}
+                                fresh={fresh}
+                                cleanPart={cleanPartForRender}
+                                cleanTail={stripInternalTags}
+                                press={(raw) => quotePress(m.id, raw)}
+                                hideIfEmpty={hideIfRenderedEmpty}
+                              />
                             );
                           }
 

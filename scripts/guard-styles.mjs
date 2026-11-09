@@ -43,7 +43,7 @@ export const BASELINE_REL = "scripts/style-baseline.json";
 const ENTRY_REL = "src/styles.css";
 const LAYER_DIR = "src/styles";
 const MODE_DIR = "src/styles/modes";
-const MODE_NAMES = ["solid", "frost", "liquid"];
+const MODE_NAMES = ["solid", "liquid"];
 
 /** 允许写变量的模式文件必须是这几种材质之一。 */
 const MODE_SELECTOR_RE = /^\[[a-zA-Z-]+="[^"]+"\](?:\[[a-zA-Z-]+="[^"]+"\])*$/;
@@ -336,8 +336,32 @@ export function runGuard({ root = DEFAULT_ROOT, update = false } = {}) {
     violations.push({
       file: `${MODE_DIR}/${name}.css`,
       line: 1,
-      message: `只有 solid / frost / liquid 三种材质，不认识「${name}」`,
+      message: `只有 solid / liquid 两种材质（frost 2026-11 下线），不认识「${name}」`,
     });
+  }
+
+  /*
+   * 1b. 模式之间不许串味：`modes/solid.css` 里只能出现 `[data-material="solid"]`。
+   * 这是"两档互不干扰"的机械保证 —— 一旦有人在 solid 的皮肤里顺手照顾一下液态，
+   * 以后改哪一档都会牵动另一档，那正是旧城长成 6090 行的方式。
+   */
+  for (const rel of listFiles(root, MODE_DIR, [".css"])) {
+    const own = rel
+      .split("/")
+      .pop()
+      .replace(/\.css$/, "");
+    const css = stripComments(readText(join(root, rel)));
+    const local = new RegExp(DATA_MATERIAL_RE.source, "g");
+    let m;
+    while ((m = local.exec(css)) !== null) {
+      if (m[1] !== own) {
+        violations.push({
+          file: rel,
+          line: css.slice(0, m.index).split("\n").length,
+          message: `${own}.css 里出现了 [data-material="${m[1]}"] —— 每个材质只写自己那一档的变量，跨档就会互相干扰`,
+        });
+      }
+    }
   }
 
   // 2. 新的分层文件写法
