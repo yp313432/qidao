@@ -1239,7 +1239,11 @@
   isolation: isolate;
 }
 
-.lq-skin main,
+/* ⚠️ 必须排除 `.lq-page`：液态对话页的根就是 `<main class="lq-page">`（见 liquid-chat），
+   而它靠 `position: absolute; inset: 0` 撑满舞台。这条选择器 (0,1,1) 会把
+   `position` 改成 relative —— 整页塌成内容高度，气泡区 0 高、输入条浮在屏幕中间
+   （用户 m08765 真机："输入框去哪了 / 聊天气泡去哪了 / 新建对话对话框跑到中间"）。 */
+.lq-skin main:not(.lq-page),
 .lq-skin .k-page {
   position: relative;
   z-index: 1;
@@ -1252,10 +1256,13 @@
   padding-bottom: calc(var(--k-s-6, 24px) + env(safe-area-inset-bottom, 0px));
 }
 
-/* 液态的「回对话页」钮（渲染在 app-shell，只在顶级页出现）。
-   无底导之后，工具 / 玩乐 / 我的三张落地页没有别的路回去（用户 m08548）。 */
+/* 液态的「回对话页」钮（渲染在 app-shell，**只在工具 / 玩乐 / 我的三张落地页**出现）。
+   无底导之后这三张页没有别的路回去（用户 m08548）。
+   ⚠️ 两件"不许"（用户 m08769）：不许在对话页出现（那里左上角是开抽屉的三道杠，
+   叠上去就是两个钮打架）；不许 `position: fixed` 钉死整屏 —— 它属于这一页，
+   所以用 absolute 挂在 `.lq-skin` 这层页面容器上，切页就跟着走。 */
 .lq-back {
-  position: fixed;
+  position: absolute;
   left: 12px;
   top: calc(14px + env(safe-area-inset-top, 0px));
   z-index: 45;
@@ -1272,8 +1279,8 @@
   transform: scale(0.94);
 }
 
-/* 左上角有返回钮了，标题得让开一格（只让 k-head 那类左对齐标题；
-   玩乐首页是居中标题，不冲突，就别动它） */
-.lq-skin .k-head {
+/* 左上角真有返回钮的那一页，标题才让开一格（`data-lq-back` 由 app-shell 置位）。
+   只让 k-head 那类左对齐标题；玩乐首页是居中标题，天然不冲突。 */
+.lq-skin[data-lq-back="true"] .k-head {
   padding-left: 46px;
 }

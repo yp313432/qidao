@@ -151,6 +151,15 @@ export function parentOf(path: string, liquid = false): string | null {
   // 去掉查询串/末尾斜杠，别让 "/memory/" 这种写法漏掉
   const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
 
+  /*
+    0) **液态世界只有对话页是首页** —— 除它之外，任何页面（含三级页）的上一级都是 `/`。
+       用户 m08765 真机：设置里点进「AI 概览」再返回，落在「我的」整页；
+       侧边栏点「空间」再退出，落在玩乐首页 —— 都是按纯色那张层级表往回走的结果。
+       液态没有 tab 层级（底导撤了），所有页都是从对话页推进来的，
+       所以往回走只有一站：对话页。
+  */
+  if (liquid) return p === "/" ? null : "/";
+
   // 1) 三级页
   const explicit = TERTIARY_PARENT[p];
   if (explicit) return explicit;

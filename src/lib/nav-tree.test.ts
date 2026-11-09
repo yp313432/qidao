@@ -45,9 +45,17 @@ describe("parentOf：液态（没有底部导航）", () => {
     assert.equal(parentOf("/me", true), "/");
   });
 
-  it("二级页的上一级不因材质而变", () => {
-    assert.equal(parentOf("/memory", true), "/usage");
-    assert.equal(parentOf("/play/space", true), "/play");
+  it("二级 / 三级页也是回对话页（液态没有 tab 层级）", () => {
+    /*
+      用户 m08765 真机："然后就设置三级页，点进去，返回之后还卡出来一个原来的这个
+      界面"、"还有那几个原来侧边栏的工具，点进去又退出也卡这个原来的玩乐的界面"。
+      原因就是这两行之前按纯色那张表往回走（/profile → /me、/play/space → /play）。
+      液态撤了底部 tab，所有页都是从对话页推进来的 —— 往回走只有一站。
+    */
+    assert.equal(parentOf("/profile", true), "/");
+    assert.equal(parentOf("/memory", true), "/");
+    assert.equal(parentOf("/play/space", true), "/");
+    assert.equal(parentOf("/env", true), "/");
   });
 
   it("末尾斜杠 / 查询串不影响判断", () => {

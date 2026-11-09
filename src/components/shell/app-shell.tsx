@@ -99,6 +99,21 @@ export function AppShell() {
     liquidWorld && !/^\/(play\/(garden|games|plugins|player)|plugins?)(\/|$)/.test(pathname);
 
   /**
+   * 「回对话页」钮只属于**液态的三张落地页**（工具 / 玩乐 / 我的）。
+   *
+   * 为什么需要它：液态撤了底部导航，而这三页在纯色里是 tab 落地页、自己不带返回钮，
+   * 没有它就只能靠安卓返回键回去。
+   *
+   * 为什么**只**给这三页（用户 m08769 真机原话："让你加个按钮，你不能把所有这个
+   * 按钮直接固定了，所有界面都这个按钮啊"）：
+   *   · 对话页 `/` 是这片世界的首页，左上角本来就是开抽屉的三道杠 —— 再叠一个返回钮
+   *     就是两个钮压在一起（他截图里那道重叠）
+   *   · 二级/三级页本来就有 `PageHeader` 自己的返回钮，不需要第二个
+   */
+  const lqBackPage =
+    liquidSkin && pathname !== "/" && (ROOT_PATHS as readonly string[]).includes(pathname);
+
+  /**
    * 液态下**能液态化的二级页**也要有"光跟手指走"。首页那层由 `LiquidShell` 自己挂，
    * 这里只补其它页，避免同一个监听器挂两遍。
    */
@@ -232,6 +247,8 @@ export function AppShell() {
         "relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg",
         liquidSkin && "lq-skin",
       )}
+      /* 只在"这一页真的有回对话钮"时置位 —— 标题让位的 padding 挂在它上面 */
+      data-lq-back={lqBackPage ? "true" : undefined}
       /**
        * 键盘让位：`max(原生推的, 网页兜底算的)`。
        * 外壳整体缩一条键盘高的下内边距 → 页面里的输入框被顶到键盘上面；
@@ -291,7 +308,7 @@ export function AppShell() {
       <ChatNoticeBanner />
       {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
           这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
-      {liquidSkin && (ROOT_PATHS as readonly string[]).includes(pathname) ? <LiquidBack /> : null}
+      {lqBackPage ? <LiquidBack /> : null}
       <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </div>
