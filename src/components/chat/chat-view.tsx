@@ -463,7 +463,13 @@ export function ChatView() {
       document.documentElement.style.setProperty("--q-composer-h", `${h}px`);
     };
     sync();
-    const ro = new ResizeObserver(sync);
+    /**
+     * 回调里 `setPadBottom` 会改消息列表的底部留白 → 可能再次改变观测量，
+     * 浏览器于是抛 "ResizeObserver loop completed with undelivered notifications"。
+     * 这是良性警告，但会在真机的全局 error 钩子里被当成崩溃处理（用户 m02470）。
+     * 挪到下一帧再量，循环就断开了。
+     */
+    const ro = new ResizeObserver(() => requestAnimationFrame(sync));
     ro.observe(el);
     return () => {
       ro.disconnect();

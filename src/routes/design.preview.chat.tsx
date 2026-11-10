@@ -24,36 +24,12 @@ import type { MaterialId, PaletteId } from "@/lib/types";
  * 收敛掉的只有散落在各处的一次性边框 / 圆角 / 阴影 / 字号写法。
  */
 
-// ── 临时排障：把运行时错误直接画在页面上（白屏时也能看见原因）───────────────
-// 2026-11-07 用户反馈"点开是空白"。这一页是预览页，挂个显式报错浮层不为过；
-// 定稿搬进真对话页时随本文件一起删。
-if (
-  typeof window !== "undefined" &&
-  !(window as { __qidaoPreviewErr?: boolean }).__qidaoPreviewErr
-) {
-  (window as { __qidaoPreviewErr?: boolean }).__qidaoPreviewErr = true;
-  const show = (label: string, detail: unknown) => {
-    const body = detail instanceof Error ? (detail.stack ?? detail.message) : String(detail);
-    const text = `${label}\n${body}`;
-    document.title = `ERR ${text.replace(/\s+/g, " ").slice(0, 90)}`;
-    let box = document.getElementById("qidao-preview-err");
-    if (!box) {
-      box = document.createElement("pre");
-      box.id = "qidao-preview-err";
-      box.setAttribute(
-        "style",
-        // 故意不用 var(--k-*)：这层是"样式没生效"时的兜底，不能依赖样式表。
-        "position:fixed;inset:0;z-index:99999;margin:0;padding:16px;overflow:auto;background:rgb(255,248,248);color:rgb(176,0,32);font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap",
-      );
-      document.body.appendChild(box);
-    }
-    box.textContent = text;
-  };
-  window.addEventListener("error", (e) =>
-    show("页面报错", e.error ?? `${e.message} @ ${e.filename}:${e.lineno}`),
-  );
-  window.addEventListener("unhandledrejection", (e) => show("未处理的 Promise", e.reason));
-}
+// ── 原来的"临时排障浮层"已删除（2026-11-10）─────────────────────────────────
+// 它把 window 的 error 事件画成一整屏 <pre>。问题在于 `src/routeTree.gen.ts:57`
+// 会**静态 import 每个路由文件**，所以这段模块顶层副作用在任何页面启动时都会执行——
+// 安卓 WebView 里 "ResizeObserver loop completed with undelivered notifications"
+// 是良性警告，却因此把整页盖住（用户 m02470 实机截图：聊着聊着弹出「页面报错」）。
+// 预览页本身并不白屏，这个兜底只制造新问题，整块移除。
 
 const MATERIALS: { id: MaterialId; label: string }[] = [
   { id: "solid", label: "纯色" },
