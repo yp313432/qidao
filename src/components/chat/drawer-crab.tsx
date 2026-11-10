@@ -252,8 +252,11 @@ export function groupName(id?: string): string {
 /**
  * 抽屉里「他现在的情绪」这一块：像素蟹 + 底下一个小标签。
  * 没有情绪记录时只显示螃蟹（安静状态），不显示标签。
+ *
+ * `className` 是给「挪到对话页」用的（第 3 条）：抽屉里它是贴着底部的 absolute，
+ * 到对话页要换位置，由调用方传类名、CSS 覆盖定位；不传就还是原来抽屉里那样。
  */
-export function DrawerMood() {
+export function DrawerMood({ className }: { className?: string } = {}) {
   const scenes = useEmotionStore((s) => s.scenes);
   const sceneId = useEmotionStore((s) => s.sceneId);
   const settings = useEmotionStore((s) => s.settings);
@@ -289,7 +292,11 @@ export function DrawerMood() {
   };
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-16 flex flex-col items-center">
+    <div
+      className={["pointer-events-none absolute inset-x-0 bottom-16 flex flex-col items-center", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className={`relative ${reduced ? "" : "crab-roam"}`}>
         {bubble ? <span className="crab-bubble">{label}</span> : null}
         <button

@@ -32,14 +32,13 @@ import { useApp } from "@/lib/store";
 import { WAKE_LEVELS } from "@/lib/wake-schedule";
 import { cn } from "@/lib/utils";
 import { resolveAiName } from "@/lib/branding";
-
 import type { MeTab } from "./me-types";
 import { STYLES } from "./me-options";
 import { SpacePage } from "./space-page";
 import { relShort } from "./me-format";
 import { KButton, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { ProbeLine, Section, Group, Sub, Row } from "./me-widgets";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * 四个 tab 的区块 JSX（我的空间 / 模型与用量 / 数据 / 系统）。
@@ -47,7 +46,6 @@ import { isSolid } from "@/lib/material";
  * 四个 tab 共用**同一份状态与副作用**（都是 settings 里的字段），所以还是一个组件 —— 拆开就得把几十个状态用 props 传下去，更容易出错。
  * 想再拆，先把状态抽成一个 hook（见 design/ARCHITECTURE.md 的 D2 备注）。
  */
-
 export function MeSections({ tab }: { tab: MeTab }) {
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
@@ -566,6 +564,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                             className={cn(
                               "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
                               solidPaper && "paper-card",
+                              materialOf(settings) === "liquid" && "lq-dialog",
                             )}
                           >
                             <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
@@ -2099,6 +2098,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                     className={cn(
                       "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
                       solidPaper && "paper-card",
+                      materialOf(settings) === "liquid" && "lq-dialog",
                     )}
                     onClick={(e) => e.stopPropagation()}
                   >

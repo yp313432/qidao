@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   clearChatNotice,
@@ -6,6 +6,7 @@ import {
   type ChatNotice,
 } from "@/lib/inapp-notice";
 import { useApp } from "@/lib/store";
+import { materialOf } from "@/lib/material";
 import { resolveAiName } from "@/lib/branding";
 
 /**
@@ -26,6 +27,8 @@ export function ChatNoticeBanner() {
   const timers = useRef<number[]>([]);
   const navigate = useNavigate();
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
+  /** 液态横幅：白膜 + 磨砂（第 12 条） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   useEffect(() => subscribeChatNotice((n) => {
     for (const t of timers.current) window.clearTimeout(t);
@@ -72,6 +75,7 @@ export function ChatNoticeBanner() {
           "pointer-events-auto flex w-full items-center gap-3 rounded-[20px] px-3 py-2.5 text-left",
           "border border-white/50 bg-surface/88 shadow-[0_10px_30px_rgba(0,0,0,0.22)]",
           "backdrop-blur-xl will-change-transform",
+          liquid && "lq-dialog lq-dialog--bar",
           leaving
             ? "transition-all duration-[240ms] ease-in"
             : "transition-all duration-[320ms]",

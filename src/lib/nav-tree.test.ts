@@ -45,17 +45,22 @@ describe("parentOf：液态（没有底部导航）", () => {
     assert.equal(parentOf("/me", true), "/");
   });
 
-  it("二级 / 三级页也是回对话页（液态没有 tab 层级）", () => {
+  it("「我的 / 设置」里面的页只退到「我的」，不许一步跳回对话页（用户 m00624）", () => {
     /*
-      用户 m08765 真机："然后就设置三级页，点进去，返回之后还卡出来一个原来的这个
-      界面"、"还有那几个原来侧边栏的工具，点进去又退出也卡这个原来的玩乐的界面"。
-      原因就是这两行之前按纯色那张表往回走（/profile → /me、/play/space → /play）。
-      液态撤了底部 tab，所有页都是从对话页推进来的 —— 往回走只有一站。
+      用户 m00624 真机："你的返回层级没做吧，我一点返回直接全回到对话页了，
+      而不是上一级" —— 他点的是「我的」里面的页。
+      上一版把液态所有非一级页兜底成 `/`，所以 `/profile` 直接跳回对话页；
+      现在 `LQ_ME_CHILD` 把这一支写全了：/profile → /me → /。
     */
-    assert.equal(parentOf("/profile", true), "/");
-    assert.equal(parentOf("/memory", true), "/");
+    assert.equal(parentOf("/profile", true), "/me");
+    assert.equal(parentOf("/notify", true), "/me");
+    assert.equal(parentOf("/core", true), "/me");
+    // 四级退三级
+    assert.equal(parentOf("/memory", true), "/usage");
+    assert.equal(parentOf("/env", true), "/about");
+    // 二级本身退回对话页
+    assert.equal(parentOf("/me", true), "/");
     assert.equal(parentOf("/play/space", true), "/");
-    assert.equal(parentOf("/env", true), "/");
   });
 
   it("六个功能的列表页是二级 —— 上一级是对话页", () => {

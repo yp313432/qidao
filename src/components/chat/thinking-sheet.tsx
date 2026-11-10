@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { callSentence } from "@/lib/call-sentence";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
 import type { ChatStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * 思考链 —— 从底部弹出来的一层（Claude 那种）。
@@ -62,6 +62,8 @@ export function ThinkingSheet({
   const startY = useRef(0);
   /* 纸世界 Step3 补：纯色材质下思考链这层换纸卡壳（用户点名适配） */
   const solidPaper = useApp((s) => isSolid(s.settings));
+  /** 液态思考链弹层：白膜 + 磨砂（第 12 条） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   // Esc 关闭（桌面端顺手）
   useEffect(() => {
@@ -121,7 +123,7 @@ export function ThinkingSheet({
       <button
         type="button"
         aria-label="关闭思考链"
-        className="absolute inset-0 cursor-default bg-fg/25"
+        className={cn("absolute inset-0 cursor-default", liquid ? "lq-dialog-scrim" : "bg-fg/25")}
         onPointerDown={(e) => {
           startY.current = e.clientY;
         }}
@@ -135,6 +137,7 @@ export function ThinkingSheet({
           "relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]",
           /* 纸世界 Step3 补：实底纸+墨顶线+纸影+衬线 */
           solidPaper && "paper-sheet",
+          liquid && "lq-dialog lq-dialog--sheet backdrop-blur-2xl",
         )}
         data-contrast
         style={{

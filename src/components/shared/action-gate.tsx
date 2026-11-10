@@ -6,6 +6,7 @@ import type { PermissionMode } from "@/lib/types";
 import { runAction } from "@/lib/actions";
 import { runGuarded } from "@/lib/gate-run";
 import { useApp } from "@/lib/store";
+import { materialOf } from "@/lib/material";
 import { cn } from "@/lib/utils";
 
 /**
@@ -84,6 +85,10 @@ export function ActionGate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, critical, mode]);
 
+  /* 第 12 条：液态下弹层套 lq-dialog（更厚白膜 + 透镜边 + 更深遮罩），模糊交给 backdrop-blur。
+     hook 必须写在下面那几处提前 return 之前，所以放这里。 */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
   if (!current) return null;
   if (!critical && mode !== "ask") {
     /** 自动执行中：不挡操作，只让用户知道"正在跑哪一个"（见上面 slowRun 的说明） */
@@ -119,12 +124,13 @@ export function ActionGate() {
       <button
         type="button"
         aria-label="关闭（等于拒绝）"
-        className="absolute inset-0 bg-fg/25"
+        className={cn("absolute inset-0", liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/25")}
         onClick={() => deny(false)}
       />
       <div
         className={cn(
           "glass-menu relative z-10 w-full max-w-sm rounded-3xl px-5 py-5",
+          liquid && "lq-dialog backdrop-blur-xl",
           critical && "ring-2 ring-warn/50",
         )}
         data-contrast

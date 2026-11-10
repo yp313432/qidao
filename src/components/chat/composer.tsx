@@ -19,11 +19,7 @@ import { FileButton } from "@/components/shared/file-button";
 import { filesToAttachments, prettySize, stickerFromFile } from "@/lib/attachments";
 import { stripWhiteBackground } from "@/lib/white-removal";
 import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
-import {
-  DEFAULT_STICKER_GROUP,
-  guessGroupFromName,
-  stickerGroupList,
-} from "@/lib/stickers";
+import { DEFAULT_STICKER_GROUP, guessGroupFromName, stickerGroupList } from "@/lib/stickers";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { transcribe } from "@/lib/voice-service";
 import { resolveAiName } from "@/lib/branding";
@@ -32,7 +28,7 @@ import type { Attachment } from "@/lib/types";
 import { useDismissOutside } from "@/lib/ux";
 import { cn, uid } from "@/lib/utils";
 import { useApp } from "@/lib/store";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 type Props = {
   onSend: (text: string, attachments?: Attachment[]) => void;
@@ -148,6 +144,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   const settings = useApp((s) => s.settings);
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = isSolid(settings);
+  /** 液态弹层（模型选择）：白膜 + 磨砂，见 glass.css 第 12 条 */
+  const liquid = materialOf(settings) === "liquid";
   const patch = useApp((s) => s.patchSettings);
   const setModel = useApp((s) => s.setModel);
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
@@ -312,7 +310,9 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
    */
   async function startVoiceRec(): Promise<boolean> {
     if (!recordSupported()) {
-      setRecErr("这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。");
+      setRecErr(
+        "这个浏览器不给录音。需要 https 或 localhost —— 局域网明文 http 下麦克风是被禁的。",
+      );
       return false;
     }
     try {
@@ -488,7 +488,16 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           ⭐ 用户 m02163 第 3/4 条 + m02254「然后选B」：形状改**细长**（卡片 p-1.5、输入框 min-h-9、
           两边圆钮 size-9，整块矮约 20px：125px → 101px），玻璃改成 **B 档：82% + 模糊 48px**（见 .glass-float）。
           侧边留白 8px（浮层外壳）+ 6px（这里）= 14px —— 用户要"别贴着侧边栏、也别太局促"。 */}
-      <div ref={cardRef} className={cn("glass-float rounded-3xl border border-line p-1.5 shadow-lg", solidPaper && "paper-env")}>
+      {/* 液态（用户本轮）：外壳换成图一那套零模糊玻璃 —— `.lq-composer` 在
+          `src/liquid/styles/glass.css` 里，只给液态用；纯色仍走 `.glass-float`
+          （虹彩 72% + 模糊 48px），两档各长各的，同一个组件同一套功能。 */}
+      <div
+        ref={cardRef}
+        className={cn(
+          "rounded-3xl border border-line p-1.5 shadow-lg",
+          solidPaper ? "glass-float paper-env" : "lq-composer",
+        )}
+      >
         {/*
           「{aiName} 现在知道」那行**已经挪到顶部栏**了（chat-view 的 header）。
           用户："不要放在对话框占地方，这样显得界面更宽阔一点"。
@@ -522,7 +531,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               recCancel ? "border-warn/60 bg-warn/15" : "border-line bg-chip",
             )}
           >
-            <span className={cn("size-2.5 shrink-0 animate-pulse rounded-full", recCancel ? "bg-warn" : "bg-accent")} />
+            <span
+              className={cn(
+                "size-2.5 shrink-0 animate-pulse rounded-full",
+                recCancel ? "bg-warn" : "bg-accent",
+              )}
+            />
             <span className="flex h-6 min-w-0 flex-1 items-end gap-[2px]">
               {Array.from({ length: 22 }).map((_, i) => {
                 // 中段高、两端低，像真的波形；再用音量调制
@@ -531,7 +545,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 return (
                   <span
                     key={i}
-                    className={cn("w-[3px] shrink-0 rounded-full transition-[height] duration-100", recCancel ? "bg-warn/70" : "bg-accent/80")}
+                    className={cn(
+                      "w-[3px] shrink-0 rounded-full transition-[height] duration-100",
+                      recCancel ? "bg-warn/70" : "bg-accent/80",
+                    )}
                     style={{ height: `${Math.max(4, Math.min(24, h))}px` }}
                   />
                 );
@@ -614,7 +631,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                         window.removeEventListener("pointercancel", cancel);
                       };
                       const onMove = (ev: PointerEvent) => {
-                        if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) cancel();
+                        if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8)
+                          cancel();
                       };
                       const timer = window.setTimeout(() => {
                         longPressedRef.current = true;
@@ -763,78 +781,72 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
 
             <div className="sticker-grid">
               {customStickers
-                  .filter(
-                    (x) =>
-                      stickerTab === "全部" ||
-                      (x.group || DEFAULT_STICKER_GROUP) === stickerTab,
-                  )
-                  .map((s) => {
-                    const picked = stickerPick.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        aria-label={
-                          stickerManage
-                            ? picked
-                              ? "取消选中"
-                              : "选中这张"
-                            : "发送这张表情"
-                        }
-                        onClick={() => {
-                          if (stickerManage) {
-                            if (longPressedRef.current) {
-                              longPressedRef.current = false;
-                              return;
-                            }
-                            setStickerPick((p) =>
-                              p.includes(s.id) ? p.filter((x) => x !== s.id) : [...p, s.id],
-                            );
+                .filter(
+                  (x) => stickerTab === "全部" || (x.group || DEFAULT_STICKER_GROUP) === stickerTab,
+                )
+                .map((s) => {
+                  const picked = stickerPick.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-label={
+                        stickerManage ? (picked ? "取消选中" : "选中这张") : "发送这张表情"
+                      }
+                      onClick={() => {
+                        if (stickerManage) {
+                          if (longPressedRef.current) {
+                            longPressedRef.current = false;
                             return;
                           }
-                          sendSticker(s.url);
-                        }}
-                        onPointerDown={(e) => {
-                          if (stickerManage) return;
-                          /*
+                          setStickerPick((p) =>
+                            p.includes(s.id) ? p.filter((x) => x !== s.id) : [...p, s.id],
+                          );
+                          return;
+                        }
+                        sendSticker(s.url);
+                      }}
+                      onPointerDown={(e) => {
+                        if (stickerManage) return;
+                        /*
                             用户 m07934 第 1 条：「长按编辑改成和气泡一样的，滑动时不触发，
                             只有固定按的时候触发」。所以按下记坐标，**手指一动就取消**；
                             按住不动到 420ms 才进管理态（比原来的 550ms 好按）。
                           */
-                          const sx = e.clientX;
-                          const sy = e.clientY;
-                          const cancel = () => {
-                            window.clearTimeout(timer);
-                            window.removeEventListener("pointermove", onMove);
-                            window.removeEventListener("pointerup", cancel);
-                            window.removeEventListener("pointercancel", cancel);
-                          };
-                          const onMove = (ev: PointerEvent) => {
-                            if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) {
-                              cancel();
-                            }
-                          };
-                          const timer = window.setTimeout(() => {
-                            longPressedRef.current = true;
-                            setStickerManage(true);
-                            setStickerPick([s.id]);
+                        const sx = e.clientX;
+                        const sy = e.clientY;
+                        const cancel = () => {
+                          window.clearTimeout(timer);
+                          window.removeEventListener("pointermove", onMove);
+                          window.removeEventListener("pointerup", cancel);
+                          window.removeEventListener("pointercancel", cancel);
+                        };
+                        const onMove = (ev: PointerEvent) => {
+                          if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) {
                             cancel();
-                          }, 420);
-                          window.addEventListener("pointermove", onMove);
-                          window.addEventListener("pointerup", cancel, { once: true });
-                          window.addEventListener("pointercancel", cancel, { once: true });
-                        }}
-                        className={cn(
-                          "sticker-cell",
-                          stickerManage && "sticker-manage",
-                          picked && "sticker-cell-on",
-                        )}
-                      >
-                        <img src={s.url} alt="" className="size-full object-contain" />
-                        {picked && <span className="sticker-tick">✓</span>}
-                      </button>
-                    );
-                  })}
+                          }
+                        };
+                        const timer = window.setTimeout(() => {
+                          longPressedRef.current = true;
+                          setStickerManage(true);
+                          setStickerPick([s.id]);
+                          cancel();
+                        }, 420);
+                        window.addEventListener("pointermove", onMove);
+                        window.addEventListener("pointerup", cancel, { once: true });
+                        window.addEventListener("pointercancel", cancel, { once: true });
+                      }}
+                      className={cn(
+                        "sticker-cell",
+                        stickerManage && "sticker-manage",
+                        picked && "sticker-cell-on",
+                      )}
+                    >
+                      <img src={s.url} alt="" className="size-full object-contain" />
+                      {picked && <span className="sticker-tick">✓</span>}
+                    </button>
+                  );
+                })}
 
               {customStickers.length === 0 && (
                 <p className="col-span-5 px-2 py-6 text-center text-[11px] leading-5 text-muted">
@@ -867,9 +879,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                       {g}
                       <span className="ml-1 text-[9px] opacity-60">
                         {
-                          customStickers.filter(
-                            (x) => (x.group || DEFAULT_STICKER_GROUP) === g,
-                          ).length
+                          customStickers.filter((x) => (x.group || DEFAULT_STICKER_GROUP) === g)
+                            .length
                         }
                       </span>
                     </button>
@@ -1056,7 +1067,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 setModelOpen(false);
                 setStickerOpen(false);
               }}
-              className="flex size-9 items-center justify-center rounded-full bg-chip text-ink"
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full bg-chip text-ink",
+                liquid && "lq-ctl",
+              )}
             >
               <Plus className="size-5" strokeWidth={1.75} />
             </button>
@@ -1117,6 +1131,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 "flex h-9 w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip px-3 text-left",
                 // 纸世界修正：纯色下模型胶囊纸签化（轻纸底+墨细线+收窄一档）
                 solidPaper && "paper-model",
+                // 液态：跟 + 号那颗一起换玻璃（用户 m01114：输入框里这两颗还是实底）
+                liquid && "lq-ctl",
               )}
             >
               <span className="flex w-full items-center gap-1">
@@ -1194,12 +1210,13 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     type="button"
                     aria-label="关闭"
                     onClick={() => setModelPickOpen(false)}
-                    className="absolute inset-0 bg-black/45"
+                    className={cn("absolute inset-0", liquid ? "lq-dialog-scrim" : "bg-black/45")}
                   />
                   <div
                     className={cn(
                       "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
                       solidPaper && "paper-card",
+                      liquid && "lq-dialog",
                     )}
                     data-contrast=""
                   >
@@ -1221,7 +1238,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                     </div>
 
                     <div className="px-4 pb-2">
-                      <div className="flex h-9 items-center gap-1.5 rounded-xl border border-line px-2.5" data-opt="">
+                      <div
+                        className="flex h-9 items-center gap-1.5 rounded-xl border border-line px-2.5"
+                        data-opt=""
+                      >
                         <Search className="size-3.5 shrink-0 text-muted" />
                         <input
                           value={modelPickQuery}

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useBackdropDismiss } from "./use-backdrop-dismiss";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * **自绘的日期 / 时间选择器**（用户第 7 条："改对话名称和选择时间……
@@ -69,7 +69,10 @@ export function WheelPicker({
             if (!el) return;
             window.clearTimeout(timer.current);
             timer.current = window.setTimeout(() => {
-              const idx = Math.min(items.length - 1, Math.max(0, Math.round(el.scrollTop / ITEM_H)));
+              const idx = Math.min(
+                items.length - 1,
+                Math.max(0, Math.round(el.scrollTop / ITEM_H)),
+              );
               const v = items[idx];
               if (v !== undefined && v !== value) onChange(v);
             }, 90);
@@ -101,7 +104,13 @@ export function WheelPicker({
 const WD = ["一", "二", "三", "四", "五", "六", "日"];
 
 /** 日期月历（`value` 用 `YYYY-MM-DD`，跟原来的 input 一致） */
-export function CalendarPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function CalendarPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const init = value ? new Date(`${value}T00:00:00`) : new Date();
   const [cursor, setCursor] = useState({
     y: Number.isNaN(init.getTime()) ? new Date().getFullYear() : init.getFullYear(),
@@ -226,6 +235,8 @@ export function DateTimeField({
   const [draft, setDraft] = useState(value);
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = useApp((s) => isSolid(s.settings));
+  /* 第 12 条：液态下弹层套 lq-dialog（更厚白膜 + 透镜边），模糊交给 backdrop-blur */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const openIt = () => {
     setDraft(value);
     setOpen(true);
@@ -242,44 +253,51 @@ export function DateTimeField({
       >
         {value || (mode === "date" ? "选日期" : "选时间")}
       </button>
-      {open && createPortal(
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-5"
-          {...backdrop}
-        >
+      {open &&
+        createPortal(
           <div
             className={cn(
-              "w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl",
-              solidPaper && "paper-card",
+              "fixed inset-0 z-[80] flex items-center justify-center p-5",
+              liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/45",
             )}
-            onClick={(e) => e.stopPropagation()}
+            {...backdrop}
           >
-            <p className="mb-3 text-[13px] font-medium">{label ?? (mode === "date" ? "选个日子" : "选个时间")}</p>
-            {mode === "date" ? (
-              <CalendarPicker value={draft} onChange={setDraft} />
-            ) : (
-              <TimeWheels value={draft} onChange={setDraft} />
-            )}
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-full px-4 py-1.5 text-[12px] text-muted"
-                {...backdrop}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-fg px-4 py-1.5 text-[12px] text-bg"
-                onClick={() => {
-                  onChange(draft);
-                  setOpen(false);
-                }}
-              >
-                确定
-              </button>
+            <div
+              className={cn(
+                "w-full max-w-sm rounded-3xl border border-line bg-bg p-4 shadow-xl",
+                solidPaper && "paper-card",
+                liquid && "lq-dialog backdrop-blur-xl",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="mb-3 text-[13px] font-medium">
+                {label ?? (mode === "date" ? "选个日子" : "选个时间")}
+              </p>
+              {mode === "date" ? (
+                <CalendarPicker value={draft} onChange={setDraft} />
+              ) : (
+                <TimeWheels value={draft} onChange={setDraft} />
+              )}
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-full px-4 py-1.5 text-[12px] text-muted"
+                  {...backdrop}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full bg-fg px-4 py-1.5 text-[12px] text-bg"
+                  onClick={() => {
+                    onChange(draft);
+                    setOpen(false);
+                  }}
+                >
+                  确定
+                </button>
+              </div>
             </div>
-          </div>
           </div>,
           document.body,
         )}

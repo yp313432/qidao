@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { subscribeToast } from "@/lib/toast";
+import { useApp } from "@/lib/store";
+import { materialOf } from "@/lib/material";
+import { cn } from "@/lib/utils";
 
 /**
  * 全局轻提示的**显示端**（发消息用 `lib/toast.ts` 的 `pushToast`）。
@@ -10,6 +13,8 @@ import { subscribeToast } from "@/lib/toast";
  */
 export function GlobalToast() {
   const [msg, setMsg] = useState("");
+  /** 液态轻提示：白膜 + 磨砂（第 12 条，跟横幅同一套） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   useEffect(() => subscribeToast((m) => setMsg(m)), []);
 
@@ -24,7 +29,10 @@ export function GlobalToast() {
     <button
       type="button"
       onClick={() => setMsg("")}
-      className="fixed inset-x-4 bottom-[calc(var(--q-inset-bottom,0px)+96px)] z-[95] max-h-[46vh] overflow-y-auto whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface/95 px-4 py-3 text-left text-[12.5px] leading-5 text-ink shadow-lg backdrop-blur"
+      className={cn(
+        "fixed inset-x-4 bottom-[calc(var(--q-inset-bottom,0px)+96px)] z-[95] max-h-[46vh] overflow-y-auto whitespace-pre-wrap break-all rounded-2xl border border-line bg-surface/95 px-4 py-3 text-left text-[12.5px] leading-5 text-ink shadow-lg backdrop-blur",
+        liquid && "lq-dialog lq-dialog--bar",
+      )}
     >
       {msg}
     </button>

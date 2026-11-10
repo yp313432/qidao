@@ -309,8 +309,11 @@ export function MeHub() {
        */
       style={{ overflowAnchor: "none" }}
     >
-      {/* 标题：滚动时先淡出，把位置让给资料卡 */}
-      <div ref={titleRef} className="px-5 inset-top-100 pb-1">
+      {/* 标题：滚动时先淡出，把位置让给资料卡。
+          液态下左上角有全局返回钮（`.lq-back`），这块要往右让一格 ——
+          让位规则写在 glass.css 的 `.lq-skin[data-lq-back="true"] .me-title`，
+          纯色下没有返回钮、`.me-title` 也没有任何样式，等于不存在（用户第 7 条 / 图一）。 */}
+      <div ref={titleRef} className="me-title px-5 inset-top-100 pb-1">
         <p className="text-xs tracking-wide text-muted">账号与系统</p>
         <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
       </div>

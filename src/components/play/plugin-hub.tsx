@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Plus, Puzzle } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Puzzle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
@@ -38,16 +38,19 @@ export function PluginHub() {
           {plugins.map((p) => {
             const off = p.enabled === false;
             return (
-              <li key={p.id}>
+              <li
+                key={p.id}
+                className={cn(
+                  "flex items-center",
+                  liquid ? "lq-glass" : "rounded-3xl border border-line bg-elevated",
+                  solidPaper && "pp-entry",
+                  off && "opacity-45",
+                )}
+              >
                 <Link
                   to="/play/plugins/$slug"
                   params={{ slug: p.slug }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3.5",
-                    liquid ? "lq-glass" : "rounded-3xl border border-line bg-elevated",
-                    solidPaper && "pp-entry",
-                    off && "opacity-45",
-                  )}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
                     <Puzzle className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />
@@ -60,6 +63,23 @@ export function PluginHub() {
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
                 </Link>
+
+                {/*
+                  自己加的插件给一个「改」的入口 —— 用户 m00624："插件没有删除或移除功能"。
+                  删掉那颗按钮在编辑页（`plugin-editor.tsx` 的「删掉这个插件」），
+                  所以这里只要把人送到编辑页就行，删除逻辑全仓只有一处。
+                  内置的那几个（时感 / 记忆宇宙）不走这里：它们是 App 自带的，删不得。
+                */}
+                {p.custom && (
+                  <Link
+                    to="/play/plugins/edit"
+                    search={{ id: p.id }}
+                    aria-label={`改 ${p.name}`}
+                    className="mr-2 flex size-9 shrink-0 items-center justify-center rounded-full text-muted active:bg-chip"
+                  >
+                    <Pencil className="size-4" strokeWidth={1.8} aria-hidden="true" />
+                  </Link>
+                )}
               </li>
             );
           })}

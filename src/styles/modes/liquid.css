@@ -35,6 +35,39 @@
     0 2px 8px color-mix(in oklab, var(--aster-fg) 7%, transparent);
   --k-press-shift: 0px;
 
+  /* ── 聊天气泡：用户定的「图一设置页那套」玻璃（本轮视觉基准，以后统一走它）──
+     膜：158° 白渐变 40% → 15% → 9% → 30%，描边 1px 白 34%；零模糊，
+     厚度全靠四边内圈的透镜亮边（同 .lq-glass 与上面的 --k-card-shadow）。
+     形状（用户第 1 点）：左上直角、其余三角圆 —— "我"侧镜像成右上直角。 */
+  --k-bubble-ai-bg: linear-gradient(
+    158deg,
+    color-mix(in oklab, #ffffff 40%, transparent) 0%,
+    color-mix(in oklab, #ffffff 15%, transparent) 34%,
+    color-mix(in oklab, #ffffff 9%, transparent) 62%,
+    color-mix(in oklab, #ffffff 30%, transparent) 100%
+  );
+  --k-bubble-me-bg: var(--k-bubble-ai-bg);
+  --k-bubble-line: color-mix(in oklab, #ffffff 34%, transparent);
+  --k-bubble-radius-ai: 2px 22px 22px 22px;
+  --k-bubble-radius-me: 22px 2px 22px 22px;
+  --k-bubble-shadow:
+    inset 0 1px 0 color-mix(in oklab, #ffffff 98%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, #ffffff 34%, transparent),
+    inset 0 9px 16px -12px color-mix(in oklab, #ffffff 95%, transparent),
+    inset 0 -12px 18px -14px color-mix(in oklab, #ffffff 70%, transparent),
+    inset 2px 0 10px -8px color-mix(in oklab, #ffffff 55%, transparent),
+    inset -2px 0 10px -8px color-mix(in oklab, #ffffff 55%, transparent),
+    0 1px 2px color-mix(in oklab, var(--aster-fg) 6%, transparent),
+    0 10px 26px color-mix(in oklab, var(--aster-fg) 10%, transparent);
+  /* 静态上缘光斑：有它就"像一片玻璃"，但**不跟手指走、按下也不变**（第 1 点删掉了点击高光） */
+  --k-bubble-glow: radial-gradient(
+    58% 46% at 50% -8%,
+    color-mix(in oklab, #ffffff 88%, transparent),
+    color-mix(in oklab, #ffffff 28%, transparent) 42%,
+    transparent 74%
+  );
+  --k-bubble-glow-o: 0.72;
+
   /* 跟着指针走的光斑（`.k-card::before` / `.lq-glass::before` 读它）。
      纯色下这个变量是 transparent，等于那层不存在 —— 结构只有一份。 */
   --k-glass-light: color-mix(in oklab, #ffffff 52%, transparent);

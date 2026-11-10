@@ -154,6 +154,47 @@ const LQ_CHILD: Record<string, string> = {
 };
 
 /**
+ * 液态下「我的 / 设置」那一屏**里面**的层级（用户 m00624 真机反馈：
+ *   "你的返回层级没做吧，我一点返回直接全回到对话页了，而不是上一级"）。
+ *
+ * 之前液态把所有非一级页都兜底成 `/`，于是 `/profile`（账号与资料）返回时
+ * 直接跳回对话页 —— 可它是从「我的」这一屏点进去的，上一级明明是「我的」。
+ *
+ * 现在的层级（和 b1 里 m09048 定的三层一致，只是把「我的」这一支写全）：
+ *   一级 `/`（对话页）
+ *     └ 二级 `/me`（抽屉头像 → 我的 / 设置整屏）
+ *          ├ 三级 `/core` `/usage` `/data` `/system` `/space`  + 设置八项
+ *          └ 四级 `/permissions` `/worldbook` `/memories` `/memory` `/alarms` `/tasks` `/env`
+ *
+ * 只列液态这张表，纯色那张（`TERTIARY_PARENT`）一个字节没动。
+ */
+const LQ_ME_CHILD: Record<string, string> = {
+  // 二级：「我的」这一屏自己的五个板块
+  "/core": "/me",
+  "/space": "/me",
+  "/usage": "/me",
+  "/data": "/me",
+  "/system": "/me",
+
+  // 二级：设置那一屏的八项（`/space` 两边同名，指向都是 `/me`）
+  "/profile": "/me",
+  "/chat-settings": "/me",
+  "/notify": "/me",
+  "/voice-settings": "/me",
+  "/privacy": "/me",
+  "/about": "/me",
+
+  // 三级：再往里一层，退回它所属的那一项
+  "/permissions": "/core",
+  "/worldbook": "/core",
+  "/memories": "/core",
+  "/memory": "/usage",
+  "/alarms": "/system",
+  "/tasks": "/system",
+  "/env": "/about",
+};
+
+/**
  * 设置那一屏的**二级八项**点进去的页 = 三级（用户 m09048 定的）。
  * 它们的上一级不是对话页本身，而是"对话页 + 设置层打开"那一状态
  * （`settingsMemory` 负责把层重新打开），所以标签念作「返回设置」。
@@ -214,8 +255,14 @@ export function parentOf(path: string, liquid = false): string | null {
       用户 m08921："动态点进去、日记点进去、信点进去保持不变，那个叫三级。"
       —— 三级页本身维持原样，只是层级要接对。
     */
+    const meChild = LQ_ME_CHILD[p];
+    if (meChild) return meChild;
     const child = LQ_CHILD[p];
     if (child) return child;
+    // 小游戏：具体某一盘 → 小游戏列表
+    if (p.startsWith("/play/games/")) return "/play/games";
+    // 小日子里的房间（纯色那套页面，液态下也可能点到）→ 小日子目录
+    if (p.startsWith("/play/tools/")) return "/play/tools";
     // 具体某个插件 / 插件编辑器 → 插件目录
     if (p.startsWith("/play/plugins/")) return "/play/plugins";
     // MCP / HTTP / 文档的编辑器 → 工具列表

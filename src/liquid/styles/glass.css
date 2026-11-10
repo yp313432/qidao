@@ -1,4 +1,4 @@
-/*
+﻿/*
  * 液态世界 · 玻璃原语（C 配方）+ 液态底
  *
  * 这一层只属于液态：纯色侧一行都不引用它。
@@ -120,9 +120,7 @@
     inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
     0 1px 2px rgba(30, 22, 14, 0.06),
     0 10px 26px rgba(30, 22, 14, 0.1);
-  transition:
-    transform 0.42s var(--lq-spring),
-    box-shadow 0.42s var(--lq-ease);
+  transition: box-shadow 0.42s var(--lq-ease);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -142,52 +140,13 @@
   opacity: 0.72;
 }
 
-/* 流光：按下时斜着扫过一次 */
-.lq-glass::after {
-  content: "";
-  position: absolute;
-  inset: -40% -70%;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  background: linear-gradient(
-    112deg,
-    transparent 38%,
-    rgba(255, 255, 255, 0.85) 49%,
-    transparent 60%
-  );
-}
-
-.lq-glass:active {
-  transform: scale(0.966);
-}
-
-.lq-glass:active::after {
-  animation: lq-sweep 0.72s var(--lq-ease);
-}
-
-@keyframes lq-sweep {
-  0% {
-    opacity: 0;
-    transform: translateX(-90%);
-  }
-  22% {
-    opacity: 0.95;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(90%);
-  }
-}
+/* 第 1 条：液态**不要点击高光/按下缩放**（图一设置页上点按什么都不动，
+   只有光斑和边在）—— 原来的 :active scale(.966) + 流光扫过一律删掉，
+   ::after 只在按下时可见，删了 active 就整块没用，一并去掉。 */
 
 @media (prefers-reduced-motion: reduce) {
-  .lq-glass,
-  .lq-glass:active {
+  .lq-glass {
     transition: none;
-    transform: none;
-  }
-  .lq-glass:active::after {
-    animation: none;
   }
 }
 
@@ -1287,4 +1246,431 @@
    只让 k-head 那类左对齐标题；玩乐首页是居中标题，天然不冲突。 */
 .lq-skin[data-lq-back="true"] .k-head {
   padding-left: 46px;
+}
+
+/* ── 对话页输入条：用户本轮定的「图一设置页」那套玻璃 ──────────────
+   `.lq-composer` 只在液态挂到 Composer 的最外层（composer.tsx，solidPaper=false 时）；
+   纯色那一侧仍是 styles.css 的 `.glass-float`（虹彩 72% + 模糊 48px），两档各长各的。
+   零模糊：不写 backdrop-filter —— 厚度全靠四边内圈的透镜亮边 + 顶上那团静态光斑。
+   形状参数与气泡一致：26px 圆角（大卡片 24–28 那一档）。 */
+.lq-skin .lq-composer {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 26px;
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.09) 62%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 10px 26px rgba(30, 22, 14, 0.1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 顶上那团静态光斑：跟 .lq-glass::before 同一团，但**不跟手指、按下也不变**
+   —— 用户第 1 点要删的正是"点击高光/按压缩放"。 */
+.lq-skin .lq-composer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 46% at 50% -8%,
+    rgba(255, 255, 255, 0.88),
+    rgba(255, 255, 255, 0.28) 42%,
+    transparent 74%
+  );
+  opacity: 0.72;
+}
+
+/* ── 选项胶囊（用户第 5 条 / 图三）─────────────────────────────────
+   现状是两套反色：`[data-opt]`（未选中）= 半透明反色底、`[data-pill]` /
+   `.data-pill`（选中）= **实心墨底 + 白字** —— 用户手机上一排黑胶囊就是它们。
+   液态下统一换成图一那套玻璃：
+     · 未选中：白膜 40/15/9/30 + 1px 白边（边由 className 的 border-line 给）
+     · 选中：**只拉亮度**（白膜 62/40/30/50 + 内圈更亮），不加任何色块，
+       也不换成实心底 —— 用户要的是"看得出亮一档"，不是"变成另一块颜色"。
+   ⚠️ 纯色侧完全不受影响：每条都挂在 `.lq-skin` 下。
+   ⚠️ styles.css:4949 那条 `[data-opt]` 的 color 带 !important，这里不碰颜色，
+      字色继续走用户自己选的浅字（2026-11-01 定过：玻璃永远白，玻璃里的字是他的字色）。 */
+.lq-skin [data-opt] {
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.09) 62%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 10px 26px rgba(30, 22, 14, 0.1);
+}
+
+.lq-skin [data-opt][aria-pressed="true"],
+.lq-skin [data-opt][data-on="true"],
+.lq-skin [data-pill],
+.lq-skin .data-pill {
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0.4) 34%,
+    rgba(255, 255, 255, 0.3) 62%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 9px 16px -10px rgba(255, 255, 255, 1),
+    inset 0 -12px 18px -12px rgba(255, 255, 255, 0.82),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.66),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.66),
+    0 1px 2px rgba(30, 22, 14, 0.08),
+    0 12px 30px rgba(30, 22, 14, 0.14);
+  color: var(--aster-user-fg, var(--aster-fg));
+}
+
+/* ── 纯色结构页的卡片：液态下补一层图一玻璃（用户第 6 条 / 图四）──────
+   环境自检这类页面还是纯色那套 `rounded-3xl border border-line bg-surface`，
+   切到液态只吃到 34% 的 --k-surface，看着像"灰磨砂＋小圆点"（用户原话）。
+   这里给它们一个壳类 `.lq-pane`：圆角/边框仍由元素自己的类给（不抢形状），
+   只把材质换掉 —— 白膜、1px 半透明白边、四边内圈透镜、顶上静态光斑。
+   纯色下 `.lq-pane` 没有任何规则，等于不存在。 */
+.lq-skin .lq-pane {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.34);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.09) 62%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 10px 26px rgba(30, 22, 14, 0.1);
+}
+
+.lq-skin .lq-pane::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 46% at 50% -8%,
+    rgba(255, 255, 255, 0.88),
+    rgba(255, 255, 255, 0.28) 42%,
+    transparent 74%
+  );
+  opacity: 0.72;
+}
+
+/* ── 「我的」页的大标题让开返回钮（用户第 7 条 / 图一）──────────────
+   图一那个重叠：`.lq-back` 是 40px、left 12px 的全局返回钮（见本文件上面），
+   「账号与系统 + 我的」那块在 me-hub.tsx 里是 `px-5`（20px）起头 —— 正好压在钮下面。
+   只让这一块往右让一格（44px 钮宽 + 12 左边距 = 56，再留 4px 呼吸），
+   纯色下没有返回钮，所以这条也只挂 `.lq-skin[data-lq-back="true"]`。 */
+.lq-skin[data-lq-back="true"] .me-title {
+  padding-left: 60px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   抽屉（液态）：第 3/4/8/9/10/11 条
+   整壳沿用图一那套玻璃参数（158deg 四段白膜 + 透镜 inset + 淡外影、零模糊）。
+   这些类名只在液态下渲染（chat-view.tsx 里 `liquid && …`），所以纯色零影响。
+   ══════════════════════════════════════════════════════════════════════ */
+.lq-sheet-scope.lq-sheet {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 0 26px 26px 0;
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.09) 62%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 18px 44px rgba(30, 22, 14, 0.16);
+}
+
+/* 第 9 条：对话列表滑到分界处慢慢隐没（mask 用 currentColor，别写死颜色）。 */
+.lq-sheet-scope .lq-conv-list {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor calc(100% - 34px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor calc(100% - 34px),
+    transparent 100%
+  );
+}
+
+/* 第 10 条：对话条目也走玻璃（未选中淡一层，选中亮一层；不换色、只用亮度差）。 */
+.lq-sheet-scope .lq-conv {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.24) 0%,
+    rgba(255, 255, 255, 0.1) 45%,
+    rgba(255, 255, 255, 0.06) 75%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 14px rgba(30, 22, 14, 0.05);
+}
+
+.lq-sheet-scope .lq-conv[data-active="true"] {
+  border-color: rgba(255, 255, 255, 0.46);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.46) 0%,
+    rgba(255, 255, 255, 0.22) 40%,
+    rgba(255, 255, 255, 0.14) 70%,
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 6px 18px rgba(30, 22, 14, 0.08);
+}
+
+/* 第 9 条：功能区八条 = 通栏细长玻璃条（左图标 + 右文字、13px 圆角，用户定稿）。
+   自己滚、最高 62%，保证底栏永远够得着（用户："别让下面的滑不到"）。 */
+.lq-sheet-scope nav[aria-label="功能"] {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 62%;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 4px 12px 2px;
+}
+
+.lq-sheet-scope .lq-func__row {
+  display: flex;
+  width: 100%;
+  height: 46px;
+  flex: none;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 6px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 13px;
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0.08) 70%,
+    rgba(255, 255, 255, 0.26) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28),
+    0 4px 12px rgba(30, 22, 14, 0.06);
+  font-size: 14px;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lq-sheet-scope .lq-func__row:last-child {
+  margin-bottom: 2px;
+}
+
+.lq-sheet-scope .lq-func__ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  opacity: 0.8;
+}
+
+/* 第 4/8 条：底栏 —— 左头像（进设置）、右新建对话、两者相对。 */
+.lq-sheet-scope .lq-sheet-foot {
+  padding-top: 6px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+
+.lq-sheet-scope .lq-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 12px 3px 3px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0.08) 75%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 4px 14px rgba(30, 22, 14, 0.05);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lq-sheet-scope .lq-new {
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.46) 0%,
+    rgba(255, 255, 255, 0.18) 40%,
+    rgba(255, 255, 255, 0.12) 70%,
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 6px 16px rgba(30, 22, 14, 0.1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 第 11 条：抽屉正常展开，聊天页斜插进去一点点（22px + 9°）。
+   只在液态且抽屉打开时生效（chat-view 根节点 data-lq-fold）。 */
+.lq-skin [data-lq-fold] {
+  transition:
+    transform 0.5s cubic-bezier(0.18, 1.2, 0.3, 1),
+    border-radius 0.5s ease;
+}
+
+.lq-skin [data-lq-fold="true"] {
+  transform: perspective(1200px) translateX(22px) rotateY(-9deg) scale(0.986);
+  transform-origin: 0 50%;
+  border-radius: 22px 0 0 22px;
+  overflow: hidden;
+  box-shadow: -26px 0 54px rgba(50, 38, 26, 0.26);
+}
+
+/* 第 3 条：螃蟹桌宠挪到对话页 —— 抽屉里是贴底的 absolute，这里换回普通流。 */
+.lq-skin .lq-pet-mood {
+  position: static;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── 第 12 条：弹层玻璃 ──────────────────────────────────────────────
+   用户 m00728："弹层也改成玻璃的，但是，要能看清可以加磨砂"。
+   弹层是这套液态里**唯一允许真模糊**的地方 —— 但模糊由 TSX 上的
+   Tailwind 工具类（backdrop-blur-*）提供，这里不写 backdrop-filter：
+   样式守卫禁止 liquid CSS 出现该属性，也给「液态零模糊」留一条明确边界
+   （玻璃件不模糊，弹层为了可读性才模糊）。
+
+   面板：比卡片更厚的白膜（.62 起） + 更亮的透镜边 + 更大的落影；
+   遮罩：比抽屉更深（rgba(30,22,14,.42)），把底层压下去，不跟弹层糊成一片。
+*/
+/* 弹层都 createPortal 到 document.body，**不在 .lq-skin 里** —— 所以不能用
+   `.lq-skin .lq-dialog` 那种前缀（写了等于永不命中，弹层还是黑的，用户 m01062 报的就是这个）。
+   改用重复类名把特异性抬到 0,2,0，压过面板上原有的单类工具类（rounded-3xl / shadow-xl / bg-bg）。 */
+.lq-dialog.lq-dialog {
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 26px;
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0.42) 34%,
+    rgba(255, 255, 255, 0.34) 62%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 1),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.8),
+    inset 2px 0 10px -8px rgba(255, 255, 255, 0.65),
+    inset -2px 0 10px -8px rgba(255, 255, 255, 0.65),
+    0 2px 6px rgba(30, 22, 14, 0.1),
+    0 24px 64px rgba(30, 22, 14, 0.24);
+}
+
+/* 底部抽屉式的弹层（思考链这种从下往上滑的）只圆上面两角 */
+.lq-dialog--sheet.lq-dialog--sheet {
+  border-radius: 26px 26px 0 0;
+  border-bottom: 0;
+}
+
+.lq-dialog-scrim.lq-dialog-scrim {
+  background: rgba(30, 22, 14, 0.42);
+}
+
+/* 横条类的弹层（横幅通知 / 轻提示）：比弹窗矮，圆角跟列表行一个尺寸 */
+.lq-dialog--bar.lq-dialog--bar {
+  border-radius: 22px;
+}
+
+/* ── 输入条里的两块实底控件（+ 号、模型胶囊）─────��──────────────────────
+   用户 m01114："输入框的模型选择和＋号还没变"。它们原来是 bg-chip 纯色块，
+   这里在液态下换图一那套玻璃（同 .lq-glass 的白膜 + 透镜边），纯色不挂这个类。 */
+.lq-skin .lq-ctl {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  /* 这两颗只有 36 高、36~230 宽，158deg 四段渐变在这种小尺寸上会裂成"左亮右透"
+     两半（用户 m01142："出现一道左右分界线，一边清楚一边模糊"）。
+     小控件用整片均匀白膜，厚度交给透镜边和落影去表现。 */
+  background-image: none;
+  background-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(30, 22, 14, 0.06),
+    0 8px 20px rgba(30, 22, 14, 0.1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 液态下所有浮层菜单（输入条那两层、消息菜单、会话菜单…）一律换玻璃白膜。
+   用 .lq-skin 前缀是因为这些菜单都渲染在页面里、不在 body 上（跟弹层不一样）。 */
+.lq-skin .glass-menu {
+  border-color: rgba(255, 255, 255, 0.34);
+  /* 菜单层压得平一点：0.62/0.42 的落差在窄条上也显出一道斜分界 */
+  background-image: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.56) 0%,
+    rgba(255, 255, 255, 0.48) 40%,
+    rgba(255, 255, 255, 0.44) 70%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  background-color: transparent;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 9px 16px -12px rgba(255, 255, 255, 1),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.8),
+    0 2px 6px rgba(30, 22, 14, 0.1),
+    0 18px 44px rgba(30, 22, 14, 0.18);
 }

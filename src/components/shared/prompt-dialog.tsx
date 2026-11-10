@@ -1,4 +1,4 @@
-/**
+﻿/**
  * App 内的"编辑一段文字"弹层 —— 替代 `window.prompt()`。
  *
  * 为什么必须换掉（用户 m11475 截图：世界书"改这条"弹出一个安卓原生白卡片，
@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 export type PromptDialogProps = {
   open: boolean;
@@ -48,6 +48,8 @@ export function PromptDialog({
   const box = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = useApp((s) => isSolid(s.settings));
+  /** 液态弹层：白膜 + 磨砂（模糊靠下面那个 backdrop-blur-2xl，见 glass.css 第 12 条） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   // 每次打开都重新填一遍原文（这是"不重新打"的关键）
   useEffect(() => {
@@ -81,13 +83,14 @@ export function PromptDialog({
         type="button"
         aria-label="关闭"
         onClick={onCancel}
-        className="absolute inset-0 bg-black/45"
+        className={cn("absolute inset-0", liquid ? "lq-dialog-scrim" : "bg-black/45")}
       />
       <div
         data-contrast=""
         className={cn(
           "relative w-full max-w-sm overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]",
           solidPaper && "paper-card",
+          liquid && "lq-dialog backdrop-blur-2xl",
         )}
       >
         <div className="px-4 pt-4">

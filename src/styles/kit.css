@@ -709,6 +709,20 @@
   line-height: var(--k-bubble-lh);
   overflow-wrap: anywhere;
   rotate: var(--k-bubble-tilt-ai);
+  /* 玻璃厚度（液态给一圈透镜影，纯色给 none）—— 结构不变，只换槽位 */
+  box-shadow: var(--k-bubble-shadow);
+}
+
+/* 气泡顶上那团静止的光斑。纯色下 --k-bubble-glow-o 是 0，等于不存在；
+   液态下 0.72 的静态白光 —— 不跟指针、不随按下变化（用户第 1 点删掉的是点击高光）。 */
+.k-bubble::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--k-bubble-glow);
+  opacity: var(--k-bubble-glow-o);
 }
 
 /* 占位气泡（"正在写回复…"）：只留虚线与淡字，不铺纸、不投影 */
@@ -716,6 +730,7 @@
   border-style: dashed;
   background: transparent;
   box-shadow: none;
+  --k-bubble-glow-o: 0;
   color: var(--k-muted);
 }
 

@@ -10,7 +10,6 @@ import {
   Paperclip,
   Pause,
   Play,
-  Plus,
   Search,
   X,
 } from "lucide-react";
@@ -27,7 +26,6 @@ import { Avatar } from "@/components/shared/avatar";
  * 于是气泡照常画出来、里面一个字都没有 —— 看着就是一个空的圆角框。
  * 这里把零宽字符一起剥掉再判。
  */
-
 
 /**
  * 去掉 **Markdown 记号**之后再判一次空。
@@ -127,10 +125,12 @@ const NOISE_RUN = /([}\]|)]|\\|\/|=|_|~|\^|\*|-)\1{3,}/g;
  */
 /* 引号可能是单引号也可能是双引号（不同中转拼得不一样），字符类里直接写两种 */
 const TOOL_CALL_JSON_ARRAY = /\[\s*\{\s*["']name["']\s*:\s*["'][^"']*["'][\s\S]*?\}\s*\]/g;
-const TOOL_CALL_JSON_OBJ = /\{\s*["']name["']\s*:\s*["'][^"']*["']\s*,\s*["']arguments["'][\s\S]*?\}\s*\}/g;
+const TOOL_CALL_JSON_OBJ =
+  /\{\s*["']name["']\s*:\s*["'][^"']*["']\s*,\s*["']arguments["'][\s\S]*?\}\s*\}/g;
 /* 被截断的（只写到一半就被 length 砍了）：从 JSON 起点一路删到结尾 —— 后面不可能还有正文 */
 const TOOL_CALL_JSON_CUT = /(?:\[\s*)?\{\s*["']name["']\s*:\s*["'][^"']*["'][\s\S]*$/g;
-const TOOL_ANNOUNCE = /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (?:going to|about to) (?:call|invoke)|Let'?s call (?:the )?tool)[^.!?\n]*[.!?]?)/gi;
+const TOOL_ANNOUNCE =
+  /(?:ツールを実行します[。！!]?|(?:I(?:'m| am) (?:going to|about to) (?:call|invoke)|Let'?s call (?:the )?tool)[^.!?\n]*[.!?]?)/gi;
 
 function cleanUpstreamNoise(s: string): string {
   if (!s) return s;
@@ -153,7 +153,8 @@ function cleanUpstreamNoise(s: string): string {
 /** 删掉内部标签（整段删 / 只删标签见上面两条规则的说明） */
 function stripInternalTags(s: string): string {
   if (!s) return s;
-  const t = s.indexOf("<") < 0 ? s : s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
+  const t =
+    s.indexOf("<") < 0 ? s : s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
   return cleanUpstreamNoise(t);
 }
 
@@ -354,7 +355,8 @@ import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
-import { DrawerSky, DrawerCosmos } from "@/components/chat/drawer-decor";
+import { ChatDrawer } from "@/components/chat/chat-drawer";
+import { DrawerMood } from "@/components/chat/drawer-crab";
 import { resolveAiName } from "@/lib/branding";
 import { crumb } from "@/lib/breadcrumbs";
 import { greetingFor } from "@/lib/greeting";
@@ -366,7 +368,7 @@ import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
@@ -497,6 +499,9 @@ export function ChatView() {
     新 DOM 只走 solidPaper 分支；.mast-btn 是惰性挂钩类，玻璃下没有样式。
   */
   const solidPaper = isSolid(settings);
+  /* 液态：抽屉换玻璃壳、功能区八条、螃蟹桌宠进对话页、抽屉斜插折角（第 3/4/8/9/10/11 条）。
+     判材质只走 materialOf（lib/material.ts 的规矩），纯色下这些 DOM 一份都不渲染。 */
+  const liquid = materialOf(settings) === "liquid";
   const wireText = `${
     activity ? `${activity.label}${activity.detail ? ` · ${activity.detail}` : ""}` : ""
   }${nowPlaying ? `${activity ? " · " : ""}正在听 ${nowPlaying}` : ""}`;
@@ -729,7 +734,12 @@ export function ChatView() {
 
   return (
     /* relative：悬浮的对话框（absolute）以这一块为参照 —— 见上面 composerWrap 那段注释 */
-    <div className="relative flex h-full min-h-0 flex-1 flex-col">
+    <div
+      className="relative flex h-full min-h-0 flex-1 flex-col"
+      /* 第 11 条：抽屉打开时聊天页斜插进去一点点（样式在 liquid/styles/glass.css，
+         只认 .lq-skin 下的这个属性 —— 纯色下等于没有）。 */
+      data-lq-fold={liquid && menu ? "true" : undefined}
+    >
       {/*
         ⚠️ 顶部内边距**故意很小**（2026-11 用户装机后："是我圈起来的那块导航栏给往上稍微
         挪一点点吧，因为空的太大了"）。
@@ -785,7 +795,9 @@ export function ChatView() {
         {solidPaper ? (
           /* 纸刊头·电讯行：「讯」小印 + 等宽小字 + 底部点线；空态是「与他的信笺 · D+认识天数」 */
           <div className="mast-wire">
-            <span className="mast-stamp" aria-hidden="true">讯</span>
+            <span className="mast-stamp" aria-hidden="true">
+              讯
+            </span>
             {hasWire ? (
               <Ticker
                 className="mast-wire-ticker min-w-0 flex-1"
@@ -800,11 +812,7 @@ export function ChatView() {
           </div>
         ) : (
           hasWire && (
-            <Ticker
-              className="min-w-0 flex-1 px-1"
-              prefix={`${aiName} 知道`}
-              text={wireText}
-            />
+            <Ticker className="min-w-0 flex-1 px-1" prefix={`${aiName} 知道`} text={wireText} />
           )
         )}
 
@@ -862,7 +870,9 @@ export function ChatView() {
             />
             {query.trim() && (
               <span className="shrink-0 text-[11px] text-muted" suppressHydrationWarning>
-                {hits.length === 0 ? "没找到" : `${Math.min(hitIndex + 1, hits.length)}/${hits.length}`}
+                {hits.length === 0
+                  ? "没找到"
+                  : `${Math.min(hitIndex + 1, hits.length)}/${hits.length}`}
               </span>
             )}
           </div>
@@ -924,9 +934,7 @@ export function ChatView() {
                 （部署到 UTC 服务器时必然不同），所以挂载后再显示。 */}
             {hydrated ? greetingFor(settings.displayName) : "\u00A0"}
           </h1>
-          {conv?.incognito && (
-            <p className="mt-2 text-sm text-muted">临时对话不会写入本地记录</p>
-          )}
+          {conv?.incognito && <p className="mt-2 text-sm text-muted">临时对话不会写入本地记录</p>}
         </div>
       ) : (
         /**
@@ -956,65 +964,65 @@ export function ChatView() {
                 paddingBottom: padBottom,
               }}
             >
-            {/*
+              {/*
               ⚠️ 2026-10（用户 m09634）：这条线原来放在**整个列表最前面**，
               于是它永远钉在顶上、上方什么都没有 —— 看着像"页面被截断"、
               上面的消息翻不到了。其实原文一条都没删，只是线站错地方了。
               现在它插在"摘要覆盖的最后一条之后"，跟着数据走。
             */}
-            {conv!.messages.map((raw, i) => {
-              const m = splitThoughtMsg(raw);
-              const mine = m.role === "user";
-              const streaming = liveId === m.id;
-              /**
-               * ⭐ 空壳消息（用户 m03533："定时回复的气泡会这样"——截图里是一个
-               * 只有头像、没有说话内容的圆）。
-               *
-               * 定时任务 / 主动唤醒是**先建一条空消息、再把内容填进去**的
-               * （`store.beginScheduledReply` → 模型流式 → `finalizeAssistant`）。
-               * 中间那几秒 `content` 是空串，而且这类消息不走 `liveId`
-               * （`liveId` 只跟聊天页自己发的请求走），于是 `streaming` 是 false，
-               * 正文那段就渲染成 null —— 只剩头像 + 徽章，看着像"卡住了"。
-               *
-               * 兜法：内容为空的他的消息分两种 ——
-               *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
-               *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
-               */
-              /*
+              {conv!.messages.map((raw, i) => {
+                const m = splitThoughtMsg(raw);
+                const mine = m.role === "user";
+                const streaming = liveId === m.id;
+                /**
+                 * ⭐ 空壳消息（用户 m03533："定时回复的气泡会这样"——截图里是一个
+                 * 只有头像、没有说话内容的圆）。
+                 *
+                 * 定时任务 / 主动唤醒是**先建一条空消息、再把内容填进去**的
+                 * （`store.beginScheduledReply` → 模型流式 → `finalizeAssistant`）。
+                 * 中间那几秒 `content` 是空串，而且这类消息不走 `liveId`
+                 * （`liveId` 只跟聊天页自己发的请求走），于是 `streaming` 是 false，
+                 * 正文那段就渲染成 null —— 只剩头像 + 徽章，看着像"卡住了"。
+                 *
+                 * 兜法：内容为空的他的消息分两种 ——
+                 *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
+                 *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
+                 */
+                /*
                 ⚠️ 用户 m02108 截图：工具循环每轮回来的正文被按轮拼进同一条消息，
                 模型每轮**从头重说**，于是分段气泡 + 后面又一大块重复。
                 这里只做**画之前**的过滤（数据不动、parts 结构不动）：
                 先按"开头 20 字"去掉重说的段，再按老规矩滤掉空壳/纯标点。
               */
-              const visibleParts = dedupeParts(
-                (m.parts ?? []).filter((p) => hasRenderedText(p) && !isPunctOnly(p)),
-              );
-              /*
+                const visibleParts = dedupeParts(
+                  (m.parts ?? []).filter((p) => hasRenderedText(p) && !isPunctOnly(p)),
+                );
+                /*
                 ⚠️ 这里原来用 `hasVisibleText`（只认"有没有字"），于是正文只剩 `**`、
                 `>`、`[]()` 这类 Markdown 记号的空壳仍算"有内容"，渲染出来就是一个
                 只有两三个符号的小气泡（用户 m07120："定时唤醒多余气泡"）。
                 改用 `hasRenderedText`：把记号剥掉之后没字，就按空壳处理。
               */
-              const noBody =
-                !mine &&
-                !hasRenderedText(m.content) &&
-                visibleParts.length === 0 &&
-                !(m.attachments && m.attachments.length);
-              const pendingPlaceholder =
-                noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
-              if (noBody && !pendingPlaceholder) return null;
-              return (
-                <Fragment key={m.id}>
-                  {/* 摘要线：在"摘要覆盖的最后一条"之后插一条，点开才是摘要 */}
-                  {i === (conv!.summary?.upToIndex ?? 0) && (
-                    <li>
-                      <SummaryLine conversationId={conv!.id} />
-                    </li>
-                  )}
-                <li
-                  id={`msg-${m.id}`}
-                  className={cn(
-                    /*
+                const noBody =
+                  !mine &&
+                  !hasRenderedText(m.content) &&
+                  visibleParts.length === 0 &&
+                  !(m.attachments && m.attachments.length);
+                const pendingPlaceholder =
+                  noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
+                if (noBody && !pendingPlaceholder) return null;
+                return (
+                  <Fragment key={m.id}>
+                    {/* 摘要线：在"摘要覆盖的最后一条"之后插一条，点开才是摘要 */}
+                    {i === (conv!.summary?.upToIndex ?? 0) && (
+                      <li>
+                        <SummaryLine conversationId={conv!.id} />
+                      </li>
+                    )}
+                    <li
+                      id={`msg-${m.id}`}
+                      className={cn(
+                        /*
                       ⭐ 用户 m02250 / m02816 定稿的**方案丁**（"头像放在上面，气泡另起一行"）：
                         原来是一条 `flex` 行里"头像 + 气泡"并排，头像会把气泡往里顶：
                         他那边顶右 40px、我这边顶左 40px → **气泡左右边距不一样大**，
@@ -1023,564 +1031,591 @@ export function ChatView() {
                         于是气泡左右都贴同一条 14px 边距、长度也能用满整行。
                         `mine ? items-end : items-start` 只管整列靠哪边。
                     */
-                    "flex flex-col rounded-3xl transition",
-                    // 搜索跳过来的那条闪一圈，不然不知道跳到哪了
-                    flashId === m.id && "aster-highlight",
-                  )}
-                >
-                  {/*
+                        "flex flex-col rounded-3xl transition",
+                        // 搜索跳过来的那条闪一圈，不然不知道跳到哪了
+                        flashId === m.id && "aster-highlight",
+                      )}
+                    >
+                      {/*
                     ⭐ 方案丁：头像挪到**名字这一行**（他的名字在左、我的在右），气泡另起一行。
                     `w-full` + `items-start/end` 保证气泡能长到整条边距、靠它该靠的那边。
                   */}
-                  <div
-                    className={cn(
-                      "flex w-full min-w-0 flex-col gap-1",
-                      mine ? "items-end" : "items-start",
-                    )}
-                  >
-                    {/*
+                      <div
+                        className={cn(
+                          "flex w-full min-w-0 flex-col gap-1",
+                          mine ? "items-end" : "items-start",
+                        )}
+                      >
+                        {/*
                       名字 + 时间那一行（现在**头像也在这行**）。
                       用户那侧要**整体靠右**，所以用 justify-end。
                       ⚠️ 不能同时写 flex-row-reverse —— 它会把主轴翻过去，
                          justify-end 于是又变回"靠左"，两者互相抵消（我踩过）。
                       头像用 26px（用户 m02816 选的）：名字行里够看，整条消息又不显臃肿。
                     */}
-                    <div
-                      className={cn(
-                        "mb-1 flex items-center gap-2",
-                        mine ? "justify-end" : "justify-start",
-                      )}
-                    >
-                      {mine ? (
-                        <>
-                          <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
-                          <span className="text-[13px] font-medium text-fg">
-                            {settings.displayName}
-                          </span>
-                          <Avatar role="user" size={26} />
-                        </>
-                      ) : (
-                        <>
-                          <Avatar role="ai" size={26} />
-                          <span className="text-[13px] font-medium text-fg">{aiName}</span>
-                          {/*
+                        <div
+                          className={cn(
+                            "mb-1 flex items-center gap-2",
+                            mine ? "justify-end" : "justify-start",
+                          )}
+                        >
+                          {mine ? (
+                            <>
+                              <span className="text-[11px] text-subtle">
+                                {formatClock(m.createdAt)}
+                              </span>
+                              <span className="text-[13px] font-medium text-fg">
+                                {settings.displayName}
+                              </span>
+                              <Avatar role="user" size={26} />
+                            </>
+                          ) : (
+                            <>
+                              <Avatar role="ai" size={26} />
+                              <span className="text-[13px] font-medium text-fg">{aiName}</span>
+                              {/*
                             「他这会儿在干什么」（用户 m04513 选的方案 B）：
                             名字后面一枚小胶囊 —— 钓鱼中 / 落子 / 浇花 / 空闲。
                             状态是**按条**存的（`finalizeAssistant` 收尾时抄进去），
                             所以翻历史看到的是"当时"，不是"现在"。
                           */}
-                          {(() => {
-                            /**
-                             * 用户 m10324："把他头像旁边的状态加一个沉睡还是醒着的，
-                             * 我本意是想我点开 app 他就醒着，所以现在是个什么情况"。
-                             *
-                             * 所以**只有最新一条**显示实时状态（醒着 / 打盹）；
-                             * 更早的消息仍然显示当时那个动作状态（钓鱼中 / 浇花），
-                             * 两者不能混：历史是"当时"，最新是"现在"。
-                             */
-                            const isLatest = i === conv!.messages.length - 1;
-                            if (isLatest && !mine) {
-                              const awake = awakeState === "awake";
-                              return (
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] leading-none",
-                                    awake
-                                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                                      : "border-line bg-chip text-muted",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "size-1.5 rounded-full",
-                                      awake ? "bg-emerald-500" : "bg-subtle",
-                                    )}
-                                  />
-                                  {awake ? "醒着" : "打盹"}
-                                </span>
-                              );
-                            }
-                            if (!m.status) return null;
-                            return (
-                              <span className="rounded-full border border-line bg-chip px-1.5 py-0.5 text-[10px] leading-none text-muted">
-                                {m.status}
-                              </span>
-                            );
-                          })()}
-                          {/*
+                              {(() => {
+                                /**
+                                 * 用户 m10324："把他头像旁边的状态加一个沉睡还是醒着的，
+                                 * 我本意是想我点开 app 他就醒着，所以现在是个什么情况"。
+                                 *
+                                 * 所以**只有最新一条**显示实时状态（醒着 / 打盹）；
+                                 * 更早的消息仍然显示当时那个动作状态（钓鱼中 / 浇花），
+                                 * 两者不能混：历史是"当时"，最新是"现在"。
+                                 */
+                                const isLatest = i === conv!.messages.length - 1;
+                                if (isLatest && !mine) {
+                                  const awake = awakeState === "awake";
+                                  return (
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] leading-none",
+                                        awake
+                                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                                          : "border-line bg-chip text-muted",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "size-1.5 rounded-full",
+                                          awake ? "bg-emerald-500" : "bg-subtle",
+                                        )}
+                                      />
+                                      {awake ? "醒着" : "打盹"}
+                                    </span>
+                                  );
+                                }
+                                if (!m.status) return null;
+                                return (
+                                  <span className="rounded-full border border-line bg-chip px-1.5 py-0.5 text-[10px] leading-none text-muted">
+                                    {m.status}
+                                  </span>
+                                );
+                              })()}
+                              {/*
                             来源徽章：定时任务和主动唤醒共用 `scheduled` 这个标记。
                             2026-11-01 用户实机截图："这个定时还在呀，你改了吗" ——
                             「定时 · 他自己说的」这个徽章会让他看着像定时播报，去掉；
                             只保留「他主动说的」（主动唤醒那条本来就是他自己的话）。
                           */}
-                          {m.scheduled && m.origin === "wake" && (
-                            <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
-                              他主动说的
-                            </span>
+                              {m.scheduled && m.origin === "wake" && (
+                                <span className="rounded-full bg-chip px-1.5 py-0.5 text-[10px] text-muted">
+                                  他主动说的
+                                </span>
+                              )}
+                              <span className="text-[11px] text-subtle">
+                                {formatClock(m.createdAt)}
+                              </span>
+                            </>
                           )}
-                          <span className="text-[11px] text-subtle">{formatClock(m.createdAt)}</span>
-                        </>
-                      )}
-                    </div>
+                        </div>
 
-                    {mine ? (
-                      (() => {
-                        const { quote: q, body } = splitQuote(m.content);
-                        /**
-                         * 用户 m01498 第 3 条："照片要能点击放大…另外照片不要有气泡，
-                         * 就是一张图片发过去，不要把他放在汽泡里"。
-                         * 所以图片/表情**裸着**摆（不套气泡）、点一下进全屏；
-                         * 语音和文件还留在气泡里（它们不是"一张图"）。
-                         */
-                        const pics = (m.attachments ?? []).filter(
-                          (a) => a.dataUrl && a.kind !== "audio",
-                        );
-                        /**
-                         * 语音**单独一坨**（用户 m11313：像微信那样）。
-                         * 它不套正文气泡：微信的语音气泡本身就是"内容"。
-                         */
-                        const voices = (m.attachments ?? []).filter((a) => a.kind === "audio");
-                        const rest = (m.attachments ?? []).filter(
-                          (a) => a.kind !== "audio" && !a.dataUrl,
-                        );
-                        return (
-                          /* ⚠️ `w-full` 不能省：这是 flex 列里的一个 flex 项，
+                        {mine ? (
+                          (() => {
+                            const { quote: q, body } = splitQuote(m.content);
+                            /**
+                             * 用户 m01498 第 3 条："照片要能点击放大…另外照片不要有气泡，
+                             * 就是一张图片发过去，不要把他放在汽泡里"。
+                             * 所以图片/表情**裸着**摆（不套气泡）、点一下进全屏；
+                             * 语音和文件还留在气泡里（它们不是"一张图"）。
+                             */
+                            const pics = (m.attachments ?? []).filter(
+                              (a) => a.dataUrl && a.kind !== "audio",
+                            );
+                            /**
+                             * 语音**单独一坨**（用户 m11313：像微信那样）。
+                             * 它不套正文气泡：微信的语音气泡本身就是"内容"。
+                             */
+                            const voices = (m.attachments ?? []).filter((a) => a.kind === "audio");
+                            const rest = (m.attachments ?? []).filter(
+                              (a) => a.kind !== "audio" && !a.dataUrl,
+                            );
+                            return (
+                              /* ⚠️ `w-full` 不能省：这是 flex 列里的一个 flex 项，
                              不写它就会被"内容最大宽度"撑开（长消息会横向溢出，
                              气泡的 max-w-full 也会以它为基准算错）—— 验收脚本里
                              "没有横向溢出"那条断言就是防这个的。 */
-                          <div className="flex w-full flex-col items-end">
-                            {pics.length > 0 && (
-                              <div className="flex max-w-full flex-wrap justify-end gap-1.5">
-                                {pics.map((a) => (
-                                  <button
-                                    key={a.id}
-                                    type="button"
-                                    aria-label="看大图"
-                                    className="p-0"
-                                    onClick={() => setViewImg(a.dataUrl!)}
-                                  >
-                                    <img
-                                      src={a.dataUrl}
-                                      alt={a.kind === "sticker" ? "表情" : a.name}
-                                      className={cn(
-                                        "rounded-[18px] rounded-tr-none object-contain",
-                                        a.kind === "sticker"
-                                          ? "size-24"
-                                          : "max-h-56 min-h-16 w-auto min-w-16 max-w-full",
-                                      )}
-                                    />
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {voices.length > 0 && (
-                              <div className="mb-1 flex w-full flex-col items-end gap-1">
-                                {voices.map((a) => (
-                                  <VoiceBubble
-                                    key={a.id}
-                                    att={a}
-                                    mine
-                                    convId={conv!.id}
-                                    msgId={m.id}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            {(body || rest.length > 0) && (
-                              <div
-                                {...quotePress(m.id, body)}
-                                data-role="me"
-                                className={cn(
-                                  /* 换壳（2026-11-07 阶段 3）：气泡本体交给 .k-bubble，
+                              <div className="flex w-full flex-col items-end">
+                                {pics.length > 0 && (
+                                  <div className="flex max-w-full flex-wrap justify-end gap-1.5">
+                                    {pics.map((a) => (
+                                      <button
+                                        key={a.id}
+                                        type="button"
+                                        aria-label="看大图"
+                                        className="p-0"
+                                        onClick={() => setViewImg(a.dataUrl!)}
+                                      >
+                                        <img
+                                          src={a.dataUrl}
+                                          alt={a.kind === "sticker" ? "表情" : a.name}
+                                          className={cn(
+                                            "rounded-[18px] rounded-tr-none object-contain",
+                                            a.kind === "sticker"
+                                              ? "size-24"
+                                              : "max-h-56 min-h-16 w-auto min-w-16 max-w-full",
+                                          )}
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                {voices.length > 0 && (
+                                  <div className="mb-1 flex w-full flex-col items-end gap-1">
+                                    {voices.map((a) => (
+                                      <VoiceBubble
+                                        key={a.id}
+                                        att={a}
+                                        mine
+                                        convId={conv!.id}
+                                        msgId={m.id}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                                {(body || rest.length > 0) && (
+                                  <div
+                                    {...quotePress(m.id, body)}
+                                    data-role="me"
+                                    className={cn(
+                                      /* 换壳（2026-11-07 阶段 3）：气泡本体交给 .k-bubble，
                                      纯色模式下它就是"收敛浮签"（斜 0.4° + 胶带 + 衬线字），
                                      磨砂/液态还是平面气泡 —— 两套视觉由材质变量决定，这里不判断材质。
                                      留在外面的只有布局：w-max（宽度跟着文字走，用户点名要的）、
                                      space-y（气泡内多段的间距）、长按与选区的手感。 */
-                                  "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
-                                  pics.length > 0 && "mt-1",
-                                )}
-                              >
-                                {rest.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {rest.map((a) => (
-                                        <span
-                                          key={a.id}
-                                          className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-[12px]"
-                                        >
-                                          <Paperclip className="size-3.5 text-muted" />
-                                          <span className="max-w-40 truncate">{a.name}</span>
-                                          <span className="text-[10px] text-subtle">
-                                            {a.text ? "已读正文" : prettySize(a.size)}
+                                      "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
+                                      pics.length > 0 && "mt-1",
+                                    )}
+                                  >
+                                    {rest.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {rest.map((a) => (
+                                          <span
+                                            key={a.id}
+                                            className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-[12px]"
+                                          >
+                                            <Paperclip className="size-3.5 text-muted" />
+                                            <span className="max-w-40 truncate">{a.name}</span>
+                                            <span className="text-[10px] text-subtle">
+                                              {a.text ? "已读正文" : prettySize(a.size)}
+                                            </span>
                                           </span>
-                                        </span>
-                                    ))}
+                                        ))}
+                                      </div>
+                                    )}
+                                    {body}
                                   </div>
                                 )}
-                                {body}
+                                {q && <QuoteBar text={q} />}
                               </div>
-                            )}
-                            {q && <QuoteBar text={q} />}
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      /* ⚠️ 同上：`w-full` 必须留（否则长回复会把这一列撑成"一行不换行"） */
-                      <div className="w-full min-w-0">
-                        {/*
+                            );
+                          })()
+                        ) : (
+                          /* ⚠️ 同上：`w-full` 必须留（否则长回复会把这一列撑成"一行不换行"） */
+                          <div className="w-full min-w-0">
+                            {/*
                           他发的**语音气泡**（用户 m11313："他发给我也是语音气泡"）。
                           放在正文上方：语音是这条消息本身，正文只是气泡下的转写。
                          */}
-                        {(m.attachments ?? []).some((a) => a.kind === "audio") && (
-                          <div className="mb-1.5 flex flex-col items-start gap-1">
-                            {(m.attachments ?? [])
-                              .filter((a) => a.kind === "audio")
-                              .map((a) => (
-                                <VoiceBubble
-                                  key={a.id}
-                                  att={a}
-                                  convId={conv!.id}
-                                  msgId={m.id}
-                                />
-                              ))}
-                          </div>
-                        )}
-                        {/*
+                            {(m.attachments ?? []).some((a) => a.kind === "audio") && (
+                              <div className="mb-1.5 flex flex-col items-start gap-1">
+                                {(m.attachments ?? [])
+                                  .filter((a) => a.kind === "audio")
+                                  .map((a) => (
+                                    <VoiceBubble
+                                      key={a.id}
+                                      att={a}
+                                      convId={conv!.id}
+                                      msgId={m.id}
+                                    />
+                                  ))}
+                              </div>
+                            )}
+                            {/*
                           ⭐ agent loop 的进度：他现在走到第几步、正在执行哪个动作。
                           用户原话："这一轮我发出动作，成没成，要等下一轮结果回来才知道；
                           这一轮里我完全看不见。" —— 这一行 + 下面的「动手 N 次」明细
                           就是让他**在同一轮里**看得见。
                         */}
-                        {streaming && step && (
-                          <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted">
-                            <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                            {step.label}
-                          </p>
-                        )}
-                        {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
+                            {streaming && step && (
+                              <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted">
+                                <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+                                {step.label}
+                              </p>
+                            )}
+                            {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
-                        {(() => {
-                          /**
-                           * ⭐ 过程只留**一行入口**（用户 m12579）：
-                           *   "不能放在对话里，会显得很长，放在思考链里"
-                           * 所以思考和动手并成这一行，点开从底部弹一层，里面是完整的过程线。
-                           */
-                          const callCount = (m.steps ?? [])
-                            .filter((x) => x.kind === "call").length ||
-                            (m.rounds ?? []).reduce((n, r) => n + r.calls.length, 0);
-                          /*
-                           * 2026-11-01 用户：「动作没有了，比如它设闹钟，我没看到他调用工具，但是定上了」。
-                           * 原来这行整块受「显示思考过程」开关控制 —— 关掉后连「动了 N 次手」也一起没了。
-                           * 改：**只要它真的动过手就显示这一行**，跟思考链开关解耦；
-                           * 只有「想但没动手」的情况才听那个开关。
-                           */
-                          const hasCalls = callCount > 0;
-                          if (!streaming && !((settings.showThinking && Boolean(m.thinking)) || hasCalls)) return null;
-                          const secs = m.thinkingDurationMs
-                            ? Math.max(1, Math.round(m.thinkingDurationMs / 1000))
-                            : 0;
-                          const head = streaming && !m.content ? "正在想…" : secs ? `想了 ${secs} 秒` : "想了想";
-                          return (
-                            /* ⚠️ 胶囊上那个 `[-webkit-tap-highlight-color:transparent]` 是用户 m03024
+                            {(() => {
+                              /**
+                               * ⭐ 过程只留**一行入口**（用户 m12579）：
+                               *   "不能放在对话里，会显得很长，放在思考链里"
+                               * 所以思考和动手并成这一行，点开从底部弹一层，里面是完整的过程线。
+                               */
+                              const callCount =
+                                (m.steps ?? []).filter((x) => x.kind === "call").length ||
+                                (m.rounds ?? []).reduce((n, r) => n + r.calls.length, 0);
+                              /*
+                               * 2026-11-01 用户：「动作没有了，比如它设闹钟，我没看到他调用工具，但是定上了」。
+                               * 原来这行整块受「显示思考过程」开关控制 —— 关掉后连「动了 N 次手」也一起没了。
+                               * 改：**只要它真的动过手就显示这一行**，跟思考链开关解耦；
+                               * 只有「想但没动手」的情况才听那个开关。
+                               */
+                              const hasCalls = callCount > 0;
+                              if (
+                                !streaming &&
+                                !((settings.showThinking && Boolean(m.thinking)) || hasCalls)
+                              )
+                                return null;
+                              const secs = m.thinkingDurationMs
+                                ? Math.max(1, Math.round(m.thinkingDurationMs / 1000))
+                                : 0;
+                              const head =
+                                streaming && !m.content
+                                  ? "正在想…"
+                                  : secs
+                                    ? `想了 ${secs} 秒`
+                                    : "想了想";
+                              return (
+                                /* ⚠️ 胶囊上那个 `[-webkit-tap-highlight-color:transparent]` 是用户 m03024
                                第 4 条"点开之后胶囊上留一层白底"的**就地**兜底
                                （全局那条写在 styles.css 的 `:root` 里；这里再钉一遍，不依赖继承）。 */
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setThinkSheet({
-                                  text: m.thinking,
-                                  steps: m.steps,
-                                  ms: m.thinkingDurationMs,
-                                  live: Boolean(streaming && !m.content),
-                                })
-                              }
-                              className={cn(
-                                "chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]",
-                                /* 纸世界 Step3 补：思考入口换电文行小字（mono+墨淡+橘竖线） */
-                                solidPaper && "paper-meta",
-                              )}
-                            >
-                              {/* 一根细竖线领着这一行，跟弹层里那条线同一个语汇（用户 m12711） */}
-                              <span aria-hidden className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25" />
-                              {head}
-                              {callCount > 0 && (
-                                <span className="text-subtle">· 动了 {callCount} 次手</span>
-                              )}
-                              <span className="text-subtle">点开看</span>
-                            </button>
-                          );
-                        })()}
-                        {/* 弹层本身挂在页面根节点（见文件下方 <ThinkingSheet>）——
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setThinkSheet({
+                                      text: m.thinking,
+                                      steps: m.steps,
+                                      ms: m.thinkingDurationMs,
+                                      live: Boolean(streaming && !m.content),
+                                    })
+                                  }
+                                  className={cn(
+                                    "chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]",
+                                    /* 纸世界 Step3 补：思考入口换电文行小字（mono+墨淡+橘竖线） */
+                                    solidPaper && "paper-meta",
+                                  )}
+                                >
+                                  {/* 一根细竖线领着这一行，跟弹层里那条线同一个语汇（用户 m12711） */}
+                                  <span
+                                    aria-hidden
+                                    className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25"
+                                  />
+                                  {head}
+                                  {callCount > 0 && (
+                                    <span className="text-subtle">· 动了 {callCount} 次手</span>
+                                  )}
+                                  <span className="text-subtle">点开看</span>
+                                </button>
+                              );
+                            })()}
+                            {/* 弹层本身挂在页面根节点（见文件下方 <ThinkingSheet>）——
                             原来写在 messages.map 里面，每条消息挂一个全屏浮层，
                             既冗余又容易被消息区的滚动/重渲染带歪。 */}
-                        {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
+                            {/* 他的回复也用气泡 —— 跟用户那条同一个尺寸和圆角，
                             差别只在左右与一条细边框，一眼能分出谁说的。 */}
-                        {/*
+                            {/*
                           **分段回复**：一段一个气泡（JSX 见 `segment-bubbles.tsx`）。
                           · 流式期间就按同一套口径切 —— 写完的段当场定格，最后一段继续长，
                             不收尾再重排（用户 m06419 第 3 条）。
                           · 段间浮现靠 CSS 延迟（不挂计时器：翻历史会重播动画）；
                             `bubble-in` 只在生成后 20 秒内加。 */}
-                        {(() => {
-                          /**
-                           * 语音模式下**正文不再单独出一个气泡**（用户 m11599：
-                           * "他输出既有气泡又有文本，不可以这样，发语音就统一全是语音"）。
-                           * 文字没有丢：它就在语音气泡下面那行转写里。
-                           */
-                          if ((m.attachments ?? []).some((a) => a.kind === "audio")) return null;
-                          const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
-                          const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
+                            {(() => {
+                              /**
+                               * 语音模式下**正文不再单独出一个气泡**（用户 m11599：
+                               * "他输出既有气泡又有文本，不可以这样，发语音就统一全是语音"）。
+                               * 文字没有丢：它就在语音气泡下面那行转写里。
+                               */
+                              if ((m.attachments ?? []).some((a) => a.kind === "audio"))
+                                return null;
+                              const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
+                              const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
 
-                          /**
-                           * ⭐ **边写边分**（用户 m06419 第 3 条："把所有的话放在一整条消息里，
-                           * 过一两秒才能把它切割成几条消息"）。收尾时 `partsFor` 用的是同一个
-                           * 函数、同一份旋钮 —— 所以这里切出来的段就是最终结果，不会重排。
-                           */
-                          const live =
-                            streaming && settings.segmentReply !== false
-                              ? splitSegments(stripInvisible(m.content ?? ""), {
-                                  maxParts: settings.segmentMaxParts,
-                                  maxSentences: settings.segmentMaxSentences,
-                                })
-                              : null;
-                          const shownParts =
-                            live && live.length > 1
-                              ? live
-                              : !streaming && visibleParts.length > 1
-                                ? visibleParts
-                                : null;
+                              /**
+                               * ⭐ **边写边分**（用户 m06419 第 3 条："把所有的话放在一整条消息里，
+                               * 过一两秒才能把它切割成几条消息"）。收尾时 `partsFor` 用的是同一个
+                               * 函数、同一份旋钮 —— 所以这里切出来的段就是最终结果，不会重排。
+                               */
+                              const live =
+                                streaming && settings.segmentReply !== false
+                                  ? splitSegments(stripInvisible(m.content ?? ""), {
+                                      maxParts: settings.segmentMaxParts,
+                                      maxSentences: settings.segmentMaxSentences,
+                                    })
+                                  : null;
+                              const shownParts =
+                                live && live.length > 1
+                                  ? live
+                                  : !streaming && visibleParts.length > 1
+                                    ? visibleParts
+                                    : null;
 
-                          if (shownParts) {
-                            return (
-                              <SegmentBubbles
-                                parts={shownParts}
-                                liveTail={Boolean(live && live.length > 1)}
-                                delay={delay}
-                                fresh={fresh}
-                                cleanPart={cleanPartForRender}
-                                cleanTail={stripInternalTags}
-                                press={(raw) => quotePress(m.id, raw)}
-                                hideIfEmpty={hideIfRenderedEmpty}
-                              />
-                            );
-                          }
+                              if (shownParts) {
+                                return (
+                                  <SegmentBubbles
+                                    parts={shownParts}
+                                    liveTail={Boolean(live && live.length > 1)}
+                                    delay={delay}
+                                    fresh={fresh}
+                                    cleanPart={cleanPartForRender}
+                                    cleanTail={stripInternalTags}
+                                    press={(raw) => quotePress(m.id, raw)}
+                                    hideIfEmpty={hideIfRenderedEmpty}
+                                  />
+                                );
+                              }
 
-                          const liveText = streaming ? firstSegment(m.content) : m.content;
-                          return hasRenderedText(liveText) && !isPunctOnly(liveText) ? (
-                            <div
-                              ref={hideIfRenderedEmpty}
-                              {...quotePress(m.id, cleanForRender(liveText))}
-                              data-role="ai"
-                              className={cn(
-                                /* 换壳（阶段 3）：流式那条同壳，只是多一个段间距 */
-                                "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
-                              )}
-                            >
-                              {/*
+                              const liveText = streaming ? firstSegment(m.content) : m.content;
+                              return hasRenderedText(liveText) && !isPunctOnly(liveText) ? (
+                                <div
+                                  ref={hideIfRenderedEmpty}
+                                  {...quotePress(m.id, cleanForRender(liveText))}
+                                  data-role="ai"
+                                  className={cn(
+                                    /* 换壳（阶段 3）：流式那条同壳，只是多一个段间距 */
+                                    "k-bubble w-max min-w-0 max-w-full select-none [-webkit-touch-callout:none] [touch-action:manipulation] space-y-1.5",
+                                  )}
+                                >
+                                  {/*
                                 ⚠️ 2026-10（用户："分段回复卡卡的…不是应该先出一条然后一条条吗"）：
                                 **流式期间只写纯文本，不解析 Markdown** —— 原来是每 250ms 把越来越长的
                                 正文整个重新解析一遍，越写越卡、还一段段地蹦。收尾那一次才解析
                                 （`streaming` 转 false 之后走 Markdown）。省下的预算用来把
                                 `use-chat` 的 FLUSH_MS 降到 100ms，看起来就是字一条条往外冒。
                               */}
-                              {streaming ? (
-                                /* 流式期间也把内部标签抹掉（它可能一大早就开始吐标签），
+                                  {streaming ? (
+                                    /* 流式期间也把内部标签抹掉（它可能一大早就开始吐标签），
                                    但**不做去重**：中途去重会让字跳来跳去，收尾那一次才去重 */
-                                <p className="bubble-text whitespace-pre-wrap break-words">
-                                  {stripInternalTags(liveText)}
-                                </p>
-                              ) : (
-                                <Markdown text={cleanForRender(liveText)} />
-                              )}
-                            </div>
-                          ) : pendingPlaceholder ? (
-                            /* 占位气泡：虚线纸签（.k-bubble--ghost 只把底和影去掉、线变虚） */
-                            <p className="k-bubble k-bubble--ghost">正在写回复…</p>
-                          ) : null;
-                        })()}
-                        {/*
+                                    <p className="bubble-text whitespace-pre-wrap break-words">
+                                      {stripInternalTags(liveText)}
+                                    </p>
+                                  ) : (
+                                    <Markdown text={cleanForRender(liveText)} />
+                                  )}
+                                </div>
+                              ) : pendingPlaceholder ? (
+                                /* 占位气泡：虚线纸签（.k-bubble--ghost 只把底和影去掉、线变虚） */
+                                <p className="k-bubble k-bubble--ghost">正在写回复…</p>
+                              ) : null;
+                            })()}
+                            {/*
                           他发过来的**表情包 / 图片**。
                           `sticker.send` 挑好的图挂在这条消息的 `attachments` 上（见 use-chat 收尾），
                           所以它天然跟在正文后面 —— 不会变成"两条彼此不搭的消息"。
                           表情按**表情包尺寸**渲染（不超过 128px）：贴满屏就不像表情了。
                         */}
-                        {m.attachments?.length ? (
-                          <div className="mt-1.5 flex flex-wrap items-end gap-1.5">
-                            {m.attachments.map((a) =>
-                              a.dataUrl && (a.kind === "sticker" || a.kind === "image") ? (
-                                /* 点一下全屏看大图（用户 m01498 第 3 条：两种状态都要 —— 他发的图也能点） */
-                                <button
-                                  key={a.id}
-                                  type="button"
-                                  aria-label="看大图"
-                                  className="p-0"
-                                  onClick={() => setViewImg(a.dataUrl!)}
-                                >
-                                  <img
-                                    src={a.dataUrl}
-                                    alt={a.kind === "sticker" ? "表情" : a.name}
-                                    className={cn(
-                                      "rounded-[18px] rounded-tl-none",
-                                      a.kind === "sticker"
-                                        ? "max-h-32 max-w-32"
-                                        : "max-h-48 max-w-[70%]",
-                                    )}
-                                  />
-                                </button>
-                              ) : null,
-                            )}
-                          </div>
-                        ) : null}
-                        {/*
+                            {m.attachments?.length ? (
+                              <div className="mt-1.5 flex flex-wrap items-end gap-1.5">
+                                {m.attachments.map((a) =>
+                                  a.dataUrl && (a.kind === "sticker" || a.kind === "image") ? (
+                                    /* 点一下全屏看大图（用户 m01498 第 3 条：两种状态都要 —— 他发的图也能点） */
+                                    <button
+                                      key={a.id}
+                                      type="button"
+                                      aria-label="看大图"
+                                      className="p-0"
+                                      onClick={() => setViewImg(a.dataUrl!)}
+                                    >
+                                      <img
+                                        src={a.dataUrl}
+                                        alt={a.kind === "sticker" ? "表情" : a.name}
+                                        className={cn(
+                                          "rounded-[18px] rounded-tl-none",
+                                          a.kind === "sticker"
+                                            ? "max-h-32 max-w-32"
+                                            : "max-h-48 max-w-[70%]",
+                                        )}
+                                      />
+                                    </button>
+                                  ) : null,
+                                )}
+                              </div>
+                            ) : null}
+                            {/*
                           他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化。
                           ⚠️ 不再要求 `!streaming`：每一步的结果**当场**就写进消息了
                           （见 use-chat 的 onRound），流式期间当然也要看得见 ——
                           这正是"执行结果那一栏永远有回话"。
                         */}
-                        {/* ⚠️ 「改」和编辑框**不在这里**了：它们原先写在这个分支里，
+                            {/* ⚠️ 「改」和编辑框**不在这里**了：它们原先写在这个分支里，
                             而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
                             现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
-                        {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
-                          <p className="chat-meta mt-1 px-1 text-[10px]">
-                            {m.usage.prompt
-                              ? `输入 ${m.usage.prompt}${
-                                  typeof m.usage.tools === "number" && m.usage.tools > 0
-                                    ? `（工具 ${m.usage.tools}）`
-                                    : (() => {
-                                        const n =
-                                          (m.steps ?? []).filter((s) => s.kind === "call").length ||
-                                          (m.rounds ?? []).reduce((k, r) => k + r.calls.length, 0);
-                                        return n > 0 ? `（动过 ${n} 次手）` : "";
-                                      })()
-                                }`
-                              : ""}
-                            {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
-                            {/*
+                            {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
+                              <p className="chat-meta mt-1 px-1 text-[10px]">
+                                {m.usage.prompt
+                                  ? `输入 ${m.usage.prompt}${
+                                      typeof m.usage.tools === "number" && m.usage.tools > 0
+                                        ? `（工具 ${m.usage.tools}）`
+                                        : (() => {
+                                            const n =
+                                              (m.steps ?? []).filter((s) => s.kind === "call")
+                                                .length ||
+                                              (m.rounds ?? []).reduce(
+                                                (k, r) => k + r.calls.length,
+                                                0,
+                                              );
+                                            return n > 0 ? `（动过 ${n} 次手）` : "";
+                                          })()
+                                    }`
+                                  : ""}
+                                {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
+                                {/*
                               缓存显示成**命中率**（用户："改成缓存命中率，
                               比如百分之多少，方便好看一点，不然我还得自己计算"）。
                               分母用输入 token —— 缓存本来就是"输入里有多少被命中了"。
                             */}
-                            {typeof m.usage.cached === "number" &&
-                            m.usage.cached > 0 &&
-                            m.usage.prompt
-                              ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
-                              : ""}
-                            {/*
+                                {typeof m.usage.cached === "number" &&
+                                m.usage.cached > 0 &&
+                                m.usage.prompt
+                                  ? ` · 缓存命中率 ${Math.round((m.usage.cached / m.usage.prompt) * 100)}%`
+                                  : ""}
+                                {/*
                               工具定义也吃输入 token（用户 m08850 / m08970）：它**已含在输入里**，
                               所以写成「输入 14577（工具 2903）」而不是另加一段；
                               降级模式没有 tools 字段 → 这里是 0 → 不显示括号。
                             */}
-                          </p>
+                              </p>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    )}
-                      {/* ⚠️ **这三个块（长按菜单 / 改 / 编辑框）必须放在 mine 与 他 的分支之外**：
+                        {/* ⚠️ **这三个块（长按菜单 / 改 / 编辑框）必须放在 mine 与 他 的分支之外**：
                           以前它们写在「他的」那个分支里 —— 长按自己的消息时状态设了、却什么都不渲染，
                           表现成“长按我的消息没卡片、只有触感”（用户报了两回）；「改」和编辑框同一个坑。 */}
                         {/* **长按菜单**（用户第 2/5 条）：App 内浮层，不是浏览器/系统那个 —— 引用这一句 / 复制 /（自己的）修改 /（他的）重新生成 */}
-                        {msgMenu?.id === m.id && createPortal(
-                          <div
-                            className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
-                            onClick={() => setMsgMenu(null)}
-                          >
+                        {msgMenu?.id === m.id &&
+                          createPortal(
                             <div
                               className={cn(
-                                "glass-menu w-full max-w-[16rem] rounded-3xl border border-line p-2 shadow-xl",
-                                /* 纸世界 Step3 补：长按菜单换纸卡壳（用户点名适配） */
-                                solidPaper && "paper-card",
+                                "fixed inset-0 z-[80] flex items-center justify-center p-6",
+                                liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/45",
                               )}
-                              data-contrast=""
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={() => setMsgMenu(null)}
                             >
-                              
-                              <button
-                                type="button"
-                                className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
-                                onClick={() => {
-                                  setQuote({ text: msgMenu.part.replace(/\s+/g, " ").trim().slice(0, 60) });
-                                  setMsgMenu(null);
-                                }}
+                              <div
+                                className={cn(
+                                  "glass-menu w-full max-w-[16rem] rounded-3xl border border-line p-2 shadow-xl",
+                                  /* 纸世界 Step3 补：长按菜单换纸卡壳（用户点名适配） */
+                                  solidPaper && "paper-card",
+                                  liquid && "lq-dialog backdrop-blur-xl",
+                                )}
+                                data-contrast=""
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                引用这一句
-                              </button>
-                              <button
-                                type="button"
-                                className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
-                                onClick={() => {
-                                  void navigator.clipboard?.writeText(m.content);
-                                  setMsgMenu(null);
-                                }}
-                              >
-                                复制
-                              </button>
-                              {mine && !busy && (
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
                                   onClick={() => {
-                                    setEditing({ id: m.id, text: splitQuote(m.content).body });
+                                    setQuote({
+                                      text: msgMenu.part.replace(/\s+/g, " ").trim().slice(0, 60),
+                                    });
                                     setMsgMenu(null);
                                   }}
                                 >
-                                  修改
+                                  引用这一句
                                 </button>
-                              )}
-                              {!mine && !streaming && (
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
                                   onClick={() => {
-                                    void regenerate(m.id);
+                                    void navigator.clipboard?.writeText(m.content);
                                     setMsgMenu(null);
                                   }}
                                 >
-                                  重新生成
+                                  复制
                                 </button>
-                              )}
-                              {/* 赞/踩/朗读/分享/收藏/重新生成 —— 从气泡下面搬进来的（用户第 2/5 条） */}
-                              {!mine && !streaming && (
-                                <div className="mt-2 border-t border-line pt-2">
-                          {m.content && !streaming && (
-                            <MessageActions
-                              content={m.content}
-                              feedback={m.feedback}
-                              busy={busy}
-                              saved={m.savedToDocs}
-                              onFeedback={(fb) =>
-                                useApp.getState().patchMessage(conv!.id, m.id, {
-                                  feedback: m.feedback === fb ? undefined : fb,
-                                })
-                              }
-                              onRegenerate={() => void regenerate(m.id)}
-                              onSaveDoc={() => {
-                                useApp.getState().saveDoc({
-                                  title: conv!.title,
-                                  content: m.thinking
-                                    ? `## 思考\n\n${m.thinking}\n\n## 回复\n\n${m.content}`
-                                    : m.content,
-                                  source: "chat",
-                                  conversationId: conv!.id,
-                                });
-                                useApp.getState().markSavedToDocs(conv!.id, m.id);
-                              }}
-                            />
+                                {mine && !busy && (
+                                  <button
+                                    type="button"
+                                    className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                    onClick={() => {
+                                      setEditing({ id: m.id, text: splitQuote(m.content).body });
+                                      setMsgMenu(null);
+                                    }}
+                                  >
+                                    修改
+                                  </button>
+                                )}
+                                {!mine && !streaming && (
+                                  <button
+                                    type="button"
+                                    className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
+                                    onClick={() => {
+                                      void regenerate(m.id);
+                                      setMsgMenu(null);
+                                    }}
+                                  >
+                                    重新生成
+                                  </button>
+                                )}
+                                {/* 赞/踩/朗读/分享/收藏/重新生成 —— 从气泡下面搬进来的（用户第 2/5 条） */}
+                                {!mine && !streaming && (
+                                  <div className="mt-2 border-t border-line pt-2">
+                                    {m.content && !streaming && (
+                                      <MessageActions
+                                        content={m.content}
+                                        feedback={m.feedback}
+                                        busy={busy}
+                                        saved={m.savedToDocs}
+                                        onFeedback={(fb) =>
+                                          useApp.getState().patchMessage(conv!.id, m.id, {
+                                            feedback: m.feedback === fb ? undefined : fb,
+                                          })
+                                        }
+                                        onRegenerate={() => void regenerate(m.id)}
+                                        onSaveDoc={() => {
+                                          useApp.getState().saveDoc({
+                                            title: conv!.title,
+                                            content: m.thinking
+                                              ? `## 思考\n\n${m.thinking}\n\n## 回复\n\n${m.content}`
+                                              : m.content,
+                                            source: "chat",
+                                            conversationId: conv!.id,
+                                          });
+                                          useApp.getState().markSavedToDocs(conv!.id, m.id);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>,
+                            document.body,
                           )}
-                                </div>
-                              )}
-                            </div>
-                          </div>,
-                          document.body,
-                        )}
                         {/* **修改自己发的消息**：入口只有一个 —— 长按卡片里的「修改」
                             （用户 m01893："把改字也挪到长按弹层里，太累赘了……并且改字去掉，
                             放到卡片里就行，然后对话框只留一个，不要加对话框，打完字点下面对话框的发送就行"）。
                             所以气泡下面**不再有**「改」，也不再有第二个输入框：
                             点「修改」→ 正文填进下面那个唯一的输入框 → 发送 = 保存并重答。 */}
-                  </div>
-                </li>
-                </Fragment>
-              );
-            })}
+                      </div>
+                    </li>
+                  </Fragment>
+                );
+              })}
             </ol>
           </div>
 
@@ -1600,7 +1635,8 @@ export function ChatView() {
                 window.setTimeout(() => {
                   const box = scroller.current;
                   if (!box) return;
-                  if (box.scrollHeight - box.scrollTop - box.clientHeight > 8) box.scrollTop = box.scrollHeight;
+                  if (box.scrollHeight - box.scrollTop - box.clientHeight > 8)
+                    box.scrollTop = box.scrollHeight;
                 }, 500);
               }}
               /* 贴在消息区底部、**悬浮对话框的上面**（不然会压在输入框上） */
@@ -1614,102 +1650,112 @@ export function ChatView() {
         </div>
       )}
       {/* **会话 ⋯ 菜单**：放在根级（列表容器会裁掉 fixed 浮层 → 之前"点了没反应"就是这个），屏幕中间一张卡片 */}
-      {rowMenu && createPortal(
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
-          onClick={() => setRowMenu(null)}
-        >
+      {rowMenu &&
+        createPortal(
           <div
             className={cn(
-              "glass-menu w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line p-1.5 text-[13px] shadow-xl",
-              /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
-              solidPaper && "paper-card",
+              "fixed inset-0 z-[80] flex items-center justify-center p-6",
+              liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/45",
             )}
-            data-contrast=""
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setRowMenu(null)}
           >
-            <button
-              type="button"
-              className="block w-full rounded-2xl px-3 py-3 text-left"
-              onClick={() => {
-                const c = conversations.find((x) => x.id === rowMenu);
-                if (c) setRenameFor({ id: c.id, text: c.title });
-                setRowMenu(null);
-              }}
+            <div
+              className={cn(
+                "glass-menu w-full max-w-[16rem] overflow-hidden rounded-3xl border border-line p-1.5 text-[13px] shadow-xl",
+                /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
+                solidPaper && "paper-card",
+                liquid && "lq-dialog backdrop-blur-xl",
+              )}
+              data-contrast=""
+              onClick={(e) => e.stopPropagation()}
             >
-              重命名
-            </button>
-            <button
-              type="button"
-              className="block w-full rounded-2xl px-3 py-3 text-left"
-              onClick={() => {
-                useApp.getState().pinChat(rowMenu);
-                setRowMenu(null);
-              }}
-            >
-              置顶 / 取消置顶
-            </button>
-            <button
-              type="button"
-              className="block w-full rounded-2xl px-3 py-3 text-left"
-              onClick={() => {
-                useApp.getState().deleteChat(rowMenu);
-                setRowMenu(null);
-              }}
-            >
-              删除
-            </button>
-          </div>
-        </div>,
-        document.body,
-      )}
-      {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
-      {renameFor && createPortal(
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/45 p-6"
-          onClick={() => setRenameFor(null)}
-        >
-          <div
-            className={cn(
-              "glass-menu w-full max-w-sm rounded-3xl border border-line p-4 shadow-xl",
-              /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
-              solidPaper && "paper-card",
-            )}
-            data-contrast=""
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
-            <input
-              autoFocus
-              value={renameFor.text}
-              onChange={(e) => setRenameFor({ id: renameFor.id, text: e.target.value })}
-              className="h-10 w-full rounded-2xl border border-line bg-fg/10 px-3 text-[13px] outline-none"
-            />
-            <div className="mt-3 flex justify-end gap-2">
               <button
                 type="button"
-                className="rounded-full px-4 py-1.5 text-[12px] text-muted"
-                onClick={() => setRenameFor(null)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-fg px-4 py-1.5 text-[12px]"
-                style={{ color: "var(--aster-on-fg, #f7f2ea)" }}
+                className="block w-full rounded-2xl px-3 py-3 text-left"
                 onClick={() => {
-                  const name = renameFor.text.trim();
-                  if (name) useApp.getState().renameChat(renameFor.id, name);
-                  setRenameFor(null);
+                  const c = conversations.find((x) => x.id === rowMenu);
+                  if (c) setRenameFor({ id: c.id, text: c.title });
+                  setRowMenu(null);
                 }}
               >
-                保存
+                重命名
+              </button>
+              <button
+                type="button"
+                className="block w-full rounded-2xl px-3 py-3 text-left"
+                onClick={() => {
+                  useApp.getState().pinChat(rowMenu);
+                  setRowMenu(null);
+                }}
+              >
+                置顶 / 取消置顶
+              </button>
+              <button
+                type="button"
+                className="block w-full rounded-2xl px-3 py-3 text-left"
+                onClick={() => {
+                  useApp.getState().deleteChat(rowMenu);
+                  setRowMenu(null);
+                }}
+              >
+                删除
               </button>
             </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+          </div>,
+          document.body,
+        )}
+      {/* **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */}
+      {renameFor &&
+        createPortal(
+          <div
+            className={cn(
+              "fixed inset-0 z-[80] flex items-center justify-center p-6",
+              liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/45",
+            )}
+            onClick={() => setRenameFor(null)}
+          >
+            <div
+              className={cn(
+                "glass-menu w-full max-w-sm rounded-3xl border border-line p-4 shadow-xl",
+                /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405） */
+                solidPaper && "paper-card",
+                liquid && "lq-dialog backdrop-blur-xl",
+              )}
+              data-contrast=""
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="mb-2 text-[13px] font-medium">给这段对话起个名字</p>
+              <input
+                autoFocus
+                value={renameFor.text}
+                onChange={(e) => setRenameFor({ id: renameFor.id, text: e.target.value })}
+                className="h-10 w-full rounded-2xl border border-line bg-fg/10 px-3 text-[13px] outline-none"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-full px-4 py-1.5 text-[12px] text-muted"
+                  onClick={() => setRenameFor(null)}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full bg-fg px-4 py-1.5 text-[12px]"
+                  style={{ color: "var(--aster-on-fg, #f7f2ea)" }}
+                  onClick={() => {
+                    const name = renameFor.text.trim();
+                    if (name) useApp.getState().renameChat(renameFor.id, name);
+                    setRenameFor(null);
+                  }}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/*
         **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层，然后消息是可滚动消息流，
@@ -1797,6 +1843,15 @@ export function ChatView() {
           document.body,
         )}
 
+      {/* 第 3 条：螃蟹桌宠从抽屉底部挪到对话页（用户："先挪走，占位，地方后续再调整"）。
+          先浮在输入条上方右侧；点它头顶冒情绪气泡的老逻辑全在 DrawerMood 里，不动。
+          只有液态渲染 —— 纯色抽屉里那颗还在原处。 */}
+      {liquid && (
+        <div className="lq-pet pointer-events-none absolute bottom-28 right-1 z-20">
+          <DrawerMood className="lq-pet-mood" />
+        </div>
+      )}
+
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet
         open={thinkSheet !== null}
@@ -1807,123 +1862,17 @@ export function ChatView() {
         onClose={() => setThinkSheet(null)}
       />
 
-      {menu && (
-        /*
-          抽屉 z-50。底部导航 z-[60] 比它高，但抽屉打开时**要把导航收起来** ——
-          用户反馈："展开对话列表，导航栏就不留了吧，看看这怪怪的"
-          （导航横在抽屉下沿，抽屉的圆角跟它叠在一起确实别扭）。
-          做法：在 <html> 上挂 data-drawer-open，由 CSS 把导航藏掉。
-          这样不用把 menu 状态提到 AppShell，也不用每帧重渲染。
-        */
-        <div className="fixed inset-0 z-50 flex">
-          <button
-            type="button"
-            aria-label="关闭"
-            className="absolute inset-0 bg-fg/20"
-            onClick={() => setMenu(false)}
-          />
-          <aside
-            className={cn(
-              "glass-panel relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75",
-              /* 纸世界 Step3 补：纯色材质下抽屉换纸壳（用户 m00405 点名）。
-                 星野装饰 DrawerSky 保留 —— 低对比丝线星点在纸底上不抢，先返图看效果。 */
-              solidPaper && "paper-drawer",
-            )}
-          >
-            {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
-                用户："上面那个从顶部开始，不是从我画的框开始" */}
-            <DrawerSky />
-
-            <div className="relative z-10 flex items-center justify-between px-4 pb-3">
-              <p className="font-serif text-lg">对话</p>
-              <button type="button" aria-label="关闭" onClick={() => setMenu(false)} className="size-10">
-                <X className="size-5" />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="relative z-10 mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
-              onClick={() => {
-                useApp.getState().newChat();
-                setMenu(false);
-              }}
-            >
-              <Plus className="size-4" />
-              新对话
-            </button>
-
-            <ul className="relative z-10 min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1">
-              {conversations.filter((c) => !c.incognito).length === 0 && (
-                <li className="px-3 py-8 text-center text-sm text-muted">还没有保存的对话</li>
-              )}
-              {conversations
-                .filter((c) => !c.incognito)
-                .slice()
-                .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
-                .map((c) => (
-                  <li key={c.id}>
-                    {/*
-                      对话条目：用户反馈"这一整个大方块，改成柔和一点，带着边框，
-                      上下留白一些，材质要统一"。
-                      · 圆角从 rounded-full（整条胶囊，太"实"）收到 rounded-2xl
-                      · 补一条 border-line 边框 —— 跟 App 里其它卡片同一套材质
-                      · 左右内边距对称（原来左边 pl-6、右边 pr-1，文字被挤在左边）
-                      · 上下用 space-y-2.5 留白，不再一条贴一条
-                    */}
-                    <div
-                      className={cn(
-                        // 底：透明，只留间距 —— 一整列都画框会让人分不清"哪条是现在这条"
-                        // （用户 m04469 第 1 条：当前会话反而没框、没选中的有框，反了）。
-                        // 选中态才给底色 + 边框；边框常驻但透明，避免切会话时行高跳一下。
-                        "flex items-center gap-0.5 rounded-2xl border border-transparent py-1 pr-0.5 pl-3.5",
-                        c.id === activeId && "border-line bg-chip",
-                      )}
-                      data-active={c.id === activeId ? "true" : undefined}
-                    >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 truncate py-3 text-left text-sm"
-                        onClick={() => {
-                          useApp.getState().setActive(c.id);
-                          setMenu(false);
-                        }}
-                      >
-                        <span className="font-medium">{c.title}</span>
-                        <span className="text-muted">
-                        </span>
-                      </button>
-                      {/*
-                        **改名**（用户："对话列表可以重命名"）—— `chat.rename` 动作早就有、
-                      {/* 第 3 条：三个内联按钮 → 一个 ⋯（点开才有 重命名/置顶/删除） */}
-                      <button
-                        type="button"
-                        aria-label="更多"
-                        className="size-9 shrink-0 text-[15px] leading-none text-muted"
-                        onClick={() => setRowMenu(rowMenu === c.id ? null : c.id)}
-                      >
-                        ⋯
-                      </button>
-                    </div>
-                  </li>
-                ))}
-            </ul>
-
-            {/*
-              下：小宇宙（带星环的行星 + 小卫星 + 碎钻粒子），跟上面的星月呼应。
-              · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
-                但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
-                所以让装饰接管它
-                    {rowMenu === c.id && (
-              · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
-            */}
-            <DrawerCosmos />
-          </aside>
-        </div>
-      )}
+      {/* 抽屉：这一轮把它拆到 chat-drawer.tsx（样式守卫的「最大部件」只许 chat-view 变小，
+          加功能必须先拆小；组件里的逻辑一字节没改，纯色渲染路径也不变）。 */}
+      <ChatDrawer
+        open={menu}
+        onClose={() => setMenu(false)}
+        rowMenu={rowMenu}
+        setRowMenu={setRowMenu}
+      />
     </div>
   );
 }
-
 
 /** 语音消息气泡：放的是真录音，不是合成音。 */
 /**
@@ -1947,6 +1896,8 @@ function VoiceBubble({
   convId?: string;
   msgId?: string;
 }) {
+  /* 第 12 条：语音菜单也是弹层，液态下套 lq-dialog（模糊交给 backdrop-blur） */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const ref = useRef<HTMLAudioElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -1961,9 +1912,12 @@ function VoiceBubble({
   const [busy, setBusy] = useState(false);
   const [say, setSay] = useState("");
   /** 长按菜单的位置（视口坐标）：贴着被长按的那个气泡 */
-  const [menu, setMenu] = useState<{ left: number; top: number; up: boolean; arrow: number } | null>(
-    null,
-  );
+  const [menu, setMenu] = useState<{
+    left: number;
+    top: number;
+    up: boolean;
+    arrow: number;
+  } | null>(null);
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
   const secs = Math.max(1, Math.round((att.durationMs ?? 0) / 1000));
@@ -2069,8 +2023,7 @@ function VoiceBubble({
     pressTimer.current = null;
   };
 
-  const item =
-    "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px]";
+  const item = "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px]";
 
   return (
     <div className={cn("flex max-w-full flex-col gap-1", mine ? "items-end" : "items-start")}>
@@ -2132,17 +2085,15 @@ function VoiceBubble({
               key={i}
               className={cn(
                 "w-[2px] shrink-0 rounded-full transition-colors",
-                i / bars <= progress
-                  ? "bg-accent"
-                  : mine
-                    ? "bg-accent/35"
-                    : "bg-fg/25",
+                i / bars <= progress ? "bg-accent" : mine ? "bg-accent/35" : "bg-fg/25",
               )}
               style={{ height: `${5 + ((i * 11) % 13)}px` }}
             />
           ))}
         </span>
-        <span className={cn("shrink-0 text-[11px] tabular-nums", mine ? "text-muted" : "text-muted")}>
+        <span
+          className={cn("shrink-0 text-[11px] tabular-nums", mine ? "text-muted" : "text-muted")}
+        >
           {secs}"
         </span>
       </button>
@@ -2165,7 +2116,10 @@ function VoiceBubble({
       {/* 贴着气泡的菜单（用完即卸，点空白处关掉） */}
       {menu
         ? createPortal(
-            <div className="fixed inset-0 z-[97] bg-black/10" onPointerDown={() => setMenu(null)}>
+            <div
+              className={cn("fixed inset-0 z-[97]", liquid ? "backdrop-blur-sm" : "bg-black/10")}
+              onPointerDown={() => setMenu(null)}
+            >
               <div
                 className={cn(
                   "glass-menu absolute w-[168px] rounded-[13px] border border-line py-1 shadow-[0_12px_32px_rgba(40,26,18,0.30)]",
@@ -2173,13 +2127,12 @@ function VoiceBubble({
                      不必再用 JS 判断材质 —— .paper-card 的规则全都挂在
                      [data-material="solid"] 下，非纯色时它就是个空类名。 */
                   "paper-card",
+                  liquid && "lq-dialog backdrop-blur-xl",
                 )}
                 data-contrast=""
                 style={{
                   left: menu.left,
-                  ...(menu.up
-                    ? { bottom: window.innerHeight - menu.top }
-                    : { top: menu.top }),
+                  ...(menu.up ? { bottom: window.innerHeight - menu.top } : { top: menu.top }),
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
               >

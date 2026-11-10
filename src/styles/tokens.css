@@ -170,6 +170,11 @@
   --k-bubble-tape-ai: transparent;
   --k-bubble-tape-me: transparent;
   --k-bubble-tape-shadow: transparent;
+  /* 液态玻璃的"厚度"：上缘亮边 + 一圈透镜影（纯色 / 磨砂不给，等于没有） */
+  --k-bubble-shadow: none;
+  /* 气泡顶上那团静态光斑（不跟手指、不随按下变 —— 纯色里给 transparent 等于不存在） */
+  --k-bubble-glow: transparent;
+  --k-bubble-glow-o: 0;
 
   /* 展开区里的滚动上限：响应体 / 长正文。
      写死高度会让不同字号的模式互相看着别扭，所以收成槽位统一给。 */

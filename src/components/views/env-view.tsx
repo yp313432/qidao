@@ -98,7 +98,7 @@ export function EnvView() {
       />
 
       <section className="mt-2 px-4">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="lq-pane rounded-3xl border border-line bg-surface px-4 py-3.5">
           {!sum ? (
             <p className="text-[12px] text-subtle">检测中…</p>
           ) : (
@@ -107,7 +107,8 @@ export function EnvView() {
                 可用 {sum.ok} · 受限 {sum.warn} · 不可用 {sum.no}
               </p>
               <p className="mt-1 text-[11px] leading-4 text-muted">
-                同一份代码在不同地址、不同外壳里结论完全不同 —— 这页报的是**此刻这台设备**的真实情况。
+                同一份代码在不同地址、不同外壳里结论完全不同 ——
+                这页报的是**此刻这台设备**的真实情况。
               </p>
             </>
           )}
@@ -115,7 +116,7 @@ export function EnvView() {
       </section>
 
       <section className="mt-4 px-4">
-        <div className="divide-y divide-line rounded-3xl border border-line bg-surface px-4">
+        <div className="lq-pane divide-y divide-line rounded-3xl border border-line bg-surface px-4">
           {(items ?? []).map((it) => (
             <div key={it.id} className="py-3">
               <div className="flex items-start gap-2.5">
@@ -192,7 +193,7 @@ export function EnvView() {
           ⚠️ 只记"在干什么 + 数字"，不记聊天内容、不记密钥（见 breadcrumbs.ts 的纪律）。
          ───────────────────────────────────────────────────────────── */}
       <section className="mt-4 px-4">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="lq-pane rounded-3xl border border-line bg-surface px-4 py-3.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] font-medium">上次运行痕迹</p>
             <div className="flex items-center gap-1">
@@ -254,19 +255,19 @@ export function EnvView() {
       </section>
 
       <section className="mt-4 px-4">
-        <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
+        <div className="lq-pane rounded-3xl border border-line bg-surface px-4 py-3.5">
           <p className="text-[13px] font-medium">封装成 APP 之后会怎样</p>
           <ul className="mt-2 space-y-2 text-[11px] leading-4 text-muted">
             <li>
-              <span className="text-fg">会好的</span>：麦克风、摄像头、通知、Service Worker
-              —— 前提是外壳把页面放在**安全地址**上（例如 Capacitor 的{" "}
-              <span className="font-mono">https://localhost</span>，或原生层用
-              WebViewAssetLoader 提供 https 源）。
+              <span className="text-fg">会好的</span>：麦克风、摄像头、通知、Service Worker ——
+              前提是外壳把页面放在**安全地址**上（例如 Capacitor 的{" "}
+              <span className="font-mono">https://localhost</span>，或原生层用 WebViewAssetLoader
+              提供 https 源）。
             </li>
             <li>
               <span className="text-warn">不会好的</span>：如果只是套一个 WebView 直接打开
-              <span className="font-mono"> http://192.168.x.x:8080</span>，WebView 跟浏览器守同一条规则，
-              麦克风照样被拦。
+              <span className="font-mono"> http://192.168.x.x:8080</span>，WebView
+              跟浏览器守同一条规则， 麦克风照样被拦。
             </li>
             <li>
               <span className="text-fg">另一条路</span>：原生层自己录音（Android

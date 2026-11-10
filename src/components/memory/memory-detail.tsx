@@ -4,7 +4,7 @@ import { ALL_KINDS, KIND_HINT, KIND_LABEL, retention } from "@/lib/memory";
 import type { Memory, MemoryKind } from "@/lib/types";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { isSolid } from "@/lib/material";
+import { isSolid, materialOf } from "@/lib/material";
 
 /**
  * 记忆详情面板（从底部升起）。
@@ -56,6 +56,8 @@ export function MemoryDetail({
   const [tagText, setTagText] = useState((memory?.tags ?? []).join(" "));
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = useApp((s) => isSolid(s.settings));
+  /* 第 12 条：液态下弹层套 lq-dialog（更厚白膜 + 透镜边），模糊交给 backdrop-blur */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   useEffect(() => {
     if (!memory) return;
@@ -79,12 +81,13 @@ export function MemoryDetail({
       <button
         type="button"
         aria-label="关闭"
-        className="absolute inset-0 bg-fg/25"
+        className={cn("absolute inset-0", liquid ? "lq-dialog-scrim backdrop-blur-sm" : "bg-fg/25")}
         onClick={onClose}
       />
       <div
         className={cn(
-          "glass-panel relative z-10 max-h-[86%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]",
+          "relative z-10 max-h-[86%] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]",
+          liquid ? "lq-dialog lq-dialog--sheet backdrop-blur-xl" : "glass-panel",
           solidPaper && "paper-sheet",
         )}
         data-contrast
