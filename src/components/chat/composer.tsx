@@ -495,7 +495,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         ref={cardRef}
         className={cn(
           "rounded-3xl border border-line p-1.5 shadow-lg",
-          solidPaper ? "glass-float paper-env" : "lq-composer",
+          /* m02543 第 4 条：输入条也用长按菜单那档磨砂 —— `backdrop-blur-xl`（24px）
+             跟 `.lq-dialog` 弹层同一个厚度。blur 只能写在这里（guard 不让 liquid CSS
+             出现 backdrop-filter），膜本身仍是 `.lq-composer` 的白膜。 */
+          solidPaper ? "glass-float paper-env" : "lq-composer backdrop-blur-xl",
         )}
       >
         {/*
@@ -1079,6 +1082,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 className={cn(
                   "glass-menu absolute bottom-13 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-line py-1",
                   solidPaper && "paper-card",
+                  /* m02543：点「+」弹出的面板，跟长按菜单同一个磨砂厚度。 */
+                  liquid && "backdrop-blur-xl",
                 )}
               >
                 <FileButton
@@ -1155,6 +1160,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 className={cn(
                   "glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1",
                   solidPaper && "paper-card",
+                  /* m02543：模型/推理两层浮层跟长按菜单同一个磨砂厚度。 */
+                  liquid && "backdrop-blur-xl",
                 )}
               >
                 <button
@@ -1214,9 +1221,11 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                   />
                   <div
                     className={cn(
-                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]",
                       solidPaper && "paper-card",
-                      liquid && "lq-dialog",
+                      /* m02543：模型选择跟长按菜单统一到 24px（原来 backdrop-blur-2xl=40px
+                         比它厚一档，用户看出来"不是同一套"）。 */
+                      liquid && "lq-dialog backdrop-blur-xl",
                     )}
                     data-contrast=""
                   >
@@ -1324,6 +1333,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 className={cn(
                   "glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1",
                   solidPaper && "paper-card",
+                  /* m02543：模型/推理两层浮层跟长按菜单同一个磨砂厚度。 */
+                  liquid && "backdrop-blur-xl",
                 )}
               >
                 {MODELS.map((m) => (

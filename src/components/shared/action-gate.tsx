@@ -99,7 +99,13 @@ export function ActionGate() {
         className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-6"
         style={{ top: "calc(var(--q-inset-top, 0px) + 10px)" }}
       >
-        <div className="glass-menu pointer-events-auto rounded-full px-3.5 py-1.5 text-[11px] text-muted shadow-lg">
+        <div
+          className={cn(
+            "glass-menu pointer-events-auto rounded-full px-3.5 py-1.5 text-[11px] text-muted shadow-lg",
+            /* m02543：跟其它弹层同一档磨砂。 */
+            liquid && "backdrop-blur-xl",
+          )}
+        >
           ⏳ 正在执行：{current.title}
         </div>
       </div>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { callSentence } from "@/lib/call-sentence";
 import { resolveAiName } from "@/lib/branding";
@@ -137,7 +137,7 @@ export function ThinkingSheet({
           "relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]",
           /* 纸世界 Step3 补：实底纸+墨顶线+纸影+衬线 */
           solidPaper && "paper-sheet",
-          liquid && "lq-dialog lq-dialog--sheet backdrop-blur-2xl",
+          liquid && "lq-dialog lq-dialog--sheet backdrop-blur-xl",
         )}
         data-contrast
         style={{

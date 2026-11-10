@@ -356,7 +356,6 @@ import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
 import { ChatDrawer } from "@/components/chat/chat-drawer";
-import { DrawerMood } from "@/components/chat/drawer-crab";
 import { resolveAiName } from "@/lib/branding";
 import { crumb } from "@/lib/breadcrumbs";
 import { greetingFor } from "@/lib/greeting";
@@ -1849,14 +1848,13 @@ export function ChatView() {
           document.body,
         )}
 
-      {/* 第 3 条：螃蟹桌宠从抽屉底部挪到对话页（用户："先挪走，占位，地方后续再调整"）。
-          先浮在输入条上方右侧；点它头顶冒情绪气泡的老逻辑全在 DrawerMood 里，不动。
-          只有液态渲染 —— 纯色抽屉里那颗还在原处。 */}
-      {liquid && (
-        <div className="lq-pet pointer-events-none absolute bottom-28 right-1 z-20">
-          <DrawerMood className="lq-pet-mood" />
-        </div>
-      )}
+      {/* 第 3 条：螃蟹桌宠原先从抽屉底部挪到对话页右下角（`bottom-28 right-1`）。
+          用户看实机后说"从对话页先挪走，位置后调"——它正压在发送键上，所以这一轮先不渲染；
+          功能没删：纯色抽屉底部那颗还在原处，DrawerMood 组件也没动。
+          位置定下来之后，把下面三行挂回来即可：
+            <div className="lq-pet pointer-events-none absolute bottom-28 right-1 z-20">
+              <DrawerMood className="lq-pet-mood" />
+            </div> */}
 
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet

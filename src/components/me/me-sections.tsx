@@ -562,9 +562,9 @@ export function MeSections({ tab }: { tab: MeTab }) {
                           <div
                             data-contrast=""
                             className={cn(
-                              "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                              "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line shadow-[0_20px_60px_rgba(30,20,12,.35)]",
                               solidPaper && "paper-card",
-                              materialOf(settings) === "liquid" && "lq-dialog",
+                              materialOf(settings) === "liquid" && "lq-dialog backdrop-blur-xl",
                             )}
                           >
                             <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-3.5">
@@ -2096,9 +2096,9 @@ export function MeSections({ tab }: { tab: MeTab }) {
                   <div
                     data-contrast=""
                     className={cn(
-                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)] backdrop-blur-2xl",
+                      "aster-pop relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-[var(--k-card-radius)] border border-line px-4 pb-4 pt-3 shadow-[0_20px_60px_rgba(30,20,12,.35)]",
                       solidPaper && "paper-card",
-                      materialOf(settings) === "liquid" && "lq-dialog",
+                      materialOf(settings) === "liquid" && "lq-dialog backdrop-blur-xl",
                     )}
                     onClick={(e) => e.stopPropagation()}
                   >

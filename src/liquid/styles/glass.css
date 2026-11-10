@@ -1450,6 +1450,12 @@
    ⚠️ 用**单色半透明**而不是 158° 四段渐变：一行 46px 的小条目在 WebView 里
    套渐变 + 圆角 + 阴影，掉层的概率比大面板还高（用户截图里"工具/动态/音乐/花园
    那几行没底没边"就是掉层）。单色一层，画不出来也不至于整行消失。 */
+/* 行距：会话条用的是 Tailwind 的 space-y-2.5（10px），功能条是 8px —— 同一列里
+   两种间距也会让"上面像卡片、下面像贴边列表"。这里统一到 8px。 */
+.lq-sheet-scope .lq-conv-list > li + li {
+  margin-top: 8px;
+}
+
 .lq-sheet-scope .lq-conv {
   /* m01833 用户：“我只让你改背景吧，你为啥要把功能形状给我变了？”
      → 行的形状/材质回到 v4 定稿（玻璃条 + 13/14px 圆角 + 白膜），不再改成透明方块。
@@ -1513,9 +1519,13 @@
   flex: none;
   align-items: center;
   gap: 11px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   padding: 0 14px;
   border: 1px solid rgba(30, 22, 14, 0.1);
+  /* ⚠️ 这一行原来漏了 —— 注释写着"13px 圆角"，属性却没写，所以功能条一直是**直角方块**，
+     而上面会话条是 13px 圆角。用户连着三次问"他俩是一样吗"（m01859/m02543/m02727），
+     看的就是这个：同一个列表，上面圆、下面方。 */
+  border-radius: 13px;
   /* v4 定稿的玻璃条（m00460"欧克，可以"）：13px 圆角 + 158deg 白膜 + 五层内影。 */
   background: linear-gradient(
     158deg,
@@ -1725,9 +1735,10 @@
    液态只留 10px + 手势条安全区，纯色那侧一个字没动。 */
 .lq-skin .pb-composer {
   /* 用户 m01709：“看到我画的那个橙色的线吗？对话框的最下边对齐这条线。”
-     他画的线在屏幕高度的 93%（离底约 59px）——所以这里留 26px + 安全区，
-     输入卡片的下沿就压在那条线上；不再留给底部导航的 4.5rem。 */
-  padding-bottom: calc(26px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
+     他画的线在屏幕高度的 93%（离底约 59px）——26px + 安全区实测还差一口气，
+     用户看到的仍是“下面还空一大片”（m02727 又提了一次）。改成 34px：
+     34 + 手势条(约 24px) = 58px，正好压在橙线上。 */
+  padding-bottom: calc(34px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
   /* 诊断边已撤：m02470 用户实机确认"有粉边" → portal 修复后 glass.css 确实命中了，
      侧边栏/弹层/黑胶囊那套样式终于进得去（v6 之前它们全在 .lq-skin 之外）。 */
 }
