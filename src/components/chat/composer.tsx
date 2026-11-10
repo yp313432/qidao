@@ -1391,6 +1391,9 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               "flex shrink-0 items-center justify-center rounded-full",
               liquid ? "size-8" : "size-9",
               stickerOpen ? "bg-accent-soft text-accent" : "bg-chip text-accent",
+              /* m04566 第 2 条：＋、表情、语音、（模型胶囊）四颗要用**同一套**白磨砂，
+                 原来只有 ＋ 和模型挂 lq-ctl，表情/语音还是 bg-chip 实色 → 一排里两种白。 */
+              liquid && "lq-ctl",
             )}
           >
             <Smile className="size-5" strokeWidth={1.7} />
@@ -1408,6 +1411,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             className={cn(
               "flex shrink-0 items-center justify-center rounded-full bg-chip text-ink",
               liquid ? "size-8" : "size-9",
+              /* 同上：语音键也并进同一套白磨砂（m04566）。 */
+              liquid && "lq-ctl",
               // 纸世界输入行修正：语音键独立（仅纯色上纸）
               recMs !== null && "paper-voice-rec",
               solidPaper && "paper-voice",
