@@ -470,7 +470,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
   })();
 
   return (
-    <div className="px-1.5 pb-composer">
+    <div className="px-1 pb-composer">
       {/*
         ⚠️ 玻璃用**哪一档**：`.glass-panel`（半透明 + 30px 模糊 + 投影）。
         用户三次口径叠起来才是这个结论，别再走回头路：
@@ -1017,12 +1017,11 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
 
         <textarea
           ref={ta}
-          /* 用户 m04638 / m04690："把那个竖框给拉长一点……给它拉成细长的，但是还是两层的啊，
-             就是给它一点，跟那个气泡长度差不多。" + "输入框拉长。"
-             输入条宽度已经是屏宽减 28px（比气泡还宽），能再"长"的只有高度：
-             这里从 1 行放到 2 行（36px → 64px），配字时能看见两行，框整体变成一条长条。
-             rows 与 min-h 一起给，避免只在空态生效、一有字又缩回一行。 */
-          rows={2}
+          /* 用户 m04807 / m04808："就是把输入框拉长，就是让它的长度变长一些，高度还是保持不变，
+             还是两行。一行是打字，一行是按键。" + "稍微拉长一点点就行了。"
+             → 不动高度（保持一行字 + 一行按键），只把整条往两侧放一点点：
+             外层 dock 的左右内缩 8→3、这层的 px-1.5→px-1，卡片比原来长 14px。 */
+          rows={1}
           value={value}
           disabled={disabled}
           /*
@@ -1060,7 +1059,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             }
           }}
           placeholder={`和${aiName}聊聊…`}
-          className="min-h-16 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
+          className="min-h-9 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
         />
         {/* 底部控件行：间距从 gap-2(8px) 放到 gap-3(12px)、左右留白从 px-1 放到
             px-2，四枚钮才各自站得住（用户 m04214 截图："语音和发送贴边了"）。

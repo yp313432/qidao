@@ -1939,10 +1939,13 @@ html.lq-skin[data-keyboard="up"] .pb-composer {
    页面上也只有这一个容器，可 `dh=133` 仍然比 `wh=98` 多 35px。
    既然查不出来源，就别再去追它：把子元素从文档流里拿出来、直接钉在容器底边，
    那 35px 在头顶也好、在脚下也好，都影响不到卡片位置了。
-   左右留 8px（等于容器原来的 px-2），免得卡片变宽。 */
+   左右留 3px：容器自己是 0（`left/right: 0`），所以卡片宽度 = 屏宽 − 2×(3 + `.pb-composer` 的 4px) = 屏宽 − 14px。
+   原来这里是 8px（配 `.pb-composer` 的 6px）= 屏宽 − 28px，所以这一改**正好把输入条拉长 14px**
+   —— 用户 m04807："就是把输入框拉长，让它的长度变长一些，高度还是保持不变，还是两行。
+   一行是打字，一行是按键。" + m04808："稍微拉长一点点就行了。" */
 .lq-skin .lq-composer-dock > div {
   position: absolute;
-  inset-inline: 8px;
+  inset-inline: 3px;
   bottom: 0;
   margin: 0;
 }
