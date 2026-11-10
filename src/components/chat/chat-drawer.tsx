@@ -65,7 +65,11 @@ export function ChatDrawer({
   const drawerFuncs: { label: string; Icon: LucideIcon; go: (() => void) | null }[] = [
     { label: "工具", Icon: Wrench, go: () => void navigate({ to: "/tools" }) },
     { label: "动态", Icon: Sparkles, go: () => void navigate({ to: "/play/space" }) },
-    { label: "岁序", Icon: NotebookPen, go: () => void navigate({ to: "/play/days" }) },
+    // m03003 第 5 条：原来「岁序」直接跳 /play/days（只有「重要日子」一个三级页），
+    // 用户说"原来小日子有 4 个二级入口，那些二级页没了，要补回来"。
+    // 所以回到 /play/tools 这一层（小日子 → 重要日子 / 待办 / 闹钟 / 定时任务），
+    // 那页标题也跟着改成「岁序」，卡片换成玻璃（见 tools-view.tsx）。
+    { label: "岁序", Icon: NotebookPen, go: () => void navigate({ to: "/play/tools" }) },
     { label: "音乐", Icon: Music, go: () => void navigate({ to: "/play/listen" }) },
     { label: "学习", Icon: BookOpen, go: () => void navigate({ to: "/play/learn" }) },
     { label: "花园", Icon: Flower2, go: () => void navigate({ to: "/play/garden" }) },
@@ -118,7 +122,11 @@ export function ChatDrawer({
         {!liquid && <DrawerSky />}
 
         <div className="relative z-10 flex items-center justify-between px-4 pb-3">
-          <p className="font-serif text-lg">对话</p>
+          {/* m02943 第 4 条①：「对话」两个字改成**小字分组标题**（不再是 text-lg 的大字），
+              下面才是对话列表。纯色那一侧保持原样（用户没让动纯色）。 */}
+          <p className={cn("font-serif text-lg", liquid && "lq-group-head lq-group-head--inline")}>
+            对话
+          </p>
           <button type="button" aria-label="关闭" onClick={onClose} className="size-10">
             <X className="size-5" />
           </button>
@@ -220,6 +228,9 @@ export function ChatDrawer({
         */}
         {liquid && (
           <>
+            {/* m02943 第 4 条②：功能八条上面也加一个小字分组标题「功能」，
+                跟上面「对话」一组同一个模子（小字 + 淡色 + 字距）。 */}
+            <p className="lq-group-head lq-group-head--func">功能</p>
             <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
               {drawerFuncs.map(({ label, Icon, go }) => (
                 <button
@@ -239,16 +250,14 @@ export function ChatDrawer({
             <div className="lq-sheet-foot relative z-10 flex shrink-0 items-center justify-between gap-2 px-3">
               <button
                 type="button"
-                className="lq-me min-w-0 flex-1"
+                className="lq-me min-w-0"
                 onClick={() => {
                   void navigate({ to: "/me" });
                   onClose();
                 }}
               >
                 <Avatar role="user" size={42} />
-                <span className="min-w-0 flex-1 truncate text-left text-sm">
-                  {settings.displayName}
-                </span>
+                <span className="min-w-0 truncate text-left text-sm">{settings.displayName}</span>
               </button>
               <button
                 type="button"

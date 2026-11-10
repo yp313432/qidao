@@ -1219,43 +1219,56 @@
   padding-bottom: calc(var(--k-s-6, 24px) + env(safe-area-inset-bottom, 0px));
 }
 
-/* 液态的「回对话页」钮（渲染在 app-shell，**只在工具 / 玩乐 / 我的三张落地页**出现）。
-   无底导之后这三张页没有别的路回去（用户 m08548）。
+/* 液态的「回对话页」箭头（渲染在 app-shell，**只在有上一级的页面**出现）。
+   无底导之后这些页面没有别的路回去（用户 m08548）。
    ⚠️ 两件"不许"（用户 m08769）：不许在对话页出现（那里左上角是开抽屉的三道杠，
    叠上去就是两个钮打架）；不许 `position: fixed` 钉死整屏 —— 它属于这一页，
-   所以用 absolute 挂在 `.lq-skin` 这层页面容器上，切页就跟着走。 */
+   所以用 absolute 挂在 `.lq-skin` 这层页面容器上，切页就跟着走。
+
+   m02943 第 6 条：用户不要"圆圈套 ‹"了 ——
+     “不要那个圆圈套一个大鱼号，太大了，而且跟标题叠在一起，统一成纯 < 折角箭头 + 标题。”
+   所以这里只负责**摆位**，圆形毛玻璃底（lq-glass lq-glass--float）从 TSX 上撤掉了；
+   箭头本身 26px，比原来那颗 40px 圆钮窄一截，标题让位的距离也跟着收小（见下一条）。 */
 .lq-back {
   position: absolute;
-  left: 12px;
+  left: 10px;
   top: calc(14px + env(safe-area-inset-top, 0px));
   z-index: 45;
   display: grid;
   place-items: center;
-  width: 40px;
+  width: 32px;
   height: 40px;
-  border-radius: 999px;
   color: var(--aster-fg);
   text-decoration: none;
+  opacity: 0.82;
 }
 
 .lq-back:active {
-  transform: scale(0.94);
+  opacity: 0.55;
 }
 
-/* 左上角真有返回钮的那一页，标题才让开一格（`data-lq-back` 由 app-shell 置位）。
+/* 箭头尺寸写在这里，液态组件里不写 Tailwind 任意值（样式守卫 960 那条）。 */
+.lq-back svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* 左上角真有返回箭头的那一页，标题才让开一格（`data-lq-back` 由 app-shell 置位）。
    只让 k-head 那类左对齐标题；玩乐首页是居中标题，天然不冲突。 */
 .lq-skin[data-lq-back="true"] .k-head {
-  padding-left: 46px;
+  padding-left: 40px;
 }
 
 /* m01915 / m01967 用户："返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。
    除了那个特殊插件里那个返回键可能不一样。"
    → 液态下 `PageHeader` / `PlayHeader` 已经把自带的裸箭头收起来了，
-     全 App 只剩 app-shell 渲染的这一颗圆钮（`.lq-back`：left 12 / 宽 40）。
-     页头整条往右让出「12 + 40 + 2」= 54px，标题落在圆钮右边同一行。
+     全 App 只剩 app-shell 渲染的这一颗（`.lq-back`：left 10 / 宽 32）。
+     页头整条往右让出「10 + 32 + 4」= 46px，标题落在箭头右边同一行。
+     m02943 第 6 条把圆钮换成裸箭头后，这个让位从 54px 收到 46px，
+     标题就不再被那颗 40px 的圆盖住（用户说"跟账号与系统、HTTP 那些标题叠在一起"）。
      纯色侧没有 `data-lq-back` 这个属性，所以这条等于不存在。 */
 .lq-skin[data-lq-back="true"] header {
-  padding-left: 54px;
+  padding-left: 46px;
 }
 
 /* 二级页标题：与「我的」页同一个字体、同一档字重，只是小一级。
@@ -1394,13 +1407,13 @@
   opacity: 0.72;
 }
 
-/* ── 「我的」页的大标题让开返回钮（用户第 7 条 / 图一）──────────────
-   图一那个重叠：`.lq-back` 是 40px、left 12px 的全局返回钮（见本文件上面），
-   「账号与系统 + 我的」那块在 me-hub.tsx 里是 `px-5`（20px）起头 —— 正好压在钮下面。
-   只让这一块往右让一格（44px 钮宽 + 12 左边距 = 56，再留 4px 呼吸），
-   纯色下没有返回钮，所以这条也只挂 `.lq-skin[data-lq-back="true"]`。 */
+/* ── 「我的」页的大标题让开返回箭头（用户第 7 条 / 图一）──────────────
+   图一那个重叠：「我的」那块在 me-hub.tsx 里是 `px-5`（20px）起头 —— 正好压在返回键下面。
+   m02943 第 6 条把返回键从 40px 圆钮换成 32px 裸箭头（left 10）之后，
+   让位从 60px 收到 46px，跟 `header` 那条同一个数，全 App 只有一种排法。
+   纯色下没有返回箭头，所以这条也只挂 `.lq-skin[data-lq-back="true"]`。 */
 .lq-skin[data-lq-back="true"] .me-title {
-  padding-left: 60px;
+  padding-left: 46px;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1500,6 +1513,52 @@
     0 6px 18px rgba(30, 22, 14, 0.08);
 }
 
+/* m02943 第 4 条：抽屉里两组都做成「小字标题 + 列表」。
+   上面一组标题「对话」、下面一组标题「功能」—— 同一个小字模子：
+   12px / 0.14em 字距 / 淡到 55%，不再用 serif 大字抢视线（原来「对话」是 text-lg）。 */
+.lq-group-head {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  color: var(--aster-fg);
+  opacity: 0.55;
+}
+
+/* 顶部那行标题跟右边 × 同一行，所以只收字号、不加外边距。 */
+.lq-group-head--inline {
+  padding: 0;
+}
+
+/* 功能组标题：左边对齐功能条里的文字（nav 的 12px + 行内 14px）。 */
+.lq-group-head--func {
+  flex: none;
+  padding: 6px 26px 2px;
+}
+
+/* m03003 第 5 条：岁序（原「小日子」）那 4 张二级入口卡 —— 液态玻璃版。
+   用户 m03003 答复 B：“按老样子，但要适配玻璃”。
+   形状照图一：20px 圆角 / 158° 白膜 / 细白边 / 一层浅落影；
+   底色和光泽接管 `.aster-card` 的实底（background-image + background-size 都要重写）。 */
+.lq-skin .lq-card {
+  border-radius: 20px;
+  border-color: rgba(255, 255, 255, 0.42);
+  background-color: transparent;
+  background-image: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.46) 0%,
+    rgba(255, 255, 255, 0.2) 40%,
+    rgba(255, 255, 255, 0.14) 70%,
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  background-size: auto;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 6px 18px rgba(30, 22, 14, 0.08);
+}
+
 /* 第 9 条：功能区八条 = 通栏细长玻璃条（左图标 + 右文字、13px 圆角，用户定稿）。
    自己滚、最高 62%，保证底栏永远够得着（用户："别让下面的滑不到"）。 */
 .lq-sheet-scope nav[aria-label="功能"] {
@@ -1564,8 +1623,13 @@
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 }
 
+/* m02943 第 3 条：头像这块原来是**横贯一条**的大长条（头像＋名字＋右边一大片空白），
+   用户要"缩到只包头像和名字"。所以不再 flex-1 撑满，改成按内容宽度、
+   最多占六成 —— 右边的「+ 新建对话」照旧被 justify-between 推到头。 */
 .lq-sheet-scope .lq-me {
   display: flex;
+  width: fit-content;
+  max-width: 60%;
   align-items: center;
   gap: 10px;
   padding: 3px 12px 3px 3px;
@@ -1651,14 +1715,18 @@
    `.lq-skin .lq-dialog` 那种前缀（写了等于永不命中，弹层还是黑的，用户 m01062 报的就是这个）。
    改用重复类名把特异性抬到 0,2,0，压过面板上原有的单类工具类（rounded-3xl / shadow-xl / bg-bg）。 */
 .lq-dialog.lq-dialog {
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 26px;
+  /* m02943 第 2 条：用户说模型选择 / ＋号浮层"太透，底下的字透上来看不清"，
+     要跟长按菜单那种磨砂统一。原来这层白膜 0.62/0.42/0.34/0.5 ——
+     在聊天页上（底下是消息文字）明显透字。整体提到 0.84 起：
+     底下还在，但字不会从面板里浮出来。四段落差也收窄，避免斜分界。 */
   background: linear-gradient(
     158deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.42) 34%,
-    rgba(255, 255, 255, 0.34) 62%,
-    rgba(255, 255, 255, 0.5) 100%
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 255, 255, 0.72) 34%,
+    rgba(255, 255, 255, 0.64) 62%,
+    rgba(255, 255, 255, 0.78) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
@@ -1709,14 +1777,16 @@
 /* 液态下所有浮层菜单（输入条那两层、消息菜单、会话菜单…）一律换玻璃白膜。
    用 .lq-skin 前缀是因为这些菜单都渲染在页面里、不在 body 上（跟弹层不一样）。 */
 .lq-skin .glass-menu {
-  border-color: rgba(255, 255, 255, 0.34);
-  /* 菜单层压得平一点：0.62/0.42 的落差在窄条上也显出一道斜分界 */
+  border-color: rgba(255, 255, 255, 0.42);
+  /* 菜单层压得平一点：0.62/0.42 的落差在窄条上也显出一道斜分界。
+     m02943 第 2 条：点「＋」弹出的面板"太透" → 整片提到 0.84 档，
+     跟弹层（.lq-dialog）同一个不透度，字不再从面板后面浮出来。 */
   background-image: linear-gradient(
     158deg,
-    rgba(255, 255, 255, 0.56) 0%,
-    rgba(255, 255, 255, 0.48) 40%,
-    rgba(255, 255, 255, 0.44) 70%,
-    rgba(255, 255, 255, 0.5) 100%
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 255, 255, 0.78) 40%,
+    rgba(255, 255, 255, 0.74) 70%,
+    rgba(255, 255, 255, 0.8) 100%
   );
   background-color: transparent;
   box-shadow:
@@ -1734,16 +1804,20 @@
    （用户 m01199 实机第一句："输入框为啥还在中间，我不是说放下边嘛"）。
    液态只留 10px + 手势条安全区，纯色那侧一个字没动。 */
 .lq-skin .pb-composer {
-  /* 用户 m02817（v8 装上后唯一还差的地方）：
-     “其他都改好了，不要动，只看输入框的位置，离我画的橙线还有一段距离，
-     中间是空着的，把它往下挪。”
-     实测他那张 873×1890 的截图：输入条卡底距图片下沿 195px、橙线距下沿 60px，
-     即还空着约 135px（该图 2.4 倍换算成 CSS 约 80px 对 25px）。
-     拆下来这 80px = 34(上式) + 38(`--q-inset-bottom` 真机手势条) + 8(外壳 `pb-2`)。
-     ⚠️ 所以问题不在“34 不够”，而在**安全区被叠了第二遍**：
-     外壳 `pb-2` 已经把 8px 呼吸留出来了，这里再要 safe 就是凭空多一条。
-     直接写死 16px（+ 外壳 8px = 24px）压在橙线上，不再叠 safe。 */
-  padding-bottom: 16px;
+  /* 用户 m02817：v8 装上后唯一还差的地方 —— “离我画的橙线还有一段距离，中间是空着的。”
+     v9 压到 16px 后用户 m02943 第 1 条仍说“键盘弹起时输入框和键盘之间有空隙，
+     不弹键盘时离橙线也有距离，是底部那段固定留白顶住了，要压小”。
+     ⚠️ 所以这条留白**不是**一档值的事，而是"能压到多小"的事：
+     这里直接归零，让输入条自己贴住底部；呼吸交给外壳那 8px（chat-view 的 `pb-2`）。
+     键盘弹起时同理归零（用户 m03003 答复 A：“0–8px 可以”）——
+     styles.css 那条 `html[data-keyboard="up"] .pb-composer { padding-bottom: 0.25rem }`
+     仍然会在，但液态这里用同样 0 压过去，不再有 4px 的缝。 */
+  padding-bottom: 0;
   /* 诊断边已撤：m02470 用户实机确认"有粉边" → portal 修复后 glass.css 确实命中了，
      侧边栏/弹层/黑胶囊那套样式终于进得去（v6 之前它们全在 .lq-skin 之外）。 */
+}
+
+/* 键盘弹起：输入条离键盘顶不留缝（用户 m03003：“A可以”= 0–8px）。 */
+html.lq-skin[data-keyboard="up"] .pb-composer {
+  padding-bottom: 0;
 }

@@ -31,6 +31,8 @@ export function ToolsView() {
   const reminders = useApp((s) => s.reminders);
   const tasks = useApp((s) => s.tasks);
   const solidPaper = isSolid(settings);
+  /** 液态：卡片换成图一那套玻璃（`.lq-card`），纯色保持 aster-card 实纸卡。 */
+  const liquid = !solidPaper;
 
   const openTodos = todos.filter((t) => !t.done).length;
   const next = sortDates(dates)[0] ?? null;
@@ -45,7 +47,7 @@ export function ToolsView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SceneBackdrop image={settings.diaryImage} />
-      <PlayHeader title="小日子" />
+      <PlayHeader title="岁序" />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-above-nav">
         <p className="text-center text-[10px] tracking-[0.28em] text-subtle uppercase">
@@ -64,6 +66,7 @@ export function ToolsView() {
           */}
           <ToolCard
             solid={solidPaper}
+            liquid={liquid}
             to="/play/days"
             title="重要日子"
             desc={nextLabel}
@@ -73,6 +76,7 @@ export function ToolsView() {
 
           <ToolCard
             solid={solidPaper}
+            liquid={liquid}
             to="/play/todo"
             title="待办"
             desc={openTodos > 0 ? `${openTodos} 件没做` : todos.length > 0 ? "都做完了" : "还没有待办"}
@@ -82,6 +86,7 @@ export function ToolsView() {
 
           <ToolCard
             solid={solidPaper}
+            liquid={liquid}
             to="/play/tools/alarms"
             title="闹钟"
             desc={
@@ -93,6 +98,7 @@ export function ToolsView() {
 
           <ToolCard
             solid={solidPaper}
+            liquid={liquid}
             to="/play/tools/tasks"
             title="定时任务"
             desc={tasks.length > 0 ? `${onTasks} 个开着` : "还没设过"}
@@ -117,6 +123,7 @@ function ToolCard({
   tone,
   wide = false,
   solid = false,
+  liquid = false,
 }: {
   to: string;
   title: string;
@@ -125,6 +132,7 @@ function ToolCard({
   tone: string;
   wide?: boolean;
   solid?: boolean;
+  liquid?: boolean;
 }) {
   return (
     <Link
@@ -133,6 +141,8 @@ function ToolCard({
         "aster-card relative overflow-hidden rounded-[1.6rem] border border-line px-4 py-4",
         wide && "col-span-2",
         solid && "pp-entry pp-entry-grid",
+        /* m03003 第 5 条：岁序这 4 张卡在液态下也走图一那套玻璃（白膜 + 细白边）。 */
+        liquid && "lq-card",
       )}
     >
       <span className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br", tone)} />

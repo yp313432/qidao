@@ -148,9 +148,12 @@ function GardenView() {
         style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}
       >
         <div className="relative flex h-11 items-center justify-center gap-4 px-[54px]">
+          {/* 返回对话页。原本 to="/play" 回玩乐区首页 —— 玩乐区已按用户要求删掉
+              （m02947："点花园的时候，然后返回它还是会卡出之前的玩乐区那个页面……
+              那个玩乐区直接删掉就行了"），所以退回根路由。 */}
           <Link
-            to="/play"
-            aria-label="返回玩乐"
+            to="/"
+            aria-label="返回对话"
             className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#4a3a2c]/85"
           >
             <ChevronLeft className="size-6" strokeWidth={1.4} />
