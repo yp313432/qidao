@@ -1017,7 +1017,12 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
 
         <textarea
           ref={ta}
-          rows={1}
+          /* 用户 m04638 / m04690："把那个竖框给拉长一点……给它拉成细长的，但是还是两层的啊，
+             就是给它一点，跟那个气泡长度差不多。" + "输入框拉长。"
+             输入条宽度已经是屏宽减 28px（比气泡还宽），能再"长"的只有高度：
+             这里从 1 行放到 2 行（36px → 64px），配字时能看见两行，框整体变成一条长条。
+             rows 与 min-h 一起给，避免只在空态生效、一有字又缩回一行。 */
+          rows={2}
           value={value}
           disabled={disabled}
           /*
@@ -1055,7 +1060,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             }
           }}
           placeholder={`和${aiName}聊聊…`}
-          className="min-h-9 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
+          className="min-h-16 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
         />
         {/* 底部控件行：间距从 gap-2(8px) 放到 gap-3(12px)、左右留白从 px-1 放到
             px-2，四枚钮才各自站得住（用户 m04214 截图："语音和发送贴边了"）。

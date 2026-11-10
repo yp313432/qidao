@@ -351,7 +351,6 @@ function hideIfRenderedEmpty(el: HTMLDivElement | null): void {
 import { Markdown } from "@/components/shared/markdown";
 import { SegmentBubbles } from "@/components/chat/segment-bubbles";
 import { Composer } from "@/components/chat/composer";
-import { LayoutProbe } from "@/components/chat/layout-probe";
 import { MessageActions } from "@/components/chat/message-actions";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
@@ -1801,7 +1800,6 @@ export function ChatView() {
           原来是 `pb-2`（8px），加上 `.pb-composer` 自己的内边距，输入条离屏幕底总差一截，
           用户三次说"下面还有一段距离没贴到底"。`.pb-composer` 已压到 0（见 glass.css），
           这里再收到 `pb-0.5`（2px）—— 留 2px 是因为完全贴底时卡片圆角会跟屏幕圆角打架。 */}
-      {liquid && <LayoutProbe />}
       <div className="lq-composer-dock pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-0.5">
         <div ref={composerWrap} className="pointer-events-auto">
           {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
