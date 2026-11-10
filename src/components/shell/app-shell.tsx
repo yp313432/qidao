@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
 import { startAwakeLoop } from "@/lib/awake";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { hasPageHeader, subscribePageHeader } from "@/lib/header-registry";
 import { ActionGate } from "@/components/shared/action-gate";
 import { AppBack } from "@/components/shell/app-back";
 import { AudioWidget } from "@/components/daemons/audio-widget";
@@ -123,7 +124,19 @@ export function AppShell() {
     liquidSkin &&
     pathname !== "/" &&
     !pathname.startsWith("/play/plugins/") &&
+    // 花园是整屏场景页（浅粉背景 + 自己那颗深色箭头），不归页头体系管：
+    // 这里若再补一颗白箭头，在浅粉底上看不见（用户 m03393"花园返回键没了"的真因）。
+    !pathname.startsWith("/play/garden") &&
     parentOf(pathname, true) !== null;
+
+  /**
+   * **这一页自己画了页头吗**（用户 m03470 要的"全站返回键统一"）。
+   *
+   * 画了 → 那颗箭头就在 `<header>` 里，跟标题同一行、一起滚，这一层不再补。
+   * 没画 → 兜底补一颗，免得页面进去没路回去。
+   * 见 `lib/header-registry.ts`：PageHeader / PlayHeader 挂载时 +1、卸载 −1。
+   */
+  const headerPresent = useSyncExternalStore(subscribePageHeader, hasPageHeader, () => false);
 
   /** 页面内容那一层（`key={pathname}` 那个 div），用来在切页时清掉旧的合成层。 */
   const routeLayerRef = useRef<HTMLDivElement>(null);
@@ -362,7 +375,7 @@ export function AppShell() {
       <ChatNoticeBanner />
       {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
           这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
-      {lqBackPage ? <LiquidBack to={parentOf(pathname, true) ?? "/"} /> : null}
+      {lqBackPage && !headerPresent ? <LiquidBack to={parentOf(pathname, true) ?? "/"} /> : null}
       <div
         key={pathname}
         ref={routeLayerRef}

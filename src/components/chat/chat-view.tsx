@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -368,6 +368,7 @@ import { useActivity } from "@/lib/use-activity";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
+import { consumeDrawerRequest } from "@/lib/drawer-request";
 
 /**
  * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
@@ -521,6 +522,19 @@ export function ChatView() {
     setMenu(true);
   }, [openPanel]);
 
+  /**
+   * **从二级页退回一级，侧边栏要跟着回来**（用户 m03470 原话："二级返回一级是到侧边栏的，
+   * 因为我是在侧边栏点开他们后续的，不应该返回到对话页，不然我每次都要再展开侧边栏。"）
+   *
+   * 二级页那颗箭头跟抽屉不是父子（抽屉长在这一页里），所以点下去只往 `lib/drawer-request`
+   * 里留一面旗子；落到对话页时取走、把抽屉拉开。纯色世界没有这个旗子，等于不存在。
+   */
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    if (!consumeDrawerRequest()) return;
+    setMenu(true);
+  }, [pathname]);
+
   // 抽屉打开时把底部导航收起来（用户在抽屉里选完会关抽屉，导航就回来）
   useEffect(() => {
     const root = document.documentElement;
@@ -555,7 +569,12 @@ export function ChatView() {
     const el = scroller.current;
     if (!el || !stickBottom.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [conv?.messages, liveId]);
+    /* 依赖里必须有 padBottom：输入条高度一变（贴底规则、键盘弹起、模型行换行），
+       列表底部留白就跟着变，可原来这里只跟着消息滚 —— 留白变出来的那段空间没人补，
+       最后一条消息就压在输入条底下（用户 m03354："你看这条消息是不是被对话框给遮住了，
+       能不能设置一下，就是消息发出来之后有个距离自动就往上弹，然后有个安全范围就是
+       不会跟输入框重叠"）。 */
+  }, [padBottom, conv?.messages, liveId]);
 
   /** 翻上去超过一屏半就浮出「回到最新」 */
   const [showJump, setShowJump] = useState(false);

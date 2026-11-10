@@ -17,7 +17,7 @@ export const DEFAULT_AI_NAME = "星芒";
  *   用户拿它根本没法判断自己装的是哪一版，我也没法判断。以后每推一版就改这里的号，
  *   它显示在「我的」页最底下一行（`栖岛 · 思考链保存在这台设备 · vN`）。
  */
-export const BUILD_TAG = "v10";
+export const BUILD_TAG = "v11";
 
 /** 取实际生效的 AI 名字：用户填了就用用户的，没填用默认。 */
 export function resolveAiName(name?: string | null): string {

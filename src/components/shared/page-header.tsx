@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
+import { requestDrawer } from "@/lib/drawer-request";
+import { registerPageHeader } from "@/lib/header-registry";
 import { materialOf } from "@/lib/material";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";
 import { useApp } from "@/lib/store";
@@ -23,11 +25,15 @@ import { useApp } from "@/lib/store";
  * 同一个"返回"按钮五种尺寸，就是"很乱"的根源。现在全部走这里，
  * 以后新增二级页照抄 `PageHeader`，不会再长出第六套。
  *
- * 规格固定为（A 组那套，因为用它的页面最多、改动面最小）：
- *   · 容器  flex items-center gap-1 px-2 inset-top-50 pb-1
- *   · 返回  size-11 的圆形按钮，图标 size-6 / strokeWidth 1.6
- *   · 标题  font-serif text-lg font-medium
- *   · 右边  任意节点（动作按钮 / 一行状态），会自己撑开剩余宽度
+ * ── 液态世界的返回键（用户 m03354 / m03470）──────────────────────
+ * 以前液态下这里**不画箭头**（`{!liquid && …}`），全 App 只靠 app-shell 渲染的
+ * 那一颗 `.lq-back`。它是绝对定位、**不在滚动内容里**：
+ *   · 标题随页面滚走、箭头钉住 → 下滑时叠在一起；
+ *   · 对齐只能靠给各页头补 `padding-left` 硬凑 → 页面一多就凑不齐
+ *     （"工具界面也是没对齐，基本上都有这种情况"）。
+ * 现在反过来：**箭头就在这个 header 里**，跟标题同一行、同一个滚动容器，
+ * 尺寸也固定成一套（箭头 26 / 左边距 16 / 与标题间距 12 / 标题 23px，
+ * 见 glass.css 的 `.lq-head`）。app-shell 只给"没画页头的页面"兜底补一颗。
  *
  * ── 返回目标不再手写（用户报的第二个毛病）────────────────────────
  * 用户："返回只能返回上一级，不能直接返回首页……所有的返回都要是返回上一级"。
@@ -64,27 +70,40 @@ export function PageHeader({
   const target = to ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/me");
   const label = backLabel ?? backLabelOf(pathname, liquid);
 
+  /**
+   * 告诉 app-shell："这一页自己有页头，别再补那颗兜底箭头"。
+   * 卸载时自动撤销（切页那一瞬间计数会短暂为 0，但那时页面也在换，看不出来）。
+   */
+  useEffect(() => registerPageHeader(), []);
+
   return (
-    <header className="px-2 inset-top-50 pb-1">
-      <div className="flex items-center gap-1">
-        {/* 液态：返回键**全 App 只有一颗**（app-shell 渲染的 `.lq-back` 圆钮）。
-            用户 m01915/m01967：
-              "这俩都是一样的东西，不要出现两种情况。"
-              "返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。"
-            所以这一层自己不再画箭头 —— 只留标题，位置由 glass.css 给左上角圆钮让出来。 */}
-        {!liquid && (
-          <Link
-            to={target as never}
-            aria-label={label}
-            className="flex size-11 shrink-0 items-center justify-center"
-          >
-            <ChevronLeft className="size-6" strokeWidth={1.6} />
-          </Link>
-        )}
+    <header className={liquid ? "lq-head px-4" : "inset-top-50 px-2 pb-1"}>
+      <div className={liquid ? "flex items-center gap-3" : "flex items-center gap-1"}>
+        {/*
+          用户 m01915/m01967："这俩都是一样的东西，不要出现两种情况。"
+          用户 m02943 第 6 条："不要那个圆圈套一个大鱼号……统一成纯 < 折角箭头 + 标题。"
+          → 液态下这里画的就是那颗裸箭头（`.lq-back--inline`，样式在 glass.css）。
+
+          用户 m03470："二级返回一级是到侧边栏的，因为我是在侧边栏点开他们后续的，
+          不应该返回到对话页，不然我每次都要再展开侧边栏。"
+          → 退回对话页（`/`）时顺手把抽屉拉开（见 lib/drawer-request）。
+        */}
+        <Link
+          to={target as never}
+          aria-label={label}
+          className={
+            liquid ? "lq-back lq-back--inline" : "flex size-11 shrink-0 items-center justify-center"
+          }
+          onClick={() => {
+            if (liquid && target === "/") requestDrawer();
+          }}
+        >
+          <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
+        </Link>
         <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-medium">{title}</h1>
         {right}
       </div>
-      {description && <p className="px-3 pb-1 text-[11px] leading-4 text-subtle">{description}</p>}
+      {description && <p className="pb-1 text-[11px] leading-4 text-subtle">{description}</p>}
     </header>
   );
 }

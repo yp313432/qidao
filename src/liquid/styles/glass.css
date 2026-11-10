@@ -1229,18 +1229,38 @@
      “不要那个圆圈套一个大鱼号，太大了，而且跟标题叠在一起，统一成纯 < 折角箭头 + 标题。”
    所以这里只负责**摆位**，圆形毛玻璃底（lq-glass lq-glass--float）从 TSX 上撤掉了；
    箭头本身 26px，比原来那颗 40px 圆钮窄一截，标题让位的距离也跟着收小（见下一条）。 */
+/* ══════════════════════════════════════════════════════════════════
+   返回键 + 标题：全站一套（用户 m03354 / m03470）
+
+   用户 m03354 原话：
+     "你看图三那个返回键跟我的，他们这个就对的特别好。但是其他页面呢他们就不是一块，
+      就是这个返回跟标题不在一块儿……而且呢这个返回键跟我的，他俩不是绑定的，
+      就是我往下滑的时候，这个我的会被划上去，但是返回键却不会被划上去，
+      就导致它会跟下面有重叠。"
+   用户 m03470："三级页面其实也有这种情况，你也统一一下吧……除了对话和侧边栏这两不用返回，
+              其他应该是都要返回的，那都统一一下。"
+
+   根因：以前那颗箭头是 `position: absolute` 挂在 app-shell 的页面容器上，
+   **不在滚动内容里** → 标题滚走它不动，必然叠；各页靠 padding-left 硬凑，凑不齐。
+   现在箭头就在 `PageHeader` / `PlayHeader` 自己的 `<header>` 里（`.lq-back--inline`），
+   跟标题同一行、同一个滚动容器。只有"没画页头的页面"才由 app-shell 补一颗兜底的
+   （`.lq-back--global`）。
+
+   固定尺寸（用户 m03406："拿我手机尺寸，把返回键跟标题所有界面都统一到那个高度"）：
+     顶部安全区 44 · 页头带 64 · 箭头 26×26 · 左边距 16 · 与标题间距 12 · 标题 23px
+   ══════════════════════════════════════════════════════════════════ */
 .lq-back {
-  position: absolute;
-  left: 10px;
-  top: calc(14px + env(safe-area-inset-top, 0px));
-  z-index: 45;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 40px;
+  flex: none;
+  width: 26px;
+  height: 26px;
   color: var(--aster-fg);
   text-decoration: none;
   opacity: 0.82;
+  /* 花园/外观这类浅色场景页上，纯白箭头会"隐形"（用户 m03393："花园现在返回键是没有了的"）。
+     给一层极轻的暗轮廓兜底，形状不变、颜色不变，只是任何底色上都看得见。 */
+  filter: drop-shadow(0 1px 2px rgba(20, 16, 10, 0.45));
 }
 
 .lq-back:active {
@@ -1253,38 +1273,31 @@
   height: 26px;
 }
 
-/* m03230：花园那几页各自画了一颗返回箭头（楼梯回池塘、塔罗回棋桌、其余回花园）。
-   `parentOf` 给的目标跟它们**完全一致**，所以液态下统一收掉，只留 app-shell 那一颗。
-   纯色世界照旧用它们自己的（手绘页配色跟着场景走）。 */
-.lq-skin .garden-back,
-.lq-skin .cesta-back,
-.lq-skin .fiori-back,
-.lq-skin .vst-back {
-  display: none;
+/* 兜底那颗：页面没画页头时由 app-shell 补，绝对定位在左上角，
+   纵向中心对齐页头带的中线（安全区 + 19px） */
+.lq-back--global {
+  position: absolute;
+  left: 16px;
+  top: calc(19px + var(--q-inset-top, env(safe-area-inset-top, 0px)));
+  z-index: 45;
+  width: 26px;
+  height: 26px;
 }
 
-/* 左上角真有返回箭头的那一页，标题才让开一格（`data-lq-back` 由 app-shell 置位）。
-   只让 k-head 那类左对齐标题；玩乐首页是居中标题，天然不冲突。 */
-.lq-skin[data-lq-back="true"] .k-head {
-  padding-left: 40px;
-}
-
-/* m01915 / m01967 用户："返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。
-   除了那个特殊插件里那个返回键可能不一样。"
-   → 液态下 `PageHeader` / `PlayHeader` 已经把自带的裸箭头收起来了，
-     全 App 只剩 app-shell 渲染的这一颗（`.lq-back`：left 10 / 宽 32）。
-     页头整条往右让出「10 + 32 + 4」= 46px，标题落在箭头右边同一行。
-     m02943 第 6 条把圆钮换成裸箭头后，这个让位从 54px 收到 46px，
-     标题就不再被那颗 40px 的圆盖住（用户说"跟账号与系统、HTTP 那些标题叠在一起"）。
-     纯色侧没有 `data-lq-back` 这个属性，所以这条等于不存在。 */
-.lq-skin[data-lq-back="true"] header {
-  padding-left: 46px;
+/* 页头带：固定 64 高（不含顶部安全区），箭头和标题都在带内垂直居中 */
+.lq-skin .lq-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: calc(64px + var(--q-inset-top, env(safe-area-inset-top, 0px)));
+  padding-top: var(--q-inset-top, env(safe-area-inset-top, 0px));
+  padding-bottom: 0;
 }
 
 /* 二级页标题：与「我的」页同一个字体、同一档字重，只是小一级。
    顺手把页面可能自带的胶囊/边框/底色清掉 —— 用户截图里"动态空间被装在胶囊里"
    和"我的"那个裸大标题就是两种排法，现在只留一种。 */
-.lq-skin[data-lq-back="true"] header h1 {
+.lq-skin .lq-head h1 {
   border: 0;
   background: none;
   box-shadow: none;
@@ -1295,22 +1308,45 @@
   letter-spacing: 0.01em;
 }
 
+/* 标题下面那行小字要跟标题左缘对齐：箭头 26 + 间距 12 = 38 */
+.lq-skin .lq-head p {
+  margin-left: 38px;
+}
+
+/* m03230：花园那几页各自画了一颗返回箭头（楼梯回池塘、塔罗回棋桌、其余回花园）。
+   用户 m03393："花园现在返回键是没有了的" —— 上一版把它们 `display:none` 收掉、
+   指望 app-shell 的白色兜底箭头顶上，结果白箭头在浅粉场景背景上看不见。
+   现在改成：花园是整屏场景页，**用它们自己那颗深色箭头**（app-shell 已排除 /play/garden），
+   这里一条规则都不写。 */
+
+/* 旧版靠 `data-lq-back` 给每个页头补左内边距的三条（header 46 / .k-head 40 / .me-title 46）
+   已经**删掉**：页头现在自己画箭头（`.lq-head` + `.lq-back--inline`），间距由 flex gap 提供，
+   不需要逐页硬凑 —— 页面一多就凑不齐，正是用户 m03354 说的"基本上都有这种情况"。 */
+
 /* ── 对话页输入条：用户本轮定的「图一设置页」那套玻璃 ──────────────
    `.lq-composer` 只在液态挂到 Composer 的最外层（composer.tsx，solidPaper=false 时）；
    纯色那一侧仍是 styles.css 的 `.glass-float`（虹彩 72% + 模糊 48px），两档各长各的。
-   零模糊：不写 backdrop-filter —— 厚度全靠四边内圈的透镜亮边 + 顶上那团静态光斑。
+   模糊由 TSX 的 `backdrop-blur-xl` 提供（液态 CSS 里不许写 backdrop-filter），
+   白膜这一层负责"把背后的字压下去"。
+
+   ⚠️ 白膜原来只有 `0.4/0.15/0.09/0.3` —— 太薄，聊天文字从卡片里透出来，
+   而卡片内部那排控件（+ / 模型·推理等级 / 表情 / 麦克风 / 发送）是浅色小字 + 半透明小底，
+   白字压在白膜上，比背后的深色文字还难读。用户 m03354 原话：
+     "它背后的字儿是不是能看出来，但反而他自己的字却看不清了，是不是加反了呀……
+      因为其他的磨砂都是后面的字看不清，他本身的字能看清那种状态。"
+   不是加反，是膜不够厚。提到跟弹层 `.lq-dialog` 同一档（略轻一档，免得输入条发白）。
    形状参数与气泡一致：26px 圆角（大卡片 24–28 那一档）。 */
 .lq-skin .lq-composer {
   position: relative;
   isolation: isolate;
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 26px;
   background: linear-gradient(
     158deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0.15) 34%,
-    rgba(255, 255, 255, 0.09) 62%,
-    rgba(255, 255, 255, 0.3) 100%
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.6) 34%,
+    rgba(255, 255, 255, 0.54) 62%,
+    rgba(255, 255, 255, 0.7) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.98),

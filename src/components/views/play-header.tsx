@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
+import { requestDrawer } from "@/lib/drawer-request";
+import { registerPageHeader } from "@/lib/header-registry";
 import { materialOf } from "@/lib/material";
 import { backLabelOf, parentOf } from "@/lib/nav-tree";
 import { useApp } from "@/lib/store";
@@ -16,6 +18,10 @@ import { useApp } from "@/lib/store";
  * 所以这里**不再写死 `backTo = "/play"`** ——
  * 那个默认值正是 `/play/gobang` 退回玩乐首页（而不是小日子）的原因。
  * 现在不传 backTo 就自动按 nav-tree 算：/play/gobang → /play/tools。
+ *
+ * ── 液态下的箭头（用户 m03354 / m03470）─────────────────────────
+ * 跟 `PageHeader` 一样：这里自己画那颗裸箭头，不再指望 app-shell 在页面外面
+ * 绝对定位补一颗 —— 那种做法标题一滚走就跟箭头叠在一起，而且各页对不齐。
  */
 export function PlayHeader({
   title,
@@ -34,18 +40,28 @@ export function PlayHeader({
   const target = backTo ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/play");
   const label = backLabel ?? backLabelOf(pathname, liquid);
 
+  // 告诉 app-shell：这一页自己有页头，别再补兜底箭头
+  useEffect(() => registerPageHeader(), []);
+
   return (
-    <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
-      {/* 液态：返回键**全 App 只有一颗**（app-shell 的 `.lq-back` 圆钮），
-          这里不再画第二个箭头。用户 m01915/m01967："返回键做统一……
-          这俩都是一样的东西，不要出现两种情况。" */}
-      {!liquid && (
-        <Link to={target} aria-label={label} className="flex size-11 items-center justify-center">
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
+    <header className={liquid ? "lq-head px-4" : "inset-top-60 flex items-center gap-1 px-2 pb-1"}>
+      <div className={liquid ? "flex items-center gap-3" : "contents"}>
+        <Link
+          to={target as never}
+          aria-label={label}
+          className={
+            liquid ? "lq-back lq-back--inline" : "flex size-11 items-center justify-center"
+          }
+          onClick={() => {
+            // 用户 m03470：退回对话页时把侧边栏一起拉开
+            if (liquid && target === "/") requestDrawer();
+          }}
+        >
+          <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
         </Link>
-      )}
-      <h1 className="flex-1 font-serif text-lg font-medium">{title}</h1>
-      {extra}
+        <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-medium">{title}</h1>
+        {extra}
+      </div>
     </header>
   );
 }
