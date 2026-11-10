@@ -1313,6 +1313,36 @@
   margin-left: 38px;
 }
 
+/* 「工具」页那种老 `KHead` 的液态页头（用户 m03679 第 4 条："工具插件点进去，
+   返回键跟工具没有对齐"）。KHead 外面已经有一层 `.k-page` 给了 16px 左右内边距，
+   所以这里**不再加 px** —— 加了箭头就会比别的页面往里缩一格。
+   高度、箭间距、标题字号跟 `.lq-head` 一模一样，只把 `align-items` 从顶对齐改成居中。 */
+.lq-skin .k-head.lq-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  height: calc(64px + var(--q-inset-top, env(safe-area-inset-top, 0px)));
+  padding-top: var(--q-inset-top, env(safe-area-inset-top, 0px));
+  padding-bottom: 0;
+}
+
+.lq-skin .k-head.lq-head-row .k-head__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lq-skin .k-head.lq-head-row .k-head__title {
+  font-family: Georgia, "Songti SC", serif;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* m03230：花园那几页各自画了一颗返回箭头（楼梯回池塘、塔罗回棋桌、其余回花园）。
    用户 m03393："花园现在返回键是没有了的" —— 上一版把它们 `display:none` 收掉、
    指望 app-shell 的白色兜底箭头顶上，结果白箭头在浅粉场景背景上看不见。
@@ -1453,14 +1483,12 @@
   opacity: 0.72;
 }
 
-/* ── 「我的」页的大标题让开返回箭头（用户第 7 条 / 图一）──────────────
-   图一那个重叠：「我的」那块在 me-hub.tsx 里是 `px-5`（20px）起头 —— 正好压在返回键下面。
-   m02943 第 6 条把返回键从 40px 圆钮换成 32px 裸箭头（left 10）之后，
-   让位从 60px 收到 46px，跟 `header` 那条同一个数，全 App 只有一种排法。
-   纯色下没有返回箭头，所以这条也只挂 `.lq-skin[data-lq-back="true"]`。 */
-.lq-skin[data-lq-back="true"] .me-title {
-  padding-left: 46px;
-}
+/* ── 「我的」页的大标题让开返回箭头 ──
+   ⚠️ 这条 `padding-left: 46px` 已经撤掉了（v12 / 用户 m03679 第 5 条）：
+   「我的」页原来靠给标题加左内边距去躲开那颗**绝对定位**的全局箭头 ——
+   躲得开但对不齐，而且下滑时标题滚走了、箭头钉在原地挡住内容。
+   现在箭头画进 me-hub 自己的标题行里（跟标题同一个滚动容器），
+   不再需要让位，所以这里只留说明。 */
 
 /* ══════════════════════════════════════════════════════════════════════
    抽屉（液态）：第 3/4/8/9/10/11 条
@@ -1807,9 +1835,12 @@
   border: 1px solid rgba(255, 255, 255, 0.34);
   /* 这两颗只有 36 高、36~230 宽，158deg 四段渐变在这种小尺寸上会裂成"左亮右透"
      两半（用户 m01142："出现一道左右分界线，一边清楚一边模糊"）。
-     小控件用整片均匀白膜，厚度交给透镜边和落影去表现。 */
+     小控件用整片均匀白膜，厚度交给透镜边和落影去表现。
+     m03679 第 3 条（"模型选择和＋依旧是看不清"）：0.26 太薄，卡片背后的聊天字
+     从小控件里透出来，白字压在白膜 + 杂色底上就糊了。提到 0.55，跟输入条卡片
+     （0.78）叠起来足够把背后的字压下去，又不至于像贴了一块实心塑料。 */
   background-image: none;
-  background-color: rgba(255, 255, 255, 0.26);
+  background-color: rgba(255, 255, 255, 0.55);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.98),
     inset 0 -1px 0 rgba(255, 255, 255, 0.34),
@@ -1823,18 +1854,22 @@
 /* 液态下所有浮层菜单（输入条那两层、消息菜单、会话菜单…）一律换玻璃白膜。
    用 .lq-skin 前缀是因为这些菜单都渲染在页面里、不在 body 上（跟弹层不一样）。 */
 .lq-skin .glass-menu {
-  border-color: rgba(255, 255, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.5);
   /* 菜单层压得平一点：0.62/0.42 的落差在窄条上也显出一道斜分界。
-     m02943 第 2 条：点「＋」弹出的面板"太透" → 整片提到 0.84 档，
-     跟弹层（.lq-dialog）同一个不透度，字不再从面板后面浮出来。 */
+     m02943 第 2 条：点「＋」弹出的面板"太透" → 整片提到 0.84 档；
+     m03679 第 3 条又说"模型选择和＋依旧是看不清" —— 0.84 还不够，原因是
+     **这两块浮层渲染在输入条卡片内部**（`absolute` 相对那颗按钮），它们背后是
+     卡片自己的白膜（0.78），再往后才是聊天文字：两层半透叠起来，浅色背景上的
+     深色字仍然能透出轮廓。所以这里直接压到 0.94 档 + 一个不透明的保险底色
+     （`background-color` 不再是 transparent，渐变万一没生效也挡得住）。 */
   background-image: linear-gradient(
     158deg,
-    rgba(255, 255, 255, 0.84) 0%,
-    rgba(255, 255, 255, 0.78) 40%,
-    rgba(255, 255, 255, 0.74) 70%,
-    rgba(255, 255, 255, 0.8) 100%
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(255, 255, 255, 0.92) 40%,
+    rgba(255, 255, 255, 0.9) 70%,
+    rgba(255, 255, 255, 0.93) 100%
   );
-  background-color: transparent;
+  background-color: rgba(255, 255, 255, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
     inset 0 -1px 0 rgba(255, 255, 255, 0.5),

@@ -1059,8 +1059,18 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
         />
         {/* 底部控件行：间距从 gap-2(8px) 放到 gap-3(12px)、左右留白从 px-1 放到
             px-2，四枚钮才各自站得住（用户 m04214 截图："语音和发送贴边了"）。
-            真正的元凶是邮戳章向外伸出 12px，已在 styles.css 的 .pm-postmark 收进票面。 */}
-        <div className="flex items-center gap-3 px-2 pb-1">
+            真正的元凶是邮戳章向外伸出 12px，已在 styles.css 的 .pm-postmark 收进票面。
+
+            液态（用户 m03685 / m03686 第 2 条）："把输入框，他们这几个图标就是稍微
+            紧凑一点，让那个模型选择那个框能稍微大一点，不然它太小的话，就是很多模型
+            名字很长，它显示不全" —— 所以液态下四颗圆钮 36→32、行间距 12→6、
+            左右留白 8→4（两侧同值，用户要求"保持个图形左右边距一样"），
+            省出来的宽度全给中间那颗模型胶囊。纯色一律不动。 */}
+        <div
+          className={
+            liquid ? "flex items-center gap-1.5 px-1 pb-1" : "flex items-center gap-3 px-2 pb-1"
+          }
+        >
           <div className="relative">
             <button
               type="button"
@@ -1071,7 +1081,9 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
                 setStickerOpen(false);
               }}
               className={cn(
-                "flex size-9 items-center justify-center rounded-full bg-chip text-ink",
+                "flex items-center justify-center rounded-full bg-chip text-ink",
+                // 液态下一行五个控件要挤，圆钮 36→32（m03685）
+                liquid ? "size-8" : "size-9",
                 liquid && "lq-ctl",
               )}
             >
@@ -1133,7 +1145,9 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               }}
               aria-label="模型与推理等级"
               className={cn(
-                "flex h-9 w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip px-3 text-left",
+                "flex w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip text-left",
+                // 液态：高度跟旁边圆钮一起收到 32，左右内边距收窄，把宽度留给模型名
+                liquid ? "h-8 px-2.5" : "h-9 px-3",
                 // 纸世界修正：纯色下模型胶囊纸签化（轻纸底+墨细线+收窄一档）
                 solidPaper && "paper-model",
                 // 液态：跟 + 号那颗一起换玻璃（用户 m01114：输入框里这两颗还是实底）
@@ -1374,7 +1388,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
               setReasonOpen(false);
             }}
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-full",
+              "flex shrink-0 items-center justify-center rounded-full",
+              liquid ? "size-8" : "size-9",
               stickerOpen ? "bg-accent-soft text-accent" : "bg-chip text-accent",
             )}
           >
@@ -1391,7 +1406,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             onPointerUp={micUp}
             onPointerCancel={() => void stopRec(false)}
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink",
+              "flex shrink-0 items-center justify-center rounded-full bg-chip text-ink",
+              liquid ? "size-8" : "size-9",
               // 纸世界输入行修正：语音键独立（仅纯色上纸）
               recMs !== null && "paper-voice-rec",
               solidPaper && "paper-voice",
@@ -1410,7 +1426,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             disabled={disabled || (!streaming && !value.trim() && !pending.length)}
             onClick={() => submit()}
             className={cn(
-              "flex size-9 items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
+              "flex items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
+              liquid ? "size-8" : "size-9",
               // 纸世界 Step4：发送钮=邮票（虚线齿孔+陶色票面「寄」），仅纯色材质
               solidPaper && "paper-stamp",
             )}

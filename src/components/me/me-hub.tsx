@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Bell,
+  ChevronLeft,
   ChevronRight,
   MessageCircle,
   Mic,
@@ -17,6 +18,9 @@ import { readImageFile } from "@/lib/image-file";
 import { Avatar } from "@/components/shared/avatar";
 import { FileButton } from "@/components/shared/file-button";
 import { BUILD_TAG } from "@/lib/branding";
+import { requestDrawer } from "@/lib/drawer-request";
+import { registerPageHeader } from "@/lib/header-registry";
+import { materialOf } from "@/lib/material";
 import { useScrollMemory } from "@/lib/ux";
 import { IdentityCard } from "./identity-card";
 
@@ -127,6 +131,10 @@ export function MeHub() {
   const patch = useApp((s) => s.patchSettings);
   const settings = useApp((s) => s.settings);
   const scrollRef = useScrollMemory("me");
+  /** 液态：这一页自己画那颗行内返回箭头（见下面标题块）。 */
+  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+  // 有页头就不让 app-shell 再补兜底箭头（否则一页两颗）
+  useEffect(() => (liquid ? registerPageHeader() : undefined), [liquid]);
   /** 称呼在轮换表里的位置（空的/认不出来的都算第 0 个「不说」） */
   const genderIndex = Math.max(
     0,
@@ -310,12 +318,26 @@ export function MeHub() {
       style={{ overflowAnchor: "none" }}
     >
       {/* 标题：滚动时先淡出，把位置让给资料卡。
-          液态下左上角有全局返回钮（`.lq-back`），这块要往右让一格 ——
-          让位规则写在 glass.css 的 `.lq-skin[data-lq-back="true"] .me-title`，
-          纯色下没有返回钮、`.me-title` 也没有任何样式，等于不存在（用户第 7 条 / 图一）。 */}
+          m03679 第 5 条："返回键跟我的……他俩没绑定，对齐倒是对齐了，但是他没绑定，
+          往下滑，返回键依旧挡在那。" —— 那颗兜底箭头是绝对定位、**不在滚动容器里**，
+          所以标题跟着手指滚走了，它还钉在原处挡内容。现在箭头画进这一块
+          （跟标题同一个 `overflow-y-auto` 容器），下滑时一起走。
+          纯色下没有返回钮，结构保持原样（`contents` 不产生额外盒子）。 */}
       <div ref={titleRef} className="me-title px-5 inset-top-100 pb-1">
         <p className="text-xs tracking-wide text-muted">账号与系统</p>
-        <h1 className="mt-1 font-serif text-2xl font-medium">我的</h1>
+        <div className={liquid ? "mt-1 flex items-center gap-3" : "contents"}>
+          {liquid && (
+            <Link
+              to="/"
+              aria-label="返回"
+              className="lq-back lq-back--inline"
+              onClick={() => requestDrawer()}
+            >
+              <ChevronLeft strokeWidth={1.5} />
+            </Link>
+          )}
+          <h1 className="font-serif text-2xl font-medium">我的</h1>
+        </div>
       </div>
 
       {/*

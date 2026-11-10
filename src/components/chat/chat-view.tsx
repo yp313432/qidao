@@ -365,6 +365,7 @@ import { transcribe } from "@/lib/voice-service";
 import type { Attachment, ChatStep } from "@/lib/types";
 import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
+import { useStickToBottom } from "@/lib/use-stick-to-bottom";
 import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
@@ -575,6 +576,11 @@ export function ChatView() {
        能不能设置一下，就是消息发出来之后有个距离自动就往上弹，然后有个安全范围就是
        不会跟输入框重叠"）。 */
   }, [padBottom, conv?.messages, liveId]);
+
+  /* 键盘弹起/收起时重新贴底（用户 m03679 第 2 条："气泡的字会被对话框挡住"）。
+     上面那个 effect 只跟"消息/留白"走，而键盘变的是**可视区高度**、依赖不变，
+     所以另起一个 hook 盯 `visualViewport` / `data-keyboard`。逻辑见 lib/use-stick-to-bottom.ts。 */
+  useStickToBottom(scroller, stickBottom);
 
   /** 翻上去超过一屏半就浮出「回到最新」 */
   const [showJump, setShowJump] = useState(false);
@@ -1790,7 +1796,11 @@ export function ChatView() {
         · 引用条跟着它一起浮（引用是"这一句要发给谁"的提示，跟输入框是一体）；
         · 高度用 ResizeObserver 量给消息列表当底部留白（见上面的 composerWrap）。
       */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-2">
+      {/* 底部留白（用户 m03354 / m03679 第 1 条）：
+          原来是 `pb-2`（8px），加上 `.pb-composer` 自己的内边距，输入条离屏幕底总差一截，
+          用户三次说"下面还有一段距离没贴到底"。`.pb-composer` 已压到 0（见 glass.css），
+          这里再收到 `pb-0.5`（2px）—— 留 2px 是因为完全贴底时卡片圆角会跟屏幕圆角打架。 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-0.5">
         <div ref={composerWrap} className="pointer-events-auto">
           {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
           {quote && (
