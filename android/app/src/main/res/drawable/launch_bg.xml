@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动那一帧的底色。
+
+  用户 m01199（实机）：
+    "为什么每次一进去都要先闪一下原来的……那个图，要闪一下才能进入对话框"
+
+  原因：`AppTheme.NoActionBarLaunch`（styles.xml）原来把 `android:background`
+  指到 `@drawable/splash` —— 那张图是 Capacitor 模板留下的：**深蓝黑底 + 橙色八芒星**，
+  跟现在的纸色界面完全两个世界。所以每次冷启动都先黑一下，再跳进米白色的对话页。
+
+  现在改成跟 App 同色的纸色（--aster-bg = #f6f3ee，见 src/styles.css:122），
+  启动帧直接融进界面，没有"闪一下"的观感。
+  要换回品牌图也行：把 `@drawable/launch_bg` 改回 `@drawable/splash` 即可。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#f6f3ee" />
+</shape>

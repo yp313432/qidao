@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 液态世界 · 玻璃原语（C 配方）+ 液态底
  *
  * 这一层只属于液态：纯色侧一行都不引用它。
@@ -1405,50 +1405,41 @@
 .lq-sheet-scope.lq-sheet {
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 0 26px 26px 0;
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0.15) 34%,
-    rgba(255, 255, 255, 0.09) 62%,
-    rgba(255, 255, 255, 0.3) 100%
-  );
+  /* ⚠️ 抽屉这块**是一张纸，不是一块玻璃膜**。
+     用户 m01391 原话："我可没说让你在侧边栏加白膜，让它模糊啊。"
+     —— 所以这里**不铺白膜、不加模糊**，就是：
+       不透明纸底（永不见底、永不掉层，见 m01354 实机"一会儿看不到"）
+       + 1px 细亮边（纸的厚度）
+       + 顶部一道内高光（光从上面来）
+       + 一道落影（纸压在下面那层上）
+     这就是侧边栏的全部材质。半透明/渐变/mask 一律不进来。 */
+  background-color: var(--aster-bg);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
-    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
-    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
-    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 1px 2px rgba(30, 22, 14, 0.06),
     0 18px 44px rgba(30, 22, 14, 0.16);
 }
 
-/* 第 9 条：对话列表滑到分界处慢慢隐没（mask 用 currentColor，别写死颜色）。 */
-.lq-sheet-scope .lq-conv-list {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    currentColor 0,
-    currentColor calc(100% - 34px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    currentColor 0,
-    currentColor calc(100% - 34px),
-    transparent 100%
-  );
+/* 抽屉底下那层遮罩：纯色是 bg-fg/20（够用，因为纯色抽屉本身不透）。
+   液态抽屉是玻璃，20% 压不住，这里给到 40% —— 聊天页退到后面，功能条自己站出来。 */
+.lq-sheet-scrim {
+  background: rgba(30, 22, 14, 0.4);
 }
 
-/* 第 10 条：对话条目也走玻璃（未选中淡一层，选中亮一层；不换色、只用亮度差）。 */
+/* 第 9 条：对话列表滑到分界处慢慢隐没。
+   ⚠️ 2026-11 用户 m01354 报"碎片/一会儿看不到"之后**先把 mask 拿掉了**：
+   安卓 WebView 对 `mask-image` 的支持很不稳，一大块列表套着 mask + overflow 滚动，
+   合成层会成片掉 —— 掉的正是列表和它下面的内容（"被切成碎片"）。
+   先保证看得到、滚得动；"渐隐"等实机稳定了再用别的写法补
+   （比如分界处盖一条纸色→透明的渐变条，不用 mask）。 */
+
+/* 第 10 条：对话条目也走玻璃（未选中淡一层，选中亮一层；不换色、只用亮度差）。
+   ⚠️ 用**单色半透明**而不是 158° 四段渐变：一行 46px 的小条目在 WebView 里
+   套渐变 + 圆角 + 阴影，掉层的概率比大面板还高（用户截图里"工具/动态/音乐/花园
+   那几行没底没边"就是掉层）。单色一层，画不出来也不至于整行消失。 */
 .lq-sheet-scope .lq-conv {
   border-color: rgba(255, 255, 255, 0.22);
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(255, 255, 255, 0.1) 45%,
-    rgba(255, 255, 255, 0.06) 75%,
-    rgba(255, 255, 255, 0.18) 100%
-  );
+  background-color: rgba(255, 255, 255, 0.16);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     0 4px 14px rgba(30, 22, 14, 0.05);
@@ -1456,13 +1447,7 @@
 
 .lq-sheet-scope .lq-conv[data-active="true"] {
   border-color: rgba(255, 255, 255, 0.46);
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.46) 0%,
-    rgba(255, 255, 255, 0.22) 40%,
-    rgba(255, 255, 255, 0.14) 70%,
-    rgba(255, 255, 255, 0.32) 100%
-  );
+  background-color: rgba(255, 255, 255, 0.3);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 6px 18px rgba(30, 22, 14, 0.08);
@@ -1491,13 +1476,8 @@
   padding: 0 14px;
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 13px;
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.38) 0%,
-    rgba(255, 255, 255, 0.14) 40%,
-    rgba(255, 255, 255, 0.08) 70%,
-    rgba(255, 255, 255, 0.26) 100%
-  );
+  /* 单色，不用渐变 —— 理由同 .lq-conv：用户实机截图里这几行"没底没边"就是掉层。 */
+  background-color: rgba(255, 255, 255, 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
     inset 0 -1px 0 rgba(255, 255, 255, 0.28),
@@ -1531,13 +1511,7 @@
   padding: 3px 12px 3px 3px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.3) 0%,
-    rgba(255, 255, 255, 0.12) 45%,
-    rgba(255, 255, 255, 0.08) 75%,
-    rgba(255, 255, 255, 0.22) 100%
-  );
+  background-color: rgba(255, 255, 255, 0.24);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 4px 14px rgba(30, 22, 14, 0.05);
@@ -1546,33 +1520,39 @@
 
 .lq-sheet-scope .lq-new {
   border: 1px solid rgba(255, 255, 255, 0.44);
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.46) 0%,
-    rgba(255, 255, 255, 0.18) 40%,
-    rgba(255, 255, 255, 0.12) 70%,
-    rgba(255, 255, 255, 0.32) 100%
-  );
+  background-color: rgba(255, 255, 255, 0.36);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 6px 16px rgba(30, 22, 14, 0.1);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 第 11 条：抽屉正常展开，聊天页斜插进去一点点（22px + 9°）。
-   只在液态且抽屉打开时生效（chat-view 根节点 data-lq-fold）。 */
+/* 第 11 条：抽屉正常展开，聊天页斜插进去一点点（14px + 一条斜缝）。
+   只在液态且抽屉打开时生效（chat-view 根节点 data-lq-fold）。
+   动画用短一点的 ease-out：原来 0.5s 的弹簧曲线在 WebView 上会过冲、来回抖。 */
 .lq-skin [data-lq-fold] {
   transition:
-    transform 0.5s cubic-bezier(0.18, 1.2, 0.3, 1),
-    border-radius 0.5s ease;
+    transform 0.32s ease-out,
+    border-radius 0.32s ease-out;
 }
 
+/* 第 11 条：抽屉打开时的"折角"。
+   用户 m01405 给了参考图并原话："看我这张力图中间画的红色横线，左边是正常页面，
+   右边是斜着页面。他们中间有一条小短的缝隙相交在一起，根本压根儿没有重叠的部分。"
+   → 要的是：
+     · 左边抽屉：正着放（不斜）
+     · 右边聊天页：整体斜一点点推出去
+     · 两页之间：一条上窄下宽的楔形缝 —— 只是"边缘相交"，**零重叠**
+   实现：
+     · translateX(84%) 让聊天页贴到抽屉右边缘（抽屉宽 84%）；
+     · 再多给 20px，抵消旋转让左上角向左探出的那一点，保证不压到抽屉；
+     · rotate(2.2deg)：平面旋转（**不是** 3D rotateY，3D 在 WebView 上会碎）；
+     · transform-origin 0 50%：绕左边缘中点转，上下端各偏约 16px，
+       于是缝从上面 4px 慢慢开口到下面 36px —— 这就是那条"小短的斜缝"。
+   ⚠️ 不用 clip-path / mask / overflow:hidden（m01354 实机"碎成片"是它们导致的）。 */
 .lq-skin [data-lq-fold="true"] {
-  transform: perspective(1200px) translateX(22px) rotateY(-9deg) scale(0.986);
+  transform: translateX(calc(84% + 20px)) rotate(2.2deg);
   transform-origin: 0 50%;
-  border-radius: 22px 0 0 22px;
-  overflow: hidden;
-  box-shadow: -26px 0 54px rgba(50, 38, 26, 0.26);
 }
 
 /* 第 3 条：螃蟹桌宠挪到对话页 —— 抽屉里是贴底的 absolute，这里换回普通流。 */
@@ -1673,4 +1653,15 @@
     inset 0 -12px 18px -14px rgba(255, 255, 255, 0.8),
     0 2px 6px rgba(30, 22, 14, 0.1),
     0 18px 44px rgba(30, 22, 14, 0.18);
+}
+
+/* ── 输入条贴底：.pb-composer 那 4.5rem 是给**底部导航**让位的 ───────────
+   液态没有底部导航（用户第 2 条："去掉了底部导航栏，所以往下挪"），
+   这 72px 纯属多余 —— 输入框被它顶在页面中间，下面露出一大片背景
+   （用户 m01199 实机第一句："输入框为啥还在中间，我不是说放下边嘛"）。
+   液态只留 10px + 手势条安全区，纯色那侧一个字没动。 */
+.lq-skin .pb-composer {
+  /* 手势条高度在 APK 里由原生插件写成 --q-inset-bottom（edge-to-edge），
+     env() 在 WebView 里经常是 0 —— 先认变量，再退 env，最后退 0。 */
+  padding-bottom: calc(10px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }

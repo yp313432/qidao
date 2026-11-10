@@ -33,6 +33,20 @@ public class MainActivity extends BridgeActivity {
     super.onCreate(savedInstanceState);
 
     /**
+     * **WebView 自己的底色**（用户 m01199 实机："每次一进去都要先闪一下原来的……那个图"）。
+     *
+     * 启动那一帧的主题已经换成纸色了（res/values/styles.xml + drawable/launch_bg.xml），
+     * 但 WebView 在 HTML/CSS 画出来之前是**白底** —— 冷启动时那一瞬的白，
+     * 就是"先闪一下"的另一半。这里把 WebView 底色直接设成同一个纸色
+     * （--aster-bg #f6f3ee），主题 → WebView → 页面三层就无缝了。
+     *
+     * 深色主题下页面自己会盖住，所以这行只管启动那一瞬，不影响换肤。
+     */
+    if (getBridge() != null && getBridge().getWebView() != null) {
+      getBridge().getWebView().setBackgroundColor(0xFFF6F3EE);
+    }
+
+    /**
      * **通知权限必须真的问一次**（用户 m10397：后台醒了但通知不弹）。
      *
      * targetSdk 36 → Android 13+ 要求运行时授权 `POST_NOTIFICATIONS`；

@@ -17,6 +17,8 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <!-- 启动那一帧用纸色（跟 --aster-bg #f6f3ee 一致），不用模板那张深色星图 ——
+             否则每次冷启动都是"黑一下 → 米白界面"（用户 m01199 报的"闪一下"）。 -->
+        <item name="android:background">@drawable/launch_bg</item>
     </style>
 </resources>

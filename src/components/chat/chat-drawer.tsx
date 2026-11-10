@@ -87,7 +87,9 @@ export function ChatDrawer({
       <button
         type="button"
         aria-label="关闭"
-        className="absolute inset-0 bg-fg/20"
+        /* 用户 m01199（实机）："点开侧边栏全糊成一团" —— 液态那层 20% 的遮罩压不住
+           底下的聊天文字，透上来跟功能条叠在一起。液态换更深的遮罩（样式在 glass.css）。 */
+        className={cn("absolute inset-0", liquid ? "lq-sheet-scrim" : "bg-fg/20")}
         onClick={onClose}
       />
       <aside
@@ -104,8 +106,13 @@ export function ChatDrawer({
         )}
       >
         {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
-            用户："上面那个从顶部开始，不是从我画的框开始" */}
-        <DrawerSky />
+            用户："上面那个从顶部开始，不是从我画的框开始"
+
+            第 11 条（2026-11 实机）：**液态下不画这片星野**。
+            用户 m01354 反馈"一会看得到、一会看不到、碎片" —— 抽屉里再压一层
+            大面积的装饰图（星野是整块渐变 + 粒子），安卓 WebView 的合成层更容易掉。
+            先让面板干净（纸底 + 标题 + 列表 + 功能 + 底栏），星星等稳定了再加回来。 */}
+        {!liquid && <DrawerSky />}
 
         <div className="relative z-10 flex items-center justify-between px-4 pb-3">
           <p className="font-serif text-lg">对话</p>
