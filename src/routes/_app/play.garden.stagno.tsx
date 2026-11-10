@@ -327,7 +327,7 @@ function StagnoView() {
           <Link
             to="/play/garden"
             aria-label="返回花园"
-            className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#f4ede0]/90"
+            className="garden-back absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#f4ede0]/90"
           >
             <ChevronLeft className="size-6" strokeWidth={1.4} />
           </Link>

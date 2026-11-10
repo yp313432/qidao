@@ -18,10 +18,18 @@ import { ChevronLeft } from "lucide-react";
  * 所以这里**只画箭头本身**，不再挂 `lq-glass lq-glass--float` 那层圆形毛玻璃底；
  * 位置和标题让位都在 `src/liquid/styles/glass.css` 的 `.lq-back` / `header` 规则里。
  * 箭头尺寸也写在 CSS（`.lq-back svg`），液态组件里不写 Tailwind 任意值。
+ *
+ * m03230：花园那几页原来各自画一颗箭头（有的回池塘、有的回棋桌、有的回花园）。
+ * 查了 `src/lib/nav-tree.ts` 的 `parentOf`，它给的上一级跟那些自绘目标**完全一致**
+ * （`/play/garden/cesta` → `/play/garden/stagno`、`tarot` → `/play/garden/tavolo`……），
+ * 所以能统一：目标改由 app-shell 传进来（`parentOf(pathname, true)`），
+ * 花园自绘的那几颗在液态下用 `.garden-back` 隐藏掉，全 App 只剩这一颗。
+ * 插件页不在此列 —— 被 app-shell 排除（`/play/plugins/`），它们自己的返回钮压在
+ * 任意插件背景上，需要底色保可见性，属于"不能统一"的那一类。
  */
-export function LiquidBack() {
+export function LiquidBack({ to = "/" }: { to?: string }) {
   return (
-    <Link to="/" aria-label="返回" className="lq-back">
+    <Link to={to as never} aria-label="返回" className="lq-back">
       <ChevronLeft strokeWidth={1.5} />
     </Link>
   );

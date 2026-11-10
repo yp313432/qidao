@@ -177,7 +177,7 @@ function TarotView() {
           <Link
             to="/play/garden/tavolo"
             aria-label="返回棋桌"
-            className="absolute left-0 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#e6cf9f]/80"
+            className="garden-back absolute left-0 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#e6cf9f]/80"
           >
             <ChevronLeft className="size-6" strokeWidth={1.4} />
           </Link>

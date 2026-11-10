@@ -377,7 +377,10 @@ export function PluginFrame({
         style={{ backgroundColor: frameBg || "#fff" }}
       />
 
-      {/* 返回钮：压在左上角、半透明黑底（跟时感同一套，用户已经用惯了） */}
+      {/* 返回钮：压在左上角、半透明黑底（跟时感同一套，用户已经用惯了）
+          m03230：插件页被 app-shell 排除在统一返回键之外 —— 它压在**任意**插件背景上，
+          裸箭头在深色插件里会看不见，所以圆形黑底这层留着；
+          只把箭头本身对齐全 App 的规格（size-6 / 1.5 描边，跟 `.lq-back` 里的那颗一样）。 */}
       <button
         type="button"
         aria-label="返回插件"
@@ -387,7 +390,7 @@ export function PluginFrame({
         }}
         className="absolute inset-back left-3 z-10 flex size-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm active:bg-black/55"
       >
-        <ChevronLeft className="size-5" strokeWidth={2} />
+        <ChevronLeft className="size-6" strokeWidth={1.5} />
       </button>
 
       {/* 提示一律做成**细条贴在顶上**，绝不盖住画面中间 */}

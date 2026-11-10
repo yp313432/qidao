@@ -418,7 +418,7 @@ function ChessTable() {
         <Link
           to="/play/garden"
           aria-label="返回花园"
-          className="ml-1 flex size-11 items-center justify-center text-[#F7F0E2]/85"
+          className="garden-back ml-1 flex size-11 items-center justify-center text-[#F7F0E2]/85"
         >
           <ChevronLeft className="size-6" strokeWidth={1.4} />
         </Link>

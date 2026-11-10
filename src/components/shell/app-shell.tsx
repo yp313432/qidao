@@ -362,7 +362,7 @@ export function AppShell() {
       <ChatNoticeBanner />
       {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
           这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
-      {lqBackPage ? <LiquidBack /> : null}
+      {lqBackPage ? <LiquidBack to={parentOf(pathname, true) ?? "/"} /> : null}
       <div
         key={pathname}
         ref={routeLayerRef}

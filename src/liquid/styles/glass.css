@@ -1253,6 +1253,16 @@
   height: 26px;
 }
 
+/* m03230：花园那几页各自画了一颗返回箭头（楼梯回池塘、塔罗回棋桌、其余回花园）。
+   `parentOf` 给的目标跟它们**完全一致**，所以液态下统一收掉，只留 app-shell 那一颗。
+   纯色世界照旧用它们自己的（手绘页配色跟着场景走）。 */
+.lq-skin .garden-back,
+.lq-skin .cesta-back,
+.lq-skin .fiori-back,
+.lq-skin .vst-back {
+  display: none;
+}
+
 /* 左上角真有返回箭头的那一页，标题才让开一格（`data-lq-back` 由 app-shell 置位）。
    只让 k-head 那类左对齐标题；玩乐首页是居中标题，天然不冲突。 */
 .lq-skin[data-lq-back="true"] .k-head {

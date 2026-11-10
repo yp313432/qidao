@@ -154,7 +154,7 @@ function GardenView() {
           <Link
             to="/"
             aria-label="返回对话"
-            className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#4a3a2c]/85"
+            className="garden-back absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#4a3a2c]/85"
           >
             <ChevronLeft className="size-6" strokeWidth={1.4} />
           </Link>
