@@ -1902,3 +1902,63 @@
 html.lq-skin[data-keyboard="up"] .pb-composer {
   padding-bottom: 0;
 }
+
+
+/* ── 输入条改「直接贴可视视口底」（用户 m04169 / m04220）─────────────────────
+   把 `.pb-composer` 压到 0、外壳压到 2px 之后，用户装 v13 实机拍的图里，
+   输入卡片下沿和屏幕底（或键盘顶）之间**还能塞下一行字**：
+   "哎呀，不行啊，还是。对话框没有往下走。完了之后呢。键盘弹起还是有一小段空距离。"
+
+   静态把能改的 padding 全查了一遍，已经没有可减的了（见上面 .pb-composer 两段）。
+   所以留白不在 padding，而在**输入条挂的那块容器底 ≠ 屏幕底**：
+   它挂在 `absolute inset-x-0 bottom-0` 上，那个 bottom 是父容器（h-dvh 那一层）的底，
+   父容器的实测高度和真实可视底差多少，输入条就往下走不了多少，减 padding 也补不回来。
+
+   改成 fixed：直接对可视视口定位，不再经过父容器的高度推算。
+   · 不弹键盘：底 = 手势条高（--q-inset-bottom / env；非全屏 WebView 下它是 0，
+     正好落在底部导航栏上沿，也就是用户画的那条橙线）
+   · 弹键盘：底 = 键盘高（原生推的、网页算的取大者）。外壳 `.shell-ime-pad` 那层 padding
+     只压缩消息区，不再参与输入条定位，所以不会再叠成"两倍让位"。
+
+   ⚠️ 抽屉打开时聊天页根节点有 `transform` + `will-change`（见上面的"折角"），
+   那会给 fixed 生成 containing block —— 此时输入条跟着页面一起斜插，正是想要的效果。 */
+.lq-skin .lq-composer-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: 32rem; /* 与 app-shell 的 max-w-lg 对齐，宽屏上仍然居中 */
+  bottom: var(--q-inset-bottom, env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0;
+}
+
+html.lq-skin[data-keyboard="up"] .lq-composer-dock {
+  bottom: max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px));
+  padding-bottom: 0;
+}
+
+/* ── 临时诊断条（定位完立刻删）──────────────────────────────────────────
+   输入条这几轮一直"看着已经贴到底了、实机还差一截"，靠读 CSS 猜不出来了。
+   于是在屏幕最底下一行打出真实数字，让用户截一张图：
+     ih / vv / root = 三种视口高度的真实值（键盘弹起时只有 vv 会变）
+     sb             = 手势条高
+     dock / card    = 输入条容器底、卡片底，各自距 innerHeight 还差多少（0 = 贴死）
+     pb             = .pb-composer 当前算出来的 padding-bottom
+     kbd            = 原生推上来的键盘高
+   对照 `dock` 和 `pb` 两个数就能确定到底该动哪一层。 */
+.lq-probe {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgb(120, 255, 160);
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
