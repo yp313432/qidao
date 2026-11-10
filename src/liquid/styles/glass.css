@@ -1407,15 +1407,18 @@
   /* 右侧上下 16dp 圆角、左侧贴边直角 —— 抄 Operit 的 drawerShape
      （PhoneLayout.kt:147-153，topEnd/bottomEnd = 16dp、start 全 0）。 */
   border-radius: 0 16px 16px 0;
-  /* ⚠️ 抽屉这块**是一张纸，不是一块玻璃膜**。
-     用户 m01391 原话："我可没说让你在侧边栏加白膜，让它模糊啊。"
-     —— 所以这里**不铺白膜、不加模糊**，就是：
-       不透明纸底（永不见底、永不掉层，见 m01354 实机"一会儿看不到"）
-       + 1px 细亮边（纸的厚度）
-       + 顶部一道内高光（光从上面来）
-       + 一道落影（纸压在下面那层上）
-     这就是侧边栏的全部材质。半透明/渐变/mask 一律不进来。 */
-  background-color: var(--aster-bg);
+  /* ⚠️ 材质定稿（用户 m01709 + m01744 两次强调）：
+     "侧边栏展开一整块是玻璃的。里面的功能小组件可以加点磨砂。"
+     → 面板 = **一整块玻璃**：42% 纸色（保底，磨砂丢了也看得清）+ 细白边 + 顶部内高光 + 落影；
+     → 「磨砂」这一层由 chat-drawer.tsx 的 backdrop-blur-2xl 给
+       （样式守卫禁止 liquid CSS 出现 backdrop-filter 字样，所以真模糊只能写在 TSX 上）；
+     → 小组件（功能条/会话条）只铺半透明白，看起来就是浮在玻璃上的一块块磨砂玻璃。
+     历史：m01391 骂过"白膜"（158deg 白色渐变、整块发白糊住底层）—— 所以这里只用单色，
+     不再铺任何白色渐变膜。 */
+  /* m01761 用户第三次强调：“展开的那一整块面板是透明玻璃的。里面的小组件可以加点磨砂。”
+     → 面板只铺 18% 白（真正透底，能看见背景）；磨砂 = backdrop-blur-2xl（TSX）。
+       小组件反而要更实一点，文字才清楚。 */
+  background-color: color-mix(in oklab, var(--aster-surface) 18%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 1px 2px rgba(30, 22, 14, 0.06),
@@ -1442,22 +1445,15 @@
    套渐变 + 圆角 + 阴影，掉层的概率比大面板还高（用户截图里"工具/动态/音乐/花园
    那几行没底没边"就是掉层）。单色一层，画不出来也不至于整行消失。 */
 .lq-sheet-scope .lq-conv {
-  border-color: rgba(30, 22, 14, 0.08);
-  /* 浅灰条，不是白膜 —— 用户 m01391："我可没说让你在侧边栏加白膜"。
-     原来这里是 16% 白（在纸色底上等于一层白雾），现在改成 5% 墨：看上去是
-     "纸上一块稍微深一点的条"，文字对比度反而更高。 */
-  background-color: rgba(30, 22, 14, 0.05);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 4px 14px rgba(30, 22, 14, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  background-color: rgba(255, 255, 255, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .lq-sheet-scope .lq-conv[data-active="true"] {
-  border-color: rgba(30, 22, 14, 0.12);
-  background-color: rgba(30, 22, 14, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 6px 18px rgba(30, 22, 14, 0.08);
+  border-color: rgba(255, 255, 255, 0.62);
+  background-color: rgba(255, 255, 255, 0.46);
 }
 
 /* 第 9 条：功能区八条 = 通栏细长玻璃条（左图标 + 右文字、13px 圆角，用户定稿）。
@@ -1481,18 +1477,17 @@
   gap: 11px;
   margin-bottom: 6px;
   padding: 0 14px;
-  border: 1px solid rgba(30, 22, 14, 0.08);
-  border-radius: 13px;
-  /* 单色，不用渐变 —— 理由同 .lq-conv：用户实机截图里这几行"没底没边"就是掉层。
-     底色用**淡墨**不用白：用户要的是"纸上的浅灰条"，不是一块白膜。 */
-  background-color: rgba(30, 22, 14, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.28),
-    0 4px 12px rgba(30, 22, 14, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  /* m01744：功能小组件 = 一块块磨砂玻璃，浮在整块玻璃面板上。 */
+  background-color: rgba(255, 255, 255, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   font-size: 14px;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
+}
+
+.lq-sheet-scope .lq-func__row:active {
+  background-color: rgba(30, 22, 14, 0.07);
 }
 
 .lq-sheet-scope .lq-func__row:last-child {
@@ -1517,21 +1512,17 @@
   align-items: center;
   gap: 10px;
   padding: 3px 12px 3px 3px;
-  border: 1px solid rgba(30, 22, 14, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 999px;
-  background-color: rgba(30, 22, 14, 0.05);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 4px 14px rgba(30, 22, 14, 0.05);
+  background-color: rgba(255, 255, 255, 0.44);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   -webkit-tap-highlight-color: transparent;
 }
 
 .lq-sheet-scope .lq-new {
-  border: 1px solid rgba(30, 22, 14, 0.12);
-  background-color: rgba(30, 22, 14, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 6px 16px rgba(30, 22, 14, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background-color: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1676,7 +1667,8 @@
    （用户 m01199 实机第一句："输入框为啥还在中间，我不是说放下边嘛"）。
    液态只留 10px + 手势条安全区，纯色那侧一个字没动。 */
 .lq-skin .pb-composer {
-  /* 手势条高度在 APK 里由原生插件写成 --q-inset-bottom（edge-to-edge），
-     env() 在 WebView 里经常是 0 —— 先认变量，再退 env，最后退 0。 */
-  padding-bottom: calc(10px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  /* 用户 m01709：“看到我画的那个橙色的线吗？对话框的最下边对齐这条线。”
+     他画的线在屏幕高度的 93%（离底约 59px）——所以这里留 26px + 安全区，
+     输入卡片的下沿就压在那条线上；不再留给底部导航的 4.5rem。 */
+  padding-bottom: calc(26px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }

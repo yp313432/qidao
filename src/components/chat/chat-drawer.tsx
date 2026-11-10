@@ -96,7 +96,10 @@ export function ChatDrawer({
         className={cn(
           "relative z-10 flex h-full w-[84%] max-w-sm flex-col inset-top-75",
           liquid
-            ? "lq-sheet-scope lq-sheet"
+            ? /* 用户 m01709："就是一整块是玻璃的…那里面可以加一点磨砂，以防止看不清。"
+                 磨砂必须写在 TSX 的 Tailwind 类上 —— 样式守卫禁止 liquid CSS 出现
+                 backdrop-filter 字样，所以真模糊只能从这里给。 */
+              "lq-sheet-scope lq-sheet backdrop-blur-2xl"
             : cn(
                 "glass-panel",
                 /* 纸世界 Step3 补：纯色材质下抽屉换纸壳（用户 m00405 点名）。
