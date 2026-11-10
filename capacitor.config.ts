@@ -40,7 +40,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "com.yanping.qidao",
-  appName: "栖岛",
+  appName: "Yisle",
   webDir: "dist",
   android: {
     // 界面是本地资源，允许 WebView 用文件协议加载（Capacitor 本地服务器）

@@ -4,8 +4,7 @@ import { BackgroundLayer } from "@/components/shell/background-layer";
 import { PreviewHostBridge } from "@/components/shell/preview-host-bridge";
 import { ThemeRoot } from "@/components/shell/theme-root";
 import appCss from "../styles.css?url";
-
-const APP_NAME = "栖岛";
+import { APP_NAME } from "@/lib/branding";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -31,7 +30,7 @@ export const Route = createRootRoute({
       },
       { title: APP_NAME },
       { name: "theme-color", content: "#f6f3ee" },
-      { name: "description", content: "栖岛 — 安静的对话、思考链与小游戏。" },
+      { name: "description", content: "Yisle — 安静的对话、思考链与小游戏。" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
     ],
     links: [

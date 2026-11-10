@@ -17,7 +17,7 @@ import { useApp } from "@/lib/store";
 import { readImageFile } from "@/lib/image-file";
 import { Avatar } from "@/components/shared/avatar";
 import { FileButton } from "@/components/shared/file-button";
-import { BUILD_TAG } from "@/lib/branding";
+import { APP_NAME, BUILD_TAG } from "@/lib/branding";
 import { requestDrawer } from "@/lib/drawer-request";
 import { registerPageHeader } from "@/lib/header-registry";
 import { materialOf } from "@/lib/material";
@@ -472,7 +472,7 @@ export function MeHub() {
       </div>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
-        栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
+        {APP_NAME} · 思考链保存在这台设备 · {BUILD_TAG}
       </div>
       {/* 占位：保证「卡片塌成顶栏」那 164px 真的滚得动，高度由上面那个 effect 按实际差量撑出来 */}
       <div ref={spacerRef} aria-hidden style={{ height: HEAD_H - BAR_H, flexShrink: 0 }} />

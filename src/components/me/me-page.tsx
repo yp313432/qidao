@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { BUILD_TAG } from "@/lib/branding";
+import { APP_NAME, BUILD_TAG } from "@/lib/branding";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import type { MeTab } from "./me-types";
@@ -30,7 +30,7 @@ export function MePage({ tab, title, subtitle }: { tab: MeTab; title: string; su
       </div>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
-        栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
+        {APP_NAME} · 思考链保存在这台设备 · {BUILD_TAG}
       </div>
     </div>
   );
