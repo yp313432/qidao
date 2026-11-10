@@ -5,19 +5,22 @@ import { useEffect, useRef } from "react";
  *
  * 起因：输入条离屏幕底/键盘顶总还有一截，但 CSS 已经压到没得压了 ——
  * `.lq-skin .pb-composer` 是 0、外壳只剩 2px、`.lq-composer` 自己没有外边距。
- * 那就说明留白不在 CSS 的 padding 里，而在「输入条挂的那块容器底 ≠ 屏幕底」这一层。
  *
- * 所以把这几个真实数字打到屏幕最底下一行，用户截一张图就能定量看出到底差在哪：
- *   ih    = window.innerHeight（布局视口高）
- *   vv    = visualViewport.height/offsetTop（键盘弹起时它会变小）
- *   root  = documentElement.clientHeight
- *   sb    = --q-inset-bottom（手势条/导航条高度）
- *   dock  = 输入条容器底距 innerHeight 还有多少 px（0 = 已经贴死）
- *   card  = 输入卡片底距 innerHeight 还有多少 px
- *   pb    = `.pb-composer` 当前算出来的 padding-bottom
- *   kbd   = --q-ime-bottom-native（原生推的键盘高）
+ * v14 第一轮实测（用户 m04309 截图）拿到的数：
+ *   ih=781 vv=782/0 root=781 sb=22 dock=21 card=56 pb=0px kbd=0px
+ *   → `dock=21` 和 `sb=22` 对上了，说明 fixed 生效、容器确实贴到了视口底；
+ *     但 `card=56` 比它多 35px —— 卡片在容器里还悬着 35px，这才是用户看到的那道缝。
+ *   所以这一版把三个高度也打出来，一次定位那 35px 到底是谁撑的。
  *
- * 定位完立刻删掉（只在这里挂一行，不新增别的开关）。
+ * 字段：
+ *   ih/vv/root  布局视口 / 可视视口 / 根元素高（键盘弹起时只有 vv 会变）
+ *   sb          手势条高（--q-inset-bottom）
+ *   dock/card   输入条容器底、卡片底，各自距 innerHeight 还有多少 px（0 = 贴死）
+ *   dh/wh/ch    容器高 / composerWrap 高 / 卡片高（差的 35px 应该出现在这里）
+ *   pb          `.pb-composer` 算出来的 padding-bottom
+ *   kbd         原生推上来的键盘高
+ *
+ * 定位完立刻删掉。
  */
 export function LayoutProbe() {
   const ref = useRef<HTMLDivElement>(null);
@@ -35,10 +38,13 @@ export function LayoutProbe() {
       const card = document.querySelector(".lq-composer");
       const gapOf = (node: Element | null) =>
         node ? Math.round(ih - node.getBoundingClientRect().bottom) : -1;
+      const hOf = (node: Element | null) =>
+        node ? Math.round(node.getBoundingClientRect().height) : -1;
       el.textContent =
         `ih=${ih} vv=${vv ? Math.round(vv.height) : -1}/${vv ? Math.round(vv.offsetTop) : -1} ` +
         `root=${root.clientHeight} sb=${parseFloat(cs.getPropertyValue("--q-inset-bottom")) || 0} ` +
         `dock=${gapOf(dock)} card=${gapOf(card)} ` +
+        `dh=${hOf(dock)} wh=${hOf(pbEl?.parentElement ?? null)} ch=${hOf(card)} ` +
         `pb=${pbEl ? getComputedStyle(pbEl).paddingBottom : "-"} ` +
         `kbd=${cs.getPropertyValue("--q-ime-bottom-native").trim() || "0"}`;
     };

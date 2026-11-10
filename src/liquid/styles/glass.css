@@ -1928,7 +1928,11 @@ html.lq-skin[data-keyboard="up"] .pb-composer {
   right: 0;
   margin-inline: auto;
   max-width: 32rem; /* 与 app-shell 的 max-w-lg 对齐，宽屏上仍然居中 */
-  bottom: var(--q-inset-bottom, env(safe-area-inset-bottom, 0px));
+  /* v14 实机量出来是 `dock=21 sb=22` —— 容器确实贴在"视口底 + 22px"上。
+     可 ih=781 而 2736/3.2≈855：这个 WebView **不是** edge-to-edge，状态栏和导航栏
+     已经被系统扣掉了，再补一次手势条高就是白加的 22px。
+     所以不弹键盘时直接贴 0。 */
+  bottom: 0;
   padding-bottom: 0;
 }
 
