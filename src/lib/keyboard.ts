@@ -79,6 +79,22 @@ export function installKeyboardInset(): () => void {
   };
 
   /**
+   * 眼下到底有没有"在打字"？
+   *
+   * 2026-11 实机修复（用户："输入框还在中间，下面一大片空白"）：
+   *   安卓上键盘 insets 回调偶尔不来/来晚，`--q-ime-bottom-native` 会残留一次键盘高，
+   *   外壳就永久缩着一条，输入框再也回不到屏幕底。光靠"等回调"治不了 ——
+   *   这里加一条**与回调无关的判据**：焦点不在输入框上，就不算在打字。
+   *   `data-keyboard` 是这条判据 + 键盘高度的合取，CSS 靠它把外壳按回 0。
+   */
+  const isTyping = (): boolean => {
+    const ae = document.activeElement as HTMLElement | null;
+    if (!ae) return false;
+    if (ae.isContentEditable) return true;
+    return ae.tagName === "INPUT" || ae.tagName === "TEXTAREA";
+  };
+
+  /**
    * 一次同步做两件事：
    *   ① 网页兜底那份（`--q-ime-bottom-web`）；
    *   ② 给 `<html>` 挂 `data-keyboard="up|down"` ——
@@ -86,7 +102,11 @@ export function installKeyboardInset(): () => void {
    *      **两个来源都要看**：安卓上是原生推的值，浏览器/iOS 上是这里算的。
    */
   const sync = () => {
+    const typing = isTyping();
     const web = (() => {
+      /* 没有输入焦点 → 键盘必定在收（或已经收了），网页这一路直接按 0 算，
+         不给"visualViewport 还在缩着"这种残留留机会。 */
+      if (!typing) return 0;
       const ime = imeInsetOf({
         innerHeight: window.innerHeight,
         vvHeight: vv?.height ?? window.innerHeight,
@@ -98,7 +118,7 @@ export function installKeyboardInset(): () => void {
       lastWeb = web;
       root.style.setProperty(WEB_IME_VAR, `${web}px`);
     }
-    const up = Math.max(web, nativeIme()) >= IME_MIN_PX;
+    const up = typing && Math.max(web, nativeIme()) >= IME_MIN_PX;
     if (up !== lastUp) {
       lastUp = up;
       root.dataset.keyboard = up ? "up" : "down";

@@ -1442,16 +1442,19 @@
    套渐变 + 圆角 + 阴影，掉层的概率比大面板还高（用户截图里"工具/动态/音乐/花园
    那几行没底没边"就是掉层）。单色一层，画不出来也不至于整行消失。 */
 .lq-sheet-scope .lq-conv {
-  border-color: rgba(255, 255, 255, 0.22);
-  background-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(30, 22, 14, 0.08);
+  /* 浅灰条，不是白膜 —— 用户 m01391："我可没说让你在侧边栏加白膜"。
+     原来这里是 16% 白（在纸色底上等于一层白雾），现在改成 5% 墨：看上去是
+     "纸上一块稍微深一点的条"，文字对比度反而更高。 */
+  background-color: rgba(30, 22, 14, 0.05);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     0 4px 14px rgba(30, 22, 14, 0.05);
 }
 
 .lq-sheet-scope .lq-conv[data-active="true"] {
-  border-color: rgba(255, 255, 255, 0.46);
-  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(30, 22, 14, 0.12);
+  background-color: rgba(30, 22, 14, 0.1);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 6px 18px rgba(30, 22, 14, 0.08);
@@ -1478,10 +1481,11 @@
   gap: 11px;
   margin-bottom: 6px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(30, 22, 14, 0.08);
   border-radius: 13px;
-  /* 单色，不用渐变 —— 理由同 .lq-conv：用户实机截图里这几行"没底没边"就是掉层。 */
-  background-color: rgba(255, 255, 255, 0.28);
+  /* 单色，不用渐变 —— 理由同 .lq-conv：用户实机截图里这几行"没底没边"就是掉层。
+     底色用**淡墨**不用白：用户要的是"纸上的浅灰条"，不是一块白膜。 */
+  background-color: rgba(30, 22, 14, 0.06);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
     inset 0 -1px 0 rgba(255, 255, 255, 0.28),
@@ -1513,9 +1517,9 @@
   align-items: center;
   gap: 10px;
   padding: 3px 12px 3px 3px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(30, 22, 14, 0.1);
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.24);
+  background-color: rgba(30, 22, 14, 0.05);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 4px 14px rgba(30, 22, 14, 0.05);
@@ -1523,8 +1527,8 @@
 }
 
 .lq-sheet-scope .lq-new {
-  border: 1px solid rgba(255, 255, 255, 0.44);
-  background-color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(30, 22, 14, 0.12);
+  background-color: rgba(30, 22, 14, 0.08);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 6px 16px rgba(30, 22, 14, 0.1);
@@ -1540,30 +1544,30 @@
     border-radius 0.32s ease-out;
 }
 
-/* 第 11 条：抽屉打开时的"折角"—— 参数直接照抄 Operit AI 的实现。
+/* 第 11 条：抽屉打开时的"折角"—— 位移比例照抄 Operit AI。
    用户 m01433："你去发这个 operitAI 的源代码，它是开源的，你看看它这个侧边栏技术怎么实现的。"
    于是翻了它的源码（AAswordman/Operit，
    app/src/main/java/com/ai/assistance/operit/ui/main/layout/PhoneLayout.kt:112-139、213-224），
-   它的做法就是给**主内容**一个 graphicsLayer，抽屉打开进度 p ∈ [0,1] 时：
+   它的做法是给**主内容**一个 graphicsLayer，进度 p ∈ [0,1] 时：
      contentTranslationX = 抽屉宽 × 0.82 × p      （内容右移 82% 抽屉宽）
-     contentTranslationY = 12dp × p               （往下压一点点）
      contentScale        = 1 - 0.08 × p           （缩到 0.92）
      contentRotationY    = -7° × p                （绕 Y 轴斜 7°）
-     contentCornerRadius = 24dp × p               （内容是圆角卡片）
-     contentShadowElevation = 18dp × p
-     transformOrigin     = TransformOrigin(0f, 0.5f)   （左边缘中点）
-   抽屉自己：drawerOffset = -抽屉宽 × (1-p)（从左侧滑入）、drawerScale = 0.92 → 1、
-   右侧上下 16dp 圆角、scrim **透明**（它不靠遮罩压暗，靠内容缩小 + 投影分层）。
-   → 我们照这个比例搬过来（抽屉宽 84%）：
-     右移 82% 让两页只在边上相交、不重叠；rotateY(-7deg) 就是那条"斜着的页面"；
-     perspective(1200px) 是 CSS 里 rotateY 必须有的一层（Compose 自带相机距离）。
-   ⚠️ 之前 3D 在实机碎，是跟"半透明抽屉 + mask + 大面积渐变"叠在一起导致的；
-   现在抽屉是实底纸、列表没有 mask、行是单色，再上 3D。真机若还碎，退回 2D rotate。 */
+     contentCornerRadius = 24dp × p
+   抽屉自己：右侧上下 16dp 圆角、scrim **透明**（靠内容位移+投影分层，不压暗）。
+
+   ⚠️ **2026-11 实机：3D 这一层撤掉了**（用户："侧边栏展开时总是卡卡的，一闪一闪的"）。
+   安卓 WebView 上 perspective + rotateY + scale 三项一起动，每一帧都要重算整屏的透视与
+   缩放纹理（背后还有背景图），GPU 跟不上就掉帧、闪。
+   现在只留**纯平移**（translateX 走合成层，不重绘内容）：
+     · 82% 让两页只在边缘相交、不重叠（用户 m01391："最多是相交"）
+     · 圆角 + 一道柔和投影表达"两张纸叠着"
+   想要 Operit 那种 0.92 缩放的观感，等 WebView 这层稳了再单独试（一行就能加回来）。 */
 .lq-skin [data-lq-fold="true"] {
-  transform: perspective(1200px) translateX(82%) translateY(6px) scale(0.92) rotateY(-7deg);
+  transform: translateX(82%);
   transform-origin: 0 50%;
   border-radius: 24px;
-  box-shadow: -18px 0 40px rgba(50, 38, 26, 0.2);
+  box-shadow: -14px 0 34px rgba(50, 38, 26, 0.16);
+  will-change: transform;
 }
 
 /* 第 3 条：螃蟹桌宠挪到对话页 —— 抽屉里是贴底的 absolute，这里换回普通流。 */

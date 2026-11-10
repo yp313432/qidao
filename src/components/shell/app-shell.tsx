@@ -234,6 +234,19 @@ export function AppShell() {
     })();
   }, [hydrated]);
 
+  /**
+   * **首帧遮挡**（2026-11 用户："每次进去都先闪一下那个空对话界面，然后再进对话框"）。
+   *
+   * 根因：状态存在 IndexedDB 里（见 lib/store.ts 的 createQidaoPersistStorage），
+   * 读库是**异步**的。第一帧 `settings` 还是默认值（纯色 + 空对话 + 未选模型），
+   * 于是先把"讯 / 未选模型"那个壳画出来；几十~几百毫秒后库读完，
+   * 才换成真的液态对话页 —— 中间那一下就是他看到的"闪"。
+   *
+   * 所以：**没读完就不画界面**。只铺一层纸色（和冷启动原生那层同色），
+   * 读完立刻进真正的页面。代价是开头几十毫秒是纯色，换来"不闪"。
+   */
+  if (!hydrated) return <div className="boot-veil" aria-hidden />;
+
   return (
     // h-dvh + overflow-hidden 是关键：以前写的是 min-h-dvh，容器会随内容长高，
     // 于是整个「窗口」在滚 —— 页面里那些 overflow-y-auto 全是摆设，
@@ -248,6 +261,12 @@ export function AppShell() {
     <div
       className={cn(
         "relative z-10 mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden text-fg",
+        /* 键盘让位（见下面注释）。**2026-11 实机修复**：原来这里是内联 style，
+           内联样式压过一切 CSS —— 只要 `--q-ime-bottom-native` 残留一次（安卓 insets
+           回调丢失时就会），外壳就永久缩着一条键盘高，输入框悬在屏幕 5/6 处、
+           下面一大片空白。改成类名承载后，CSS 能在 `data-keyboard != up` 时把它按回 0
+           （见 kit.css 的 `.shell-ime-pad`），变量残留也顶不住。 */
+        "shell-ime-pad",
         liquidSkin && "lq-skin",
       )}
       /* 只在"这一页真的有回对话钮"时置位 —— 标题让位的 padding 挂在它上面 */
@@ -258,7 +277,6 @@ export function AppShell() {
        * 底部导航是 fixed，所以它自己那一处也要跟着抬（见下面 nav 的 bottom）。
        * 没有键盘时两个变量都是 0px，等于什么都没变。
        */
-      style={{ paddingBottom: "max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px))" }}
     >
       {/* 液态：二级页也要有那层会漂的底光。首页由 `LiquidShell` 自己铺，别铺两遍 */}
       {liquidSkin && pathname !== "/" ? <div className="lq-canvas" aria-hidden /> : null}
