@@ -1728,4 +1728,7 @@
      他画的线在屏幕高度的 93%（离底约 59px）——所以这里留 26px + 安全区，
      输入卡片的下沿就压在那条线上；不再留给底部导航的 4.5rem。 */
   padding-bottom: calc(26px + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  /* ⚠️ 临时诊断（下一版删）：m02144/m02187/m02236 连报三次"包是新的但界面没变"。
+     装包后输入条若没有这圈 2px 边，说明 glass.css 没进包/没命中，别再猜数值。 */
+  outline: 2px solid rgb(255, 45, 85);
 }
