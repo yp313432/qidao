@@ -1936,6 +1936,14 @@ html.lq-skin[data-keyboard="up"] .pb-composer {
   padding-bottom: 0;
 }
 
+/* v15 实测还剩 34px：容器高 133，里面那层和卡片都只有 98 —— 容器底部凭空多 35px。
+   只可能来自容器自己的 padding-bottom（上面已归零）或唯一子元素的 margin-bottom，
+   这里把后者的两条路都堵掉（诊断条会一并打出 dpb / wmb 确认到底是谁）。 */
+.lq-skin .lq-composer-dock > div,
+.lq-skin .lq-composer-dock .pb-composer {
+  margin-bottom: 0;
+}
+
 html.lq-skin[data-keyboard="up"] .lq-composer-dock {
   bottom: max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px));
   padding-bottom: 0;
