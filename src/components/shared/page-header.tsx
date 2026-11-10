@@ -67,19 +67,24 @@ export function PageHeader({
   return (
     <header className="px-2 inset-top-50 pb-1">
       <div className="flex items-center gap-1">
-        <Link
-          to={target as never}
-          aria-label={label}
-          className="flex size-11 shrink-0 items-center justify-center"
-        >
-          <ChevronLeft className="size-6" strokeWidth={1.6} />
-        </Link>
+        {/* 液态：返回键**全 App 只有一颗**（app-shell 渲染的 `.lq-back` 圆钮）。
+            用户 m01915/m01967：
+              "这俩都是一样的东西，不要出现两种情况。"
+              "返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。"
+            所以这一层自己不再画箭头 —— 只留标题，位置由 glass.css 给左上角圆钮让出来。 */}
+        {!liquid && (
+          <Link
+            to={target as never}
+            aria-label={label}
+            className="flex size-11 shrink-0 items-center justify-center"
+          >
+            <ChevronLeft className="size-6" strokeWidth={1.6} />
+          </Link>
+        )}
         <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-medium">{title}</h1>
         {right}
       </div>
-      {description && (
-        <p className="px-3 pb-1 text-[11px] leading-4 text-subtle">{description}</p>
-      )}
+      {description && <p className="px-3 pb-1 text-[11px] leading-4 text-subtle">{description}</p>}
     </header>
   );
 }

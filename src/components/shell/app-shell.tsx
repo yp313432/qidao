@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
 import { startAwakeLoop } from "@/lib/awake";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
@@ -22,7 +22,7 @@ import { TaskDaemon } from "@/components/daemons/task-daemon";
 import { WakePlan } from "@/components/daemons/wake-plan";
 import { WakeDaemon } from "@/components/daemons/wake-daemon";
 import { UiEffects } from "@/components/shared/ui-effects";
-import { ROOT_PATHS, hidesNav } from "@/lib/nav-tree";
+import { hidesNav, parentOf } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
 import { installBreadcrumbs } from "@/lib/breadcrumbs";
 import { MAIN_TABS, tabOwning } from "@/lib/tabs";
@@ -102,19 +102,52 @@ export function AppShell() {
     );
 
   /**
-   * 「回对话页」钮只属于**液态的三张落地页**（工具 / 玩乐 / 我的）。
+   * 「回上一级」钮：**液态下全 App 只有这一颗**。
    *
-   * 为什么需要它：液态撤了底部导航，而这三页在纯色里是 tab 落地页、自己不带返回钮，
-   * 没有它就只能靠安卓返回键回去。
+   * 用户 m01915/m01967：
+   *   "你给我细细对比一遍……然后你把那个我的前面那个返回键跟其他二级界面返回键统一一下。
+   *    这俩都是一样的东西，不要出现两种情况。"
+   *   "返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。
+   *    除了那个特殊插件里那个返回键可能不一样。"
    *
-   * 为什么**只**给这三页（用户 m08769 真机原话："让你加个按钮，你不能把所有这个
-   * 按钮直接固定了，所有界面都这个按钮啊"）：
-   *   · 对话页 `/` 是这片世界的首页，左上角本来就是开抽屉的三道杠 —— 再叠一个返回钮
-   *     就是两个钮压在一起（他截图里那道重叠）
-   *   · 二级/三级页本来就有 `PageHeader` 自己的返回钮，不需要第二个
+   * 之前是**两套**：这一颗圆钮只挂在工具/玩乐/我的三张落地页上，
+   * 而二级页自己用 `PageHeader` / `PlayHeader` 画一个裸箭头 —— 于是同一个 App 里
+   * 一颗是圆形玻璃底、一颗是光秃秃一个 ‹，标题旁边还各是两种排法。
+   *
+   * 现在：**液态下只要是"有上一级"的页面，就只由这里渲染这一颗**；
+   * `PageHeader` / `PlayHeader` 在液态下把自带的箭头收起来（见那两个文件）。
+   * 例外只有具体某个插件（`/play/plugins/xxx`）—— 那是插件自己的整屏 UI，
+   * 返回键由插件画，用户也说了"特殊插件里那个返回键可能不一样"。
    */
   const lqBackPage =
-    liquidSkin && pathname !== "/" && (ROOT_PATHS as readonly string[]).includes(pathname);
+    liquidSkin &&
+    pathname !== "/" &&
+    !pathname.startsWith("/play/plugins/") &&
+    parentOf(pathname, true) !== null;
+
+  /** 页面内容那一层（`key={pathname}` 那个 div），用来在切页时清掉旧的合成层。 */
+  const routeLayerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * **路由切换时把上一页的合成层丢掉**（用户 m02009 的 bug）：
+   *   "点侧边栏花园。之后，然后又退出又卡了一个之前的这个玩乐区的页面。
+   *    中间卡了一个，你给我删掉。"
+   *
+   * 代码里没有残留节点：`outlet` 每次靠 `key={pathname}` 重建，`view-enter`
+   * 只动 opacity。留下的是**安卓 WebView 自己的合成层**——它卸载一张带
+   * backdrop-filter 的大玻璃卡之后，偶尔不回收那层位图，于是上一页那张
+   * 虚化的卡就飘在屏幕中间（跟"碎片 / 一闪一闪"是同一个根子）。
+   *
+   * 对策：在 pathname 变化后让内容层 `display:none` 一次、立刻恢复。
+   * 同步读写布局，中间不会真的画帧（不会闪），但会逼合成器把旧层丢掉。
+   */
+  useEffect(() => {
+    const el = routeLayerRef.current;
+    if (!el) return;
+    el.style.display = "none";
+    void el.offsetHeight; // 强制同步布局：让合成器真的"忘掉"上一页那层
+    el.style.display = "";
+  }, [pathname]);
 
   /**
    * 液态下**能液态化的二级页**也要有"光跟手指走"。首页那层由 `LiquidShell` 自己挂，
@@ -330,7 +363,11 @@ export function AppShell() {
       {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
           这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
       {lqBackPage ? <LiquidBack /> : null}
-      <div key={pathname} className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        key={pathname}
+        ref={routeLayerRef}
+        className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
         <Outlet />
       </div>
       {!hideNav && !liquidWorld && (

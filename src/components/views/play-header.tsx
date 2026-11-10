@@ -36,9 +36,14 @@ export function PlayHeader({
 
   return (
     <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
-      <Link to={target} aria-label={label} className="flex size-11 items-center justify-center">
-        <ChevronLeft className="size-6" strokeWidth={1.6} />
-      </Link>
+      {/* 液态：返回键**全 App 只有一颗**（app-shell 的 `.lq-back` 圆钮），
+          这里不再画第二个箭头。用户 m01915/m01967："返回键做统一……
+          这俩都是一样的东西，不要出现两种情况。" */}
+      {!liquid && (
+        <Link to={target} aria-label={label} className="flex size-11 items-center justify-center">
+          <ChevronLeft className="size-6" strokeWidth={1.6} />
+        </Link>
+      )}
       <h1 className="flex-1 font-serif text-lg font-medium">{title}</h1>
       {extra}
     </header>

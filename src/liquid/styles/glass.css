@@ -1248,6 +1248,30 @@
   padding-left: 46px;
 }
 
+/* m01915 / m01967 用户："返回键做统一，一般不是只有一种返回吗？你为啥要做两种不一样的呀。
+   除了那个特殊插件里那个返回键可能不一样。"
+   → 液态下 `PageHeader` / `PlayHeader` 已经把自带的裸箭头收起来了，
+     全 App 只剩 app-shell 渲染的这一颗圆钮（`.lq-back`：left 12 / 宽 40）。
+     页头整条往右让出「12 + 40 + 2」= 54px，标题落在圆钮右边同一行。
+     纯色侧没有 `data-lq-back` 这个属性，所以这条等于不存在。 */
+.lq-skin[data-lq-back="true"] header {
+  padding-left: 54px;
+}
+
+/* 二级页标题：与「我的」页同一个字体、同一档字重，只是小一级。
+   顺手把页面可能自带的胶囊/边框/底色清掉 —— 用户截图里"动态空间被装在胶囊里"
+   和"我的"那个裸大标题就是两种排法，现在只留一种。 */
+.lq-skin[data-lq-back="true"] header h1 {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-family: Georgia, "Songti SC", serif;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+}
+
 /* ── 对话页输入条：用户本轮定的「图一设置页」那套玻璃 ──────────────
    `.lq-composer` 只在液态挂到 Composer 的最外层（composer.tsx，solidPaper=false 时）；
    纯色那一侧仍是 styles.css 的 `.glass-float`（虹彩 72% + 模糊 48px），两档各长各的。
@@ -1304,45 +1328,27 @@
    ⚠️ 纯色侧完全不受影响：每条都挂在 `.lq-skin` 下。
    ⚠️ styles.css:4949 那条 `[data-opt]` 的 color 带 !important，这里不碰颜色，
       字色继续走用户自己选的浅字（2026-11-01 定过：玻璃永远白，玻璃里的字是他的字色）。 */
-.lq-skin [data-opt] {
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0.15) 34%,
-    rgba(255, 255, 255, 0.09) 62%,
-    rgba(255, 255, 255, 0.3) 100%
-  );
+.lq-skin [data-opt][data-opt] {
+  /* m01833 用户：“我让你改的那个黑色显示的按钮，改成统一透明的，你也没改。”
+     → 统一透明玻璃：只铺 16% 白 + 细白边（边由元素自带的 border-line 给）。
+     特异性拉到 0,3,0：styles.css 里同级别的 [data-opt] / [data-opt][aria-pressed] 是
+     0,1,0 与 0,2,0，而它在 glass.css 之后加载——只有拉高特异性才能压住。 */
+  background: rgba(255, 255, 255, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 9px 16px -12px rgba(255, 255, 255, 0.95),
-    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.7),
-    inset 2px 0 10px -8px rgba(255, 255, 255, 0.55),
-    inset -2px 0 10px -8px rgba(255, 255, 255, 0.55),
-    0 1px 2px rgba(30, 22, 14, 0.06),
-    0 10px 26px rgba(30, 22, 14, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(30, 22, 14, 0.04);
 }
 
-.lq-skin [data-opt][aria-pressed="true"],
-.lq-skin [data-opt][data-on="true"],
-.lq-skin [data-pill],
-.lq-skin .data-pill {
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.4) 34%,
-    rgba(255, 255, 255, 0.3) 62%,
-    rgba(255, 255, 255, 0.5) 100%
-  );
+.lq-skin [data-opt][data-opt][aria-pressed="true"],
+.lq-skin [data-opt][data-opt][data-on="true"],
+.lq-skin .data-pill.data-pill,
+.lq-skin [data-pill][data-pill] {
+  /* 选中：只拉亮一档（白 34% + 更亮的上缘），不换成黑底/彩底。 */
+  background: rgba(255, 255, 255, 0.34);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 9px 16px -10px rgba(255, 255, 255, 1),
-    inset 0 -12px 18px -12px rgba(255, 255, 255, 0.82),
-    inset 2px 0 10px -8px rgba(255, 255, 255, 0.66),
-    inset -2px 0 10px -8px rgba(255, 255, 255, 0.66),
-    0 1px 2px rgba(30, 22, 14, 0.08),
-    0 12px 30px rgba(30, 22, 14, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4),
+    0 6px 18px rgba(30, 22, 14, 0.08);
   color: var(--aster-user-fg, var(--aster-fg));
 }
 
@@ -1445,15 +1451,47 @@
    套渐变 + 圆角 + 阴影，掉层的概率比大面板还高（用户截图里"工具/动态/音乐/花园
    那几行没底没边"就是掉层）。单色一层，画不出来也不至于整行消失。 */
 .lq-sheet-scope .lq-conv {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 14px;
-  background-color: rgba(255, 255, 255, 0.36);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  /* m01833 用户：“我只让你改背景吧，你为啥要把功能形状给我变了？”
+     → 行的形状/材质回到 v4 定稿（玻璃条 + 13/14px 圆角 + 白膜），不再改成透明方块。
+     只有面板本身（.lq-sheet）换成透明玻璃。
+
+     m01859 用户：“你看看对话列表那个形状，再看看下面功能栏插件那个方块组件，
+     他俩是一样吗？” —— 之前只覆盖了 border-color / background，**形状没覆盖**，
+     会话条还是基类里的 38px 高 + 11px 圆角（.lq-conv，本文件 :480），
+     功能条却是 46px 高 + 13px 圆角（.lq-func__row，本文件 :1472）。
+     两个差 8px 高、2px 圆角、边色一深一白，看起来就是一个扁一个方。
+     → 这里把会话条**完全对齐功能条**：46px / 13px / 同一条墨色细边 / 同一套 158° 白膜
+       与五层内影。抽屉里所有条目从此是同一个模子刻出来的。 */
+  height: 46px;
+  border-radius: 13px;
+  border-color: rgba(30, 22, 14, 0.1);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.14) 34%,
+    rgba(255, 255, 255, 0.08) 62%,
+    rgba(255, 255, 255, 0.26) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 4px 12px rgba(30, 22, 14, 0.06);
 }
 
 .lq-sheet-scope .lq-conv[data-active="true"] {
-  border-color: rgba(255, 255, 255, 0.62);
-  background-color: rgba(255, 255, 255, 0.46);
+  /* 选中 = 同一形状，只把白膜拉亮一档、边亮一点（不换色、不加黑底）。 */
+  border-color: rgba(255, 255, 255, 0.46);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.56) 0%,
+    rgba(255, 255, 255, 0.3) 34%,
+    rgba(255, 255, 255, 0.2) 62%,
+    rgba(255, 255, 255, 0.4) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4),
+    0 6px 18px rgba(30, 22, 14, 0.08);
 }
 
 /* 第 9 条：功能区八条 = 通栏细长玻璃条（左图标 + 右文字、13px 圆角，用户定稿）。
@@ -1477,10 +1515,19 @@
   gap: 11px;
   margin-bottom: 6px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.54);
-  /* m01744：功能小组件 = 一块块磨砂玻璃，浮在整块玻璃面板上。 */
-  background-color: rgba(255, 255, 255, 0.48);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 22, 14, 0.1);
+  /* v4 定稿的玻璃条（m00460"欧克，可以"）：13px 圆角 + 158deg 白膜 + 五层内影。 */
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.14) 34%,
+    rgba(255, 255, 255, 0.08) 62%,
+    rgba(255, 255, 255, 0.26) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 4px 12px rgba(30, 22, 14, 0.06);
   font-size: 14px;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
@@ -1512,17 +1559,27 @@
   align-items: center;
   gap: 10px;
   padding: 3px 12px 3px 3px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.44);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.36) 0%,
+    rgba(255, 255, 255, 0.18) 60%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
   -webkit-tap-highlight-color: transparent;
 }
 
 .lq-sheet-scope .lq-new {
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background-color: rgba(255, 255, 255, 0.52);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.22) 60%,
+    rgba(255, 255, 255, 0.34) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   -webkit-tap-highlight-color: transparent;
 }
 
