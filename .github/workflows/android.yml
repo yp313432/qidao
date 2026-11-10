@@ -153,13 +153,16 @@ jobs:
           if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log; then
             echo "✅ APK 打包完成"
           else
-            # "Value is null" 只看这一句定位不了 —— 需要 at com.android.xxx 那几行
-            # 才能知道是哪一步拿到的 null。全量堆栈在日志末尾（--stacktrace）。
-            # 注释接口能匿名读、日志接口不能（403），所以把尾部逐行打成注释。
-            echo "::error::Gradle 打包失败：下面是日志尾部（含堆栈）"
-            tail -80 /tmp/gradle.log | while IFS= read -r line; do
-              [ -n "$line" ] && echo "::error::$line"
-            done
+            # ⚠️ 2026-11-10：上一版只 `tail -80`，堆栈一占就全是 "at org.gradle..."，
+            # 真正的病根（"What went wrong" 那几行）被挤到窗口外面，白跑一次 CI。
+            # 现在分三段打：① 失败的 task ② What went wrong 及后面 30 行 ③ 编译期 error/e:
+            echo "::error::Gradle 打包失败：先看失败的 task 和 What went wrong"
+            grep -m 10 -E "Execution failed for task|> Task .* FAILED" /tmp/gradle.log |
+              while IFS= read -r line; do echo "::error::$line"; done
+            sed -n '/^FAILURE: Build failed/,+45p' /tmp/gradle.log |
+              while IFS= read -r line; do [ -n "$line" ] && echo "::error::$line"; done
+            grep -m 20 -E "^e: |^error: |error:" /tmp/gradle.log |
+              while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
 

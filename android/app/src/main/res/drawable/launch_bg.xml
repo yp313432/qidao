@@ -9,9 +9,12 @@
   指到 `@drawable/splash` —— 那张图是 Capacitor 模板留下的：**深蓝黑底 + 橙色八芒星**，
   跟现在的纸色界面完全两个世界。所以每次冷启动都先黑一下，再跳进米白色的对话页。
 
-  现在改成跟 App 同色的纸色（--aster-bg = #f6f3ee，见 src/styles.css:122），
-  启动帧直接融进界面，没有"闪一下"的观感。
-  要换回品牌图也行：把 `@drawable/launch_bg` 改回 `@drawable/splash` 即可。
+  现在改成跟 App 同色的纸色 "#f6f3ee"（跟网页里的 aster-bg 是同一个值，
+  见 src/styles.css），启动帧直接融进界面，没有"闪一下"的观感。
+  要换回品牌图也行：把 styles.xml 里的 @drawable/launch_bg 改回 @drawable/splash。
+
+  ⚠️ XML 注释里严禁出现两个连续的减号（上一版写了变量名 aster-bg 的短横线前缀，
+  直接把 AAPT 弄挂了，CI 打包失败）。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">

@@ -17,8 +17,9 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <!-- 启动那一帧用纸色（跟 --aster-bg #f6f3ee 一致），不用模板那张深色星图 ——
-             否则每次冷启动都是"黑一下 → 米白界面"（用户 m01199 报的"闪一下"）。 -->
+        <!-- 启动那一帧用纸色 "#f6f3ee"（跟网页里的 aster-bg 同值），不用模板那张
+             深色星图，否则每次冷启动都是"黑一下，再跳进米白界面"（用户 m01199 报的"闪一下"）。
+             ⚠️ XML 注释里不能出现两个连续的减号，变量名别整段抄进来。 -->
         <item name="android:background">@drawable/launch_bg</item>
     </style>
 </resources>
