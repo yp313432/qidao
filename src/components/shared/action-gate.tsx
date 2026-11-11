@@ -92,7 +92,7 @@ export function ActionGate() {
   if (!current) return null;
   if (!critical && mode !== "ask") {
     /** 自动执行中：不挡操作，只让用户知道"正在跑哪一个"（见上面 slowRun 的说明） */
-    if (!slowRun) return null;
+    if (!slowRun || current.action.kind === "http.call" || current.action.kind === "tool.call") return null;
     return (
       <div
         /* 让开手机状态栏：top-3 会跟时间/电量糊在一起（用户实机截图指出） */

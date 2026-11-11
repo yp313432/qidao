@@ -20,7 +20,6 @@ import { useState } from "react";
 import { Lock, SlidersHorizontal } from "lucide-react";
 import { KButton, KCard, KFold, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { resolveAiName } from "@/lib/branding";
-import { TINT_PRESETS, normalizeTint } from "@/lib/composer-tint";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { CHAT_FONT_SIZES } from "@/lib/ux";
@@ -54,7 +53,7 @@ export function SpacePage() {
   const background = settings.background;
   /** 哪一组是展开的（null = 全收起，一屏能看完） */
   const [openFold, setOpenFold] = useState<
-    null | "material" | "paper" | "bg" | "font" | "tint" | "date"
+    null | "material" | "paper" | "bg" | "font" | "date"
   >(null);
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
@@ -73,7 +72,6 @@ export function SpacePage() {
        所以「外观」页标题上那行永远显示「中号」，选了大号也不变（顺手修掉）。 */
     CHAT_FONT_SIZES.find((x) => x.id === (settings.chatFontSize ?? "normal"))?.label ?? "标准"
   }`;
-  const tintHint = "粉青蓝 · 按模式自动配浓度";
 
   return (
     /* 左右留白由外壳 `MePage` 的 `.k-page` 统一给（用户 m04469 第 3 条），这里不再套一层 */
@@ -289,60 +287,6 @@ export function SpacePage() {
             />
           </>
         )}
-      </KFold>
-
-      <KFold
-        title="对话框配色"
-        meta={tintHint}
-        open={openFold === "tint"}
-        onToggle={() => setOpenFold(openFold === "tint" ? null : "tint")}
-      >
-        {/* 现成的几套：点一下整套换掉 */}
-        <KOpts cols="wrap">
-          {TINT_PRESETS.map((p) => {
-            const active = normalizeTint(settings.composerTint).join() === p.colors.join();
-            return (
-              <KOpt
-                key={p.id}
-                active={active}
-                dot={`linear-gradient(118deg, ${p.colors.join(", ")})`}
-                onClick={() => patch({ composerTint: [...p.colors] })}
-              >
-                {p.label}
-              </KOpt>
-            );
-          })}
-        </KOpts>
-        {/* 三段颜色自己挑（原生取色器：安卓上是系统调色盘，跟系统主题一致） */}
-        <div className="k-hstack">
-          {normalizeTint(settings.composerTint).map((c, i) => (
-            <div key={i} className="k-hstack">
-              <input
-                type="color"
-                value={c}
-                aria-label={`第 ${i + 1} 段颜色`}
-                onChange={(e) => {
-                  const next = normalizeTint(settings.composerTint);
-                  next[i] = e.target.value;
-                  patch({ composerTint: next });
-                }}
-                className="k-color"
-              />
-              <span className="k-opt__sub">{c}</span>
-            </div>
-          ))}
-        </div>
-        {/* 直接在设置页里看一眼效果（同一套 .glass-float） */}
-        <div className="glass-float k-input k-hstack">
-          <span className="k-hint">对话框就是这个样子</span>
-        </div>
-        <KButton
-          variant="dashed"
-          className="k-btn--block"
-          onClick={() => patch({ composerTint: undefined })}
-        >
-          恢复默认（粉青蓝）
-        </KButton>
       </KFold>
 
       {/* 认识的日子 —— 玩乐区首页那个「NNN DAYS TOGETHER」用它算天数。

@@ -9,8 +9,7 @@
  *
  * 玻璃的三件事（缺一件就不像玻璃）：
  *   边缘透镜：四条边内圈各压一层白渐变，光在厚玻璃边缘会折亮一圈
- *   光跟手指：--mx / --my 由 src/liquid/lib/glass-light.ts 写进来，::before 的光斑跟着走
- *   按下回弹：:active 用带回弹的曲线缩一下，同时一道斜向流光扫过
+ *   光线固定在玻璃上缘，点按时保持不动
  */
 
 :root {
@@ -124,7 +123,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 光斑：位置由 --mx / --my 决定（手指按哪亮哪） */
+/* 静态上缘高光。 */
 .lq-glass::before {
   content: "";
   position: absolute;
@@ -132,7 +131,7 @@
   border-radius: inherit;
   pointer-events: none;
   background: radial-gradient(
-    58% 46% at var(--mx, 50%) var(--my, -8%),
+    58% 46% at 50% -8%,
     rgba(255, 255, 255, 0.92),
     rgba(255, 255, 255, 0.32) 42%,
     rgba(255, 255, 255, 0) 74%

@@ -13,15 +13,6 @@ import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn } from "@/lib/utils";
 
-/**
- * 闹钟 / 提醒。
- *
- * 三件事必须说清（否则用户会以为它像系统闹钟那样绝对可靠）：
- *   · App 开着 → 到点**全屏响铃 + 真的响**（WebAudio 合成，不用音频文件）
- *   · App 关着 → **照样响**：2026-11 起闹钟走系统 `setAlarmClock` + 原生响铃页
- *     （见 `lib/native-alarm.ts`），不再是"只弹一条通知"
- *   · 安卓 12+ 还要单独授权"闹钟和提醒"，没授权时系统可能推迟几十秒到几分钟
- */
 export function AlarmsView() {
   useActivity("在看闹钟");
   const scrollRef = useScrollMemory("alarms");
@@ -40,15 +31,30 @@ export function AlarmsView() {
   const [onceDate, setOnceDate] = useState("");
   const [exact, setExact] = useState<"granted" | "denied" | "unknown">("unknown");
   const [sysMsg, setSysMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const hasLocalAlarms = reminders.some((r) => r.ring && !r.systemClock);
 
   useEffect(() => {
     if (!IS_APP) return;
     void exactAlarmState().then(setExact);
   }, []);
 
-  function submit() {
-    if (!text.trim()) return;
-    addReminder({ text, time, ring, date: onceDate || undefined });
+  async function submit() {
+    if (!text.trim() || saving) return;
+    const date = onceDate || undefined;
+    const systemClock = IS_APP && ring;
+    setSysMsg("");
+    if (systemClock) {
+      setSaving(true);
+      const result = await saveToSystemAlarm(time, text.trim(), date);
+      setSaving(false);
+      if (!result.ok) {
+        setSysMsg(result.reason ?? "没能交给手机时钟");
+        return;
+      }
+      setSysMsg("已把设置请求发给手机时钟。");
+    }
+    addReminder({ text, time, ring, date, systemClock });
     setText("");
     setAdding(false);
   }
@@ -72,53 +78,51 @@ export function AlarmsView() {
       <section className="px-4">
         <div className="rounded-3xl border border-line bg-surface px-4 py-3.5">
           <p className="text-[13px] leading-5">
-            到点会<span className="text-fg">全屏响铃</span>：亮屏 + 声音 + 震动，
-            盖在锁屏上，得你自己按掉才停。
-          </p>
-          <p className="mt-2 text-[11px] leading-4 text-subtle">
-            {/* 2026-11 用户 m05769：以前这里只是排了一条定时通知，App 一关就什么都不发生 */}
-            App 关着也响 —— 闹钟已经排进系统的闹钟队列（安卓设置里能看到「下一个闹钟」）。
-            网页版没有这个能力。
+            {IS_APP
+              ? "响铃闹钟由手机时钟管理。修改或关闭闹钟请到手机时钟。"
+              : "网页版打开时可以响铃。"}
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                /*
-                 * 试听走的就是**真的那条路**（原生响铃页）—— 否则用户听到的是
-                 * 网页合成的音，真闹钟响了什么样他永远不知道。
-                 * 网页版没有原生响铃页，退回 `previewRing()`。
-                 */
-                if (!IS_APP) {
-                  previewRing();
-                  return;
-                }
-                void testNativeAlarm("这是试听 · 真闹钟就长这样").then((r) => {
-                  if (!r.ok) {
-                    setSysMsg(r.reason ?? "没能试听");
-                    previewRing();
-                  }
-                });
-              }}
-              className="rounded-full bg-chip px-3 py-1.5 text-[12px] text-fg"
-            >
-              听一下铃声
-            </button>
-            {IS_APP && (
+          {(!IS_APP || hasLocalAlarms) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void askExactAlarm().then(() => exactAlarmState().then(setExact))}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-[12px]",
-                  exact === "granted" ? "bg-chip text-muted" : "bg-accent text-accent-fg",
-                )}
+                onClick={() => {
+                  /*
+                   * 试听走的就是**真的那条路**（原生响铃页）—— 否则用户听到的是
+                   * 网页合成的音，真闹钟响了什么样他永远不知道。
+                   * 网页版没有原生响铃页，退回 `previewRing()`。
+                   */
+                  if (!IS_APP) {
+                    previewRing();
+                    return;
+                  }
+                  void testNativeAlarm("这是试听 · 真闹钟就长这样").then((r) => {
+                    if (!r.ok) {
+                      setSysMsg(r.reason ?? "没能试听");
+                      previewRing();
+                    }
+                  });
+                }}
+                className="rounded-full bg-chip px-3 py-1.5 text-[12px] text-fg"
               >
-                {exact === "granted" ? "精确定时已开 ✅" : "打开精确定时（安卓 12+）"}
+                听一下铃声
               </button>
-            )}
-          </div>
-          {IS_APP && exact === "denied" && (
+              {IS_APP && (
+                <button
+                  type="button"
+                  onClick={() => void askExactAlarm().then(() => exactAlarmState().then(setExact))}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-[12px]",
+                    exact === "granted" ? "bg-chip text-muted" : "bg-accent text-accent-fg",
+                  )}
+                >
+                  {exact === "granted" ? "精确定时已开 ✅" : "打开精确定时（安卓 12+）"}
+                </button>
+              )}
+            </div>
+          )}
+          {IS_APP && hasLocalAlarms && exact === "denied" && (
             <p className="mt-2 text-[11px] leading-4 text-subtle">
               没开精确定时的话，系统会把闹钟跟别的定时合并一下，可能晚几十秒到几分钟。
             </p>
@@ -151,8 +155,8 @@ export function AlarmsView() {
               </button>
               <button
                 type="button"
-                onClick={submit}
-                disabled={!text.trim()}
+                onClick={() => void submit()}
+                disabled={!text.trim() || saving}
                 className="ml-auto h-11 shrink-0 rounded-2xl bg-ink px-5 text-[13px] font-medium text-ink-fg disabled:opacity-40"
               >
                 设好
@@ -196,7 +200,7 @@ export function AlarmsView() {
                     {/* "是一次还是每天"必须写清楚 —— 用户专门提过 */}
                     <span className="text-[11px] text-subtle">
                       {r.date ? `${r.date} 只这一次` : "每天"}
-                      {r.ring ? " · 响铃" : " · 只弹通知"}
+                      {r.systemClock ? " · 已发给手机时钟" : r.ring ? " · 响铃" : " · 只弹通知"}
                     </span>
                     {r.snoozeUntil && (
                       <span className="text-[11px] text-subtle">
@@ -213,47 +217,35 @@ export function AlarmsView() {
                     {r.text}
                   </p>
                   <div className="mt-2 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => patchReminder(r.id, { ring: !r.ring })}
-                      className={cn(
-                        "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]",
-                        r.ring ? "bg-accent text-accent-fg" : "bg-chip text-muted",
-                      )}
-                    >
-                      {r.ring ? <Bell className="size-3" /> : <BellOff className="size-3" />}
-                      {r.ring ? "响铃" : "只提醒"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggle(r.id)}
-                      className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
-                    >
-                      {r.done ? "恢复" : "已完成"}
-                    </button>
-                    {/* 交给手机自带时钟 —— 系统闹钟连省电模式都拦不住，最可靠 */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void saveToSystemAlarm(r.time, r.text).then((res) => {
-                          setSysMsg(
-                            res.ok
-                              ? `已经把「${r.time} ${r.text}」存进手机时钟了 ✅`
-                              : `没能存进系统时钟：${res.reason}`,
-                          );
-                        });
-                      }}
-                      className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
-                    >
-                      存到手机闹钟
-                    </button>
+                    {!r.systemClock && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => patchReminder(r.id, { ring: !r.ring })}
+                          className={cn(
+                            "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]",
+                            r.ring ? "bg-accent text-accent-fg" : "bg-chip text-muted",
+                          )}
+                        >
+                          {r.ring ? <Bell className="size-3" /> : <BellOff className="size-3" />}
+                          {r.ring ? "响铃" : "只提醒"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggle(r.id)}
+                          className="rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
+                        >
+                          {r.done ? "恢复" : "已完成"}
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeReminder(r.id)}
                       className="ml-auto flex items-center gap-1 rounded-full bg-chip px-2.5 py-1 text-[11px] text-muted"
                     >
                       <Trash2 className="size-3" />
-                      删除
+                      {r.systemClock ? "移除记录" : "删除"}
                     </button>
                   </div>
                 </div>

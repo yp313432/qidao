@@ -22,6 +22,14 @@ import type { ReactNode, RefObject } from "react";
  * 塌陷动画也仍然由页面驱动：三个槽位拿到 ref 后自己写 style.transform，
  * 这一层只提供起点和内圈那道细线。
  */
+/** Keep scrolling rows out of the visible sticky header, including its gap. */
+export function clearIdentityOverlap(head: HTMLElement, gap: number): void {
+  const content = head.parentElement?.nextElementSibling;
+  if (!(content instanceof HTMLElement)) return;
+  const overlap = Math.ceil(head.getBoundingClientRect().bottom + gap - content.getBoundingClientRect().top);
+  content.style.clipPath = overlap > 0 ? `inset(${overlap}px -24px -24px)` : "";
+}
+
 export type IdentityCardRefs = {
   /** 纸卡本身（塌陷时整块淡出） */
   card: RefObject<HTMLDivElement | null>;

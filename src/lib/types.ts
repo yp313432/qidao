@@ -707,6 +707,7 @@ export type Settings = {
    *
    * 不填 = 按默认（开、最多 3 条、每条最多 2 句、段间 1.2 秒）。
    */
+  chatCrab?: { enabled: boolean; size: 28 | 32 | 36; activity: "lively" | "quiet" };
   segmentReply?: boolean;
   /** 一次最多几条（1–6） */
   segmentMaxParts?: number;
@@ -739,6 +740,7 @@ export type Settings = {
   stickerRemoveWhite?: boolean;
   defaultModel: ModelId;
   customBaseUrl: string;
+  savedUpstreamAddresses?: string[];
   customApiKey: string;
   /** 自定义上游的真实模型名（例如 deepseek-v4-pro）；留空则用服务端配的 QIDAO_UPSTREAM_MODEL */
   upstreamModel: string;

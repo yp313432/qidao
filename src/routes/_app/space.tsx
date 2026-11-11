@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_app/space")({
     <MePage
       tab="space"
       title="外观"
-      subtitle="材质、纸色、字体、背景、对话框配色 —— 点哪一行展开哪一行"
+      subtitle="材质、纸色、字体、背景 —— 点哪一行展开哪一行"
     />
   ),
 });

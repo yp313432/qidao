@@ -3,21 +3,17 @@ package com.yanping.qidao;
 import android.content.Intent;
 import android.provider.AlarmClock;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/**
- * 把闹钟交给**手机自带的时钟 App**。
- *
- * 为什么不只用我们自己的全屏响铃：系统闹钟是唯一"连省电模式都拦不住"的东西，
- * 响铃界面、贪睡、关机重开都由系统管，比 WebView 里可靠得多。
- * 这个插件只做一件事：发一个 ACTION_SET_ALARM，把闹钟塞进系统时钟。
- *
- * 用户的原话就是想要这个："能调系统闹钟……这样给权限就行，简单点。"
- */
+/** 把响铃闹钟交给手机的时钟 App。 */
 @CapacitorPlugin(name = "SystemAlarm")
 public class SystemAlarmPlugin extends Plugin {
 
@@ -25,8 +21,8 @@ public class SystemAlarmPlugin extends Plugin {
   public void setAlarm(PluginCall call) {
     Integer hour = call.getInt("hour");
     Integer minute = call.getInt("minute");
-    if (hour == null || minute == null) {
-      call.reject("缺少 hour / minute");
+    if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      call.reject("闹钟时间无效");
       return;
     }
     String message = call.getString("message", "");
@@ -37,7 +33,11 @@ public class SystemAlarmPlugin extends Plugin {
     if (message != null && !message.isEmpty()) {
       intent.putExtra(AlarmClock.EXTRA_MESSAGE, message);
     }
-    // 不弹系统那个确认界面：用户已经在我们这边点过一次了
+    if (Boolean.TRUE.equals(call.getBoolean("daily", false))) {
+      intent.putIntegerArrayListExtra(AlarmClock.EXTRA_DAYS, new ArrayList<>(Arrays.asList(
+          Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY,
+          Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY)));
+    }
     intent.putExtra(AlarmClock.EXTRA_SKIP_UI, true);
 
     try {

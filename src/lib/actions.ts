@@ -1,3 +1,5 @@
+import { saveToSystemAlarm } from "@/lib/system-alarm";
+import { IS_APP } from "@/lib/platform";
 import { toggleAmbience } from "@/lib/ambience";
 import { resolveAiName } from "@/lib/branding";
 import { buildEmotionReport } from "@/lib/emotion-lexicon";
@@ -335,11 +337,18 @@ const stamp = (t: number): string =>
     case "reminder.add": {
       const text = str(action.text).trim();
       if (!text) return "提醒内容不能空着";
-      const date = str((action as { date?: unknown }).date).trim();
-      const oneOff = /^\d{4}-\d{2}-\d{2}$/.test(date);
+      const date = str(action.date).trim() || undefined;
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return "日期格式不对，请用 YYYY-MM-DD";
+      if (IS_APP && action.ring) {
+        if (!action.time) return "要设手机闹钟，得有具体时间";
+        const result = await saveToSystemAlarm(action.time, text, date);
+        if (!result.ok) return `没能设置手机闹钟：${result.reason}`;
+        st.addReminder({ text, time: action.time, ring: true, date, systemClock: true });
+        return `已把设置请求发给手机时钟：${date ?? "每天"} ${action.time} · ${text}`;
+      }
       st.addReminder({ text, time: action.time, ring: action.ring, date });
-      const when = action.time ? `${oneOff ? date : "每天"} ${action.time}` : "App 开着时提醒";
-      return `设好了：${when} · ${text}${action.ring ? "（到点全屏响铃，App 关着也响）" : "（只弹通知）"}`;
+      const when = action.time ? `${date ?? "每天"} ${action.time}` : "App 开着时提醒";
+      return `设好了：${when} · ${text}${action.ring ? "（App 内响铃）" : "（只弹通知）"}`;
     }
     case "memory.add": {
       const note = str(action.note).trim();
@@ -1080,6 +1089,7 @@ ${lines.join("\n")}`;
       const list = useApp.getState().reminders.filter((r) => !r.done);
       const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
       if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      if (hit.systemClock) return "这条闹钟由手机时钟管理，请到手机时钟里修改或关闭。";
       const patch: Partial<{ text: string; time: string; ring: boolean }> = {};
       const text = str((action as { text?: unknown }).text).trim();
       const time = str((action as { time?: unknown }).time).trim();
@@ -1099,6 +1109,7 @@ ${lines.join("\n")}`;
       const list = useApp.getState().reminders;
       const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
       if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      if (hit.systemClock) return "这条闹钟由手机时钟管理，请到手机时钟里修改或关闭。";
       useApp.getState().removeReminder(hit.id);
       // 系统定时里也要撤掉（否则手机时钟还会响）
       void cancelNative(hashId(hit.id));
@@ -1110,6 +1121,7 @@ ${lines.join("\n")}`;
       const list = useApp.getState().reminders.filter((r) => !r.done);
       const hit = findByText(list, q, (r) => `${r.text} ${r.time}`);
       if (!hit) return `没找到跟「${q}」对得上的闹钟`;
+      if (hit.systemClock) return "这条闹钟由手机时钟管理，请到手机时钟里修改或关闭。";
       useApp.getState().toggleReminder(hit.id);
       return `标记完成：${hit.text}`;
     }

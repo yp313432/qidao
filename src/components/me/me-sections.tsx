@@ -1,3 +1,4 @@
+import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
@@ -98,7 +99,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const voiceProvider = voiceProviderOf(settings.voiceBaseUrl ?? "");
   /** "听"单独配的那家有没有密钥（没有就跟随主配置） */
   const asrKey = (settings.voiceAsrApiKey ?? "").trim();
-  // 记忆库 / 世界书的条数统计在「AI 概览」和它自己的页面里，这里不再订阅
   // （定时任务/闹钟的列表入口已经挪到「玩乐 → 小日子」，这一页不再订阅 tasks）
   /** 今天的真实用量（来自每条请求记录的 token），替代原来那个假的额度百分比 */
   const requestLog = useApp((s) => s.requestLog);
@@ -387,7 +387,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
 
   /* ── 我的空间 ── */
 
-  /* ── 外观：材质 / 背景 / 字体 / 对话框配色（用户 m14333 定的版式）── */
 
   /**
    * 外观页（原「我的空间」）。
@@ -484,6 +483,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                     placeholder="https://your-proxy/v1"
                     className="k-input mb-2"
                   />
+                  <SavedUpstreamAddresses />
                   <input
                     type="password"
                     value={settings.customApiKey}

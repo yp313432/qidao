@@ -255,7 +255,7 @@ export const ACTION_SCHEMA = [
     fields: [
       { name: "text", type: "string", required: true },
       { name: "time", type: "string", required: false, note: "HH:MM" },
-      { name: "ring", type: "boolean", required: false, note: "true = 全屏响铃" },
+      { name: "ring", type: "boolean", required: false, note: "true = 响铃（Android 上交给手机时钟）" },
       { name: "date", type: "string", required: false, note: "YYYY-MM-DD，只这一次；不写就每天" },
     ],
   },

@@ -17,6 +17,7 @@
   --k-surface: color-mix(in oklab, var(--aster-surface) 34%, transparent);
 
   --k-line: color-mix(in oklab, #ffffff 30%, transparent);
+  --k-idbar-line: color-mix(in oklab, #ffffff 65%, transparent);
   --k-line-soft: color-mix(in oklab, var(--aster-fg) 8%, transparent);
   --k-border-w: 1px;
 

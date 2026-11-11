@@ -13,7 +13,6 @@ import { GiftAlert } from "@/components/overlays/gift-alert";
 import { GlobalToast } from "@/components/shared/global-toast";
 import { ChatNoticeBanner } from "@/components/overlays/chat-notice-banner";
 import { GlassHighlight } from "@/components/shared/glass-highlight";
-import { mountGlassLight } from "@/liquid/lib/glass-light";
 import { LiquidBack } from "@/liquid/components/liquid-back";
 import { PlayerHost } from "@/components/daemons/player-host";
 import { EmbedHost } from "@/components/play/embed-host";
@@ -161,15 +160,6 @@ export function AppShell() {
     void el.offsetHeight; // 强制同步布局：让合成器真的"忘掉"上一页那层
     el.style.display = "";
   }, [pathname]);
-
-  /**
-   * 液态下**能液态化的二级页**也要有"光跟手指走"。首页那层由 `LiquidShell` 自己挂，
-   * 这里只补其它页，避免同一个监听器挂两遍。
-   */
-  useEffect(() => {
-    if (!liquidSkin || pathname === "/") return;
-    return mountGlassLight();
-  }, [liquidSkin, pathname]);
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。

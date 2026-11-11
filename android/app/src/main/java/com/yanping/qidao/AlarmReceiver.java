@@ -56,6 +56,12 @@ public class AlarmReceiver extends BroadcastReceiver {
       AlarmNotify.post(ctx, text, "闹钟响了 · 点开看");
     }
 
+    long at = intent.getLongExtra("at", 0);
+    if (!daily && at > 0) {
+      ctx.getSharedPreferences("alarm-delivery", Context.MODE_PRIVATE)
+          .edit().putLong(Integer.toString(id), at).apply();
+    }
+
     /* ② 每天的：把明天这一次排上 */
     if (daily && hour >= 0 && minute >= 0) {
       try {

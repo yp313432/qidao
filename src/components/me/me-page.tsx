@@ -25,7 +25,7 @@ export function MePage({ tab, title, subtitle }: { tab: MeTab; title: string; su
       {/* 二级页统一左右留白：所有设置页都走这一个外壳（用户 m04469 第 3 条：
           「从对话往后 push 出来的二级页直接贴到两侧，跟外观那种离边有距离的不一致」）。
           内层页面自己别再套 `k-page`，否则会双份 16px。 */}
-      <div className="k-page">
+      <div className={tab === "about" || tab === "voice" ? "k-page shrink-0" : "k-page"}>
         <MeSections tab={tab} />
       </div>
 

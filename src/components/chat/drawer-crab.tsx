@@ -194,8 +194,8 @@ export function CrabPixels({
             · 两只手（侧钳）小一点：3×3
         */}
         <g fill={SHELL}>
-          <rect x="0" y="8" width="3" height="3" />
-          <rect x="21" y="8" width="3" height="3" />
+          <rect className="crab-claw" x="0" y="8" width="3" height="3" />
+          <rect className="crab-claw" x="21" y="8" width="3" height="3" />
         </g>
         {/* 壳：18×8，按用户参考图的比例（宽:高 ≈ 2.25:1） */}
         <rect x="3" y="3" width="18" height="10" fill={SHELL} />
@@ -225,7 +225,7 @@ export function CrabPixels({
  * 组别推导：真实上报里 `group` 可能没填（演示场景就没有），
  * 所以再按主情绪 / 次情绪去 lexicon 的词表里认一下，认不出来就当没有。
  */
-function groupOfEvent(e?: {
+export function groupOfEvent(e?: {
   group?: string;
   primaryEmotion?: string;
   secondaryEmotions?: string[];

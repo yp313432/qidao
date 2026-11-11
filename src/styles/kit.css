@@ -80,20 +80,14 @@
     border-color var(--k-d-1) var(--k-e-out);
 }
 
-/*
-  液态玻璃那道"跟着手指走的光斑"（用户 m07635："没有那种滑过去有水玻璃的感觉"）。
-
-  纯色下 `--k-glass-light` 是 `transparent`，这层等于不存在 —— 所以两条
-  材质共用同一份结构，不用为液态另写一套卡片。坐标由 `src/liquid/lib/glass-light.ts`
-  写在元素自身（`--mx` / `--my`），不进 React state。
-*/
+/* 静态上缘高光。 */
 .k-card::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: radial-gradient(
-    58% 46% at var(--mx, 50%) var(--my, -8%),
+    58% 46% at 50% -8%,
     var(--k-glass-light, transparent),
     transparent 72%
   );
@@ -1170,7 +1164,7 @@
   inset-block-start: 0;
   block-size: 46px;
   border-radius: var(--k-card-radius);
-  border-block-end: var(--k-border-w) solid var(--k-line-soft);
+  border: var(--k-border-w) solid var(--k-idbar-line, var(--k-line));
   background: var(--k-surface);
   -webkit-backdrop-filter: var(--k-backdrop);
   backdrop-filter: var(--k-backdrop);
@@ -1294,4 +1288,30 @@ html:not([data-keyboard="up"]) .shell-ime-pad {
   inset: 0;
   z-index: 200;
   background: var(--aster-bg);
+}
+
+/* 聊天桌宠只接收小螃蟹本体上的点击。 */
+.chat-crab-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-crab-actor {
+  position: absolute;
+  inset: 0 auto auto 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  pointer-events: auto;
+}
+
+.chat-crab-actor[data-pose="rest"] svg { transform: scaleY(.72); transform-origin: bottom; }
+.chat-crab-actor[data-pose="think"] svg { transform: rotate(-6deg); }
+.chat-crab-actor[data-pose="work"] .crab-claw { transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-crab-actor .crab-shell, .chat-crab-actor .crab-leg { animation: none; }
 }

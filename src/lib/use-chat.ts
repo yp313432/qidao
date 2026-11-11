@@ -769,13 +769,18 @@ export function useChatStream(opts: UseChatOpts = {}) {
           onStep: ({ round, calls }) => {
             setStep({
               round,
-              label: `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
+              label: calls.some((c) => c.name === "http_call" || c.name === "http_key")
+                ? "正在调用 HTTP 工具"
+                : calls.some((c) => c.name === "tool_call")
+                  ? "正在调用 MCP 工具"
+                  : `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
             });
             /** 面包屑：动手那一步也要留痕（用户报"报情绪的时候卡退"就是这一类时刻） */
             crumb("action", `第 ${round} 步：${calls.map((c) => c.name).join("、")}`);
             setPhase(`执行动作（${calls.map((c) => c.name).join("、")}）`);
           },
           onRound: (r) => {
+            setStep(null);
             state.rounds.push(r);
             /**
              * 过程线：**这一轮想的那段**先切出来，再记这一轮调了什么（Claude 那种"想→做→想"）。

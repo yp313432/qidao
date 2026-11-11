@@ -1,3 +1,4 @@
+import { partsFor } from "@/lib/segment";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -509,6 +510,8 @@ export type AppState = {
     ring?: boolean;
     date?: string;
     snoozeUntil?: number;
+    /** 已发送到手机时钟的显示记录。 */
+    systemClock?: boolean;
   }[];
   /** 正在响的那个闹钟（驱动全屏响铃页） */
   ringing: { id: string; text: string; time: string } | null;
@@ -554,7 +557,7 @@ export type AppState = {
   takeReplySticker: () => string | undefined;
   addCustomWord: (card: Omit<WordCard, "id">) => void;
   removeCustomWord: (id: string) => void;
-  addReminder: (r: { text: string; time?: string; ring?: boolean; date?: string }) => void;
+  addReminder: (r: { text: string; time?: string; ring?: boolean; date?: string; systemClock?: boolean }) => void;
   toggleReminder: (id: string) => void;
   removeReminder: (id: string) => void;
   fireReminder: (id: string) => void;
@@ -1335,7 +1338,7 @@ export const useApp = create<AppState>()(
           ),
           ringing: null,
         })),
-      addReminder: ({ text, time, ring, date }) =>
+      addReminder: ({ text, time, ring, date, systemClock }) =>
         set((s) => ({
           reminders: [
             {
@@ -1344,6 +1347,7 @@ export const useApp = create<AppState>()(
               time: time || "21:00",
               done: false,
               ring: Boolean(ring),
+              systemClock,
               date: /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") ? date : undefined,
               createdAt: Date.now(),
               firedAt: 0,
@@ -1617,6 +1621,13 @@ export const useApp = create<AppState>()(
                         ? {
                             ...m,
                             ...patch,
+                            parts: m.scheduled && typeof patch.content === "string" && !patch.parts
+                              ? partsFor(patch.content, {
+                                  enabled: s.settings.segmentReply !== false,
+                                  maxParts: s.settings.segmentMaxParts,
+                                  maxSentences: s.settings.segmentMaxSentences,
+                                })
+                              : patch.parts ?? m.parts,
                             // 思考过程**留在这一条消息里**（折叠块要靠它才展得开），
                             // 但不再另存一份档案 —— 省掉的就是那份重复的。
                             thinking: patch.thinking ?? m.thinking,

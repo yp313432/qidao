@@ -1,19 +1,9 @@
 import { registerPlugin } from "@capacitor/core";
 import { IS_APP } from "@/lib/platform";
 
-/**
- * 把闹钟交给**手机自带的时钟 App**。
- *
- * 两条路（都能用，不冲突）：
- *   · 栖岛自己的全屏响铃 —— 有自己的界面、他的原话，但依赖 App 活着
- *   · 这个 —— 塞进系统时钟，响铃/贪睡/关机重开全由系统管，最可靠
- *
- * 插件是本地写的（android/app/src/main/java/com/yanping/qidao/SystemAlarmPlugin.java），
- * 所以网页版没有这个能力，会如实返回失败。
- */
-
+/** 通过 Android 的时钟接口请求设置响铃闹钟。 */
 type SystemAlarmApi = {
-  setAlarm: (o: { hour: number; minute: number; message?: string }) => Promise<{ ok: boolean }>;
+  setAlarm: (o: { hour: number; minute: number; message?: string; daily: boolean }) => Promise<{ ok: boolean }>;
 };
 
 let cached: SystemAlarmApi | null = null;
@@ -32,15 +22,37 @@ function api(): SystemAlarmApi | null {
 export async function saveToSystemAlarm(
   time: string,
   message: string,
+  date?: string,
 ): Promise<{ ok: boolean; reason?: string }> {
   const a = api();
   if (!a) return { ok: false, reason: "网页版没这个能力，装成 App 才有" };
-  const [h, m] = time.split(":").map((v) => Number(v));
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return { ok: false, reason: "时间格式不对" };
+  const match = /^(\d{1,2}):([0-5]\d)$/.exec(time);
+  if (!match || Number(match[1]) > 23) return { ok: false, reason: "时间格式不对" };
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (date) {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(hour, minute, 0, 0);
+    if (next <= now) {
+      next.setDate(next.getDate() + 1);
+      next.setHours(hour, minute, 0, 0);
+    }
+    const localDate = [
+      next.getFullYear(),
+      String(next.getMonth() + 1).padStart(2, "0"),
+      String(next.getDate()).padStart(2, "0"),
+    ].join("-");
+    if (date !== localDate) {
+      return { ok: false, reason: "手机时钟接口的一次性闹钟只支持下一次这个时间" };
+    }
+  }
+
   try {
-    await a.setAlarm({ hour: h as number, minute: m as number, message });
+    await a.setAlarm({ hour, minute, message, daily: !date });
     return { ok: true };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : "没能打开系统时钟" };
+    return { ok: false, reason: e instanceof Error ? e.message : "没能交给手机时钟" };
   }
 }

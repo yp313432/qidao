@@ -1,5 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { mountGlassLight } from "@/liquid/lib/glass-light";
+import { useState, type ReactNode } from "react";
 import { LiquidShellCtx, settingsMemory } from "@/liquid/lib/drawer-state";
 
 /**
@@ -28,7 +27,6 @@ export function LiquidShell({ children }: { children: ReactNode }) {
   };
 
   /* 光跟手指：一个全局委托，卸载时自己摘掉 */
-  useEffect(() => mountGlassLight(), []);
 
   return (
     <LiquidShellCtx.Provider value={{ open, setOpen, settings, setSettings }}>

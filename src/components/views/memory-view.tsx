@@ -10,10 +10,10 @@ import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 
-const BUDGET_STEPS = [2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000];
+const BUDGET_STEPS = [2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000, 48000, 64000, 96000];
 const KEEP_STEPS = [4, 8, 12, 16, 24, 32, 40];
 /* 摘要把「攒多少条」当触发（用户 m09621：「25 轮摘一次」= 50 条） */
-const SUMMARY_EVERY_STEPS = [20, 30, 40, 50, 60, 80, 100];
+const SUMMARY_EVERY_STEPS = [20, 30, 40, 50, 60, 80, 100, 150, 200];
 
 export function MemoryView() {
   const settings = useApp((s) => s.settings);
@@ -197,7 +197,8 @@ export function MemoryView() {
         <h2 className="k-sect__title mb-2">保留策略</h2>
         <div className="k-card divide-y divide-line">
           <Stepper
-            label="上下文预算"
+            label="每次请求的输入预算"
+            hint="含系统提示词、工具和聊天历史。请按模型窗口选档，给回复留出空间。"
             value={`${settings.contextBudget} tokens`}
             onPrev={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, -1) })}
             onNext={() => patch({ contextBudget: step(BUDGET_STEPS, settings.contextBudget, 1) })}
@@ -221,6 +222,7 @@ export function MemoryView() {
           </div>
           <Stepper
             label="每攒多少条摘一次"
+            hint="按消息条数触发，调高输入预算不会改变这个频率。"
             value={`${settings.summaryEvery ?? 50} 条`}
             disabled={!settings.autoCompact}
             onPrev={() => patch({ summaryEvery: step(SUMMARY_EVERY_STEPS, settings.summaryEvery ?? 50, -1) })}
@@ -237,8 +239,7 @@ export function MemoryView() {
           <p className="mt-0.5 text-[11px] leading-4 text-muted">
             {ctx?.hasSummary
               ? `已经有一份摘要（约 ${ctx.summaryTokens} tokens）—— 原文不再发出，省了约 ${ctx.summarySaved} tokens。`
-              : "超出预算时，更早的消息会被压成一份摘要继续带着走（而不是直接忘掉）。" +
-                "平时用不到，每攒够 50 条（约 25 轮）会自动做一次。"}
+              : `开启自动折叠后，每攒够约 ${settings.summaryEvery ?? 50} 条未摘要的消息，就会把较早的内容整理成摘要。原文仍保存在聊天里。`}
           </p>
           <div className="mt-2 flex gap-2">
             <button

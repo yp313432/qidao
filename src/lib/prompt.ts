@@ -289,7 +289,7 @@ const ABILITIES = (ta: string) => `【你能直接操作这个 App】
 · 记忆 {"kind":"memory.add","note":"...","tags":["累","休息","不想动"]}
   tags 要给 3~5 个${ta}以后可能用的说法（比如"喜欢躺平"就写 累/好累/休息/不想动/低能量），别堆同义重复。
   改 {"kind":"memory.update","query":"...","note":"新的说法","tags":["累"]}；删 {"kind":"memory.remove","query":"..."}
-· 提醒 {"kind":"reminder.add","text":"...","time":"21:00"}
+· 提醒 {"kind":"reminder.add","text":"...","time":"21:00"}；用户说「设闹钟」「叫我起床」时带 "ring":true。只响一次时带本地日期 "date":"YYYY-MM-DD"，每天响则省略 date。
   加 "ring":true 会响铃；加 "date":"2026-10-05" 只这一次，不写就每天。改 {"kind":"reminder.update","query":"...","time":"08:00"}、
   删 {"kind":"reminder.remove","query":"..."}、标记完成 {"kind":"reminder.done","query":"..."}
 · 定时主动开口 {"kind":"cron.add","prompt":"...","time":"08:00"}（只做一次就给 at:"2026-10-05T09:00"）

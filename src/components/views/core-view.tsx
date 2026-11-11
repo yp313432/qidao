@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { useApp } from "@/lib/store";
 import { GROUPS, PERMISSIONS, permissionSummary } from "@/lib/permissions";
 import { resolveAiName } from "@/lib/branding";
-import { IdentityCard } from "@/components/me/identity-card";
+import { clearIdentityOverlap, IdentityCard } from "@/components/me/identity-card";
 
 /**
  * 「AI 概览」—— 他现在的样子（大幅主卡 + 三个入口）。
@@ -105,6 +105,7 @@ export function CoreView() {
 
     const headH = lerp(HEAD_H, BAR_H, e);
     head.style.height = `${headH}px`;
+    clearIdentityOverlap(head, GAP);
     if (cardRef.current) cardRef.current.style.opacity = String(1 - clamp01(p / 0.72));
     if (barRef.current) barRef.current.style.opacity = String(clamp01((p - 0.55) / 0.35));
     if (avRef.current) {

@@ -10,22 +10,18 @@ const LAST_KEY = "qidao:last-diary-reminder";
 /** 已经交给系统的闹钟 id（改时间/删掉时要撤） */
 const SCHEDULED_KEY = "qidao:alarms-scheduled";
 
-/**
- * 原生闹钟有没有接管成功。
- *
- * 这个变量决定 App 自己还要不要弹全屏响铃页：
- *   · true  = 系统已经会在到点把 `AlarmActivity` 拉起来（App 关着也响），
- *             App 内那一层**必须让位**，否则同一时刻会响两遍
- *   · false = 退回老路（只在 App 活着时由下面的 `check()` 弹）
- * 放在模块级而不是 state：`check()` 在 setInterval 里跑，读 state 会读到旧值。
- */
-let nativeAlarmReady = false;
+let syncingNativeAlarms = false;
+let nativeAlarmKeys = new Map<number, string>();
 
 /** 把字符串 id 折成一个稳定的正整数 —— 原生通知只认数字 */
 function hashId(s: string): number {
   let h = 7;
   for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) % 2147483000;
   return h || 1;
+}
+
+function alarmKey(r: { time: string; date?: string }): string {
+  return (r.date ?? "") + "T" + r.time;
 }
 
 /**
@@ -46,65 +42,45 @@ export function ReminderDaemon() {
     void registerServiceWorker();
   }, []);
 
-  /**
-   * 把"响铃"的闹钟变成**真正的系统闹钟**。
-   *
-   * 2026-11 用户 m05769 报的 bug：以前这里只是 `scheduleNative()` 排了一条定时通知 ——
-   * App 不在前台就只会"悄悄插一条通知"，不响、不震、不亮屏，睡着的人根本不知道。
-   *
-   * 现在交给 `AlarmManager.setAlarmClock()`（见 `lib/native-alarm.ts` 与
-   * `QidaoAlarmPlugin.java`）：到点由系统把 `AlarmActivity` 拉起来，全屏 + 铃声 + 震动。
-   *
-   * 边界说清楚：
-   *   · 只有**每天重复**的闹钟走原生（`setAlarmClock` 是一次性的，重复由
-   *     `AlarmReceiver` 自己排下一次）
-   *   · 带了 `date` 的一次性闹钟仍走 App 内那条（系统闹钟表达不了"只在某一天"，
-   *     硬排成 daily 会第二天又响一次）
-   */
   const reminders = useApp((s) => s.reminders);
-  const reminderKey = reminders.map((r) => `${r.id}:${r.time}:${r.ring}:${r.done}`).join("|");
+  const alarmRevision = JSON.stringify(
+    reminders.filter((r) => r.ring && !r.done && !r.systemClock).map((r) => [r.id, r.time, r.date, r.text]),
+  );
   useEffect(() => {
     if (!IS_APP) return;
     let cancelled = false;
+    syncingNativeAlarms = true;
     void (async () => {
-      const alarms = useApp.getState().reminders.filter((r) => r.ring && !r.done && !r.date);
-      const want = new Map<number, { text: string; hour: number; minute: number }>();
-      for (const r of alarms) {
-        const [h, m] = r.time.split(":").map((v) => Number(v));
-        want.set(hashId(r.id), {
-          text: r.text,
-          hour: Number.isFinite(h) ? h : 21,
-          minute: Number.isFinite(m) ? m : 0,
-        });
-      }
-      let prev: number[] = [];
-      try {
-        prev = kvGetJSON<number[]>(SCHEDULED_KEY, []);
-      } catch {
-        prev = [];
-      }
-      /* 差分：上次排过、这次不该有的（删了闹钟 / 把响铃改成只提醒）交给原生撤掉 */
-      const removed = prev.filter((id) => !want.has(id));
-      if (cancelled) return;
-
-      const r = await syncNativeAlarms(
-        [...want].map(([id, v]) => ({
+      const alarms = useApp.getState().reminders.filter((r) => r.ring && !r.done && !r.systemClock);
+      const want = new Map(alarms.map((r) => {
+        const [hour, minute] = r.time.split(":").map(Number);
+        const id = hashId(r.id);
+        return [id, {
           id,
-          hour: v.hour,
-          minute: v.minute,
-          text: v.text,
-          daily: true,
-        })),
-        removed,
-      );
+          text: r.text,
+          hour,
+          minute,
+          daily: !r.date,
+          at: r.date ? Date.parse(r.date + "T" + r.time + ":00") : undefined,
+        }] as const;
+      }));
+      const previous = kvGetJSON<number[]>(SCHEDULED_KEY, []);
+      const removed = previous.filter((id) => !want.has(id));
+      const result = await syncNativeAlarms([...want.values()], removed);
       if (cancelled) return;
-      nativeAlarmReady = r.ok;
-      kvSetJSON(SCHEDULED_KEY, [...want.keys()]);
+      syncingNativeAlarms = false;
+      if (!result.ok) return;
+      const accepted = new Set(result.acceptedIds);
+      nativeAlarmKeys = new Map(
+        alarms.filter((r) => accepted.has(hashId(r.id))).map((r) => [hashId(r.id), alarmKey(r)]),
+      );
+      kvSetJSON(SCHEDULED_KEY, [...accepted]);
     })();
     return () => {
       cancelled = true;
+      syncingNativeAlarms = false;
     };
-  }, [reminderKey]);
+  }, [alarmRevision]);
 
   /**
    * ⚠️ 2026-10：**这条"提醒用户写日记"的通知删掉了**。
@@ -131,14 +107,15 @@ export function ReminderDaemon() {
 
     const check = () => {
       const st = useApp.getState();
-      if (!st.settings.notifications) return;
       const now = new Date();
       const today = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
       const minutes = now.getHours() * 60 + now.getMinutes();
 
       for (const r of st.reminders) {
-        if (r.done) continue;
+        if (r.done || r.systemClock) continue;
         const isAlarm = Boolean(r.ring);
+        if (!isAlarm && !st.settings.notifications) continue;
+        if (isAlarm && syncingNativeAlarms) continue;
 
         // 一次性闹钟（带了 date）：不是今天就直接跳过
         if (r.date) {
@@ -151,16 +128,15 @@ export function ReminderDaemon() {
           st.patchReminder(r.id, { snoozeUntil: undefined });
           st.fireReminder(r.id);
           if (isAlarm) {
-            /* 原生接管时系统会自己响 —— App 内不再重复弹，否则会响两遍 */
-            if (!nativeAlarmReady) {
-              void localNotify("栖岛 · 闹钟", r.text);
-              st.setRinging({ id: r.id, text: r.text, time: r.time });
-            }
+            void localNotify("栖岛 · 闹钟", r.text);
+            st.setRinging({ id: r.id, text: r.text, time: r.time });
           } else {
             void localNotify("栖岛 · 提醒", r.text);
           }
           continue;
         }
+
+        if (isAlarm && nativeAlarmKeys.get(hashId(r.id)) === alarmKey(r)) continue;
 
         // ② 常规：到点 + 今天还没响过
         const [h, m] = r.time.split(":").map((v) => Number(v));
@@ -176,10 +152,6 @@ export function ReminderDaemon() {
           if (isAlarm) st.patchReminder(r.id, { done: true });
           else st.removeReminder(r.id);
         }
-        // 闹钟：通知 + **全屏响铃**（只发通知人会睡过去）
-        // 2026-11：原生闹钟接管之后，App 这一层要让位 —— 系统到点会自己把响铃页拉起来
-        // （见 QidaoAlarmPlugin / AlarmActivity），再弹一次就是"响两遍"。
-        if (isAlarm && nativeAlarmReady) continue;
         void localNotify(isAlarm ? "栖岛 · 闹钟" : "栖岛 · 提醒", r.text);
         if (isAlarm) st.setRinging({ id: r.id, text: r.text, time: r.time });
       }

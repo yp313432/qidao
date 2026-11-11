@@ -28,16 +28,18 @@ export type NativeAlarm = {
   text: string;
   /** true = 每天这个点；false = 只响一次 */
   daily: boolean;
+  /** 一次性闹钟在设备本地时间对应的 Unix 毫秒数。 */
+  at?: number;
 };
 
 type QidaoAlarmApi = {
   canExact: () => Promise<{ exact: boolean; sdk: number }>;
   openExactSettings: () => Promise<{ ok: boolean }>;
   sync: (o: {
-    alarms: { id: number; hour: number; minute: number; text: string; daily: boolean }[];
+    alarms: NativeAlarm[];
     /** 这一次要撤掉的 id（JS 侧算差分 —— 安卓没有"列出我排了哪些"的 API） */
     removed?: number[];
-  }) => Promise<{ ok: boolean; exact: boolean; count: number }>;
+  }) => Promise<{ ok: boolean; exact: boolean; count: number; acceptedIds?: number[] }>;
   cancel: (o: { id: number }) => Promise<{ ok: boolean }>;
   cancelAll: (o: { ids: number[] }) => Promise<{ ok: boolean }>;
   /** 立刻弹一次响铃页（给"听一下铃声"用，不占用真闹钟的 id） */
@@ -91,9 +93,11 @@ export async function openNativeAlarmSettings(): Promise<{ ok: boolean; reason?:
 export async function syncNativeAlarms(
   alarms: NativeAlarm[],
   removed: number[] = [],
-): Promise<{ ok: boolean; exact: boolean; count: number; reason?: string }> {
+): Promise<{ ok: boolean; exact: boolean; count: number; acceptedIds: number[]; reason?: string }> {
   const a = api();
-  if (!a) return { ok: false, exact: false, count: 0, reason: "网页版没这个能力，装成 App 才有" };
+  if (!a) {
+    return { ok: false, exact: false, count: 0, acceptedIds: [], reason: "网页版没这个能力，装成 App 才有" };
+  }
   try {
     const r = await a.sync({
       alarms: alarms.map((v) => ({
@@ -102,15 +106,17 @@ export async function syncNativeAlarms(
         minute: v.minute,
         text: v.text,
         daily: v.daily,
+        at: v.at,
       })),
       removed,
     });
-    return { ok: Boolean(r.ok), exact: Boolean(r.exact), count: alarms.length };
+    return { ok: Boolean(r.ok), exact: Boolean(r.exact), count: r.count, acceptedIds: r.acceptedIds ?? [] };
   } catch (e) {
     return {
       ok: false,
       exact: false,
       count: 0,
+      acceptedIds: [],
       reason: e instanceof Error ? e.message : "没能排进系统闹钟",
     };
   }

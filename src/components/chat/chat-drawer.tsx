@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -43,8 +45,10 @@ export function ChatDrawer({
   onClose,
   rowMenu,
   setRowMenu,
+  onCrabReplay,
 }: {
   open: boolean;
+  onCrabReplay: () => void;
   onClose: () => void;
   rowMenu: string | null;
   setRowMenu: (id: string | null) => void;
@@ -54,13 +58,18 @@ export function ChatDrawer({
   const activeId = useApp((s) => s.activeId);
   const settings = useApp((s) => s.settings);
 
+  const [showCrab, setShowCrab] = useState(false);
+  const pet = settings.chatCrab ?? { enabled: true, size: 32, activity: "lively" };
+  const savePet = (patch: Partial<typeof pet>) => {
+    useApp.getState().patchSettings({ chatCrab: { ...pet, ...patch } });
+  };
   const liquid = materialOf(settings) === "liquid";
   const solidPaper = isSolid(settings);
 
   /*
     第 9 条：侧边栏下半的**功能八条**（用户定的顺序：工具／动态／岁序／音乐／学习／花园／插件／桌宠）。
     形状照定稿：通栏细长条（左图标 + 右文字、13px 圆角）。
-    桌宠还没有自己的页面，先占位（go 为 null，点了不跳）—— 用户："先挪走，地方后续再调整"。
+    桌宠在抽屉内切换到设置。
   */
   const drawerFuncs: { label: string; Icon: LucideIcon; go: (() => void) | null }[] = [
     { label: "工具", Icon: Wrench, go: () => void navigate({ to: "/tools" }) },
@@ -232,20 +241,50 @@ export function ChatDrawer({
                 跟上面「对话」一组同一个模子（小字 + 淡色 + 字距）。 */}
             <p className="lq-group-head lq-group-head--func">功能</p>
             <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
-              {drawerFuncs.map(({ label, Icon, go }) => (
+              {showCrab ? (
+                <div className="flex flex-col gap-2 pb-2 text-sm">
+                  <button type="button" className="lq-func__row" onClick={() => setShowCrab(false)}>‹ 桌宠</button>
+                  <label className="flex items-center justify-between gap-2 px-2">
+                    在聊天显示 <input type="checkbox" checked={pet.enabled}
+                      onChange={(e) => savePet({ enabled: e.target.checked })} />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-2">
+                    大小 <select className="k-input" value={pet.size}
+                      onChange={(e) => savePet({ size: Number(e.target.value) as typeof pet.size })}>
+                      <option value={28}>28 × 21</option>
+                      <option value={32}>32 × 24</option>
+                      <option value={36}>36 × 27</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-2">
+                    活动量 <select className="k-input" value={pet.activity}
+                      onChange={(e) => savePet({ activity: e.target.value === "quiet" ? "quiet" : "lively" })}>
+                      <option value="lively">活泼</option>
+                      <option value="quiet">安静</option>
+                    </select>
+                  </label>
+                  <button type="button" className="lq-func__row" disabled={!pet.enabled}
+                    onClick={() => { setShowCrab(false); onCrabReplay(); onClose(); }}>
+                    <Bug className="lq-func__ico" strokeWidth={1.6} /> 回聊天看动作
+                  </button>
+                </div>
+              ) : (
+              drawerFuncs.map(({ label, Icon, go }) => (
                 <button
                   key={label}
                   type="button"
                   className="lq-func__row"
                   onClick={() => {
-                    go?.();
-                    if (go) onClose();
+                    if (!go) { setShowCrab(true); return; }
+                    go();
+                    onClose();
                   }}
                 >
                   <Icon className="lq-func__ico" strokeWidth={1.6} />
                   <span>{label}</span>
                 </button>
-              ))}
+              ))
+              )}
             </nav>
             <div className="lq-sheet-foot relative z-10 flex shrink-0 items-center justify-between gap-2 px-3">
               <button

@@ -22,7 +22,7 @@ import { requestDrawer } from "@/lib/drawer-request";
 import { registerPageHeader } from "@/lib/header-registry";
 import { materialOf } from "@/lib/material";
 import { useScrollMemory } from "@/lib/ux";
-import { IdentityCard } from "./identity-card";
+import { clearIdentityOverlap, IdentityCard } from "./identity-card";
 
 /**
  * 「我的」首页：资料卡 + 三组入口 + 版本号。
@@ -210,6 +210,7 @@ export function MeHub() {
 
     const headH = lerp(HEAD_H, BAR_H, e);
     head.style.height = `${headH}px`;
+    clearIdentityOverlap(head, GAP);
     if (cardRef.current) cardRef.current.style.opacity = String(1 - clamp01(p / 0.72));
     // 玻璃条留到最后三成才浮上来，别在卡片还完整时就压一条白边
     if (barRef.current) barRef.current.style.opacity = String(clamp01((p - 0.55) / 0.35));

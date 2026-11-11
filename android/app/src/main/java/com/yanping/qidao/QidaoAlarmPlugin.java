@@ -119,6 +119,9 @@ public class QidaoAlarmPlugin extends Plugin {
     }
     boolean exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
 
+    JSArray acceptedIds = new JSArray();
+    android.content.SharedPreferences delivery =
+        getContext().getSharedPreferences("alarm-delivery", Context.MODE_PRIVATE);
     int count = 0;
     java.util.HashSet<Integer> keep = new java.util.HashSet<>();
     try {
@@ -130,9 +133,22 @@ public class QidaoAlarmPlugin extends Plugin {
         String text = o.optString("text", "闹钟");
         boolean daily = o.optBoolean("daily", true);
         if (id == 0) continue;
+        long at = daily ? nextTrigger(hour, minute) : o.optLong("at", 0);
+        if (at <= 0) continue;
+        String key = Integer.toString(id);
+        if (!daily && at <= System.currentTimeMillis()) {
+          boolean fired = delivery.getLong(key, 0) == at;
+          boolean pending = delivery.getLong("pending:" + key, 0) == at
+              && alarmIntent(getContext(), id, hour, minute, text, false, at,
+                  PendingIntent.FLAG_NO_CREATE) != null;
+          if (!fired && !pending) continue;
+        } else {
+          scheduleStatic(getContext(), am, id, hour, minute, text, daily, exact, at);
+          if (!daily) delivery.edit().putLong("pending:" + key, at).apply();
+          count += 1;
+        }
         keep.add(id);
-        scheduleOne(am, id, hour, minute, text, daily, exact);
-        count += 1;
+        acceptedIds.put(id);
       }
     } catch (Exception e) {
       call.reject("排闹钟时出错：" + e.getMessage());
@@ -162,6 +178,7 @@ public class QidaoAlarmPlugin extends Plugin {
     JSObject ret = new JSObject();
     ret.put("ok", true);
     ret.put("count", count);
+    ret.put("acceptedIds", acceptedIds);
     ret.put("exact", exact);
     call.resolve(ret);
   }
@@ -213,7 +230,7 @@ public class QidaoAlarmPlugin extends Plugin {
 
   /* ───────────── 内部 ───────────── */
 
-  private static PendingIntent alarmIntent(Context ctx, int id, int hour, int minute, String text, boolean daily) {
+  private static PendingIntent alarmIntent(Context ctx, int id, int hour, int minute, String text, boolean daily, long at, int flags) {
     Intent i = new Intent(ctx, AlarmReceiver.class);
     i.setAction(ACTION_RING);
     i.putExtra("id", id);
@@ -221,15 +238,10 @@ public class QidaoAlarmPlugin extends Plugin {
     i.putExtra("minute", minute);
     i.putExtra("text", text);
     i.putExtra("daily", daily);
+    i.putExtra("at", at);
     /* requestCode 必须每条不同，否则后一条会把前一条覆盖掉（PendingIntent 按 requestCode 去重） */
-    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
     return PendingIntent.getBroadcast(ctx, id, i, flags);
-  }
-
-  private void scheduleOne(
-      AlarmManager am, int id, int hour, int minute, String text, boolean daily, boolean exact) {
-    scheduleStatic(getContext(), am, id, hour, minute, text, daily, exact);
   }
 
   /**
@@ -246,9 +258,9 @@ public class QidaoAlarmPlugin extends Plugin {
       int minute,
       String text,
       boolean daily,
-      boolean exact) {
-    long at = nextTrigger(hour, minute);
-    PendingIntent pi = alarmIntent(ctx, id, hour, minute, text, daily);
+      boolean exact,
+      long at) {
+    PendingIntent pi = alarmIntent(ctx, id, hour, minute, text, daily, at, PendingIntent.FLAG_UPDATE_CURRENT);
 
     /* 点状态栏那个"下一个闹钟"图标时跳到哪：直接进 App */
     Intent show = new Intent(ctx, MainActivity.class);
@@ -287,12 +299,18 @@ public class QidaoAlarmPlugin extends Plugin {
     AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
     if (am == null) return;
     boolean exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
-    scheduleStatic(ctx, am, id, hour, minute, text, daily, exact);
+    scheduleStatic(ctx, am, id, hour, minute, text, daily, exact, nextTrigger(hour, minute));
   }
 
   private void cancelOne(AlarmManager am, int id) {
     Context ctx = getContext();
-    am.cancel(alarmIntent(ctx, id, 0, 0, "", true));
+    PendingIntent pi = alarmIntent(ctx, id, 0, 0, "", true, 0, PendingIntent.FLAG_NO_CREATE);
+    if (pi != null) {
+      am.cancel(pi);
+      pi.cancel();
+    }
+    ctx.getSharedPreferences("alarm-delivery", Context.MODE_PRIVATE)
+        .edit().remove(Integer.toString(id)).remove("pending:" + id).apply();
   }
 
   /**
@@ -309,7 +327,7 @@ public class QidaoAlarmPlugin extends Plugin {
     c.set(Calendar.SECOND, 0);
     c.set(Calendar.MILLISECOND, 0);
     long at = c.getTimeInMillis();
-    if (at <= System.currentTimeMillis() + 1000) at += 24L * 60 * 60 * 1000;
-    return at;
+    if (at <= System.currentTimeMillis() + 1000) c.add(Calendar.DAY_OF_YEAR, 1);
+    return c.getTimeInMillis();
   }
 }

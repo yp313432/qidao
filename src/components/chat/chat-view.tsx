@@ -1,3 +1,4 @@
+import { ChatCrab } from "@/components/chat/chat-crab";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -362,7 +363,7 @@ import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { transcribe } from "@/lib/voice-service";
-import type { Attachment, ChatStep } from "@/lib/types";
+import type { Attachment } from "@/lib/types";
 import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { useStickToBottom } from "@/lib/use-stick-to-bottom";
@@ -422,12 +423,8 @@ export function ChatView() {
   /** **自绘改名对话框**（用户第 7 条：系统那个白底 CANCEL/OK 太不搭） */
   const [renameFor, setRenameFor] = useState<{ id: string; text: string } | null>(null);
   /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
-  const [thinkSheet, setThinkSheet] = useState<{
-    text: string;
-    steps?: ChatStep[];
-    ms?: number;
-    live?: boolean;
-  } | null>(null);
+  const [crabReplay, setCrabReplay] = useState(0);
+  const [thinkSheetId, setThinkSheetId] = useState<string | null>(null);
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
   /**
@@ -486,6 +483,7 @@ export function ChatView() {
   const awakeState = useApp((s) => s.awakeState);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
   const { busy, liveId, step, send, regenerate } = useChatStream();
+  const thinkSheet = conv?.messages.find((m) => m.id === thinkSheetId);
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
   useActivity("在和你聊天", conv?.title ?? "新对话");
 
@@ -1286,18 +1284,6 @@ export function ChatView() {
                                   ))}
                               </div>
                             )}
-                            {/*
-                          ⭐ agent loop 的进度：他现在走到第几步、正在执行哪个动作。
-                          用户原话："这一轮我发出动作，成没成，要等下一轮结果回来才知道；
-                          这一轮里我完全看不见。" —— 这一行 + 下面的「动手 N 次」明细
-                          就是让他**在同一轮里**看得见。
-                        */}
-                            {streaming && step && (
-                              <p className="mb-1.5 flex items-center gap-1.5 rounded-full bg-chip-flat px-3 py-1 text-[11px] text-muted">
-                                <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                                {step.label}
-                              </p>
-                            )}
                             {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
                             {(() => {
@@ -1325,8 +1311,10 @@ export function ChatView() {
                                 ? Math.max(1, Math.round(m.thinkingDurationMs / 1000))
                                 : 0;
                               const head =
-                                streaming && !m.content
-                                  ? "正在想…"
+                                streaming && step
+                                  ? step.label
+                                  : streaming && !m.content
+                                    ? "正在想…"
                                   : secs
                                     ? `想了 ${secs} 秒`
                                     : "想了想";
@@ -1336,14 +1324,7 @@ export function ChatView() {
                                （全局那条写在 styles.css 的 `:root` 里；这里再钉一遍，不依赖继承）。 */
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setThinkSheet({
-                                      text: m.thinking,
-                                      steps: m.steps,
-                                      ms: m.thinkingDurationMs,
-                                      live: Boolean(streaming && !m.content),
-                                    })
-                                  }
+                                  onClick={() => setThinkSheetId(m.id)}
                                   className={cn(
                                     "chat-meta mb-1.5 flex w-max max-w-full items-center gap-2 py-0.5 pl-0.5 pr-1 text-[11.5px] [-webkit-tap-highlight-color:transparent]",
                                     /* 纸世界 Step3 补：思考入口换电文行小字（mono+墨淡+橘竖线） */
@@ -1877,22 +1858,17 @@ export function ChatView() {
           document.body,
         )}
 
-      {/* 第 3 条：螃蟹桌宠原先从抽屉底部挪到对话页右下角（`bottom-28 right-1`）。
-          用户看实机后说"从对话页先挪走，位置后调"——它正压在发送键上，所以这一轮先不渲染；
-          功能没删：纯色抽屉底部那颗还在原处，DrawerMood 组件也没动。
-          位置定下来之后，把下面三行挂回来即可：
-            <div className="lq-pet pointer-events-none absolute bottom-28 right-1 z-20">
-              <DrawerMood className="lq-pet-mood" />
-            </div> */}
+      <ChatCrab scroller={scroller} composer={composerWrap} paused={menu || Boolean(thinkSheet)}
+        busy={busy} working={Boolean(step)} replay={crabReplay} />
 
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet
-        open={thinkSheet !== null}
-        text={thinkSheet?.text ?? ""}
+        open={Boolean(thinkSheet)}
+        text={thinkSheet?.thinking ?? ""}
         steps={thinkSheet?.steps}
-        durationMs={thinkSheet?.ms}
-        live={thinkSheet?.live}
-        onClose={() => setThinkSheet(null)}
+        durationMs={thinkSheet?.thinkingDurationMs}
+        live={Boolean(thinkSheet && thinkSheet.id === liveId)}
+        onClose={() => setThinkSheetId(null)}
       />
 
       {/* 抽屉：这一轮把它拆到 chat-drawer.tsx（样式守卫的「最大部件」只许 chat-view 变小，
@@ -1900,6 +1876,7 @@ export function ChatView() {
       <ChatDrawer
         open={menu}
         onClose={() => setMenu(false)}
+        onCrabReplay={() => setCrabReplay((n) => n + 1)}
         rowMenu={rowMenu}
         setRowMenu={setRowMenu}
       />
