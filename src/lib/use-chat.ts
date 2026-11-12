@@ -1027,7 +1027,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
          */
         const rest: Record<string, unknown> = { ...(action as unknown as Record<string, unknown>) };
         delete rest.kind;
-        const call = { id: uid("call"), name: action.kind.replace(/\./g, "_"), args: JSON.stringify(rest) };
+        const call = { index: 0, id: uid("call"), name: action.kind.replace(/\./g, "_"), args: JSON.stringify(rest) };
         setStep({ round: state.steps.filter((s) => s.kind === "call").length + 1,
           label: `正在执行 ${toolProgressLabel([call])}` });
         const outcome = await runOneAction(call, ac.signal, useApp);

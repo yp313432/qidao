@@ -326,6 +326,9 @@ export async function readWebPage(
     if (result.ok !== true || typeof result.text !== "string" || !result.text.trim()) {
       return { ok: false, why: String(result.why || "网页接口没有返回正文") };
     }
+    if (Number(result.status || 200) < 200 || Number(result.status || 200) >= 300) {
+      return { ok: false, why: `对方返回 HTTP ${result.status}（这个页面读不到）` };
+    }
     return { ok: true, url: String(result.url || rawUrl), status: Number(result.status || 200),
       title: String(result.title || ""), text: result.text.slice(0, maxChars),
       truncated: Boolean(result.truncated) || result.text.length > maxChars,
