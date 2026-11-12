@@ -1,3 +1,4 @@
+import { ChatDeliverySettings } from "./chat-delivery-settings";
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
@@ -1094,29 +1095,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
         所以四个旋钮都摆在这儿，**不写死在代码里** —— 效果不对他自己拧，
         不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
       */}
-          <Sub title="说话方式">
-            <Row
-              label="分段回复"
-              checked={settings.segmentReply !== false}
-              onChange={(v) => patch({ segmentReply: v })}
-            />
-            {settings.segmentReply !== false && (
-              <>
-                <p className="k-sect__title mt-4">段间延迟</p>
-                <KOpts cols={3}>
-                  {[400, 800, 1200, 1800, 2500].map((v) => (
-                    <KOpt
-                      key={v}
-                      active={(settings.segmentDelayMs ?? 1200) === v}
-                      onClick={() => patch({ segmentDelayMs: v })}
-                    >
-                      {(v / 1000).toFixed(1)} 秒
-                    </KOpt>
-                  ))}
-                </KOpts>
-              </>
-            )}
-          </Sub>
+          <ChatDeliverySettings />
 
           {/*
         ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
@@ -2251,3 +2230,4 @@ export function MeSections({ tab }: { tab: MeTab }) {
   if (tab === "data") return <>{dataSections}</>;
   return <>{systemSections}</>;
 }
+

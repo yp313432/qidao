@@ -717,6 +717,11 @@ export type Settings = {
   segmentMaxSentences?: number;
   /** 段间延迟（毫秒，400–3000）。界面上是"打字感"，固定值会假，所以实际会加抖动 */
   segmentDelayMs?: number;
+  segmentSmartDelay?: boolean;
+  segmentCharDelayMs?: number;
+  mergeSend?: boolean;
+  mergeSendDelayMs?: number;
+  assistantAutoClean?: boolean;
   /**
    * ── 主动说话（2026-11 用户要的"他自己察觉到、自己开口"）──────────
    *

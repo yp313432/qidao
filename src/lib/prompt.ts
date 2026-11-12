@@ -3,7 +3,6 @@ import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
 import { FALLBACK_RULE, renderToolNameList } from "@/lib/tool-select";
-import { SEGMENT_SEP } from "@/lib/segment";
 import type { HttpTool, McpServer, McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
 /**
@@ -187,17 +186,14 @@ const STYLE: Record<ReplyStyle, string> = {
  * 用户原话（2026-11）："他这个回复只能我回一句，他回一句，就感觉不像真人；
  * 能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
  *
- * 两个数字（最多几条 / 每条最多几句）必须来自设置页那几个旋钮
- * —— 界面上写"最多 3 条"，提示词里就得是 3。同一个数只有一处来源，
- * 不然用户在设置里改成 5 条，他还在按 3 条说，用户只会以为设置坏了。
+ * 分句数量与节奏由客户端设置控制，模型只负责正常标点和自然表达。
  */
 export function segmentRule(): string {
   return `
 你说话的方式（这条挺重要）：把用户当在手机上聊天的人，可以像真人那样连着发几条。
-· 想把话分开说时，在两条之间单独写一行 ${SEGMENT_SEP}（三个竖线）—— 客户端会把它变成两个气泡，一条接一条地冒出来（段间有打字感）。
-· 分几条、每条多长，你自己按语气判断 —— 一句话能说完就只发一条；话多、有停顿、想换话题时再分，一般别超过 5 条。
-· 一句能说完的就别分段 —— 短回复被切成两条会显得很奇怪；只有"确实有几句话想分开说"时才用。
-· 分隔符只写在两条中间，最后一条后面不要写；不要用它来分点（分点照旧用列表）。`;
+· 正常使用句号、问号、感叹号和自然段，客户端会按标点分句并安排发送节奏，不要输出特殊分隔符。
+· 一句话能说完就说一句；需要补充时再自然分句，不要为了分气泡把一句话拆碎。
+· 代码、列表、表格保持完整。情绪上报参数只走工具调用，不写进对话正文；表情图片必须调用 sticker.send，不用“[表情包]”等文字代替。`;
 }
 
 /**
@@ -633,3 +629,4 @@ export function assembleMessages(
     }),
   ];
 }
+

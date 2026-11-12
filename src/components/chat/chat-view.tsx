@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { prettySize } from "@/lib/attachments";
 import { setChatPageActive } from "@/lib/chat-presence";
-import { firstSegment, splitSegments, stripInvisible } from "@/lib/segment";
+import { splitSegments, stripInvisible } from "@/lib/segment";
+import { cleanAssistantMarkup } from "@/lib/assistant-cleanup";
 import { Avatar } from "@/components/shared/avatar";
 
 /**
@@ -154,6 +155,7 @@ function cleanUpstreamNoise(s: string): string {
 /** 删掉内部标签（整段删 / 只删标签见上面两条规则的说明） */
 function stripInternalTags(s: string): string {
   if (!s) return s;
+  if (useApp.getState().settings.assistantAutoClean !== false) s = cleanAssistantMarkup(s);
   const t =
     s.indexOf("<") < 0 ? s : s.replace(INTERNAL_DROP_BLOCK, "").replace(INTERNAL_LOOSE_TAG, "");
   return cleanUpstreamNoise(t);
@@ -482,7 +484,7 @@ export function ChatView() {
   /** 他现在醒着还是打盹（只由 lib/awake.ts 写）—— 用户 m10324 要能一眼看到 */
   const awakeState = useApp((s) => s.awakeState);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
-  const { busy, liveId, step, send, regenerate } = useChatStream();
+  const { busy, pendingCount, liveId, step, send, regenerate, stop } = useChatStream();
   const thinkSheet = conv?.messages.find((m) => m.id === thinkSheetId);
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
   useActivity("在和你聊天", conv?.title ?? "新对话");
@@ -1364,7 +1366,7 @@ export function ChatView() {
                               if ((m.attachments ?? []).some((a) => a.kind === "audio"))
                                 return null;
                               const delay = Math.max(400, settings.segmentDelayMs ?? 1200);
-                              const fresh = Date.now() - (m.createdAt ?? 0) < 20_000;
+                              const fresh = streaming || Date.now() - (m.createdAt ?? 0) < 20_000;
 
                               /**
                                * ⭐ **边写边分**（用户 m06419 第 3 条："把所有的话放在一整条消息里，
@@ -1378,18 +1380,15 @@ export function ChatView() {
                                       maxSentences: settings.segmentMaxSentences,
                                     })
                                   : null;
-                              const shownParts =
-                                live && live.length > 1
-                                  ? live
-                                  : !streaming && visibleParts.length > 1
-                                    ? visibleParts
-                                    : null;
+                              const shownParts = settings.segmentReply !== false
+                                ? live ?? (visibleParts.length ? visibleParts : splitSegments(m.content ?? "", { maxParts: settings.segmentMaxParts, maxSentences: settings.segmentMaxSentences }))
+                                : null;
 
-                              if (shownParts) {
+                              if (shownParts?.length && shownParts.some((p) => hasRenderedText(cleanPartForRender(p)))) {
                                 return (
                                   <SegmentBubbles
                                     parts={shownParts}
-                                    liveTail={Boolean(live && live.length > 1)}
+                                    deliveryKey={m.id} liveTail={Boolean(live)}
                                     delay={delay}
                                     fresh={fresh}
                                     cleanPart={cleanPartForRender}
@@ -1400,7 +1399,7 @@ export function ChatView() {
                                 );
                               }
 
-                              const liveText = streaming ? firstSegment(m.content) : m.content;
+                              const liveText = m.content;
                               return hasRenderedText(liveText) && !isPunctOnly(liveText) ? (
                                 <div
                                   ref={hideIfRenderedEmpty}
@@ -1830,7 +1829,8 @@ export function ChatView() {
               const el = scroller.current;
               if (el) el.scrollTop = el.scrollHeight;
             }}
-            disabled={busy}
+            disabled={Boolean(editing) && busy}
+            queuedCount={pendingCount} onStop={stop}
             streaming={busy}
             editingText={editing?.text ?? null}
             onCancelEdit={() => setEditing(null)}

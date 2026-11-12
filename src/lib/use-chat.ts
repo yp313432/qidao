@@ -1,4 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
+import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup";
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
 import { buildContext } from "@/lib/awareness";
@@ -41,6 +43,7 @@ import { toolProgressLabel } from "@/lib/tool-title";
 import type { AppAction, Attachment, ChatMessage, ChatStep } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
+const sendQueue = new ChatSendQueue(() => pushToast("发送没能完成，消息已保留在会话中。"));
 
 /**
  * 把参数归一化成可比较的字符串（键排序、丢空值）。
@@ -359,6 +362,7 @@ function notifyQuota(aiName: string) {
 }
 
 export function useChatStream(opts: UseChatOpts = {}) {
+  const sending = useSyncExternalStore(sendQueue.subscribe, sendQueue.getSnapshot, sendQueue.getSnapshot);
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const aiName = resolveAiName(settings.aiName);
@@ -398,6 +402,16 @@ export function useChatStream(opts: UseChatOpts = {}) {
   /** 把一段历史丢给模型，边流边写回指定的那一条助手消息。 */
   const runStream = useCallback(
     async (conversationId: string, messageId: string, history: ApiMessage[], summaryText?: string) => {
+      const settings = useApp.getState().settings;
+      const model = useApp.getState().model;
+      useApp.getState().takeReplyStickers(); // No sticker from an earlier, unrelated turn may leak in.
+      const shownText = (raw: string) => stripActions(settings.assistantAutoClean !== false ? cleanAssistantMarkup(raw) : raw);
+      const attachStickers = () => {
+        const fresh = useApp.getState().takeReplyStickers().map((url) => stickerAttachment(url, uid("att"))).filter((a) => a !== null);
+        if (!fresh.length) return;
+        const existing = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments ?? [];
+        useApp.getState().patchMessage(conversationId, messageId, { attachments: [...existing, ...fresh] });
+      };
       setBusy(true);
       setLiveId(messageId);
       const started = Date.now();
@@ -451,7 +465,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         dirty = false;
         // 写进消息里的是**去掉动作块**的正文 —— 否则那截 JSON 会一直显示在对话里
         useApp.getState().patchMessage(conversationId, messageId, {
-          content: stripActions(content),
+          content: shownText(content),
           thinking,
         });
       };
@@ -782,6 +796,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
             setPhase(`执行动作（${calls.map((c) => c.name).join("、")}）`);
           },
           onRound: (r) => {
+            attachStickers();
             setStep(null);
             state.rounds.push(r);
             /**
@@ -1038,6 +1053,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         setStep({ round: state.steps.filter((s) => s.kind === "call").length + 1,
           label: `正在执行 ${toolProgressLabel([call])}` });
         const outcome = await runOneAction(call, ac.signal, useApp);
+        attachStickers();
         setStep(null);
         state.steps.push({
           kind: "call",
@@ -1083,13 +1099,15 @@ export function useChatStream(opts: UseChatOpts = {}) {
           "要继续跟他说一声就行。）";
       }
 
+      attachStickers();
+      const stickerAtts = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments?.filter((a) => a.kind === "sticker") ?? [];
       const finalText =
-        stripActions(content) ||
+        shownText(content) || (stickerAtts.length ? "" :
         // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
         // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
         (thinking.trim().length > 0
           ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
-          : "（空回复）");
+          : "（空回复）"));
 
       /**
        * **分段回复**：把正文切成几个气泡（见 `lib/segment.ts`）。
@@ -1109,10 +1127,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 为什么挂附件而不是单发一条消息：这样它跟这句正文**属于同一条**，
        * 渲染时天然跟在正文后面；单发一条会和"这句话"脱节。
        */
-      const stickerUrl = useApp.getState().takeReplySticker();
-      const stickerAtt: Attachment | null = stickerUrl
-        ? { id: uid("att"), kind: "sticker", name: "表情", mime: "image/png", size: 0, dataUrl: stickerUrl }
-        : null;
 
       /**
        * **他这一轮用语音回**（用户 m11313："我先用语音，它用语音回"）。
@@ -1138,9 +1152,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
       }
 
       const attachments: ChatMessage["attachments"] = voiceAtt
-        ? [...(stickerAtt ? [stickerAtt] : []), voiceAtt]
-        : stickerAtt
-          ? [stickerAtt]
+        ? [...stickerAtts, voiceAtt]
+        : stickerAtts.length
+          ? stickerAtts
           : undefined;
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
@@ -1220,41 +1234,36 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
   const send = useCallback(
     async (text: string, attachments?: Attachment[]) => {
-      /**
-       * 按模式决定拦不拦（bumpQuota 里判断）：
-       *   自己带 key → 永远返回 true（花你的钱，本机不管）✅
-       *   走服务端   → 超了窗口上限才返回 false ✅
-       */
-      const ok = useApp.getState().bumpQuota();
-      if (!ok) {
-        pushToast(
-          "本窗口额度用尽了（你现在走的是内置服务端，花的是服务端那把 key）。\n" +
-            "想不受限：去「我的 → 自定义上游」填你自己的地址和密钥。",
-        );
-        return;
-      }
-      const { conversationId, assistant, user } = useApp
-        .getState()
-        .addUserMessage(text, attachments);
-      const prior = useApp.getState().conversations.find((c) => c.id === conversationId);
-      /**
-       * **水位线**：摘要盖住的那一段原文不再发（`summary.upToIndex` 是库里那个位置）。
-       * 摘要本身挂在历史最前面（`summary` 那个字段），所以信息没丢、只是换成了压缩版。
-       */
-      const all = prior?.messages.filter((m) => m.id !== assistant.id) ?? [user];
-      const kept = prior?.summary ? all.slice(prior.summary.upToIndex) : all;
-      const history = historyForApi(kept, {
-        ...histOpts,
-        // 整轮口径：扣掉系统提示词和工具，才是历史真正能用的额度
-        systemTokens: fixedRef.current.system,
-        toolTokens: fixedRef.current.tools,
-        // 摘要放最前面（原文已经在上面被切掉了）
-        summary: prior?.summary ? { text: prior.summary.text, upToIndex: 0 } : undefined,
-      });
-      await runStream(conversationId, assistant.id, history, prior?.summary?.text);
+      if (!text.trim() && !attachments?.length) return;
+      const { conversationId } = useApp.getState().appendUserMessage(text, attachments);
+      const current = useApp.getState().settings;
+      const delay = current.mergeSend === false || attachments?.some((a) => a.kind === "audio")
+        ? 0 : Math.max(0, Math.min(5000, current.mergeSendDelayMs ?? 1200));
+      await sendQueue.enqueue(conversationId, delay, async () => {
+        if (!useApp.getState().conversations.some((c) => c.id === conversationId)) return;
+        if (!useApp.getState().bumpQuota()) { pushToast("本窗口额度用尽了，请检查模型与用量设置。"); return; }
+        const assistant = useApp.getState().beginAssistantReply(conversationId);
+        if (!assistant) return;
+        try {
+          const prior = useApp.getState().conversations.find((c) => c.id === conversationId)!;
+          const all = prior.messages.filter((m) => m.id !== assistant.id);
+          const kept = prior.summary ? all.slice(prior.summary.upToIndex) : all;
+          const currentSettings = useApp.getState().settings;
+          const history = mergeUserMessages(historyForApi(kept, {
+            budget: currentSettings.contextBudget, keepRecent: currentSettings.keepRecent,
+            autoCompact: currentSettings.autoCompact, compactAt: currentSettings.compactAt,
+            systemTokens: fixedRef.current.system, toolTokens: fixedRef.current.tools,
+            summary: prior.summary ? { text: prior.summary.text, upToIndex: 0 } : undefined,
+          }));
+          await runStream(conversationId, assistant.id, history, prior.summary?.text);
+        } catch (error) {
+          useApp.getState().patchMessage(conversationId, assistant.id, {
+            content: `这次回复没完成：${error instanceof Error ? error.message : "请求失败"}`,
+          });
+        } finally { setBusy(false); setStep(null); setLiveId(null); }
+      }, () => abortRef.current?.abort());
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [runStream, settings],
+    [runStream],
   );
 
   /** 重新生成某一条助手回复：保留它之前的历史，清空本条再跑一次。 */
@@ -1268,6 +1277,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const idx = target.messages.findIndex((m) => m.id === messageId);
       if (idx < 0) return;
       st.patchMessage(conversationId, messageId, {
+        parts: undefined, attachments: undefined, steps: undefined, rounds: undefined,
         content: "",
         thinking: "",
         thinkingDurationMs: 0,
@@ -1292,10 +1302,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
     [runStream, settings],
   );
 
-  const stop = useCallback(() => abortRef.current?.abort(), []);
+  const stop = useCallback(() => { sendQueue.stop(); abortRef.current?.abort(); }, []);
 
   /** `step` 给界面显示"第 N 步 · 正在执行 X"（agent loop 的进度，见 runToolLoop 的 onStep） */
-  return { busy, liveId, step, send, regenerate, stop, aiName };
+  return { busy: busy || sending.running || sending.pending > 0, pendingCount: sending.pending, liveId, step, send, regenerate, stop, aiName };
 }
 
 /**
