@@ -20,6 +20,7 @@ public class WakeService extends Service {
   static final String ACTION_TICK = "com.yanping.qidao.WAKE_RUN";
   private static final String CH_ID = "qidao_wake_busy";
   private static final int FG_ID = 7302;
+  private boolean running;
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -29,19 +30,26 @@ public class WakeService extends Service {
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
     startForegroundQuietly();
+    // 手动叫醒与系统闹钟撞在一起时，共用这一次，避免并发请求和重复通知。
+    if (running) return START_NOT_STICKY;
+    running = true;
 
     new Thread(new Runnable() {
       @Override
       public void run() {
         try {
-          WakeEngine.tick(WakeService.this);
+          WakeEngine.Outcome outcome = WakeEngine.tick(WakeService.this);
+          recordOutcome(outcome.what + (outcome.accepted && !outcome.notified ? "（系统通知未发出）" : ""));
         } catch (Throwable ignored) {
-          /* 这次失败了不能把唤醒链断掉 */
+          recordOutcome("后台执行失败，下次会重试");
         } finally {
           /* 无论成败都排下一次 */
-          WakeAlarm.schedule(WakeService.this);
-          stopForegroundQuietly();
-          stopSelf();
+          try {
+            WakeAlarm.schedule(WakeService.this);
+          } finally {
+            stopForegroundQuietly();
+            stopSelf();
+          }
         }
       }
     }, "qidao-wake").start();
@@ -49,12 +57,18 @@ public class WakeService extends Service {
     return START_NOT_STICKY;
   }
 
+  private void recordOutcome(String text) {
+    String line = WakeEngine.stamp(new java.util.Date()) + " " + text;
+    String log = line + "\n" + WakePrefs.str(this, "wake_log");
+    WakePrefs.put(this, "wake_log", log.substring(0, Math.min(log.length(), 8000)));
+  }
+
   private void startForegroundQuietly() {
     try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         Notification.Builder b = new Notification.Builder(this, ensureBusyChannel());
         b.setContentTitle("栖岛").setContentText("在想事情…")
-            .setSmallIcon(getApplicationInfo().icon)
+            .setSmallIcon(R.drawable.ic_stat_qidao)
             .setPriority(Notification.PRIORITY_MIN);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
           startForeground(FG_ID, b.build(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
@@ -64,7 +78,7 @@ public class WakeService extends Service {
       } else {
         Notification.Builder b = new Notification.Builder(this);
         b.setContentTitle("栖岛").setContentText("在想事情…")
-            .setSmallIcon(getApplicationInfo().icon)
+            .setSmallIcon(R.drawable.ic_stat_qidao)
             .setPriority(Notification.PRIORITY_MIN);
         startForeground(FG_ID, b.build());
       }
@@ -98,3 +112,4 @@ public class WakeService extends Service {
     }
   }
 }
+
