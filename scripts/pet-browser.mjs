@@ -20,7 +20,7 @@ try {
   await page.waitForTimeout(1500);
   const box=await actor.boundingBox();assert(box);await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+100,box.y-70,{steps:10});
   assert.equal(await actor.getAttribute('data-phase'),'drag');await page.screenshot({path:'screenshots/pet/mobile-drag.png'});await page.mouse.up();
-  await page.getByRole('button',{name:'自由活动',exact:false}).click();await page.waitForTimeout(2200);
+  await page.getByRole('button',{name:/^自由活动/}).click();await page.waitForTimeout(2200);
   await page.getByRole('tab',{name:'陪伴设置'}).click();await page.getByLabel('大小',{exact:true}).selectOption('52');
   await page.waitForFunction(()=>document.querySelector('.pet-actor')?.style.width==='64px');
   await page.getByLabel('允许拖动',{exact:true}).uncheck();await page.getByLabel('短句气泡',{exact:true}).uncheck();

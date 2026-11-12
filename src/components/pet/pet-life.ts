@@ -6,6 +6,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
   let frame = 0, dead = false, last = 0, now = performance.now(), changed = now, next = now + 1000;
   let position: Surface | undefined, from: Point | undefined, target: Surface | undefined;
   let phase = 'idle', jumping = false, drag: { id: number; x: number; y: number; origin: Point; active: boolean } | undefined;
+  let carrying = false;
   let previousWork = false, preview: PetAction = 'auto', previewKey = -1, lastLine = now;
   let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity;
   const body = actor.querySelector<SVGGElement>('.crab-body');
@@ -33,7 +34,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     right?.setAttribute('transform', `translate(0 ${ry.toFixed(2)})`);
     legs.forEach((leg, i) => leg.setAttribute('transform', reduced ? '' : phase === 'walk' ? `translate(${Math.sin(age * .018 + (i % 2) * Math.PI).toFixed(2)} ${(-Math.max(0, Math.sin(age * .018 + (i % 2) * Math.PI)) * 2).toFixed(2)})` : phase === 'jump' || phase === 'drag' || phase === 'rest' ? 'translate(0 -2)' : ''));
     if (laptop) {
-      const visible = ['unpack','work','wait','pack'].includes(phase) || (phase === 'drag' && previousWork);
+      const visible = ['unpack','work','wait','pack'].includes(phase) || (['drag','jump','land'].includes(phase) && carrying);
       const t = reduced ? 1 : Math.min(1, age / 600);
       laptop.style.opacity = visible ? String(phase === 'pack' ? 1 - t : phase === 'unpack' ? t : 1) : '0';
       laptop.style.transform = `translateY(${phase === 'unpack' ? (1 - t) * 14 : phase === 'pack' ? t * 14 : 0}px)`;
@@ -72,6 +73,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
       if (phase === 'think' && !o.busy) { set('idle'); next = now + 800; }
     }
     let age = now - changed;
+    if (o.preview === 'work' && phase === 'idle') set('unpack');
     if (phase === 'unpack' && age > 650) set('work');
     if (phase === 'pack' && age > 650) { set('cheer'); say('done'); }
     if (['poke','cheer','land'].includes(phase) && age > (phase === 'land' ? 250 : 1150)) { set('idle'); next = now + 1200; }
@@ -92,6 +94,8 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     if (o.reduced && target) { stop(); set('idle'); }
     if (o.preview === 'auto' && phase === 'idle' && now - lastLine > 40000 + (o.quiet ? 30000 : 0)) { say('idle'); }
     age = now - changed; pose(age, o.reduced);
+    position.x = clamp(position.x, 0, scene.width - w);
+    position.y = clamp(position.y, 0, scene.height - h);
     actor.style.transform = `translate(${(scene.left + position.x).toFixed(2)}px, ${(scene.top + position.y).toFixed(2)}px)`;
     actor.dataset.edge = position.x < 75 ? 'left' : position.x > scene.width - w - 75 ? 'right' : 'center';
     actor.hidden = false;
@@ -106,7 +110,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
   const move = (e: PointerEvent) => {
     if (!drag || drag.id !== e.pointerId || !position) return;
     if (!drag.active && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
-    if (!drag.active) { drag.active = true; stop(); set('drag'); say('drag'); }
+    if (!drag.active) { carrying = ['work','unpack','wait'].includes(phase); drag.active = true; stop(); set('drag'); say('drag'); }
     position = { x: drag.origin.x + e.clientX - drag.x, y: drag.origin.y + e.clientY - drag.y };
   };
   let suppressClick = false;

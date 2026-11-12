@@ -26,7 +26,7 @@ export function ChatCrab({ scroller, composer, paused, busy, working, replay, pr
     latest.current = { settings, pet, event };
     options.current = { size, quiet: pet?.activity === 'quiet',
       reduced: motionReduced(settings.motion, pet?.motion ?? 'on', window.matchMedia('(prefers-reduced-motion: reduce)').matches),
-      paused, busy, working, draggable: pet?.draggable !== false || preview !== undefined,
+      paused, busy, working, draggable: pet?.draggable !== false,
       preview: preview ?? 'auto', previewKey, anchor: pet?.anchor };
   }, [settings, pet, event, size, paused, busy, working, preview, previewKey]);
   useEffect(() => {
@@ -55,7 +55,7 @@ export function ChatCrab({ scroller, composer, paused, busy, working, replay, pr
   if (!enabled) return null;
   return <div ref={layer} className="pet-layer">
     <button ref={actor} className="pet-actor" type="button" hidden aria-label="摸摸或拖动小螃蟹"
-      style={{ width: Math.max(44, size + 12), height: Math.max(44, size * .75 + 12), touchAction: pet?.draggable === false && preview === undefined ? 'pan-y' : 'none' }}>
+      style={{ width: Math.max(44, size + 12), height: Math.max(44, size * .75 + 12), touchAction: pet?.draggable === false ? 'pan-y' : 'none' }}>
       <span className="pet-status" aria-hidden="true" />
       {line && <span className="pet-speech" role="status">{line}</span>}
       <CrabPixels size={size} group={groupOfEvent(event)} intensity={event?.intensity} reduced articulated />
