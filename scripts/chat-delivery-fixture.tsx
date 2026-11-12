@@ -33,7 +33,7 @@ function Fixture() {
   const messages = useApp((s) => s.conversations.find((c) => c.id === s.activeId)?.messages ?? noMessages);
   const emotionEvents = useApp((s) => s.emotionEvents);
   const charDelay = useApp((s) => s.settings.segmentCharDelayMs);
-  const [draft, setDraft] = useState(["第一句话。", "第二句话。", "第三句话。"]);
+  const [draft, setDraft] = useState(["第一句话。", "第二句话，我们慢慢说。", "第三句话，不用着急把所有的话一次发完。"]);
   const [paceReady, setPaceReady] = useState(history);
   return <main className="mx-auto max-w-3xl space-y-5 p-4">
     <h1 className="text-lg font-medium">聊天节奏</h1>

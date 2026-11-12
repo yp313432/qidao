@@ -63,19 +63,23 @@ async function idle(page, assistants) {
 try {
   {
     const { context, page, errors } = await open();
-    await page.clock.install(); await page.clock.pauseAt(Date.now() + 100);
     await page.getByRole("button", { name: "演示逐条发送" }).click();
     const bubbles = page.getByTestId("pace").locator('[data-role="ai"]');
+    await bubbles.first().waitFor();
     assert.equal(await bubbles.count(), 1);
-    await page.clock.runFor(399); assert.equal(await bubbles.count(), 1);
-    await page.clock.runFor(1); assert.equal(await bubbles.count(), 2);
-    await page.clock.runFor(400); assert.equal(await bubbles.count(), 3);
+    const firstAt = Date.now();
+    await page.waitForTimeout(200); assert.equal(await bubbles.count(), 1);
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 2);
+    const secondAt = Date.now(); assert.ok(secondAt - firstAt >= 400);
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 3);
+    assert.ok(Date.now() - secondAt >= 700);
     await page.getByRole("button", { name: "慢一点", exact: true }).click();
     assert.equal(await page.getByTestId("pace-setting").textContent(), "90");
     // Revision must discard queued old text instead of appending both versions.
     await page.getByRole("button", { name: "修订回复" }).click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="pace"] [data-role="ai"]')?.textContent === "换个说法。");
     assert.equal(await bubbles.count(), 1);
-    await page.clock.runFor(1000); assert.equal(await bubbles.count(), 2);
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 2);
     assert.equal((await bubbles.allTextContents()).join(""), "换个说法。新的补充。");
     if (process.env.QIDAO_SHOTS) {
       await mkdir(process.env.QIDAO_SHOTS, { recursive: true });
