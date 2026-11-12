@@ -47,15 +47,15 @@ export function PetPage() {
         </button>)}
       </div> : <section className="pet-settings" role="tabpanel">
         <label>在聊天显示<input type="checkbox" checked={pet.enabled} onChange={e => save({ enabled: e.target.checked })} /></label>
-        <label>大小<select value={chatCrabSize(pet.size)} onChange={e => save({ size: Number(e.target.value) as 36 | 44 | 52 })}>
+        <label>大小<select aria-label="大小" value={chatCrabSize(pet.size)} onChange={e => save({ size: Number(e.target.value) as 36 | 44 | 52 })}>
           <option value={36}>小 · 36 × 27</option><option value={44}>中 · 44 × 33</option><option value={52}>大 · 52 × 39</option>
         </select></label>
-        <label>活动量<select value={pet.activity} onChange={e => save({ activity: e.target.value as 'lively' | 'quiet' })}>
+        <label>活动量<select aria-label="活动量" value={pet.activity} onChange={e => save({ activity: e.target.value as 'lively' | 'quiet' })}>
           <option value="lively">活泼</option><option value="quiet">安静</option>
         </select></label>
         <label>允许拖动<input type="checkbox" checked={pet.draggable} onChange={e => save({ draggable: e.target.checked })} /></label>
         <label>短句气泡<input type="checkbox" checked={pet.speech} onChange={e => save({ speech: e.target.checked })} /></label>
-        <label>桌宠动作<select value={pet.motion} onChange={e => save({ motion: e.target.value as 'on' | 'off' | 'auto' })}>
+        <label>桌宠动作<select aria-label="桌宠动作" value={pet.motion} onChange={e => save({ motion: e.target.value as 'on' | 'off' | 'auto' })}>
           <option value="on">开启</option><option value="auto">跟随系统</option><option value="off">关闭</option>
         </select></label>
         <p className="pet-hint">称呼使用资料里的名字：{settings.displayName || '你'}。短句在本机生成，不额外请求模型。</p>

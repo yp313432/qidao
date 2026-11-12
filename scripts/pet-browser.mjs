@@ -33,4 +33,4 @@ try {
   const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
   assert.deepEqual(errors,[],'browser runtime errors');
   console.log('PASS: movement, articulated SVG, laptop, drag, speech, settings, mobile and desktop rendering');
-} finally {await context.close();await browser.close();}
+} catch(e) { console.log('PET_MOBILE_IMAGE='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64')); console.log('PET_VISIBLE_TEXT='+await page.locator('body').innerText()); throw e; } finally {await context.close();await browser.close();}
