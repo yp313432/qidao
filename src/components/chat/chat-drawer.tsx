@@ -21,6 +21,7 @@ import { Avatar } from "@/components/shared/avatar";
 import { DrawerCosmos, DrawerSky } from "@/components/chat/drawer-decor";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
+import { chatCrabSize } from "@/lib/chat-crab-settings";
 import { cn } from "@/lib/utils";
 
 /**
@@ -59,7 +60,8 @@ export function ChatDrawer({
   const settings = useApp((s) => s.settings);
 
   const [showCrab, setShowCrab] = useState(false);
-  const pet = settings.chatCrab ?? { enabled: true, size: 32, activity: "lively" };
+  const pet = { enabled: true, activity: "lively" as const, ...settings.chatCrab,
+    size: chatCrabSize(settings.chatCrab?.size) };
   const savePet = (patch: Partial<typeof pet>) => {
     useApp.getState().patchSettings({ chatCrab: { ...pet, ...patch } });
   };
@@ -251,9 +253,9 @@ export function ChatDrawer({
                   <label className="flex items-center justify-between gap-2 px-2">
                     大小 <select className="k-input" value={pet.size}
                       onChange={(e) => savePet({ size: Number(e.target.value) as typeof pet.size })}>
-                      <option value={28}>28 × 21</option>
-                      <option value={32}>32 × 24</option>
-                      <option value={36}>36 × 27</option>
+                      <option value={36}>小 · 36 × 27</option>
+                      <option value={44}>中 · 44 × 33</option>
+                      <option value={52}>大 · 52 × 39</option>
                     </select>
                   </label>
                   <label className="flex items-center justify-between gap-2 px-2">
