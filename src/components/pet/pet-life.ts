@@ -11,7 +11,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
   let emotionKey: string | undefined, pendingMood: string | undefined, activeMood: string | undefined, nextEmotion = now + 12000;
   let demoPair: ReturnType<typeof previewRoute>; 
   let previousWork = false, preview: PetAction = 'auto', previewKey = -1, lastLine = now;
-  let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity;
+  let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity, measuredSize = 0;
   const body = actor.querySelector<SVGGElement>('.crab-body');
   const left = actor.querySelector<SVGElement>('.crab-claw-left'), right = actor.querySelector<SVGElement>('.crab-claw-right');
   const legs = Array.from(actor.querySelectorAll<SVGElement>('.crab-leg'));
@@ -51,7 +51,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     const o = options(), w = Math.max(44, o.size + 12), h = Math.max(44, o.size * .75 + 12);
     layer.dataset.paused = String(o.paused);
     if (o.paused) { frame = requestAnimationFrame(tick); return; }
-    if (!sceneCache || now - measured > 140) { sceneCache = measureScene(layer, list, composer, w, h); measured = now; }
+    if (!sceneCache || measuredSize !== o.size || now - measured > 140) { measuredSize = o.size; sceneCache = measureScene(layer, list, composer, w, h); measured = now; }
     const scene = sceneCache;
     if (o.emotionKey !== emotionKey) { emotionKey = o.emotionKey; pendingMood = o.mood; }
     actor.dataset.mood = o.mood ?? ''; 
@@ -90,6 +90,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
       if (activeMood) { stop(); set('emotion'); actor.dataset.emotion = activeMood; say('emotion'); }
       nextEmotion = now + (o.quiet ? 24000 : 14000);
     }
+    if (o.preview === 'emotion' && phase === 'idle') { activeMood = o.mood; set('emotion'); }
     let age = now - changed;
     if (phase === 'emotion' && age >= 4400) {
       if (o.preview === 'emotion') changed = now;

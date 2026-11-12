@@ -35,7 +35,7 @@ try {
  await page.getByRole('tab',{name:'情绪预览'}).click();
  const groups=[['明亮','bright'],['平静','calm'],['低落','low'],['生气','angry'],['不安','uneasy'],['亲近','close'],['心动','flutter'],['吃醋','jealous'],['克制','restrained'],['好奇与表达','curious']];
  for(const [name,id] of groups){
-  await page.getByRole('button',{name,exact:true}).click();await page.waitForFunction(g=>document.querySelector('.pet-actor')?.dataset.emotion===g,id);
+  await page.getByRole('button',{name,exact:true}).click();await page.waitForFunction(g=>document.querySelector('.pet-actor')?.dataset.emotion===g && document.querySelector('.pet-actor')?.dataset.phase==='emotion',id);
   await page.waitForTimeout(700);const a=await body.getAttribute('transform');await page.waitForTimeout(160);assert.notEqual(await body.getAttribute('transform'),a,`${name} body reacts`);
   assert.equal(await page.getByRole('button',{name,exact:true}).getAttribute('aria-pressed'),'true');
  }
