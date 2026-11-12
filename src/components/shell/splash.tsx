@@ -12,7 +12,10 @@ import {
   WORD_H,
   WORD_Y,
 } from "@/lib/splash-art";
-import { markSplashPlayed, shouldPlaySplash } from "@/lib/splash-policy";
+import { lastSplashAt, markSplashPlayed, splashAllowed, SPLASH_PREVIEW_EVENT } from "@/lib/splash-policy";
+import { createSplashGate, type SplashReason } from "@/lib/splash-gate";
+import { watchSplashActivity } from "@/lib/splash-lifecycle";
+import { useApp } from "@/lib/store";
 
 /*
   开屏：一条线画出人形与花瓶 → 玫瑰绽放 → 墨迹散开 → 手写「waiting for you」。
@@ -51,18 +54,38 @@ export function Splash() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const dustRef = useRef<SVGGElement | null>(null);
 
-  /* 播不播：4 小时一次 + 冷启动 + 尊重「减少动态效果」。判断放在 effect 里，
-     localStorage 在服务端不存在，首屏渲染不能读它。 */
+  const motion = useApp(s => s.settings.motion);
+  const mode = useRef(motion);
+  const gate = useRef<ReturnType<typeof createSplashGate> | null>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const [run, setRun] = useState<{ id: number; reason: SplashReason }>({ id: 0, reason: 'cold' });
   useEffect(() => {
-    if (!shouldPlaySplash()) return;
-    markSplashPlayed();
-    setPhase("run");
+    mode.current = motion;
+    if (!splashAllowed(motion)) gate.current?.cancel();
+  }, [motion]);
+  useEffect(() => {
+    const controller = createSplashGate({ initialPreview: new URLSearchParams(window.location.search).get('splash') === '1', now: () => Date.now(), lastAt: lastSplashAt,
+      enabled: () => splashAllowed(mode.current), mark: markSplashPlayed,
+      play(reason) {
+        previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setRun(r => ({ id: r.id + 1, reason })); setPhase('run');
+      },
+      stop() { setPhase('idle'); },
+    });
+    gate.current = controller;
+    const stop = watchSplashActivity(controller.setActive);
+    const preview = () => controller.preview();
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const motionChanged = () => { if (!splashAllowed(mode.current)) controller.cancel(); };
+    window.addEventListener(SPLASH_PREVIEW_EVENT, preview);
+    media.addEventListener('change', motionChanged);
+    return () => { stop(); controller.finish(); gate.current = null; window.removeEventListener(SPLASH_PREVIEW_EVENT, preview); media.removeEventListener('change', motionChanged); };
   }, []);
-
+  const skip = () => { gate.current?.finish(); setPhase('out'); };
   /* 淡出后再卸载 */
   useEffect(() => {
     if (phase !== "out") return;
-    const id = window.setTimeout(() => setPhase("idle"), 280);
+    const id = window.setTimeout(() => { setPhase("idle"); previousFocus.current?.isConnected && previousFocus.current.focus({ preventScroll: true }); }, 280);
     return () => window.clearTimeout(id);
   }, [phase]);
 
@@ -137,6 +160,8 @@ export function Splash() {
     const endAt = wordsEnd + T.tail;
 
     let dust: Dust[] = [];
+    let presented = false;
+    host.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
     let dustAt = -1;
     let raf = 0;
     let finished = false;
@@ -146,10 +171,18 @@ export function Splash() {
       if (finished) return;
       finished = true;
       cancelAnimationFrame(raf);
+      gate.current?.finish();
       setPhase("out");
     };
 
     const frame = (now: number) => {
+      if (!presented) {
+        const bounds = host.getBoundingClientRect();
+        if (document.hidden || !bounds.width || !bounds.height || getComputedStyle(host).display === 'none' || !gate.current?.presented()) {
+          gate.current?.cancel(); return;
+        }
+        presented = true;
+      }
       const t = (now - t0) / 1000;
 
       /* 散开：笔画被湍流揉碎、轻微模糊、整体退场 */
@@ -204,12 +237,15 @@ export function Splash() {
       window.clearTimeout(watchdog);
       dustLayer?.replaceChildren();
     };
-  }, [phase]);
+  }, [phase, run.id]);
 
   if (phase === "idle") return null;
 
   return (
-    <div className={phase === "out" ? "k-splash k-splash--out" : "k-splash"} ref={hostRef}>
+    <div key={run.id} className={phase === "out" ? "k-splash k-splash--out" : "k-splash"} ref={hostRef}
+      role="dialog" aria-modal="true" aria-label="栖岛开屏动画" data-reason={run.reason}
+      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); skip(); } if (e.key === 'Tab') { e.preventDefault(); e.currentTarget.querySelector('button')?.focus(); } }}>
+      <button type="button" className="k-splash__skip" onClick={skip} aria-label="跳过开屏动画">跳过</button>
       <svg
         className="k-splash__art"
         viewBox={`0 0 ${ART_W} ${ART_H}`}

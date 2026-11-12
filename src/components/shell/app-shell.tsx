@@ -318,7 +318,7 @@ export function AppShell() {
       {liquidSkin && pathname !== "/" ? <div className="lq-canvas" aria-hidden /> : null}
       <GlassHighlight />
       {/* 开屏：一条线画出人形与玫瑰 → 墨迹散开 → 手写 waiting for you。
-          冷启动且距上次超过 4 小时才播，判断在组件内部（见 lib/splash-policy）。 */}
+          冷启动满一小时，或离开后台满一小时返回时播放；短暂切换不重播。 */}
       <Splash />
       {/* 切页流畅度浮层：默认完全不出现，只在 ?perf=1 / 改 PERF_FORCE 时亮 */}
       <PerfProbe />
