@@ -34,10 +34,12 @@ function Fixture() {
   const emotionEvents = useApp((s) => s.emotionEvents);
   const charDelay = useApp((s) => s.settings.segmentCharDelayMs);
   const [draft, setDraft] = useState(["第一句话。", "第二句话。", "第三句话。"]);
+  const [paceReady, setPaceReady] = useState(history);
   return <main className="mx-auto max-w-3xl space-y-5 p-4">
     <h1 className="text-lg font-medium">聊天节奏</h1>
-    <section data-testid="pace"><SegmentBubbles parts={draft} fresh={!history} deliveryKey="pace"
-      cleanPart={clean} cleanTail={clean} /></section>
+    <button className="k-btn" onClick={() => setPaceReady(true)}>演示逐条发送</button>
+    <section data-testid="pace">{paceReady && <SegmentBubbles parts={draft} fresh={!history} deliveryKey="pace"
+      cleanPart={clean} cleanTail={clean} />}</section>
     <button className="k-btn" onClick={() => setDraft(["换个说法。", "新的补充。"])}>修订回复</button>
     <section data-testid="settings"><ChatDeliverySettings /></section>
     <section data-testid="chat" className="space-y-3">{messages.map((m) => <div key={m.id} data-role={m.role}>

@@ -39,14 +39,15 @@ const upstream = createServer(async (req, res) => {
 });
 await new Promise((resolve) => upstream.listen(4650, "127.0.0.1", resolve));
 const browser = await chromium.launch({ headless: true });
-async function open(query = "", clock = false) {
+async function open(query = "") {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  if (clock) { await page.clock.install(); await page.clock.pauseAt(Date.now() + 100); }
+  page.on("pageerror", (error) => { errors.push(error.message); console.error("BROWSER ERROR", error.stack); });
+  page.on("console", (message) => { if (message.type() === "error") console.error("BROWSER CONSOLE", message.text()); });
   await page.goto(`${base}/scripts/chat-delivery-fixture.html${query}`);
-  await page.getByTestId("busy").waitFor();
+  try { await page.getByTestId("busy").waitFor(); }
+  catch (error) { console.error("FIXTURE CONTENT", await page.locator("body").innerText()); throw error; }
   return { context, page, errors };
 }
 const stored = async (page) => JSON.parse(await page.getByTestId("messages").textContent());
@@ -61,7 +62,9 @@ async function idle(page, assistants) {
 }
 try {
   {
-    const { context, page, errors } = await open("", true);
+    const { context, page, errors } = await open();
+    await page.clock.install(); await page.clock.pauseAt(Date.now() + 100);
+    await page.getByRole("button", { name: "演示逐条发送" }).click();
     const bubbles = page.getByTestId("pace").locator('[data-role="ai"]');
     assert.equal(await bubbles.count(), 1);
     await page.clock.runFor(399); assert.equal(await bubbles.count(), 1);
