@@ -140,16 +140,18 @@ export function CrabPixels({
   reduced = false,
   className,
   size = 150,
+  articulated = false,
 }: {
   group?: string;
   intensity?: number;
   reduced?: boolean;
   className?: string;
   size?: number;
+  articulated?: boolean;
 }) {
   const look = (group && GROUP_LOOK[group]) || NEUTRAL;
   const amp = Math.max(0.35, Math.min(1.5, 0.4 + intensity / 90));
-  const act = reduced ? "crab-still" : look.act;
+  const act = articulated ? "crab-articulated" : reduced ? "crab-still" : look.act;
 
   /**
    * 眨眼是"帧动画"：每 2.6–6.2 秒随机闭一次，闭 170ms。
@@ -179,6 +181,7 @@ export function CrabPixels({
   return (
     <div
       className={`crab-shell ${act} ${className ?? ""}`}
+      data-mood={group || "calm"}
       style={{
         ["--crab-amp" as string]: amp.toFixed(2),
         width: size,
@@ -188,14 +191,15 @@ export function CrabPixels({
     >
       {look.fx ? <span className="crab-fx">{look.fx}</span> : null}
       <svg viewBox="0 0 24 18" width="100%" height="100%" shapeRendering="crispEdges">
+        <g className="crab-body">
         {/*
           比例按用户 2026-11-01 的定稿：
             · 身子**横向拉长**（16×9，不是正方形）
             · 两只手（侧钳）小一点：3×3
         */}
         <g fill={SHELL}>
-          <rect className="crab-claw" x="0" y="8" width="3" height="3" />
-          <rect className="crab-claw" x="21" y="8" width="3" height="3" />
+          <rect className="crab-claw crab-claw-left" x="0" y="8" width="3" height="3" />
+          <rect className="crab-claw crab-claw-right" x="21" y="8" width="3" height="3" />
         </g>
         {/* 壳：18×8，按用户参考图的比例（宽:高 ≈ 2.25:1） */}
         <rect x="3" y="3" width="18" height="10" fill={SHELL} />
@@ -214,8 +218,10 @@ export function CrabPixels({
         </g>
         {/* 眨眼：单独一层 React 状态驱动（170ms），比 CSS 周期动画干净；
             用户要"能看出动画"，所以情绪眼常显、到点眨一下。 */}
-        <Eyes kind={blink ? "blink" : look.eye} />
+        <g className="crab-awake-eyes"><Eyes kind={!reduced && blink ? "blink" : look.eye} /></g>
+        {articulated && <g className="crab-sleep-eyes"><Eyes kind="blink" /></g>}
         <rect x="11" y="10" width="2" height="1" fill={MOUTH} />
+        </g>
       </svg>
     </div>
   );
