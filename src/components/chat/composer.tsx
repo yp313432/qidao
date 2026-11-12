@@ -1438,10 +1438,10 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
           {/* 发送=邮票（用户 m01399：只管发送，不再兼语音）：有字可点；没字压下去不动作 */}
           <button
             type="button"
-            aria-label={streaming && !value.trim() && !pending.length ? "停止回复" : "发送"}
+            aria-label={streaming && (disabled || !value.trim() && !pending.length) ? "停止回复" : "发送"}
             onMouseDown={(e) => e.preventDefault()}
-            disabled={disabled || (!streaming && !value.trim() && !pending.length)}
-            onClick={() => { if (streaming && !value.trim() && !pending.length) onStop?.(); else submit(); }}
+            disabled={!streaming && (disabled || !value.trim() && !pending.length)}
+            onClick={() => { if (streaming && (disabled || !value.trim() && !pending.length)) onStop?.(); else submit(); }}
             className={cn(
               "flex items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
               liquid ? "size-8" : "size-9",
@@ -1450,7 +1450,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
             )}
           >
             {solidPaper && <span className="pm-postmark" aria-hidden />}
-            {streaming && !value.trim() && !pending.length ? (
+            {streaming && (disabled || !value.trim() && !pending.length) ? (
               <span className="size-3.5 rounded-sm bg-ink-fg" />
             ) : solidPaper ? (
               <span className="paper-stamp-glyph" aria-hidden>
