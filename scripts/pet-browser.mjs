@@ -45,7 +45,7 @@ try {
  await page.evaluate(async()=>{(await import('/src/lib/store.ts')).useApp.getState().patchSettings({material:'liquid'});});
  await page.waitForTimeout(500);
  const selected=page.getByRole('button',{name:'好奇与表达',exact:true});assert.equal(await selected.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','liquid selection stays transparent');
- await shot('liquid');await settings();await page.getByRole('button',{name:'大小',exact:true}).click();await page.getByRole('dialog',{name:'大小'}).waitFor();await shot('sheet');await page.keyboard.press('Escape');
+ await shot('liquid');await settings();await page.getByRole('button',{name:'大小',exact:true}).click();await page.getByRole('dialog',{name:'大小'}).waitFor();assert(await page.getByRole('dialog',{name:'大小'}).getByRole('option').first().evaluate(e=>{const rgb=getComputedStyle(e).color.match(/\d+/g).slice(0,3).map(Number);return rgb.reduce((a,v)=>a+v,0)<450;}),'light choice sheet must keep dark readable text');await shot('sheet');await page.keyboard.press('Escape');
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no horizontal overflow');
  await page.getByRole('tab',{name:'动作预览'}).click();await previewButton('自由活动').click();
  await page.evaluate(async()=>{const {useApp}=await import('/src/lib/store.ts');useApp.setState({emotionEvents:[{id:'pet-ui-test',at:Date.now(),group:'angry',primaryEmotion:'生气',secondaryEmotions:[],intensity:.8,confidence:1,dimensions:{},category:'tension',evidence:[]}]});});

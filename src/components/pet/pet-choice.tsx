@@ -17,7 +17,7 @@ export function PetChoice({ label, value, options, onChange }: {
     </button></Dialog.Trigger>
     <Dialog.Portal>
       <Dialog.Overlay className={`pet-choice-backdrop ${liquid ? 'lq-dialog-scrim' : 'bg-fg/25'}`} {...backdrop} />
-      <Dialog.Content data-contrast className={`pet-choice-sheet ${liquid ? 'lq-dialog lq-dialog--sheet backdrop-blur-xl' : isSolid(settings) ? 'paper-sheet' : ''}`}
+      <Dialog.Content className={`pet-choice-sheet ${liquid ? 'lq-dialog lq-dialog--sheet backdrop-blur-xl' : isSolid(settings) ? 'paper-sheet' : ''}`}
         onPointerDownOutside={e => e.preventDefault()} aria-describedby={undefined}>
         <div className="pet-choice-head"><Dialog.Title>{label}</Dialog.Title><Dialog.Close asChild><button type="button" aria-label={`关闭${label}`}>×</button></Dialog.Close></div>
         <div role="listbox" aria-label={label} className="pet-choice-options">
