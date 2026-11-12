@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { permissionDef } from "@/lib/permissions";
@@ -44,20 +44,6 @@ export function ActionGate() {
   const go = (p: string) => void navigate({ to: p as unknown as "/" });
 
   /**
-   * 「自动执行（不弹卡片）这条路要慢到值得说一声」才显示提示条。
-   *
-   * 为什么需要它：这条路人眼原本什么都看不到 —— 真机踩过"发出去的动作全挂着、
-   * 连卡片都没有"。快了（几百毫秒内）就别闪一下，免得每次导航都冒个条。
-   */
-  const [slowRun, setSlowRun] = useState(false);
-  useEffect(() => {
-    setSlowRun(false);
-    if (!current || critical || mode === "ask") return;
-    const t = setTimeout(() => setSlowRun(true), 400);
-    return () => clearTimeout(t);
-  }, [current, critical, mode]);
-
-  /**
    * ⚠️ **必须走 `runGuarded`**（见 `lib/gate-run.ts` 的文件头）：
    * 原来这里是裸的 `await runAction(...)`，一旦它抛错或卡住，`resolveAction` 就
    * 永远不会被调用 → 这笔动作一直占着队头 → **后面所有动作既没有卡片也不动**。
@@ -90,27 +76,8 @@ export function ActionGate() {
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
   if (!current) return null;
-  if (!critical && mode !== "ask") {
-    /** 自动执行中：不挡操作，只让用户知道"正在跑哪一个"（见上面 slowRun 的说明） */
-    if (!slowRun || current.action.kind === "http.call" || current.action.kind === "tool.call") return null;
-    return (
-      <div
-        /* 让开手机状态栏：top-3 会跟时间/电量糊在一起（用户实机截图指出） */
-        className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-6"
-        style={{ top: "calc(var(--q-inset-top, 0px) + 10px)" }}
-      >
-        <div
-          className={cn(
-            "glass-menu pointer-events-auto rounded-full px-3.5 py-1.5 text-[11px] text-muted shadow-lg",
-            /* m02543：跟其它弹层同一档磨砂。 */
-            liquid && "backdrop-blur-xl",
-          )}
-        >
-          ⏳ 正在执行：{current.title}
-        </div>
-      </div>
-    );
-  }
+  // 所有工具的执行进度都归消息的思考链；这里仅负责权限确认。
+  if (!critical && mode !== "ask") return null;
 
   async function approve(remember: boolean) {
     if (!current) return;
@@ -216,3 +183,4 @@ export function ActionGate() {
     </div>
   );
 }
+

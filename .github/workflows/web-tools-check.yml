@@ -1,0 +1,43 @@
+name: 网页抓取与工具过程回归
+on:
+  pull_request:
+    paths: ["src/**", "scripts/**", ".github/workflows/web-tools-check.yml"]
+  push:
+    branches: [main]
+    paths: ["src/**", "scripts/**", ".github/workflows/web-tools-check.yml"]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: node --experimental-strip-types scripts/verify-web-reliability.mjs
+      - run: node --experimental-strip-types verify-gate-stuck.mjs
+      - run: npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          QIDAO_TARGET: android
+          VITE_DIRECT_UPSTREAM: "1"
+          VITE_AUTH_ENABLED: "false"
+      - run: npx playwright install --with-deps chromium
+      - name: 工具过程浏览器验收
+        run: |
+          npm run dev > /tmp/qidao-web-dev.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/scripts/tool-progress-fixture.html > /dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-tool-progress-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tool-progress-screenshots
+          path: screenshots/

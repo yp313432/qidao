@@ -970,6 +970,7 @@ export async function runToolLoop(input: {
       round,
       calls: r.toolCalls.map((c, i) => ({
         name: c.name,
+        title: outcomes[i]?.title,
         kind: kindOfToolName(c.name) ?? externalKind(c.name),        args: c.args,
         result: outcomes[i]?.result ?? "",
         notice: outcomes[i]?.notice ?? "",
@@ -1038,3 +1039,4 @@ export async function runToolLoop(input: {
       : undefined,
   };
 }
+

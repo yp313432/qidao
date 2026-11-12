@@ -1336,7 +1336,7 @@ export function ChatView() {
                                     aria-hidden
                                     className="h-[22px] w-0.5 shrink-0 rounded-full bg-fg/25"
                                   />
-                                  {head}
+                                  <span className="min-w-0 truncate">{head}</span>
                                   {callCount > 0 && (
                                     <span className="text-subtle">· 动了 {callCount} 次手</span>
                                   )}
@@ -1857,8 +1857,6 @@ export function ChatView() {
           </div>,
           document.body,
         )}
-
-
       <ChatCrab scroller={scroller} composer={composerWrap} paused={menu || Boolean(thinkSheet)}
         busy={busy} working={Boolean(step)} replay={crabReplay} />
 
@@ -1869,6 +1867,7 @@ export function ChatView() {
         steps={thinkSheet?.steps}
         durationMs={thinkSheet?.thinkingDurationMs}
         live={Boolean(thinkSheet && thinkSheet.id === liveId)}
+        activeStep={thinkSheet?.id === liveId ? step?.label : undefined}
         onClose={() => setThinkSheetId(null)}
       />
 
@@ -2213,3 +2212,4 @@ function VoiceBubble({
     </div>
   );
 }
+

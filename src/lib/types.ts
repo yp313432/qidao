@@ -127,6 +127,8 @@ export type RequestLogEntry = {
  * 消息里要存它（`ChatMessage.rounds`），而 tool-loop 又要读 `AppAction`。
  */
 export type ToolCallRecord = {
+  /** 执行器解析出的显示标题；外部工具的名字不必从原始参数里猜。 */
+  title?: string;
   /** 上游给的工具名（内部动作是 `navigate` 这种点号换下划线的形式） */
   name: string;
   /** 换回内部 kind；不是我们的工具就是 null（模型瞎编的） */
@@ -1397,3 +1399,4 @@ export type ActionLogEntry = {
   message: string;
   at: number;
 };
+

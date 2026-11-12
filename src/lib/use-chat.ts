@@ -33,10 +33,11 @@ import {
 import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
 import { partsFor } from "@/lib/segment";
-import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
+import { runOneAction, runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { buildExternalTools, MAX_TOOLS_PER_REQUEST } from "@/lib/external-tools";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
+import { toolProgressLabel } from "@/lib/tool-title";
 import type { AppAction, Attachment, ChatMessage, ChatStep } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
@@ -769,11 +770,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           onStep: ({ round, calls }) => {
             setStep({
               round,
-              label: calls.some((c) => c.name === "http_call" || c.name === "http_key")
-                ? "正在调用 HTTP 工具"
-                : calls.some((c) => c.name === "tool_call")
-                  ? "正在调用 MCP 工具"
-                  : `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
+              label: `第 ${round} 步 · 正在执行 ${toolProgressLabel(calls)}`,
             });
             /** 面包屑：动手那一步也要留痕（用户报"报情绪的时候卡退"就是这一类时刻） */
             crumb("action", `第 ${round} 步：${calls.map((c) => c.name).join("、")}`);
@@ -1015,6 +1012,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       });
       const unknownNames: string[] = [];
       for (const action of actions) {
+        if (ac.signal.aborted) break;
         if (!knownKinds.has(action.kind)) {
           unknownNames.push(String(action.kind));
           continue;
@@ -1029,20 +1027,25 @@ export function useChatStream(opts: UseChatOpts = {}) {
          */
         const rest: Record<string, unknown> = { ...(action as unknown as Record<string, unknown>) };
         delete rest.kind;
+        const call = { id: uid("call"), name: action.kind.replace(/\./g, "_"), args: JSON.stringify(rest) };
+        setStep({ round: state.steps.filter((s) => s.kind === "call").length + 1,
+          label: `正在执行 ${toolProgressLabel([call])}` });
+        const outcome = await runOneAction(call, ac.signal, useApp);
+        setStep(null);
         state.steps.push({
           kind: "call",
           call: {
-            name: action.kind.replace(/\./g, "_"),
+            name: call.name,
+            title: outcome.title,
             kind: action.kind,
             args: JSON.stringify(rest),
-            // result 是给模型看的；这条路径的动作结果由闸门异步回填，这里先记"提交了"
-            result: "（文本协议）已提交给权限闸门执行",
-            notice: `✅ ${action.kind} · 已提交执行`,
-            category: "pending",
-            ok: true,
+            result: outcome.result,
+            notice: outcome.notice,
+            category: outcome.category,
+            ok: outcome.ok,
           },
         });
-        useApp.getState().requestAction(action, "AI");
+        useApp.getState().patchMessage(conversationId, messageId, { steps: [...state.steps] });
       }
       if (unknownNames.length > 0) {
         content += `\n\n${unknownNames
@@ -1299,3 +1302,4 @@ function stripOverlap(prev: string, next: string): string {
   }
   return next;
 }
+

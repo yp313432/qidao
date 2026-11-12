@@ -35,7 +35,7 @@
   所以带 `.ts` 的写法 tsc / Vite 都认（`sense-core.ts` / `tool-select.ts` 那几个
   纯模块走的也是"纯 node 能直接 import"这条规矩）。
 */
-import { htmlToText, isPublicHttpUrl, WEB_FETCH_HEADERS } from "./web-extract.ts";
+import { decodeWebBytes, htmlToText, isPublicHttpUrl, WEB_FETCH_HEADERS } from "./web-extract.ts";
 
 /** 取网页的默认上限（端上比服务端宽松一点：读长文更常见，但绝不无限） */
 export const WEB_FETCH_DEFAULTS = {
@@ -75,12 +75,41 @@ export type WebFetchResult =
 export type WebHit = { title: string; url: string; snippet: string };
 
 export type WebSearchResult =
-  | { ok: true; engine: "bing-rss" | "bocha"; query: string; results: WebHit[] }
+  | { ok: true; engine: "bing-rss" | "bing-html" | "bocha"; query: string; results: WebHit[] }
   | { ok: false; why: string; engine?: string };
 
 /* ────────────────────────── 原生 HTTP 那一层 ────────────────────────── */
 
-type CapacitorHttpResponse = { status: number; url?: string; data?: unknown };
+type CapacitorHttpResponse = { status: number; url?: string; data?: unknown; headers?: Record<string, string> };
+
+function isNativeWeb(): boolean {
+  const cap = (globalThis as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
+}
+
+/** 浏览器走自己的服务端；APK 仍直接走原生 HTTP，不向第三方转发网址。 */
+function hasWebServer(): boolean {
+  return !isNativeWeb() && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
+}
+
+async function webApi(path: string, timeoutMs: number): Promise<Record<string, unknown>> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    return await withDeadline((async () => {
+      const res = await fetch(path, { signal: ac.signal, credentials: "same-origin" });
+      const raw = await res.text();
+      let data: Record<string, unknown>;
+      try { data = JSON.parse(raw) as Record<string, unknown>; }
+      catch { return { ok: false, why: "网页接口不可用（返回了页面，未拿到搜索或抓取结果）" }; }
+      if (!data || typeof data !== "object") return { ok: false, why: "网页接口返回格式不对" };
+      if (!res.ok) return { ok: false, why: data.why || data.message || `网页接口返回 HTTP ${res.status}` };
+      return data;
+    })(), timeoutMs, () => { ac.abort(); return { ok: false, why: "网页接口请求超时" }; });
+  } catch (err) {
+    return { ok: false, why: (err as Error).name === "AbortError" ? "网页接口请求超时" : (err as Error).message };
+  } finally { clearTimeout(timer); }
+}
 
 /** 拿 CapacitorHttp（只在真的跑在原生里、且这个版本带着它的时候才拿得到） */
 async function nativeHttp(): Promise<{
@@ -91,6 +120,7 @@ async function nativeHttp(): Promise<{
     data?: unknown;
     connectTimeout?: number;
     readTimeout?: number;
+    responseType?: "arraybuffer";
   }) => Promise<CapacitorHttpResponse>;
 } | null> {
   try {
@@ -108,6 +138,7 @@ async function nativeHttp(): Promise<{
           data?: unknown;
           connectTimeout?: number;
           readTimeout?: number;
+          responseType?: "arraybuffer";
         }) => Promise<CapacitorHttpResponse>;
       };
     };
@@ -197,7 +228,8 @@ async function fetchWebTextInner(
   const url = checked.url.toString();
   const headers = { ...WEB_FETCH_HEADERS, ...(opts.headers ?? {}) };
 
-  const http = await nativeHttp();
+  const http = await withDeadline(nativeHttp(), Math.min(timeoutMs, 1500), () => null);
+  if (isNativeWeb() && !http) return { ok: false, why: "原生网页请求通道未就绪，请重试；未改用会被跨域拦截的网页请求" };
   if (http) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -218,18 +250,20 @@ async function fetchWebTextInner(
       // ⚠️ 原生那个 promise 也要挂 catch：超时之后它才 reject 的话，
       //    不挂就会变成"未处理的拒绝"（在 WebView 里只会安静地烂掉）
       const req = http
-        .request({ url, method: "GET", headers, connectTimeout: timeoutMs, readTimeout: timeoutMs })
+        .request({ url, method: "GET", headers, connectTimeout: timeoutMs, readTimeout: timeoutMs, responseType: "arraybuffer" })
         .catch((e: unknown) => {
           throw e instanceof Error ? e : new Error(String(e ?? "原生请求失败"));
         });
       const res = await Promise.race([req, hard]);
       const status = Number(res.status ?? 0);
       if (!status) return { ok: false, why: "原生请求没拿到状态码" };
-      const full = typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "");
-      // 上限按**字节**算，跟服务端一个口径（中文字符会让字符数小于字节数）
-      const bytes = new TextEncoder().encode(full);
+      const contentType = Object.entries(res.headers ?? {}).find(([k]) => k.toLowerCase() === "content-type")?.[1] ?? "";
+      // Capacitor 对 JSON 响应仍返回 JSON；网页/XML 的 arraybuffer 是 base64。
+      const bytes = status < 200 || status >= 300 || /json/i.test(contentType) || typeof res.data !== "string"
+        ? new TextEncoder().encode(typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? ""))
+        : Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
       const truncated = bytes.byteLength > maxBytes;
-      const text = truncated ? new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, maxBytes)) : full;
+      const text = decodeWebBytes(bytes.slice(0, maxBytes), contentType);
       return { ok: true, status, finalUrl: res.url || url, text, truncated, via: "native" };
     } catch (err) {
       return { ok: false, why: (err as Error)?.message || "原生请求失败" };
@@ -247,7 +281,7 @@ async function fetchWebTextInner(
     const buf = await res.arrayBuffer();
     const truncated = buf.byteLength > maxBytes;
     const slice = truncated ? buf.slice(0, maxBytes) : buf;
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
+    const text = decodeWebBytes(new Uint8Array(slice), res.headers.get("content-type") ?? "");
     return { ok: true, status: res.status, finalUrl: res.url || url, text, truncated, via: "fetch" };
   } catch (err) {
     const aborted = (err as Error).name === "AbortError";
@@ -280,11 +314,23 @@ export async function readWebPage(
       text: string;
       truncated: boolean;
       chars: number;
-      via: "native" | "fetch";
+      via: "native" | "fetch" | "server";
     }
   | { ok: false; why: string }
 > {
   const maxChars = opts.maxChars ?? 6000;
+  const checked = isPublicHttpUrl(rawUrl.trim());
+  if (!checked.ok) return { ok: false, why: checked.why };
+  if (hasWebServer()) {
+    const result = await webApi(`/api/read?url=${encodeURIComponent(checked.url.toString())}`, opts.timeoutMs ?? 20_000);
+    if (result.ok !== true || typeof result.text !== "string" || !result.text.trim()) {
+      return { ok: false, why: String(result.why || "网页接口没有返回正文") };
+    }
+    return { ok: true, url: String(result.url || rawUrl), status: Number(result.status || 200),
+      title: String(result.title || ""), text: result.text.slice(0, maxChars),
+      truncated: Boolean(result.truncated) || result.text.length > maxChars,
+      chars: Number(result.chars || result.text.length), via: "server" };
+  }
   const got = await fetchWebText(rawUrl, opts);
   if (!got.ok) return { ok: false, why: got.why };
 
@@ -292,6 +338,9 @@ export async function readWebPage(
     return { ok: false, why: `对方返回 HTTP ${got.status}（这个页面读不到）` };
   }
   const { title, text } = htmlToText(got.text);
+  if (text.length < 2000 && /安全验证|访问验证|验证码|Just a moment|Access Denied|Robot Check/i.test(title)) {
+    return { ok: false, why: "对方返回了验证或拦截页面，未拿到正文" };
+  }
   if (!text.trim()) {
     return {
       ok: false,
@@ -347,8 +396,36 @@ export function parseBingRss(xml: string, limit = 8): WebHit[] {
     const desc = item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] ?? "";
     const url = decodeEntities(link);
     const cleanTitle = decodeEntities(title);
-    if (!cleanTitle || !/^https?:\/\//i.test(url)) continue;
+    if (!cleanTitle || !isPublicHttpUrl(url).ok) continue;
     out.push({ title: cleanTitle, url, snippet: decodeEntities(desc).slice(0, 300) });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** RSS 被改回 HTML 时仍能取到真正的结果条目，不把验证页/导航当成结果。 */
+export function parseBingHtml(html: string, limit = 8): WebHit[] {
+  const out: WebHit[] = [];
+  const blocks = html.split(/<li\b[^>]*class\s*=\s*["'][^"']*\bb_algo\b[^"']*["'][^>]*>/i).slice(1);
+  for (const block of blocks) {
+    const heading = block.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)?.[1];
+    const link = (heading ?? block).match(/<a\b[^>]*href\s*=\s*["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+    if (!link) continue;
+    let url = decodeEntities(link[1]);
+    try {
+      const u = new URL(url);
+      // Bing HTML 的链接常是 /ck/a?u=a1<base64url>，还原公开目标网址。
+      const target = u.searchParams.get("u");
+      if (/(^|\.)bing\.com$/i.test(u.hostname) && target?.startsWith("a1")) {
+        const base64 = target.slice(2).replace(/-/g, "+").replace(/_/g, "/");
+        url = new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+      }
+    } catch { continue; }
+    if (!isPublicHttpUrl(url).ok) continue;
+    const title = decodeEntities(link[2]);
+    if (!title || out.some((h) => h.url === url)) continue;
+    const snippet = decodeEntities(block.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1] ?? "").slice(0, 300);
+    out.push({ title, url, snippet });
     if (out.length >= limit) break;
   }
   return out;
@@ -371,6 +448,15 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
   const q = rawQuery.trim();
   if (!q) return { ok: false, why: "要给我一个搜索词" };
   const limit = Math.max(1, Math.min(opts.limit ?? 8, 10));
+  if (hasWebServer()) {
+    const result = await webApi(`/api/search?q=${encodeURIComponent(q)}`, opts.timeoutMs ?? 20_000);
+    if (result.ok !== true || !Array.isArray(result.results)) return { ok: false, why: String(result.why || "搜索接口没有返回结果") };
+    const results = (result.results as WebHit[]).filter((h) => h && typeof h.title === "string"
+      && typeof h.url === "string" && isPublicHttpUrl(h.url).ok).slice(0, limit);
+    if (!results.length) return { ok: false, why: "搜索接口没有返回可用结果" };
+    const engine = result.engine === "bocha" || result.engine === "bing-html" ? result.engine : "bing-rss";
+    return { ok: true, query: q, engine, results };
+  }
   /** 总预算（默认 14 秒）—— 两个地址加起来不许超过它 */
   const deadline = Date.now() + (opts.timeoutMs ?? WEB_SEARCH_BUDGET_MS);
 
@@ -386,26 +472,29 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
    * —— 而后者在国内基本不通，等于**白吃掉整个预算**，最坏要 14 秒才告诉用户"搜不到"。
    * 并发之后最坏 ~8 秒，而且两个都通时命中率更高。
    */
-  const attempts = await Promise.all(
+  const attempts = Promise.any(
     endpoints.map(async (endpoint, index) => {
-      const left = deadline - Date.now();
-      const got = await fetchWebText(endpoint, {
-        timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, Math.max(1_500, left)),
-        maxBytes: 600_000,
-      });
-      if (!got.ok) return { ok: false as const, index, why: got.why };
-      if (got.status !== 200) return { ok: false as const, index, why: `HTTP ${got.status}` };
-      const results = parseBingRss(got.text, limit);
-      if (!results.length) return { ok: false as const, index, why: "返回里没有结果条目" };
-      return { ok: true as const, index, results };
+      let why = "返回里没有结果条目（可能是验证页）";
+      // 每个域名先读 RSS，失败再试 HTML；两个域名谁先拿到结果就返回。
+      for (const url of [endpoint, endpoint.replace("&format=rss", "&setlang=zh-CN")]) {
+        const left = deadline - Date.now();
+        if (left <= 0) break;
+        const got = await fetchWebText(url, {
+          timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, left), maxBytes: 600_000,
+        });
+        if (!got.ok) { why = got.why; continue; }
+        if (got.status !== 200) { why = `HTTP ${got.status}`; continue; }
+        const rss = parseBingRss(got.text, limit);
+        const results = rss.length ? rss : parseBingHtml(got.text, limit);
+        if (results.length) return { ok: true as const, engine: rss.length ? "bing-rss" as const : "bing-html" as const, results };
+      }
+      tried.push(`${index === 0 ? "cn.bing.com" : "www.bing.com"}：${why}`);
+      throw new Error(why);
     }),
-  );
+  ).catch(() => null);
 
-  const hit = attempts.find((a) => a.ok);
-  if (hit && hit.ok) return { ok: true, engine: "bing-rss", query: q, results: hit.results };
-  for (const a of attempts) {
-    if (!a.ok) tried.push(`${a.index === 0 ? "cn.bing.com" : "www.bing.com"}：${a.why}`);
-  }
+  const hit = await withDeadline(attempts, Math.max(1, deadline - Date.now()), () => null);
+  if (hit) return { ok: true, engine: hit.engine, query: q, results: hit.results };
   return {
     ok: false,
     engine: "bing-rss",
@@ -417,3 +506,4 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
 export function hitLine(i: number, h: WebHit): string {
   return `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.snippet}`;
 }
+
