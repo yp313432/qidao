@@ -8,7 +8,12 @@ import { useApp } from "../src/lib/store";
 import { waitHydrated } from "../src/lib/store-ready";
 import "../src/styles.css";
 
-await waitHydrated();
+// The production root's boot component sets this flag; the isolated entry must do the same.
+await new Promise<void>((resolve) => {
+  if (useApp.persist.hasHydrated()) resolve();
+  else { const off = useApp.persist.onFinishHydration(() => { off(); resolve(); }); }
+});
+useApp.getState().setHydrated(true);
 if (!localStorage.getItem("fixture-chat-ready")) {
   useApp.setState((s) => ({ settings: { ...s.settings,
     customBaseUrl: "http://127.0.0.1:4650/v1", customApiKey: "fixture-key", upstreamModel: "fixture-model",

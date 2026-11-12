@@ -486,6 +486,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        */
       {
         const st0 = useApp.getState();
+        if (settings.aiStickers === false) context.aware = [...(context.aware ?? []), "用户已关闭 AI 主动发表情：不要发送图片表情或输出表情占位文字。"];
         const groups = settings.aiStickers === false ? [] : stickerGroupList(st0.stickerLib, st0.stickerGroups);
         if (groups.length > 0) {
           const brief = groups
@@ -1273,34 +1274,30 @@ export function useChatStream(opts: UseChatOpts = {}) {
   /** 重新生成某一条助手回复：保留它之前的历史，清空本条再跑一次。 */
   const regenerate = useCallback(
     async (messageId: string) => {
-      const st = useApp.getState();
-      const conversationId = st.activeId;
+      const conversationId = useApp.getState().activeId;
       if (!conversationId) return;
-      const target = st.conversations.find((c) => c.id === conversationId);
-      if (!target) return;
-      const idx = target.messages.findIndex((m) => m.id === messageId);
-      if (idx < 0) return;
-      st.patchMessage(conversationId, messageId, {
-        parts: undefined, attachments: undefined, steps: undefined, rounds: undefined,
-        content: "",
-        thinking: "",
-        thinkingDurationMs: 0,
-        feedback: undefined,
-      });
-      const kept = target.summary
-        ? target.messages.slice(target.summary.upToIndex, idx)
-        : target.messages.slice(0, idx);
-      await runStream(
-        conversationId,
-        messageId,
-        historyForApi(kept, {
-          ...histOpts,
-          systemTokens: fixedRef.current.system,
-          toolTokens: fixedRef.current.tools,
-          summary: target.summary ? { text: target.summary.text, upToIndex: 0 } : undefined,
-        }),
-        target.summary?.text,
-      );
+      await sendQueue.enqueue(conversationId, 0, async () => {
+        const st = useApp.getState();
+        const target = st.conversations.find((c) => c.id === conversationId);
+        if (!target) return;
+        const idx = target.messages.findIndex((m) => m.id === messageId);
+        if (idx < 0) return;
+        st.patchMessage(conversationId, messageId, {
+          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined,
+          content: "", thinking: "", thinkingDurationMs: 0, feedback: undefined,
+        });
+        const kept = target.summary
+          ? target.messages.slice(target.summary.upToIndex, idx)
+          : target.messages.slice(0, idx);
+        try {
+          await runStream(conversationId, messageId, mergeUserMessages(historyForApi(kept, {
+            ...histOpts,
+            systemTokens: fixedRef.current.system,
+            toolTokens: fixedRef.current.tools,
+            summary: target.summary ? { text: target.summary.text, upToIndex: 0 } : undefined,
+          })), target.summary?.text);
+        } finally { setBusy(false); setStep(null); setLiveId(null); }
+      }, () => abortRef.current?.abort());
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [runStream, settings],

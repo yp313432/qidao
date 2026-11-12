@@ -118,6 +118,12 @@ try {
     assert.equal(requests.length, 2);
     assert.match(requests[1].messages.at(-1).content, /回复中补充一[\s\S]*回复中补充二/);
     assert.equal((await stored(page)).filter((m) => m.role === "user").length, 4);
+    await page.getByRole("button", { name: "重新生成测试回复", exact: true }).click();
+    for (let n = 0; n < 100 && requests.length < 3; n++) await sleep(20);
+    await send(page, "重新生成期间补充");
+    await idle(page, 3);
+    assert.equal(requests.length, 4, "regeneration and its supplement each execute once");
+    assert.match(requests[3].messages.at(-1).content, /重新生成期间补充/);
     assert.deepEqual(errors, []); await context.close();
     console.log("PASS real input: rapid sends merge, supplements queue, no restart or lost user bubbles");
   }
@@ -162,7 +168,7 @@ try {
       await page.getByRole("switch", { name: label, exact: true }).click();
       assert.equal(await page.evaluate((k) => window.qidaoFixture.read().settings[k], key), false);
     }
-    await page.waitForTimeout(700); await page.reload();
+    await page.waitForTimeout(1600); await page.reload();
     await page.getByRole("switch", { name: "按标点分句", exact: true }).waitFor();
     for (const [, key] of switches) assert.equal(await page.evaluate((k) => window.qidaoFixture.read().settings[k], key), false, `${key} persists`);
     for (const [label] of [switches.at(-1), switches[0], switches[1], ...switches.slice(2, -1)]) {

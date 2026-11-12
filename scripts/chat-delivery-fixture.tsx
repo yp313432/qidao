@@ -30,7 +30,7 @@ useApp.setState((s) => ({ settings: { ...s.settings,
 const clean = (text: string) => text;
 const noMessages = [];
 function Fixture() {
-  const { busy, replying, send, stop, pendingCount, liveId } = useChatStream({ forceProtocol: "native" });
+  const { busy, replying, send, stop, regenerate, pendingCount, liveId } = useChatStream({ forceProtocol: "native" });
   const allowSupplements = useApp((s) => s.settings.replyWhileBusy !== false);
   const messages = useApp((s) => s.conversations.find((c) => c.id === s.activeId)?.messages ?? noMessages);
   const emotionEvents = useApp((s) => s.emotionEvents);
@@ -43,6 +43,7 @@ function Fixture() {
     <section data-testid="pace">{paceReady && <SegmentBubbles parts={draft} fresh={!history} deliveryKey="pace"
       cleanPart={clean} cleanTail={clean} />}</section>
     <button className="k-btn" onClick={() => setDraft(["换个说法。", "新的补充。"])}>修订回复</button>
+    <button onClick={() => { const last = messages.filter((m) => m.role === "assistant").at(-1); if (last) void regenerate(last.id); }}>重新生成测试回复</button>
     <section data-testid="settings"><ChatDeliverySettings /></section>
     <section data-testid="chat" className="space-y-3">{messages.map((m) => <div key={m.id} data-role={m.role}>
       {m.role === "user" ? <p className="k-bubble">{m.content}</p> : m.content && <SegmentBubbles
