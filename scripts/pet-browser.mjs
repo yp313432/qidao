@@ -30,7 +30,7 @@ try {
   await page.getByRole('tab',{name:'动作预览'}).click();await page.getByRole('button',{name:'跳气泡',exact:false}).click();await page.waitForTimeout(1400);
   await page.screenshot({path:'screenshots/pet/mobile-actions.png'});
   console.log('PET_MOBILE_IMAGE='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));
-  const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
+  const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.waitForTimeout(1800);await desktop.waitForFunction(()=>{const h=document.querySelector('h1');if(!h)return false;const r=h.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('header')!==null;});await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
   assert.deepEqual(errors,[],'browser runtime errors');
   console.log('PASS: movement, articulated SVG, laptop, drag, speech, settings, mobile and desktop rendering');
 } catch(e) { console.log('PET_MOBILE_IMAGE='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64')); console.log('PET_VISIBLE_TEXT='+await page.locator('body').innerText()); throw e; } finally {await context.close();await browser.close();}
