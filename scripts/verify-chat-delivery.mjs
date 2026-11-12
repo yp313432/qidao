@@ -12,6 +12,7 @@ test("English sentences preserve decimals, URLs, emails, abbreviations and links
   assert.deepEqual(splitSegments('Dr. Li paid 1.5 dollars. Visit https://example.com/a?q=1.5 or [site](https://a.com). Okay!'),
     ['Dr. Li paid 1.5 dollars.', 'Visit https://example.com/a?q=1.5 or [site](https://a.com).', 'Okay!']);
   assert.deepEqual(splitSegments('Email a.b@example.com. Got it?'), ['Email a.b@example.com.', 'Got it?']);
+  assert.deepEqual(splitSegments('Visit https://example.com. Okay!'), ['Visit https://example.com.', 'Okay!']);
 });
 test("code, lists and tables remain intact; old separators remain readable", () => {
   const code = '```js\nconst x = "|||。";\n```';
@@ -19,6 +20,7 @@ test("code, lists and tables remain intact; old separators remain readable", () 
   assert.deepEqual(splitSegments(`${code}\n\n${list}`), [code, list]);
   const table = '| A | B |\n|---|---|\n|一。|二。|';
   assert.deepEqual(splitSegments(table), [table]);
+  assert.deepEqual(splitSegments('A | B\n---|---\n一。|二。'), ['A | B\n---|---\n一。|二。']);
   assert.deepEqual(splitSegments('你好|||再见'), ['你好', '再见']);
   assert.equal(splitSegments('一。二。三。四。', { maxParts: 2 }).join('').replace(/\s/g, ''), '一。二。三。四。');
 });
@@ -58,6 +60,7 @@ test("a revised tool-round draft retracts obsolete pending bubbles", () => {
 test("cleanup hides complete/partial emotion payloads without deleting surrounding text", () => {
   assert.equal(cleanAssistantMarkup('我懂了。{"primaryEmotion":"开心","intensity":0.5}晚安。'), '我懂了。晚安。');
   assert.equal(cleanAssistantMarkup('你好。{"primaryEmotion":"开'), '你好。');
+  assert.equal(cleanAssistantMarkup('你好。[{"name":"default_api:emotion_report","arguments":{"primaryEmotion":"开心"}}]晚安。'), '你好。晚安。');
   assert.equal(cleanAssistantMarkup('你好。<emotion intensity="0.5">开心</emotion>再聊。'), '你好。再聊。');
   assert.equal(cleanAssistantMarkup('你好。<emotion>开'), '你好。');
   assert.equal(cleanAssistantMarkup('好的。\n```json\n{"primaryEmotion":"开心","intensity":0.5}\n```\n晚安。'), '好的。\n\n晚安。');

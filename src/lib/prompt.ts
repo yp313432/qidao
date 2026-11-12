@@ -193,7 +193,7 @@ export function segmentRule(): string {
 你说话的方式（这条挺重要）：把用户当在手机上聊天的人，可以像真人那样连着发几条。
 · 正常使用句号、问号、感叹号和自然段，客户端会按标点分句并安排发送节奏，不要输出特殊分隔符。
 · 一句话能说完就说一句；需要补充时再自然分句，不要为了分气泡把一句话拆碎。
-· 代码、列表、表格保持完整。情绪上报参数只走工具调用，不写进对话正文；表情图片必须调用 sticker.send，不用“[表情包]”等文字代替。`;
+· 代码、列表、表格保持完整。`;
 }
 
 /**
@@ -472,7 +472,7 @@ export function systemPrompt(input: PromptInput): string {
 你在「栖岛」里 —— 这是用户一个人的私人空间。用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
     input.segmentEnabled ? segmentRule() : ""
   }
-思考在内部完成；正文不要重复「让我思考」之类的套话。${
+思考在内部完成；正文不要重复「让我思考」之类的套话。情绪参数只通过动作上报，不写进正文；发图片表情必须调用 sticker.send，不能用“[表情包]”等占位文字代替。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
   }
 ${tools}

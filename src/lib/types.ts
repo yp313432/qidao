@@ -703,19 +703,16 @@ export type Settings = {
   /**
    * ── **分段回复**（2026-11 用户要的："一句就跟发消息似的，可以发好几条"）──
    *
-   * 他一次输出里用 `|||` 分段，客户端切成几个气泡、一条一条冒出来（段间像在打字）。
-   * 四个旋钮都做成**用户在设置页可调**的（用户原话："分段做成可调节的吧，
-   * 就是我自己设置最多几句"）—— 效果不对他自己拧，不用改代码重推。
-   *
-   * 不填 = 按默认（开、最多 3 条、每条最多 2 句、段间 1.2 秒）。
+   * 客户端按标点分句并依次发送，保留旧分隔符兼容。数量和节奏由设置页控制。
+   * 不填 = 开启、最多 6 条、每条 1 句，按每字 60 毫秒安排节奏。
    */
   chatCrab?: { enabled: boolean; size: 28 | 32 | 36 | 44 | 52; activity: "lively" | "quiet"; speech?: boolean; draggable?: boolean; motion?: "on" | "auto" | "off"; anchor?: { x: number; y: number } };
   segmentReply?: boolean;
-  /** 一次最多几条（1–6） */
+  /** 一次最多几条（1–12），超出的内容并入最后一条 */
   segmentMaxParts?: number;
   /** **每条最多几句**（1–4）—— 超过就按句末标点再切 */
   segmentMaxSentences?: number;
-  /** 段间延迟（毫秒，400–3000）。界面上是"打字感"，固定值会假，所以实际会加抖动 */
+  /** 关闭智能节奏时的固定间隔（毫秒，400–4000） */
   segmentDelayMs?: number;
   segmentSmartDelay?: boolean;
   segmentCharDelayMs?: number;

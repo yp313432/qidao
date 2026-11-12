@@ -22,10 +22,11 @@ export function ChatDeliverySettings() {
       <KOpts cols={3}>{[3, 6, 12].map((v) => <KOpt key={v} active={(settings.segmentMaxParts ?? 6) === v}
         onClick={() => patch({ segmentMaxParts: v })}>{v} 条</KOpt>)}</KOpts>
     </>}
-    <Row label="合并发送" hint="连发先合并；回复中也能补充，结束后自动一起处理"
+    <Row label="合并发送" hint="发送前等待片刻，收齐连续消息再回复"
       checked={settings.mergeSend !== false} onChange={(v) => patch({ mergeSend: v })} />
     {settings.mergeSend !== false && <KOpts cols={3}>{[600, 1200, 2000].map((v) => <KOpt key={v}
       active={(settings.mergeSendDelayMs ?? 1200) === v} onClick={() => patch({ mergeSendDelayMs: v })}>{v / 1000} 秒</KOpt>)}</KOpts>}
+    <p className="text-xs text-subtle">回复中也能继续补充，当前回复结束后自动合并处理。</p>
     <Row label="自动清理内部标记" hint="隐藏情绪参数和表情占位文字，保留正常对话"
       checked={settings.assistantAutoClean !== false} onChange={(v) => patch({ assistantAutoClean: v })} />
   </Sub>;

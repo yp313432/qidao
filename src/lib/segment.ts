@@ -11,7 +11,8 @@ const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(mi
 function sentences(text: string): string[] {
   const protectedAt = new Uint8Array(text.length);
   for (const match of text.matchAll(/`[^`\n]+`|!?\[[^\]\n]*\]\([^\n)]*\)|https?:\/\/[^\s<>。！？]+|\b[\w.+-]+@[\w.-]+\.[a-z]+/gi)) {
-    protectedAt.fill(1, match.index, match.index + match[0].length);
+    const protectedText = /^https?:/i.test(match[0]) ? match[0].replace(/[.,!?;:…”’"'）)\]}]+$/, "") : match[0];
+    protectedAt.fill(1, match.index, match.index + protectedText.length);
   }
   const out: string[] = [];
   let start = 0;
@@ -52,7 +53,7 @@ function blocks(raw: string): { text: string; atomic: boolean }[] {
     }
     if (marker) { flush(); fence = marker; lines.push(line); continue; }
     if (!line.trim()) { flush(); continue; }
-    const atomic = /^\s*(?:[-*+]\s|\d+[.)]\s|>\s?|\||#{1,6}\s)/.test(line);
+    const atomic = /^\s*(?:[-*+]\s|\d+[.)]\s|>\s?|\||#{1,6}\s)/.test(line) || /(?<!\|)\|(?!\|)/.test(line);
     if (lines.length && structural !== atomic) flush();
     structural = atomic;
     lines.push(line);

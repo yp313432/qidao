@@ -16,14 +16,14 @@ export function cleanAssistantMarkup(raw: string): string {
     .replace(new RegExp(`<(?:${CONTROL})\\b[^>]*$`, "gi"), "");
   let out = "";
   for (let i = 0; i < text.length;) {
-    if (text[i] !== "{") { out += text[i++]; continue; }
+    if (text[i] !== "{" && text[i] !== "[") { out += text[i++]; continue; }
     let depth = 0, quote = "", escaped = false, end = text.length;
     for (let j = i; j < text.length; j++) {
       const c = text[j];
       if (quote) { if (escaped) escaped = false; else if (c === "\\") escaped = true; else if (c === quote) quote = ""; }
       else if (c === '"' || c === "'") quote = c;
-      else if (c === "{") depth++;
-      else if (c === "}" && --depth === 0) { end = j + 1; break; }
+      else if (c === "{" || c === "[") depth++;
+      else if ((c === "}" || c === "]") && --depth === 0) { end = j + 1; break; }
     }
     const chunk = text.slice(i, end);
     if (!internalObject(chunk)) out += chunk;
