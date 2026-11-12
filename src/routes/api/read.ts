@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchText, htmlToText, isPublicHttpUrl, json, preflight } from "@/lib/web-tools";
+import { isPublicHttpUrl, json, preflight } from "@/lib/web-tools";
+import { readWebPage } from "@/lib/web-http";
 
 /**
  * `GET /api/read?url=<网址>` —— **读一个网页的正文**。
@@ -29,21 +30,12 @@ export const Route = createFileRoute("/api/read")({
           ⚠️ 超时给到 15 秒而不是 12 秒：用户手机实测读百度首页用了 **10.2 秒**
           （Cloudflare 从境外取国内站点就是慢），12 秒的余量太薄，稍慢一点就整条失败。
         */
-        const got = await fetchText(checked.url.toString(), { maxBytes: 400_000, timeoutMs: 15_000 });
+        const got = await readWebPage(checked.url.toString(), { maxBytes: 400_000, timeoutMs: 15_000 });
         if (!got.ok) return json({ ok: false, why: `取网页失败：${got.why}` }, 502);
 
-        const { title, text } = htmlToText(got.text);
-        return json({
-          ok: true,
-          url: got.finalUrl,
-          status: got.status,
-          title,
-          // 最多给 6000 字 —— 再多会把上下文塞满，模型反而读不出重点
-          text: text.slice(0, 6000),
-          truncated: got.truncated || text.length > 6000,
-          chars: text.length,
-        });
+        return json(got);
       },
     },
   },
 });
+

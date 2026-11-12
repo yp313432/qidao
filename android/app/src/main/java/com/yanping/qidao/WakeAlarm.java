@@ -83,9 +83,23 @@ final class WakeAlarm {
 
   /** 排下一次；返回真正定下的时刻（排不上返回 0） */
   static long schedule(Context ctx) {
+    if (!"1".equals(WakePrefs.str(ctx, WakePrefs.ENABLED))
+        || WakePrefs.str(ctx, WakePrefs.BASE_URL).trim().isEmpty()
+        || WakePrefs.str(ctx, WakePrefs.API_KEY).trim().isEmpty()
+        || WakePrefs.str(ctx, WakePrefs.MODEL).trim().isEmpty()) {
+      cancel(ctx);
+      return 0;
+    }
+    // 配置/上下文可能每两分钟同步；保留已经排好的更早一班，不能每次向后推一小时。
+    long previous = WakePrefs.numLong(ctx, WakePrefs.NEXT_AT_MS, 0);
     long at = nextAt(ctx, new Date());
+    if (previous > System.currentTimeMillis() && previous < at
+        && !WakeEngine.inQuiet(ctx, new Date(previous))) at = previous;
     AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
-    if (am == null) return 0;
+    if (am == null) {
+      WakePrefs.putLong(ctx, WakePrefs.NEXT_AT_MS, 0);
+      return 0;
+    }
     PendingIntent pi = pending(ctx);
     try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
@@ -96,8 +110,10 @@ final class WakeAlarm {
       } else {
         am.setExact(AlarmManager.RTC_WAKEUP, at, pi);
       }
+      WakePrefs.putLong(ctx, WakePrefs.NEXT_AT_MS, at);
       return at;
     } catch (Exception e) {
+      WakePrefs.putLong(ctx, WakePrefs.NEXT_AT_MS, 0);
       return 0;
     }
   }
@@ -130,3 +146,4 @@ final class WakeAlarm {
     WakePrefs.putLong(ctx, WakePrefs.NEXT_AT_MS, 0);
   }
 }
+

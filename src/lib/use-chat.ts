@@ -1,4 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
+import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup";
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
 import { buildContext } from "@/lib/awareness";
@@ -33,13 +35,15 @@ import {
 import { selectActionKinds } from "@/lib/tool-select";
 import { estimateTokens } from "@/lib/tokens";
 import { partsFor } from "@/lib/segment";
-import { runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
+import { runOneAction, runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { buildExternalTools, MAX_TOOLS_PER_REQUEST } from "@/lib/external-tools";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
+import { toolProgressLabel } from "@/lib/tool-title";
 import type { AppAction, Attachment, ChatMessage, ChatStep } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { resolveVoiceLang, speak } from "@/lib/voice";
+const sendQueue = new ChatSendQueue(() => pushToast("发送没能完成，消息已保留在会话中。"));
 
 /**
  * 把参数归一化成可比较的字符串（键排序、丢空值）。
@@ -358,6 +362,7 @@ function notifyQuota(aiName: string) {
 }
 
 export function useChatStream(opts: UseChatOpts = {}) {
+  const sending = useSyncExternalStore(sendQueue.subscribe, sendQueue.getSnapshot, sendQueue.getSnapshot);
   const settings = useApp((s) => s.settings);
   const model = useApp((s) => s.model);
   const aiName = resolveAiName(settings.aiName);
@@ -397,6 +402,16 @@ export function useChatStream(opts: UseChatOpts = {}) {
   /** 把一段历史丢给模型，边流边写回指定的那一条助手消息。 */
   const runStream = useCallback(
     async (conversationId: string, messageId: string, history: ApiMessage[], summaryText?: string) => {
+      const settings = useApp.getState().settings;
+      const model = useApp.getState().model;
+      useApp.getState().takeReplyStickers(); // No sticker from an earlier, unrelated turn may leak in.
+      const shownText = (raw: string) => stripActions(settings.assistantAutoClean !== false ? cleanAssistantMarkup(raw) : raw);
+      const attachStickers = () => {
+        const fresh = useApp.getState().takeReplyStickers().map((url) => stickerAttachment(url, uid("att"))).filter((a) => a !== null);
+        if (!fresh.length) return;
+        const existing = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments ?? [];
+        useApp.getState().patchMessage(conversationId, messageId, { attachments: [...existing, ...fresh] });
+      };
       setBusy(true);
       setLiveId(messageId);
       const started = Date.now();
@@ -450,7 +465,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         dirty = false;
         // 写进消息里的是**去掉动作块**的正文 —— 否则那截 JSON 会一直显示在对话里
         useApp.getState().patchMessage(conversationId, messageId, {
-          content: stripActions(content),
+          content: shownText(content),
           thinking,
         });
       };
@@ -471,7 +486,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
        */
       {
         const st0 = useApp.getState();
-        const groups = stickerGroupList(st0.stickerLib, st0.stickerGroups);
+        if (settings.aiStickers === false) context.aware = [...(context.aware ?? []), "用户已关闭 AI 主动发表情：不要发送图片表情或输出表情占位文字。"];
+        const groups = settings.aiStickers === false ? [] : stickerGroupList(st0.stickerLib, st0.stickerGroups);
         if (groups.length > 0) {
           const brief = groups
             .map((g) => {
@@ -540,9 +556,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
           })()
         : null;
       /** 这一轮真的发出去的动作 kind（顺序稳定）—— P3 之后不再总是 61 个 */
-      const kindsSent = selection
+      const kindsSent = (selection
         ? selection.kinds
-        : ACTION_SCHEMA.map((a) => a.kind);
+        : ACTION_SCHEMA.map((a) => a.kind)).filter((kind) => settings.aiStickers !== false || kind !== "sticker.send");
       /** 这一轮是不是"只发了一部分"（要给模型那份兜底说明，免得他以为做不到） */
       const selective = kindsSent.length < ACTION_SCHEMA.length;
       if (native) {
@@ -622,7 +638,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         }
       }, 10_000);
 
-      const onDelta = (d: ChatDelta) => {
+      const onDelta = (d: ChatDelta, replaceContent = false) => {
         lastBeat = Date.now();
         if (d.error) {
           /**
@@ -650,7 +666,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           if (!hadContent) crumb("chat", "正文开始到了");
           hadContent = true;
           setPhase("正在写回复");
-          content += d.content;
+          content = replaceContent ? d.content : content + d.content;
           schedule();
         }
 
@@ -743,7 +759,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
          * 工具循环跑完一轮之后：语音页要有一句过渡（不然那几秒是死寂）。
          * 放在 `onRound` 里而不是循环外，是因为**只有真的调了工具**才需要过渡。
          */
-        const roundTextStart = { at: 0 };
+        const bodyRound = { round: 0 };
         /**
          * **崩溃面包屑**：把"这一轮在干什么"记下来（见 `lib/breadcrumbs.ts`）。
          * 用户报的"卡住然后闪退"在浏览器里复现不出来 —— 有了这几行，
@@ -761,7 +777,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
           // P0（agent）：外部工具接在后面 —— MCP / 自配 HTTP 跟内置动作同一个通道
           tools: [...builtinTools, ...extTools],
           signal: ac.signal,
-          onDelta,
+          // 思考/工具仍按事件推进；正文由循环提供当前请求的快照，不能跨请求拼接。
+          onDelta: (d) => onDelta({ ...d, content: undefined }),
+          onContent: (text, round) => {
+            bodyRound.round = round;
+            onDelta({ content: text }, true);
+          },
           /**
            * 每一步**执行之前**先让界面知道（"第 N 步 · 正在执行 X"）——
            * 不然用户看到的还是"正在写回复…"，跟以前一样什么都看不见。
@@ -769,17 +790,14 @@ export function useChatStream(opts: UseChatOpts = {}) {
           onStep: ({ round, calls }) => {
             setStep({
               round,
-              label: calls.some((c) => c.name === "http_call" || c.name === "http_key")
-                ? "正在调用 HTTP 工具"
-                : calls.some((c) => c.name === "tool_call")
-                  ? "正在调用 MCP 工具"
-                  : `第 ${round} 步 · 正在执行 ${calls.map((c) => c.name).join("、")}`,
+              label: `第 ${round} 步 · 正在执行 ${toolProgressLabel(calls)}`,
             });
             /** 面包屑：动手那一步也要留痕（用户报"报情绪的时候卡退"就是这一类时刻） */
             crumb("action", `第 ${round} 步：${calls.map((c) => c.name).join("、")}`);
             setPhase(`执行动作（${calls.map((c) => c.name).join("、")}）`);
           },
           onRound: (r) => {
+            attachStickers();
             setStep(null);
             state.rounds.push(r);
             /**
@@ -799,9 +817,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               rounds: state.rounds.map((x) => ({ round: x.round, calls: [...x.calls] })),
               steps: state.steps.length > 0 ? [...state.steps] : undefined,
             });
-            const before = roundTextStart.at;
-            const roundHasText = content.slice(before).trim().length > 0;
-            roundTextStart.at = content.length;
+            const roundHasText = bodyRound.round === r.round && content.trim().length > 0;
             if (shouldFillVoice(r, roundHasText)) fillerRef.current?.(TOOL_FILLER);
           },
         });
@@ -812,6 +828,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
           // 上游明确不要 tools → 交给外层按文本协议再来一遍
           throw new NativeRejected();
         }
+        // 收尾与流式显示用同一份正文；不能把先前工具轮的草稿存回会话或拿去朗读。
+        content = result.content;
+        dirty = true;
+        flush();
         state.reqError = result.error;
         state.stalled = result.stalled;
       };
@@ -1015,6 +1035,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       });
       const unknownNames: string[] = [];
       for (const action of actions) {
+        if (ac.signal.aborted) break;
         if (!knownKinds.has(action.kind)) {
           unknownNames.push(String(action.kind));
           continue;
@@ -1029,20 +1050,26 @@ export function useChatStream(opts: UseChatOpts = {}) {
          */
         const rest: Record<string, unknown> = { ...(action as unknown as Record<string, unknown>) };
         delete rest.kind;
+        const call = { index: 0, id: uid("call"), name: action.kind.replace(/\./g, "_"), args: JSON.stringify(rest) };
+        setStep({ round: state.steps.filter((s) => s.kind === "call").length + 1,
+          label: `正在执行 ${toolProgressLabel([call])}` });
+        const outcome = await runOneAction(call, ac.signal, useApp);
+        attachStickers();
+        setStep(null);
         state.steps.push({
           kind: "call",
           call: {
-            name: action.kind.replace(/\./g, "_"),
+            name: call.name,
+            title: outcome.title,
             kind: action.kind,
             args: JSON.stringify(rest),
-            // result 是给模型看的；这条路径的动作结果由闸门异步回填，这里先记"提交了"
-            result: "（文本协议）已提交给权限闸门执行",
-            notice: `✅ ${action.kind} · 已提交执行`,
-            category: "pending",
-            ok: true,
+            result: outcome.result,
+            notice: outcome.notice,
+            category: outcome.category,
+            ok: outcome.ok,
           },
         });
-        useApp.getState().requestAction(action, "AI");
+        useApp.getState().patchMessage(conversationId, messageId, { steps: [...state.steps] });
       }
       if (unknownNames.length > 0) {
         content += `\n\n${unknownNames
@@ -1073,13 +1100,15 @@ export function useChatStream(opts: UseChatOpts = {}) {
           "要继续跟他说一声就行。）";
       }
 
+      attachStickers();
+      const stickerAtts = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments?.filter((a) => a.kind === "sticker") ?? [];
       const finalText =
-        stripActions(content) ||
+        shownText(content) || (stickerAtts.length ? "" :
         // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
         // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
         (thinking.trim().length > 0
           ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
-          : "（空回复）");
+          : "（空回复）"));
 
       /**
        * **分段回复**：把正文切成几个气泡（见 `lib/segment.ts`）。
@@ -1099,10 +1128,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 为什么挂附件而不是单发一条消息：这样它跟这句正文**属于同一条**，
        * 渲染时天然跟在正文后面；单发一条会和"这句话"脱节。
        */
-      const stickerUrl = useApp.getState().takeReplySticker();
-      const stickerAtt: Attachment | null = stickerUrl
-        ? { id: uid("att"), kind: "sticker", name: "表情", mime: "image/png", size: 0, dataUrl: stickerUrl }
-        : null;
 
       /**
        * **他这一轮用语音回**（用户 m11313："我先用语音，它用语音回"）。
@@ -1128,9 +1153,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
       }
 
       const attachments: ChatMessage["attachments"] = voiceAtt
-        ? [...(stickerAtt ? [stickerAtt] : []), voiceAtt]
-        : stickerAtt
-          ? [stickerAtt]
+        ? [...stickerAtts, voiceAtt]
+        : stickerAtts.length
+          ? stickerAtts
           : undefined;
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
@@ -1210,82 +1235,79 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
   const send = useCallback(
     async (text: string, attachments?: Attachment[]) => {
-      /**
-       * 按模式决定拦不拦（bumpQuota 里判断）：
-       *   自己带 key → 永远返回 true（花你的钱，本机不管）✅
-       *   走服务端   → 超了窗口上限才返回 false ✅
-       */
-      const ok = useApp.getState().bumpQuota();
-      if (!ok) {
-        pushToast(
-          "本窗口额度用尽了（你现在走的是内置服务端，花的是服务端那把 key）。\n" +
-            "想不受限：去「我的 → 自定义上游」填你自己的地址和密钥。",
-        );
+      if (!text.trim() && !attachments?.length) return;
+      if (sendQueue.getSnapshot().running && useApp.getState().settings.replyWhileBusy === false) {
+        pushToast("当前回复完成后再发，或在对话设置开启「回复时允许补充消息」。");
         return;
       }
-      const { conversationId, assistant, user } = useApp
-        .getState()
-        .addUserMessage(text, attachments);
-      const prior = useApp.getState().conversations.find((c) => c.id === conversationId);
-      /**
-       * **水位线**：摘要盖住的那一段原文不再发（`summary.upToIndex` 是库里那个位置）。
-       * 摘要本身挂在历史最前面（`summary` 那个字段），所以信息没丢、只是换成了压缩版。
-       */
-      const all = prior?.messages.filter((m) => m.id !== assistant.id) ?? [user];
-      const kept = prior?.summary ? all.slice(prior.summary.upToIndex) : all;
-      const history = historyForApi(kept, {
-        ...histOpts,
-        // 整轮口径：扣掉系统提示词和工具，才是历史真正能用的额度
-        systemTokens: fixedRef.current.system,
-        toolTokens: fixedRef.current.tools,
-        // 摘要放最前面（原文已经在上面被切掉了）
-        summary: prior?.summary ? { text: prior.summary.text, upToIndex: 0 } : undefined,
-      });
-      await runStream(conversationId, assistant.id, history, prior?.summary?.text);
+      const { conversationId } = useApp.getState().appendUserMessage(text, attachments);
+      const current = useApp.getState().settings;
+      const delay = current.mergeSend === false || attachments?.some((a) => a.kind === "audio")
+        ? 0 : Math.max(0, Math.min(5000, current.mergeSendDelayMs ?? 1200));
+      await sendQueue.enqueue(conversationId, delay, async () => {
+        if (!useApp.getState().conversations.some((c) => c.id === conversationId)) return;
+        if (!useApp.getState().bumpQuota()) { pushToast("本窗口额度用尽了，请检查模型与用量设置。"); return; }
+        const assistant = useApp.getState().beginAssistantReply(conversationId);
+        if (!assistant) return;
+        try {
+          const prior = useApp.getState().conversations.find((c) => c.id === conversationId)!;
+          const all = prior.messages.filter((m) => m.id !== assistant.id);
+          const kept = prior.summary ? all.slice(prior.summary.upToIndex) : all;
+          const currentSettings = useApp.getState().settings;
+          const history = mergeUserMessages(historyForApi(kept, {
+            budget: currentSettings.contextBudget, keepRecent: currentSettings.keepRecent,
+            autoCompact: currentSettings.autoCompact, compactAt: currentSettings.compactAt,
+            systemTokens: fixedRef.current.system, toolTokens: fixedRef.current.tools,
+            summary: prior.summary ? { text: prior.summary.text, upToIndex: 0 } : undefined,
+          }));
+          await runStream(conversationId, assistant.id, history, prior.summary?.text);
+        } catch (error) {
+          useApp.getState().patchMessage(conversationId, assistant.id, {
+            content: `这次回复没完成：${error instanceof Error ? error.message : "请求失败"}`,
+          });
+        } finally { setBusy(false); setStep(null); setLiveId(null); }
+      }, () => abortRef.current?.abort());
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [runStream, settings],
+    [runStream],
   );
 
   /** 重新生成某一条助手回复：保留它之前的历史，清空本条再跑一次。 */
   const regenerate = useCallback(
     async (messageId: string) => {
-      const st = useApp.getState();
-      const conversationId = st.activeId;
+      const conversationId = useApp.getState().activeId;
       if (!conversationId) return;
-      const target = st.conversations.find((c) => c.id === conversationId);
-      if (!target) return;
-      const idx = target.messages.findIndex((m) => m.id === messageId);
-      if (idx < 0) return;
-      st.patchMessage(conversationId, messageId, {
-        content: "",
-        thinking: "",
-        thinkingDurationMs: 0,
-        feedback: undefined,
-      });
-      const kept = target.summary
-        ? target.messages.slice(target.summary.upToIndex, idx)
-        : target.messages.slice(0, idx);
-      await runStream(
-        conversationId,
-        messageId,
-        historyForApi(kept, {
-          ...histOpts,
-          systemTokens: fixedRef.current.system,
-          toolTokens: fixedRef.current.tools,
-          summary: target.summary ? { text: target.summary.text, upToIndex: 0 } : undefined,
-        }),
-        target.summary?.text,
-      );
+      await sendQueue.enqueue(conversationId, 0, async () => {
+        const st = useApp.getState();
+        const target = st.conversations.find((c) => c.id === conversationId);
+        if (!target) return;
+        const idx = target.messages.findIndex((m) => m.id === messageId);
+        if (idx < 0) return;
+        st.patchMessage(conversationId, messageId, {
+          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined,
+          content: "", thinking: "", thinkingDurationMs: 0, feedback: undefined,
+        });
+        const kept = target.summary
+          ? target.messages.slice(target.summary.upToIndex, idx)
+          : target.messages.slice(0, idx);
+        try {
+          await runStream(conversationId, messageId, mergeUserMessages(historyForApi(kept, {
+            ...histOpts,
+            systemTokens: fixedRef.current.system,
+            toolTokens: fixedRef.current.tools,
+            summary: target.summary ? { text: target.summary.text, upToIndex: 0 } : undefined,
+          })), target.summary?.text);
+        } finally { setBusy(false); setStep(null); setLiveId(null); }
+      }, () => abortRef.current?.abort());
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [runStream, settings],
   );
 
-  const stop = useCallback(() => abortRef.current?.abort(), []);
+  const stop = useCallback(() => { sendQueue.stop(); abortRef.current?.abort(); }, []);
 
   /** `step` 给界面显示"第 N 步 · 正在执行 X"（agent loop 的进度，见 runToolLoop 的 onStep） */
-  return { busy, liveId, step, send, regenerate, stop, aiName };
+  return { busy: busy || sending.running || sending.pending > 0, replying: busy || sending.running,
+    pendingCount: sending.pending, liveId, step, send, regenerate, stop, aiName };
 }
 
 /**
@@ -1299,3 +1321,4 @@ function stripOverlap(prev: string, next: string): string {
   }
   return next;
 }
+

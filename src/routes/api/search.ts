@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchText, json, preflight } from "@/lib/web-tools";
+import { json, preflight } from "@/lib/web-tools";
+import { webSearch } from "@/lib/web-http";
 
 /**
  * `GET /api/search?q=<关键词>` —— **搜网页**。
@@ -21,11 +22,12 @@ export const Route = createFileRoute("/api/search")({
       GET: async ({ request }) => {
         const q = (new URL(request.url).searchParams.get("q") ?? "").trim();
         if (!q) return json({ ok: false, why: "要带上 ?q= 参数（搜索词）" }, 400);
+        const deadline = Date.now() + 18_000;
 
         const bochaKey = (process.env.BOCHA_KEY ?? "").trim();
         if (bochaKey) {
           const r = await viaBocha(q, bochaKey);
-          if (r) return json(r);
+          if (r?.ok === true) return json(r);
           // 博查失败就往下走抓取兜底，别让用户什么都拿不到
         }
 
@@ -38,8 +40,8 @@ export const Route = createFileRoute("/api/search")({
           DDG / Wikipedia / SearXNG 在这台机器上直接连不通（网络到不了），没法验，
           所以不放进来充数。
         */
-        const scraped = (await viaBingRss(q)) ?? (await viaBingHtml(q));
-        if (scraped) return json(scraped);
+        const scraped = await webSearch(q, { limit: 5, timeoutMs: Math.max(1, deadline - Date.now()) });
+        if (scraped.ok) return json(scraped);
 
         return json(
           {
@@ -87,88 +89,4 @@ async function viaBocha(q: string, key: string): Promise<Record<string, unknown>
   } finally {
     clearTimeout(timer);
   }
-}
-
-/* ---------------- ② 抓搜索结果页（没 key 时的兜底） ---------------- */
-
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/<[^>]+>/g, "")
-    .trim();
-}
-
-/**
- * ① Bing 的 **RSS 接口** —— 免 key 兜底里的首选。
- *
- * 为什么首选它：这是官方 feed（`&format=rss`），返回结构化 XML，实测 783ms、10 条，
- * **不吃反爬**。用户手机上实测过：抓 Bing 的 HTML 结果页从 Cloudflare 出去是 502
- * （境外 IP 被反爬挡了），而 RSS 这条路不依赖页面结构，稳定得多。
- */
-async function viaBingRss(q: string): Promise<Record<string, unknown> | null> {
-  const got = await fetchText(`https://www.bing.com/search?q=${encodeURIComponent(q)}&format=rss`, {
-    timeoutMs: 8_000,
-    maxBytes: 400_000,
-  });
-  if (!got.ok || got.status !== 200) return null;
-
-  const results: Hit[] = [];
-  for (const item of got.text.split(/<item>/i).slice(1)) {
-    const link = item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] ?? "";
-    const title = item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "";
-    const desc = item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] ?? "";
-    const url = decodeEntities(link.replace(/<!\[CDATA\[|\]\]>/g, "").trim());
-    const cleanTitle = decodeEntities(title.replace(/<!\[CDATA\[|\]\]>/g, "")).trim();
-    if (!cleanTitle || !url.startsWith("http")) continue;
-    results.push({
-      title: cleanTitle,
-      url,
-      snippet: decodeEntities(desc.replace(/<!\[CDATA\[|\]\]>/g, "")).slice(0, 300),
-    });
-    if (results.length >= 5) break;
-  }
-  if (!results.length) return null;
-  return { ok: true, engine: "bing-rss", query: q, results };
-}
-
-/**
- * ② 抓 Bing 的 HTML 结果页 —— 兜底的兜底。
- * 在这台机器上能出结果，但**从 Cloudflare 上失败过**（用户手机实测 502），
- * 所以只当最后一道。
- */
-async function viaBingHtml(q: string): Promise<Record<string, unknown> | null> {
-  const got = await fetchText(`https://cn.bing.com/search?q=${encodeURIComponent(q)}&setlang=zh-CN`, {
-    timeoutMs: 8_000,
-    maxBytes: 600_000,
-  });
-  if (!got.ok || got.status !== 200) return null;
-
-  const results: Hit[] = [];
-  // Bing 的每条结果都在 <li class="b_algo"> 里
-  const blocks = got.text.split(/<li class="b_algo"/i).slice(1);
-  for (const block of blocks) {
-    /*
-      ⚠️ 不要指望 `<h2><a href=...>` —— 实测（移动版）**根本没有这种结构**，
-      照着写会一条都抓不到（第一次就是这样，搜索整个空掉了）。
-      可靠的做法是"块里第一个 http 链接"。
-    */
-    const link = block.match(/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]{0,300}?)<\/a>/i);
-    if (!link) continue;
-    const url = decodeEntities(link[1]);
-    // 标题里常混着网址面包屑（`react.devhttps://react.dev › learn`），
-    // 从第一个 http 处截断，留下真正的标题
-    const rawTitle = decodeEntities(link[2]);
-    const title = rawTitle.split(/https?:\/\//)[0].trim() || rawTitle.trim();
-    const snippet = decodeEntities(block.match(/<p[^>]*>([\s\S]{20,400}?)<\/p>/i)?.[1] ?? "");
-    if (!title || !url.startsWith("http")) continue;
-    results.push({ title, url, snippet: snippet.slice(0, 300) });
-    if (results.length >= 5) break;
-  }
-  if (!results.length) return null;
-  return { ok: true, engine: "bing-html", query: q, results };
 }

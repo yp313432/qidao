@@ -87,25 +87,31 @@ final class WakeNotify {
   /**
    * 弹一条。`text` 是正文（最多两行），`seq` 用来让通知 id 不撞（点开旧的不会被新的顶掉太快）。
    */
-  static void show(Context ctx, String title, String text, int seq) {
+  static boolean show(Context ctx, String title, String text, int seq) {
     try {
       /* ① 权限（Android 13+）—— 没授权时 notify() 不抛错，只会什么都不发生 */
       if (Build.VERSION.SDK_INT >= 33
           && ctx.checkSelfPermission(PERM_POST) != PackageManager.PERMISSION_GRANTED) {
         note(ctx, "系统没给栖岛通知权限");
-        return;
+        return false;
       }
       NotificationManager nm = ctx.getSystemService(NotificationManager.class);
       if (nm == null) {
         note(ctx, "系统通知服务不可用");
-        return;
+        return false;
       }
       /* ② 总开关 / 渠道被关 —— 同样是静默失败 */
       if (!nm.areNotificationsEnabled()) {
         note(ctx, "栖岛的通知被系统关掉了");
-        return;
+        return false;
       }
       ensureChannel(ctx);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        NotificationChannel channel = nm.getNotificationChannel(CHANNEL_ID);
+        if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+          return false; // ensureChannel 已记录原因，不能报「已通知」。
+        }
+      }
 
       Intent open = new Intent(ctx, MainActivity.class);
       open.setAction(ACTION);
@@ -126,9 +132,12 @@ final class WakeNotify {
           .setAutoCancel(true)
           .setContentIntent(pi);
       nm.notify(ID_BASE + (seq % 1000), b.build());
+      return true;
     } catch (Exception e) {
       /* 话已经记进小本子了，通知失败不崩流程；但要留证据 */
       note(ctx, String.valueOf(e.getMessage()));
+      return false;
     }
   }
 }
+

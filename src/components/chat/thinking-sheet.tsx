@@ -45,6 +45,7 @@ export function ThinkingSheet({
   steps,
   durationMs,
   live,
+  activeStep,
   onClose,
 }: {
   open: boolean;
@@ -54,6 +55,8 @@ export function ThinkingSheet({
   durationMs?: number;
   /** 还在生成中（实时长出来的那种） */
   live?: boolean;
+  /** 当前正在执行的工具（内置 / 网页 / HTTP / MCP 共用）。 */
+  activeStep?: string;
   onClose: () => void;
 }) {
   /** 往下拖了多少（0 = 原位）。跟手，松手看够不够远。 */
@@ -158,9 +161,9 @@ export function ThinkingSheet({
           <span className="h-1 w-10 rounded-full bg-line" />
         </div>
         <div className="flex items-center justify-between px-4 pt-1.5 pb-2">
-          <span className="text-[12px] text-muted">
+          <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
             {live
-              ? "正在思考…"
+              ? activeStep || "正在思考…"
               : [
                   secs ? `想了 ${secs} 秒` : "想了想",
                   callCount > 0 ? `动了 ${callCount} 次手` : "",
@@ -179,10 +182,11 @@ export function ThinkingSheet({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(var(--aster-nav-h)+1.5rem)]">
           {steps && steps.length > 0 ? (
-            <StepList steps={steps} live={live} />
+            <StepList steps={steps} live={live} activeStep={activeStep} />
           ) : (
             <p className="whitespace-pre-wrap text-[0.95em] leading-[1.85] text-muted">
-              {text || "（没有思考内容）"}
+              {text || (live && activeStep ? "" : "（没有思考内容）")}
+              {live && activeStep && <span className="mt-2 block text-[12px] text-subtle" role="status">{activeStep}</span>}
               {live && <span className="ml-0.5 animate-pulse">▍</span>}
             </p>
           )}
@@ -198,7 +202,7 @@ export function ThinkingSheet({
  * 只在这里出现一次 —— 对话流里**不再**放过程（用户 m12579："不能放在对话里，
  * 会显得很长，放在思考链里"），那边只有一行入口。
  */
-function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
+function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boolean; activeStep?: string }) {
   const aiName = resolveAiName(useApp((st) => st.settings.aiName));
   const [open, setOpen] = useState<number[]>([]);
   const isOpen = (i: number) => open.includes(i);
@@ -297,9 +301,15 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
                       {s.detail}
                     </span>
                   )}
-                  {expanded && s.why && (
+                  {expanded && s.why && !step.call.result && (
                     <span className="mt-0.5 block text-[11px] leading-[1.55] text-warn/80 [overflow-wrap:anywhere]">
                       {s.why}
+                    </span>
+                  )}
+                  {expanded && step.call.result && (
+                    <span className="mt-1 block whitespace-pre-wrap text-[11px] leading-[1.55] text-subtle [overflow-wrap:anywhere]">
+                      {step.call.result.slice(0, 4000)}
+                      {step.call.result.length > 4000 && "\n（此处展示前 4000 字）"}
                     </span>
                   )}
                   {expanded && s.raw && (
@@ -328,7 +338,7 @@ function StepList({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
               <span className="mx-auto mt-[5px] block size-[5px] animate-pulse rounded-full bg-accent" />
             </span>
           </Rail>
-          <span className="pb-2 pt-0.5 text-[12px] text-subtle">还在想…</span>
+          <span className="pb-2 pt-0.5 text-[12px] text-subtle" role="status">{activeStep || "还在想…"}</span>
         </div>
       )}
     </div>
@@ -365,3 +375,4 @@ function Rail({
     </div>
   );
 }
+

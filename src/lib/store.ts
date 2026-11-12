@@ -159,9 +159,17 @@ const defaultSettings: Settings = {
    * （切分只在**真的出现分隔符**或**超过"每条最多几句"**时才发生）。
    */
   segmentReply: true,
-  segmentMaxParts: 3,
-  segmentMaxSentences: 2,
+  segmentMaxParts: 6,
+  segmentMaxSentences: 1,
   segmentDelayMs: 1200,
+  segmentSmartDelay: true,
+  segmentPacing: true,
+  replyWhileBusy: true,
+  aiStickers: true,
+  segmentCharDelayMs: 60,
+  mergeSend: true,
+  mergeSendDelayMs: 1200,
+  assistantAutoClean: true,
   /** 表情包入库自动去白底（用户要的是"表情包格式"，不是白底照片） */
   stickerRemoveWhite: true,
   /** 主动说话：忙到什么时候（0 = 不忙）；情绪能不能单独触发；两个频率闸（默认 40 分钟 / 8 条） */
@@ -552,9 +560,11 @@ export type AppState = {
    * 挂完之后图就属于那条消息的 `attachments` 了。
    */
   replyStickerUrl?: string;
+  replyStickerUrls?: string[];
   lastStickerUrl?: string;
   setReplySticker: (dataUrl: string) => void;
   takeReplySticker: () => string | undefined;
+  takeReplyStickers: () => string[];
   addCustomWord: (card: Omit<WordCard, "id">) => void;
   removeCustomWord: (id: string) => void;
   addReminder: (r: { text: string; time?: string; ring?: boolean; date?: string; systemClock?: boolean }) => void;
@@ -654,6 +664,8 @@ export type AppState = {
     text: string,
     attachments?: Attachment[],
   ) => { conversationId: string; user: ChatMessage; assistant: ChatMessage };
+  appendUserMessage: (text: string, attachments?: Attachment[], conversationId?: string) => { conversationId: string; user: ChatMessage };
+  beginAssistantReply: (conversationId: string) => ChatMessage | null;
   patchMessage: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
   finalizeAssistant: (conversationId: string, messageId: string, patch: Partial<ChatMessage>) => void;
   /**
@@ -1473,11 +1485,15 @@ export const useApp = create<AppState>()(
             stickerGroups: s.stickerGroups.filter((x) => x !== g),
           };
         }),
-      setReplySticker: (dataUrl) => set({ replyStickerUrl: dataUrl, lastStickerUrl: dataUrl }),
+      setReplySticker: (dataUrl) => set((s) => ({ replyStickerUrl: dataUrl, replyStickerUrls: [...(s.replyStickerUrls ?? []), dataUrl], lastStickerUrl: dataUrl })),
+      takeReplyStickers: () => {
+        const s = get();
+        const urls = s.replyStickerUrls?.length ? s.replyStickerUrls : s.replyStickerUrl ? [s.replyStickerUrl] : [];
+        set({ replyStickerUrl: undefined, replyStickerUrls: [] });
+        return urls;
+      },
       takeReplySticker: () => {
-        const url = get().replyStickerUrl;
-        if (url) set({ replyStickerUrl: undefined });
-        return url;
+        return get().takeReplyStickers().at(-1);
       },
       newChat: (opts) => {
         const id = uid("chat");
@@ -1516,55 +1532,32 @@ export const useApp = create<AppState>()(
         set((s) => ({
           conversations: s.conversations.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)),
         })),
-      addUserMessage: (text, attachments) => {
-        // model 只读、activeId/conversations 后面要改 —— 所以拆开声明（顺手修掉存量的 prefer-const）
-        const { model } = get();
-        let { activeId, conversations } = get();
-        if (!activeId || !conversations.find((c) => c.id === activeId)) {
-          activeId = get().newChat();
-          conversations = get().conversations;
+      appendUserMessage: (text, attachments, targetId) => {
+        let conversationId = targetId ?? get().activeId;
+        if (!conversationId || !get().conversations.some((c) => c.id === conversationId)) {
+          conversationId = get().newChat();
         }
-        const user: ChatMessage = {
-          id: uid("m"),
-          role: "user",
-          content: text,
-          attachments: attachments && attachments.length ? attachments : undefined,
-          thinking: "",
-          thinkingDurationMs: 0,
-          createdAt: Date.now(),
-        };
-        const assistant: ChatMessage = {
-          id: uid("m"),
-          role: "assistant",
-          content: "",
-          thinking: "",
-          thinkingDurationMs: 0,
-          createdAt: Date.now(),
-          model,
-        };
-        set((s) => ({
-          conversations: s.conversations.map((c) => {
-            if (c.id !== activeId) return c;
-            const title =
-              c.messages.length === 0 && !c.incognito
-                ? titleFrom(
-                    text ||
-                      (attachments?.some((a) => a.kind === "image")
-                        ? "图片"
-                        : attachments?.length
-                          ? "附件"
-                          : ""),
-                  )
-                : c.title;
-            return {
-              ...c,
-              title,
-              updatedAt: Date.now(),
-              messages: [...c.messages, user, assistant],
-            };
-          }),
-        }));
-        return { conversationId: activeId!, user, assistant };
+        const user: ChatMessage = { id: uid("m"), role: "user", content: text,
+          attachments: attachments?.length ? attachments : undefined,
+          thinking: "", thinkingDurationMs: 0, createdAt: Date.now() };
+        set((s) => ({ conversations: s.conversations.map((c) => c.id !== conversationId ? c : {
+          ...c, title: c.messages.length === 0 && !c.incognito ? titleFrom(text || (attachments?.length ? "附件" : "")) : c.title,
+          updatedAt: Date.now(), messages: [...c.messages, user],
+        }) }));
+        return { conversationId: conversationId!, user };
+      },
+      beginAssistantReply: (conversationId) => {
+        if (!get().conversations.some((c) => c.id === conversationId)) return null;
+        const assistant: ChatMessage = { id: uid("m"), role: "assistant", content: "", thinking: "",
+          thinkingDurationMs: 0, createdAt: Date.now(), model: get().model };
+        set((s) => ({ conversations: s.conversations.map((c) => c.id !== conversationId ? c
+          : { ...c, updatedAt: Date.now(), messages: [...c.messages, assistant] }) }));
+        return assistant;
+      },
+      addUserMessage: (text, attachments) => {
+        const { conversationId, user } = get().appendUserMessage(text, attachments);
+        const assistant = get().beginAssistantReply(conversationId)!;
+        return { conversationId, user, assistant };
       },
       patchMessage: (conversationId, messageId, patch) =>
         set((s) => ({
@@ -1621,7 +1614,7 @@ export const useApp = create<AppState>()(
                         ? {
                             ...m,
                             ...patch,
-                            parts: m.scheduled && typeof patch.content === "string" && !patch.parts
+                            parts: typeof patch.content === "string" && !patch.parts
                               ? partsFor(patch.content, {
                                   enabled: s.settings.segmentReply !== false,
                                   maxParts: s.settings.segmentMaxParts,

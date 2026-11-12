@@ -1,3 +1,4 @@
+import { ChatDeliverySettings, ChatStickerSettings } from "./chat-delivery-settings";
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
@@ -1085,52 +1086,10 @@ export function MeSections({ tab }: { tab: MeTab }) {
             </KOpts>
           </Sub>
 
-          {/*
-        ── 说话方式：**分段回复**（2026-11 用户要的）─────────────────────
-        用户原话："他这个回复只能我回一句，他回一句，就感觉不像真人；
-        能不能他分段回呢？一句就跟发消息似的，可以发好几条那种。"
-        以及："分段做成可调节的吧，就是我自己设置最多几句。"
+          {/* 分句、逐条发送节奏、合并等待和正文清理。 */}
+          <ChatDeliverySettings />
 
-        所以四个旋钮都摆在这儿，**不写死在代码里** —— 效果不对他自己拧，
-        不用等我改代码重新打包。切分逻辑见 `lib/segment.ts`。
-      */}
-          <Sub title="说话方式">
-            <Row
-              label="分段回复"
-              checked={settings.segmentReply !== false}
-              onChange={(v) => patch({ segmentReply: v })}
-            />
-            {settings.segmentReply !== false && (
-              <>
-                <p className="k-sect__title mt-4">段间延迟</p>
-                <KOpts cols={3}>
-                  {[400, 800, 1200, 1800, 2500].map((v) => (
-                    <KOpt
-                      key={v}
-                      active={(settings.segmentDelayMs ?? 1200) === v}
-                      onClick={() => patch({ segmentDelayMs: v })}
-                    >
-                      {(v / 1000).toFixed(1)} 秒
-                    </KOpt>
-                  ))}
-                </KOpts>
-              </>
-            )}
-          </Sub>
-
-          {/*
-        ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
-        两块：① 入库时**去白底**（照片/白底截图 → 真正的透明表情）
-             ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
-        "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
-      */}
-          <Sub title="表情包">
-            <Row
-              label="传表情时自动去白底"
-              checked={settings.stickerRemoveWhite !== false}
-              onChange={(v) => patch({ stickerRemoveWhite: v })}
-            />
-          </Sub>
+          <ChatStickerSettings />
         </>
       ),
     },
@@ -2251,3 +2210,4 @@ export function MeSections({ tab }: { tab: MeTab }) {
   if (tab === "data") return <>{dataSections}</>;
   return <>{systemSections}</>;
 }
+

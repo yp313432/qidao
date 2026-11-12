@@ -1,6 +1,25 @@
 import { actionTitle } from "@/lib/action-meta";
 import { parseToolArgs } from "@/lib/tool-wire";
 import type { AppAction } from "@/lib/types";
+import { kindOfToolName } from "@/lib/action-schema";
+import { matchExternalTool } from "@/lib/external-tools";
+
+/** 执行中只显示人能读懂的工具名称，不暴露原始参数或密钥。 */
+export function toolProgressLabel(calls: { name: string; args: string }[]): string {
+  return calls.map((call) => {
+    const ext = matchExternalTool(call.name);
+    if (ext) return ext.kind === "mcp" ? `MCP · ${ext.server} / ${ext.tool}` : `HTTP · ${ext.tool}`;
+    const kind = kindOfToolName(call.name);
+    if (kind === "tool.call" || kind === "http.call") {
+      const parsed = parseToolArgs(call.args);
+      const tool = typeof parsed.args?.tool === "string" ? parsed.args.tool : "工具";
+      return `${kind === "tool.call" ? "MCP" : "HTTP"} · ${tool}`;
+    }
+    if (kind === "web.search") return "网页搜索";
+    if (kind === "web.fetch") return "读取网页";
+    return kind ? toolCallTitle(kind, call.name, call.args) : "未识别的工具";
+  }).join("、");
+}
 
 /**
  * 「这次工具调用是干什么的」—— 给界面用的一句话标题。
@@ -32,3 +51,4 @@ export function toolCallTitle(
     return fallback;
   }
 }
+

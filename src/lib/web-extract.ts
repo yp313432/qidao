@@ -160,6 +160,17 @@ export const WEB_FETCH_HEADERS: Record<string, string> = {
   "accept-language": "zh-CN,zh;q=0.9,en;q=0.6",
 };
 
+/** 国内旧站常用 GBK/GB2312；按响应头或页面声明解码，不能一律当 UTF-8。 */
+export function decodeWebBytes(bytes: Uint8Array, contentType = ""): string {
+  const prefix = new TextDecoder("windows-1252").decode(bytes.slice(0, 4096));
+  const charset = contentType.match(/charset\s*=\s*["']?([\w-]+)/i)?.[1]
+    ?? prefix.match(/<meta\b[^>]*charset\s*=\s*["']?([\w-]+)/i)?.[1]
+    ?? prefix.match(/<\?xml\b[^>]*encoding\s*=\s*["']([\w-]+)/i)?.[1]
+    ?? "utf-8";
+  try { return new TextDecoder(charset).decode(bytes); }
+  catch { return new TextDecoder("utf-8").decode(bytes); }
+}
+
 type Quad = [number, number, number, number];function parseQuad(s: string): Quad | null {
   const parts = s.split(".");
   if (parts.length !== 4) return null;
@@ -244,7 +255,11 @@ function isPrivateV4(q: Quad): boolean {
  */
 export function htmlToText(html: string): { title: string; text: string } {
   const title = (html.match(/<title[^>]*>([\s\S]{0,200}?)<\/title>/i)?.[1] ?? "").trim();
-  const text = html
+  // title/head 不能算正文：只有标题的 JS 空壳以前会被当成「读到了」。
+  const body = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? html;
+  const text = body
+    .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
+    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, " ")
     // 整块丢掉脚本/样式/导航这些"读起来没意义"的部分
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -273,6 +288,10 @@ export function htmlToText(html: string): { title: string; text: string } {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, code: string) => {
+      const n = code[0].toLowerCase() === "x" ? parseInt(code.slice(1), 16) : Number(code);
+      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
+    })
     .replace(/&mdash;/gi, "—")
     .replace(/&hellip;/gi, "…")
     // 收尾：去掉多余空行
@@ -283,3 +302,4 @@ export function htmlToText(html: string): { title: string; text: string } {
     .join("\n");
   return { title, text };
 }
+

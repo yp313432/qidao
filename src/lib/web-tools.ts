@@ -13,7 +13,7 @@
  * 这里 re-export 出去，`routes/api/*.ts` 那几行 import **一个字都不用改**。
  */
 
-import { htmlToText, isPublicHttpUrl, WEB_FETCH_HEADERS } from "@/lib/web-extract";
+import { decodeWebBytes, htmlToText, isPublicHttpUrl, WEB_FETCH_HEADERS } from "@/lib/web-extract";
 
 export { htmlToText, isPublicHttpUrl };
 
@@ -62,7 +62,7 @@ export async function fetchText(
     const buf = await res.arrayBuffer();
     const truncated = buf.byteLength > maxBytes;
     const slice = truncated ? buf.slice(0, maxBytes) : buf;
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
+    const text = decodeWebBytes(new Uint8Array(slice), res.headers.get("content-type") ?? "");
     return { ok: true, status: res.status, finalUrl: res.url, text, truncated };
   } catch (err) {
     const msg = (err as Error).name === "AbortError" ? `超过 ${timeoutMs / 1000} 秒没响应` : (err as Error).message;
@@ -71,3 +71,4 @@ export async function fetchText(
     clearTimeout(timer);
   }
 }
+

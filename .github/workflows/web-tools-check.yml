@@ -1,0 +1,58 @@
+name: 网页抓取与工具过程回归
+on:
+  pull_request:
+    paths: ["src/**", "scripts/**", ".github/workflows/web-tools-check.yml"]
+  push:
+    branches: [main]
+    paths: ["src/**", "scripts/**", ".github/workflows/web-tools-check.yml"]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: node --experimental-strip-types scripts/verify-web-reliability.mjs
+      - run: node --experimental-strip-types verify-gate-stuck.mjs
+      - run: node --experimental-strip-types scripts/verify-tool-replies.mjs
+      - run: node --experimental-strip-types scripts/verify-chat-delivery.mjs
+      - run: node --experimental-strip-types scripts/probe-web-network.mjs
+      - run: npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          QIDAO_TARGET: android
+          VITE_DIRECT_UPSTREAM: "1"
+          VITE_AUTH_ENABLED: "false"
+      - run: npx playwright install --with-deps chromium
+      - name: 工具过程浏览器验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs > /tmp/qidao-web-dev.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/scripts/tool-progress-fixture.html > /dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_SCREENSHOT_PREVIEW=1 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-chat-delivery-ui.mjs || { tail -80 /tmp/qidao-web-dev.log; exit 1; }
+          QIDAO_SCREENSHOT_PREVIEW=1 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-tool-progress-ui.mjs || { tail -80 /tmp/qidao-web-dev.log; exit 1; }
+          node scripts/verify-tool-reply-ui.mjs || { tail -80 /tmp/qidao-web-dev.log; exit 1; }
+      - name: 生产构建工具过程验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/qidao-web-production.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8081/scripts/tool-progress-fixture.html > /dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots/production" node scripts/verify-chat-delivery-ui.mjs || { tail -80 /tmp/qidao-web-production.log; exit 1; }
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots/production" node scripts/verify-tool-progress-ui.mjs || { tail -80 /tmp/qidao-web-production.log; exit 1; }
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 node scripts/verify-tool-reply-ui.mjs || { tail -80 /tmp/qidao-web-production.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tool-progress-screenshots
+          path: screenshots/

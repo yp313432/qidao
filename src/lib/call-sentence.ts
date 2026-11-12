@@ -198,7 +198,7 @@ export type CallSentence = {
  * @param who   他的称呼（`resolveAiName` 给的名字）
  */
 export function callSentence(
-  call: Pick<ToolCallRecord, "name" | "kind" | "args" | "ok" | "result" | "category">,
+  call: Pick<ToolCallRecord, "name" | "kind" | "args" | "ok" | "result" | "category" | "title">,
   who: string,
 ): CallSentence {
   const name = who || "他";
@@ -220,7 +220,14 @@ export function callSentence(
   }
 
   const build = PHRASE[call.kind];
-  const phrase = build ? build(parsed) : `做了件「${call.kind}」的事`;
+  const phrase = (call.kind === "tool.call" || call.kind === "http.call") && !parsed.tool && call.title
+    ? `调用了「${str(call.title, 60)}」`
+    : build ? build(parsed) : `做了件「${call.kind}」的事`;
+
+  if (call.category === "pending" || call.category === "skipped") {
+    return { line: `${name} ${call.category === "pending" ? "这一步还没拿到结果" : "这一步本轮未拿到结果"}`,
+      why: call.result ? str(call.result, 120) : undefined };
+  }
 
   if (!call.ok) {
     /**
@@ -248,3 +255,4 @@ export function callSentence(
 export function fallbackPhrase(kind: AppAction["kind"]): string {
   return `做了件「${kind}」的事`;
 }
+

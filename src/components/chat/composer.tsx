@@ -34,6 +34,8 @@ type Props = {
   onSend: (text: string, attachments?: Attachment[]) => void;
   disabled?: boolean;
   streaming?: boolean;
+  queuedCount?: number;
+  onStop?: () => void;
   /**
    * 正在**修改**的那一条的正文（null = 没在改）。
    *
@@ -45,7 +47,7 @@ type Props = {
   onCancelEdit?: () => void;
 };
 
-export function Composer({ onSend, disabled, streaming, editingText, onCancelEdit }: Props) {
+export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop, editingText, onCancelEdit }: Props) {
   const [value, setValue] = useState("");
   /**
    * 草稿保存。
@@ -231,6 +233,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     // 底部导航现在是**常驻**的（"打字时收下去"那个机制整个删了），
     // 所以这里不需要再操心导航的显隐。
     onSend(t, atts.length ? atts : undefined);
+    ta.current?.focus({ preventScroll: true });
   }
 
   async function pickFiles(files: File[]) {
@@ -1022,6 +1025,8 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
              → 不动高度（保持一行字 + 一行按键），只把整条往两侧放一点点：
              外层 dock 的左右内缩 8→3、这层的 px-1.5→px-1，卡片比原来长 14px。 */
           rows={1}
+          aria-label="消息输入框"
+          enterKeyHint="send"
           value={value}
           disabled={disabled}
           /*
@@ -1053,6 +1058,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             }
           }}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               submit();
@@ -1061,6 +1067,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           placeholder={`和${aiName}聊聊…`}
           className="min-h-9 w-full resize-none bg-transparent px-3 py-2 text-[16px] text-fg outline-none placeholder:text-subtle"
         />
+        {queuedCount > 0 && <p className="px-3 text-[11px] text-subtle" role="status">已收下 {queuedCount} 条，合并后自动处理</p>}
         {/* 底部控件行：间距从 gap-2(8px) 放到 gap-3(12px)、左右留白从 px-1 放到
             px-2，四枚钮才各自站得住（用户 m04214 截图："语音和发送贴边了"）。
             真正的元凶是邮戳章向外伸出 12px，已在 styles.css 的 .pm-postmark 收进票面。
@@ -1431,9 +1438,10 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
           {/* 发送=邮票（用户 m01399：只管发送，不再兼语音）：有字可点；没字压下去不动作 */}
           <button
             type="button"
-            aria-label="发送"
-            disabled={disabled || (!streaming && !value.trim() && !pending.length)}
-            onClick={() => submit()}
+            aria-label={streaming && (disabled || !value.trim() && !pending.length) ? "停止回复" : "发送"}
+            onMouseDown={(e) => e.preventDefault()}
+            disabled={!streaming && (disabled || !value.trim() && !pending.length)}
+            onClick={() => { if (streaming && (disabled || !value.trim() && !pending.length)) onStop?.(); else submit(); }}
             className={cn(
               "flex items-center justify-center rounded-full bg-ink text-ink-fg disabled:opacity-50",
               liquid ? "size-8" : "size-9",
@@ -1442,7 +1450,7 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
             )}
           >
             {solidPaper && <span className="pm-postmark" aria-hidden />}
-            {streaming ? (
+            {streaming && (disabled || !value.trim() && !pending.length) ? (
               <span className="size-3.5 rounded-sm bg-ink-fg" />
             ) : solidPaper ? (
               <span className="paper-stamp-glyph" aria-hidden>
@@ -1457,3 +1465,4 @@ export function Composer({ onSend, disabled, streaming, editingText, onCancelEdi
     </div>
   );
 }
+

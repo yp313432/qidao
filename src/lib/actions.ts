@@ -19,6 +19,7 @@ import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-route
 import { callTool } from "@/lib/mcp";
 import { usePlayer } from "@/lib/player";
 import { pickStickerByGroup, stickerGroupList } from "@/lib/stickers";
+import { stickerAttachment } from "@/lib/assistant-cleanup";
 import { useApp } from "@/lib/store";
 import { countdown } from "@/lib/days";
 import { closeFact, conflictOf, guessKind, isLive } from "@/lib/memory";
@@ -751,10 +752,12 @@ const stamp = (t: number): string =>
      */
     case "sticker.send": {
       const store = useApp.getState();
+      if (store.settings.aiStickers === false) return "发送表情失败：你在对话设置里关闭了 AI 主动发表情。";
       const feel = str((action as { feel?: unknown }).feel).trim();
-      const picked = pickStickerByGroup(store.stickerLib, feel, store.lastStickerUrl);
+      const usable = store.stickerLib.filter((s) => stickerAttachment(s.url, s.id));
+      const picked = pickStickerByGroup(usable, feel, store.lastStickerUrl);
       if (!picked) {
-        return "你的表情库里还是空的 —— 让用户在「工具 → 表情」里传几张（还能分组），你才发得出来。";
+        return "发送表情失败：表情库为空或图片地址已失效，请先导入可用图片。";
       }
       store.setReplySticker(picked.url);
       const groups = stickerGroupList(store.stickerLib, store.stickerGroups);
@@ -1456,3 +1459,4 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
   }
   return receipt;
 }
+
