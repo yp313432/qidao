@@ -732,16 +732,17 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
       status: 0,
       message: "",
     };
+    const receiveDelta = (d: ChatDelta) => {
+      if (d.error) error = d.error;
+      if (d.usage) usage = d.usage;
+      if (d.thinking) thinking += d.thinking;
+      if (d.content) content += d.content;
+      if (d.toolCalls) acc.push({ tool_calls: d.toolCalls });
+      onDelta(d);
+    };
     const res = await postServerChat(
       payload,
-      (d) => {
-        if (d.error) error = d.error;
-        if (d.usage) usage = d.usage;
-        if (d.thinking) thinking += d.thinking;
-        if (d.content) content += d.content;
-        if (d.toolCalls) acc.push({ tool_calls: d.toolCalls });
-        onDelta(d);
-      },
+      receiveDelta,
       signal,
       { fail },
     );
@@ -768,7 +769,7 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
     if (!res.body) {
       return { content, thinking, toolCalls: acc.calls(), usage, error: "无法读取回复流" };
     }
-    await readServerStream(res.body, onDelta);
+    await readServerStream(res.body, receiveDelta);
     return { content, thinking, toolCalls: acc.calls(), usage, error };
   };
 }
@@ -888,3 +889,4 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
   if (kept.length === 0) return [];
   return kept;
 }
+

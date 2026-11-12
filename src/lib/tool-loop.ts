@@ -630,6 +630,8 @@ export function toolResultMessages(
    * 关掉思考（快答档）时这里是空串，就不带这个字段。
    */
   reasoning?: string,
+  /** 保留模型在这次工具调用前说过的话，让下一次请求知道它刚才说了什么。 */
+  content = "",
 ): ApiMessage[] {
   const assistantCalls = calls.map((c, i) => ({
     id: c.id ?? `call_${i}`,
@@ -639,7 +641,7 @@ export function toolResultMessages(
   /** 有的上游不认 `content: null`，统一给空串，比 null 稳 */
   const assistant: ApiMessage = {
     role: "assistant",
-    content: "",
+    content,
     ...(reasoning ? { reasoning_content: reasoning } : {}),
     tool_calls: assistantCalls,
   };
@@ -842,6 +844,8 @@ export async function runToolLoop(input: {
   onStep?: (s: { round: number; calls: AssembledToolCall[] }) => void;
   onRound?: (r: ToolRoundRecord) => void;
   onDelta?: (d: ChatDelta) => void;
+  /** 当前请求的正文快照。工具前后的正文属于不同草稿，界面替换而非跨轮追加。 */
+  onContent?: (text: string, round: number) => void;
   signal?: AbortSignal;
   maxRounds?: number;
   budgetMs?: number;
@@ -855,7 +859,6 @@ export async function runToolLoop(input: {
   /** 每一轮追加的消息（assistant 的 tool_calls + tool 结果）——**只在内存里**，不写进对话存档 */
   const extra: ApiMessage[] = [];
   const rounds: ToolRoundRecord[] = [];
-  let content = "";
   let thinking = "";
   /**
    * 「最后一轮有正文的那段」—— 工具循环里模型常常是**先说一段 → 调工具 → 拿到结果又重说一遍**。
@@ -896,24 +899,20 @@ export async function runToolLoop(input: {
   let stopUnknownTotal: number | undefined;
 
   for (let round = 1; round <= maxRounds; round += 1) {
+    roundText = "";
     const r = await input.send({
       messages: [...input.baseMessages, ...extra],
       tools: input.tools,
       onDelta: (d) => {
         if (d.content) {
-          content += d.content;
           roundText += d.content;
         }
         if (d.thinking) thinking += d.thinking;
         input.onDelta?.(d);
+        if (d.content) input.onContent?.(roundText, round);
       },
       signal: input.signal,
     });
-    /** 这一轮说完了：把它记成"最近一次有正文的回答"，然后清空，准备下一轮 */
-    if (roundText.trim()) {
-      lastRoundText = roundText.trim();
-      roundText = "";
-    }
     if (r.toolsRejected) {
       // 这一轮的正文没有任何意义（对方是因为 tools 才报的错），交给调用方降级重来
       return {
@@ -931,6 +930,12 @@ export async function runToolLoop(input: {
       };
     }
     if (r.error) error = r.error;
+    // 有些传输只在完成时返回整段内容；采用完成结果，同时把最终快照交给界面。
+    const completedText = r.content || roundText;
+    if (completedText.trim()) {
+      lastRoundText = completedText;
+      input.onContent?.(completedText, round);
+    }
     if (r.stalled) stalled = true;
     // 用量**累加**（2026-10 修）：工具循环一轮里有好几次上游请求，
     // 原来写 `usage = r.usage` 是覆盖 —— 只剩最后一轮，用户看到的消耗比官方少一大截。
@@ -982,7 +987,7 @@ export async function runToolLoop(input: {
     input.onRound?.(record);
     // ⭐ 关键的一步：结果**立刻**变成 tool 消息，下一轮请求就带着它
     //    （`r.thinking` 一并回传 —— 开了思考模式的上游缺这个字段会 400）
-    extra.push(...toolResultMessages(r.toolCalls, outcomes, r.thinking));
+    extra.push(...toolResultMessages(r.toolCalls, outcomes, r.thinking, completedText));
 
     /**
      * ⭐ 未知动作的闸门命中：**不再请求模型**，这一轮就收尾。
@@ -1015,7 +1020,7 @@ export async function runToolLoop(input: {
   const hitLimit = stoppedBy !== "done";
   return {
     // 只留最后一轮有正文的那段（中间轮次的"先说一段"不再拼进同一条消息）
-    content: lastRoundText || content,
+    content: lastRoundText,
     thinking,
     pendingCalls,
     usage,

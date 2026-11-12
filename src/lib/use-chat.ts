@@ -623,7 +623,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         }
       }, 10_000);
 
-      const onDelta = (d: ChatDelta) => {
+      const onDelta = (d: ChatDelta, replaceContent = false) => {
         lastBeat = Date.now();
         if (d.error) {
           /**
@@ -651,7 +651,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           if (!hadContent) crumb("chat", "正文开始到了");
           hadContent = true;
           setPhase("正在写回复");
-          content += d.content;
+          content = replaceContent ? d.content : content + d.content;
           schedule();
         }
 
@@ -744,7 +744,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
          * 工具循环跑完一轮之后：语音页要有一句过渡（不然那几秒是死寂）。
          * 放在 `onRound` 里而不是循环外，是因为**只有真的调了工具**才需要过渡。
          */
-        const roundTextStart = { at: 0 };
+        const bodyRound = { round: 0 };
         /**
          * **崩溃面包屑**：把"这一轮在干什么"记下来（见 `lib/breadcrumbs.ts`）。
          * 用户报的"卡住然后闪退"在浏览器里复现不出来 —— 有了这几行，
@@ -762,7 +762,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
           // P0（agent）：外部工具接在后面 —— MCP / 自配 HTTP 跟内置动作同一个通道
           tools: [...builtinTools, ...extTools],
           signal: ac.signal,
-          onDelta,
+          // 思考/工具仍按事件推进；正文由循环提供当前请求的快照，不能跨请求拼接。
+          onDelta: (d) => onDelta({ ...d, content: undefined }),
+          onContent: (text, round) => {
+            bodyRound.round = round;
+            onDelta({ content: text }, true);
+          },
           /**
            * 每一步**执行之前**先让界面知道（"第 N 步 · 正在执行 X"）——
            * 不然用户看到的还是"正在写回复…"，跟以前一样什么都看不见。
@@ -796,9 +801,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               rounds: state.rounds.map((x) => ({ round: x.round, calls: [...x.calls] })),
               steps: state.steps.length > 0 ? [...state.steps] : undefined,
             });
-            const before = roundTextStart.at;
-            const roundHasText = content.slice(before).trim().length > 0;
-            roundTextStart.at = content.length;
+            const roundHasText = bodyRound.round === r.round && content.trim().length > 0;
             if (shouldFillVoice(r, roundHasText)) fillerRef.current?.(TOOL_FILLER);
           },
         });
@@ -809,6 +812,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
           // 上游明确不要 tools → 交给外层按文本协议再来一遍
           throw new NativeRejected();
         }
+        // 收尾与流式显示用同一份正文；不能把先前工具轮的草稿存回会话或拿去朗读。
+        content = result.content;
+        dirty = true;
+        flush();
         state.reqError = result.error;
         state.stalled = result.stalled;
       };
