@@ -1,0 +1,39 @@
+name: 开屏触发与播放验收
+on:
+  pull_request:
+    paths: ['src/**', 'scripts/splash-*.mjs', '.github/workflows/splash-check.yml']
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QIDAO_TARGET: android
+      VITE_DIRECT_UPSTREAM: '1'
+      VITE_AUTH_ENABLED: 'false'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --experimental-strip-types scripts/splash-lifecycle.test.mjs
+      - run: node --experimental-strip-types --test src/lib/splash-policy.test.ts
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - name: 启动并检查开屏
+        run: |
+          npm run dev > /tmp/splash-dev.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8080/about > /dev/null; then break; fi
+            sleep 2
+          done
+          node scripts/splash-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: splash-browser-evidence
+          path: screenshots/splash

@@ -27,6 +27,11 @@ export function kvGet(name: string): string | null {
   }
 }
 
+/** Read a legacy/unprefixed key through the same storage boundary. */
+export function kvGetRaw(key: string): string | null {
+  try { return globalThis.localStorage?.getItem(key) ?? null; } catch { return null; }
+}
+
 /** 写一个字符串键（写不进也不抛） */
 export function kvSet(name: string, value: string): void {
   try {

@@ -1,3 +1,4 @@
+import { SplashSettings } from "./splash-settings";
 import { PageHeader } from "@/components/shared/page-header";
 import { APP_NAME, BUILD_TAG } from "@/lib/branding";
 import { useActivity } from "@/lib/use-activity";
@@ -26,7 +27,7 @@ export function MePage({ tab, title, subtitle }: { tab: MeTab; title: string; su
           「从对话往后 push 出来的二级页直接贴到两侧，跟外观那种离边有距离的不一致」）。
           内层页面自己别再套 `k-page`，否则会双份 16px。 */}
       <div className={tab === "about" || tab === "voice" ? "k-page shrink-0" : "k-page"}>
-        <MeSections tab={tab} />
+        {tab === "about" ? <div className="k-list"><SplashSettings /><MeSections tab={tab} /></div> : <MeSections tab={tab} />}
       </div>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">

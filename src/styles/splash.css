@@ -13,7 +13,7 @@
 .k-splash {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 200;
   display: grid;
   place-items: center;
   background: var(--aster-bg);
@@ -73,7 +73,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* 兜底：policy 已经会跳过，这里再挡一次（比如运行时才切开关） */
-  .k-splash {
+  html:not([data-motion="on"]) .k-splash {
     display: none;
   }
 }
+
+html[data-motion="off"] .k-splash { display: none; }
+.k-splash__skip { position: absolute; z-index: 1; top: calc(var(--q-inset-top, env(safe-area-inset-top, 0px)) + var(--k-s-4)); right: var(--k-s-5); min-height: var(--k-tap); padding: var(--k-s-3) var(--k-s-5); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-bg); color: var(--aster-fg); font-size: var(--k-t-3); }
