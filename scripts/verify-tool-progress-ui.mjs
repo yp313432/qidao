@@ -38,6 +38,9 @@ try {
     await page.goto(`${base}/scripts/tool-progress-fixture.html?scene=mcp&mode=ask`);
     await page.getByRole("button", { name: "允许一次", exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "拒绝", exact: true }).count(), 1);
+    // The permission card must remain clickable above an already-open thinking sheet.
+    await page.getByRole("button", { name: "拒绝", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "允许一次", exact: true }).count(), 0);
     assert.deepEqual(errors, []);
     await page.close();
   }

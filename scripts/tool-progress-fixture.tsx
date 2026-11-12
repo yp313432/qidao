@@ -35,8 +35,8 @@ useApp.setState((s) => ({ settings: { ...s.settings, aiName: "小克", permissio
 const route = createRootRoute({ component: () => <>
   <main className="p-6"><p>小克</p><p>工具过程展示验收</p></main>
   <ActionGate />
-  {mode !== "ask" && <ThinkingSheet open text="" steps={steps} live={mode !== "done"}
-    activeStep={mode !== "done" ? activeStep : undefined} onClose={() => {}} />}
+  <ThinkingSheet open text="" steps={steps} live={mode !== "done"}
+    activeStep={mode === "ask" ? "等待你确认工具调用" : mode !== "done" ? activeStep : undefined} onClose={() => {}} />
 </> });
 const router = createRouter({ routeTree: route, history: createMemoryHistory({ initialEntries: ["/"] }) });
 createRoot(document.getElementById("fixture")!).render(<RouterProvider router={router} />);

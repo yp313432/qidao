@@ -92,7 +92,7 @@ export function ActionGate() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+    <div className="fixed inset-0 z-80 flex items-center justify-center px-6">
       {/* 点空白处返回 = 拒绝（用户："所有弹层逻辑都要一致"；拒绝是安全默认，不会误批） */}
       <button
         type="button"
