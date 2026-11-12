@@ -5,7 +5,7 @@ await mkdir('screenshots/pet', {recursive:true});
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce',recordVideo:{dir:'screenshots/pet/video'}});
 const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-const shot=async name=>{await page.screenshot({path:`screenshots/pet/${name}.png`});console.log(`PET_${name.toUpperCase()}_IMAGE=`+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));};
+const shot=async name=>{if(name!=='sheet')await page.locator('.pet-page').evaluate(e=>e.scrollTop=0);await page.screenshot({path:`screenshots/pet/${name}.png`});console.log(`PET_${name.toUpperCase()}_IMAGE=`+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));};
 const previewButton=name=>page.locator('.pet-action-grid').getByRole('button',{name:new RegExp('^'+name)});
 const settings=async()=>page.getByRole('tab',{name:'陪伴设置'}).click();
 const choice=async(label,value)=>{await page.getByRole('button',{name:label,exact:true}).click();await page.getByRole('dialog',{name:label,exact:true}).getByRole('option',{name:value,exact:true}).click();};
@@ -50,7 +50,7 @@ try {
  await page.getByRole('tab',{name:'动作预览'}).click();await previewButton('自由活动').click();
  await page.evaluate(async()=>{const {useApp}=await import('/src/lib/store.ts');useApp.setState({emotionEvents:[{id:'pet-ui-test',at:Date.now(),group:'angry',primaryEmotion:'生气',secondaryEmotions:[],intensity:.8,confidence:1,dimensions:{},category:'tension',evidence:[]}]});});
  await page.waitForFunction(()=>document.querySelector('.pet-actor')?.dataset.emotion==='angry',{},{timeout:15000});
- const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.waitForTimeout(1800);await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
+ const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.waitForTimeout(1800);await desktop.waitForFunction(()=>{const h=document.querySelector('h1');if(!h)return false;const r=h.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('header');});await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: all 10 emotions, real event integration, all sizes x 3 movement previews, app choice sheet, transparent liquid selection, drag, speech, desktop');
 } catch(e) {console.log('PET_FAILURE_IMAGE='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));console.log('PET_VISIBLE_TEXT='+await page.locator('body').innerText());throw e;} finally {await context.close();await browser.close();}

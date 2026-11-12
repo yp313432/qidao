@@ -21,9 +21,10 @@ test('all lexicon groups have distinct body sequences, intensity and matching sh
 test('walk and jump previews have valid reversible routes at every size and phone width',()=>{
  const old=globalThis.window;globalThis.window={innerHeight:900};
  const r=(x,y,w,h)=>({left:x,top:y,right:x+w,bottom:y+h,width:w,height:h});
- try{for(const width of [300,320,360,390,400])for(const size of [36,44,52]){
+ try{for(const width of [260,280,288,300,320,360,390,400])for(const size of [36,44,52]){
   const w=Math.max(44,size+12),h=Math.max(44,size*.75+12);
-  const bubbles=[r(14,96,width*.55,44),r(width-14-width*.55,206,width*.55,44),r(14,316,width*.55,44)].map(rect=>({getBoundingClientRect:()=>rect}));
+  const bw=Math.max(130,Math.min(210,width*.48));
+  const bubbles=[r(14,96,bw,44),r(width-14-bw,206,bw,44),r(14,316,bw,44)].map(rect=>({getBoundingClientRect:()=>rect}));
   const layer={getBoundingClientRect:()=>r(0,0,width,380)};
   const scene=measureScene(layer,{getBoundingClientRect:()=>r(0,0,width,380),querySelectorAll:()=>bubbles},null,w,h);
   for(const mode of ['walk','jump']){

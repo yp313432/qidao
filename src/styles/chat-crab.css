@@ -24,7 +24,7 @@
 .pet-page-body { padding: var(--k-s-4) var(--k-page-x) var(--k-s-8); max-width: 680px; margin: auto; }
 .pet-preview { max-width: 400px; margin-inline: auto; position: relative; height: 380px; border: 1px solid var(--aster-line); border-radius: var(--k-s-5); background: var(--aster-bg); overflow: hidden; }
 .pet-preview-messages { position: relative; height: 100%; overflow: hidden; }
-.pet-preview .pet-example { position: absolute; left: 14px; top: 96px; width: 55%; max-width: none; min-height: 44px; padding: var(--k-s-3) var(--k-s-4); font-size: var(--k-t-3); border-radius: var(--k-s-4); border: 1px solid var(--aster-line); background: var(--aster-surface); }
+.pet-preview .pet-example { position: absolute; left: 14px; top: 96px; width: clamp(130px, 48%, 210px); max-width: none; min-height: 44px; padding: var(--k-s-3) var(--k-s-4); font-size: var(--k-t-3); border-radius: var(--k-s-4); border: 1px solid var(--aster-line); background: var(--aster-surface); }
 .pet-preview .pet-example:nth-child(2) { left: auto; right: 14px; top: 206px; }
 .pet-preview .pet-example:nth-child(3) { top: 316px; }
 .pet-hint { font-size: var(--k-t-2); color: var(--aster-muted); line-height: var(--k-lh-2); margin: var(--k-s-4) 0; }

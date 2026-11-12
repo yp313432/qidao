@@ -34,9 +34,9 @@ export function PetPage() {
     <div className="pet-page-body">
       <section className="pet-preview" aria-label="桌宠动作预览">
         <div ref={list} className="pet-preview-messages">
-          <div className="k-bubble pet-example">今天想去哪里玩？</div>
-          <div className="k-bubble pet-example pet-example-right">就在这里，陪着你。</div>
-          <div className="k-bubble pet-example">跳过来，让我摸摸。</div>
+          <div className="k-bubble pet-example">今天去哪玩？</div>
+          <div className="k-bubble pet-example pet-example-right">就在这里陪你。</div>
+          <div className="k-bubble pet-example">跳过来，摸摸。</div>
         </div>
         <ChatCrab scroller={list} composer={composer} paused={false} busy={false} working={false} replay={0} preview={showingEmotion ? 'emotion' : action} previewKey={key} emotionPreview={showingEmotion ? emotion : undefined} emotionIntensity={intensity} />
       </section>
