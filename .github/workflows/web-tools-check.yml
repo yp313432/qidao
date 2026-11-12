@@ -37,6 +37,14 @@ jobs:
             sleep 1
           done
           QIDAO_SCREENSHOT_PREVIEW=1 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-tool-progress-ui.mjs || { tail -80 /tmp/qidao-web-dev.log; exit 1; }
+      - name: 生产构建工具过程验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/qidao-web-production.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8081/scripts/tool-progress-fixture.html > /dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots/production" node scripts/verify-tool-progress-ui.mjs || { tail -80 /tmp/qidao-web-production.log; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
