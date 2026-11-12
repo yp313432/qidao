@@ -1,159 +1,39 @@
-/* The transparent perch is inside the composer dock. Its measured height also
-   becomes message-list padding, keeping the pet clear of text and send controls. */
-.chat-crab-layer.chat-crab-perch {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-.chat-crab-perch[data-paused="true"] { visibility: hidden; }
-.chat-crab-perch .chat-crab-actor {
-  inset: auto auto 4px 0;
-  display: grid;
-  place-items: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 6px;
-  border-radius: 12px;
-  touch-action: pan-y;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  will-change: transform;
-}
-.chat-crab-perch .chat-crab-actor[hidden] { display: none; }
-.chat-crab-perch .chat-crab-actor:focus-visible {
-  outline: 2px solid var(--aster-accent);
-  outline-offset: 2px;
-}
-.chat-crab-perch .chat-crab-actor[data-pose] svg { transform: none; overflow: visible; }
-.crab-articulated .crab-body {
-  transform-box: view-box;
-  transform-origin: 12px 15px;
-}
-.crab-articulated .crab-claw,
-.crab-articulated .crab-leg {
-  transform-box: fill-box;
-  transform-origin: center top;
-}
-.crab-articulated .crab-sleep-eyes { display: none; }
-.chat-crab-status {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% - 3px);
-  color: var(--aster-accent);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.chat-crab-actor[data-pose="think"] .chat-crab-status::before { content: "···"; }
-.chat-crab-actor[data-pose="work"] .chat-crab-status::before { content: "✦"; }
-.chat-crab-actor[data-pose="rest"] .chat-crab-status::before { content: "z Z"; }
-.chat-crab-perch .chat-crab-bubble { bottom: calc(100% + 3px); z-index: 2; pointer-events: none; }
-.chat-crab-actor:has(.chat-crab-bubble) .chat-crab-status { visibility: hidden; }
-.chat-crab-actor:not([data-pose="idle"]) .crab-fx { display: none; }
-
-/* A walk is actual alternating leg strokes plus a two-step body bob. */
-.chat-crab-actor[data-pose="walk"] .crab-body { animation: pet-walk-body .36s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="walk"] .crab-leg-a { animation: pet-stride .36s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="walk"] .crab-leg-b { animation: pet-stride .36s steps(2, end) -.18s infinite; }
-.chat-crab-actor[data-pose="walk"] .crab-claw-left { animation: pet-walk-claw .72s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="walk"] .crab-claw-right { animation: pet-walk-claw .72s steps(2, end) -.36s infinite; }
-.chat-crab-actor[data-direction="left"] { --pet-lean: -2deg; }
-.chat-crab-actor[data-direction="right"] { --pet-lean: 2deg; }
-@keyframes pet-walk-body {
-  0%, 100% { transform: translateY(0) rotate(var(--pet-lean, 0deg)); }
-  50% { transform: translateY(-1.5px) rotate(var(--pet-lean, 0deg)); }
-}
-@keyframes pet-stride {
-  0%, 100% { transform: translate(-1px, 0) rotate(-16deg); }
-  50% { transform: translate(1px, -1.5px) rotate(16deg); }
-}
-@keyframes pet-walk-claw { 50% { transform: translateY(-1.5px) rotate(12deg); } }
-
-/* Poke: crouch, spring up, wave both claws, then land and settle. */
-.chat-crab-actor[data-pose="poke"] .crab-body { animation: pet-poke 1.2s linear both; }
-.chat-crab-actor[data-pose="poke"] .crab-claw-left { animation: pet-cheer-left 1.2s steps(2, end) both; }
-.chat-crab-actor[data-pose="poke"] .crab-claw-right { animation: pet-cheer-right 1.2s steps(2, end) both; }
-.chat-crab-actor[data-pose="poke"] .crab-leg { animation: pet-tuck 1.2s linear both; }
-@keyframes pet-poke {
-  0%, 100% { transform: translateY(0) rotate(0); }
-  12% { transform: translateY(2px); }
-  30% { transform: translateY(-6px) rotate(-5deg); }
-  48% { transform: translateY(-5px) rotate(5deg); }
-  66% { transform: translateY(-3px) rotate(-3deg); }
-  82% { transform: translateY(1px); }
-}
-@keyframes pet-cheer-left {
-  0%, 100% { transform: translateY(0); }
-  24%, 58% { transform: translateY(-4px) rotate(-35deg); }
-  40%, 72% { transform: translateY(-2px) rotate(10deg); }
-}
-@keyframes pet-cheer-right {
-  0%, 100% { transform: translateY(0); }
-  24%, 58% { transform: translateY(-4px) rotate(35deg); }
-  40%, 72% { transform: translateY(-2px) rotate(-10deg); }
-}
-@keyframes pet-tuck { 25%, 60% { transform: translateY(-2px) rotate(12deg); } }
-
-/* Thinking shifts its weight and brings one claw toward its face. */
-.chat-crab-actor[data-pose="think"] .crab-body { animation: pet-think 2.2s ease-in-out infinite; }
-.chat-crab-actor[data-pose="think"] .crab-claw-right { animation: pet-scratch 2.2s steps(3, end) infinite; }
-@keyframes pet-think {
-  0%, 100% { transform: rotate(-8deg); }
-  45%, 65% { transform: translateY(-1px) rotate(7deg); }
-}
-@keyframes pet-scratch {
-  0%, 100% { transform: translate(-1px, -1px) rotate(-15deg); }
-  30%, 65% { transform: translate(-3px, -4px) rotate(-65deg); }
-}
-
-/* Work uses faster, alternating claw strokes and a planted stance. */
-.chat-crab-actor[data-pose="work"] .crab-body { animation: pet-work .5s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="work"] .crab-claw-left { animation: pet-work-claw .5s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="work"] .crab-claw-right { animation: pet-work-claw .5s steps(2, end) -.25s infinite; }
-@keyframes pet-work {
-  0%, 100% { transform: translateY(1px) rotate(-4deg); }
-  50% { transform: translateY(-1px) rotate(4deg); }
-}
-@keyframes pet-work-claw {
-  0%, 100% { transform: translateY(1px) rotate(-20deg); }
-  50% { transform: translateY(-4px) rotate(30deg); }
-}
-
-/* Sleep has a readable static silhouette; waking is the full poke sequence. */
-.chat-crab-actor[data-pose="rest"] .crab-body { transform: translateY(3px); }
-.chat-crab-actor[data-pose="rest"] .crab-claw { transform: translateY(3px) rotate(20deg); }
-.chat-crab-actor[data-pose="rest"] .crab-leg { transform: translateY(-2px) rotate(25deg); }
-.chat-crab-actor[data-pose="rest"] .crab-awake-eyes { display: none; }
-.chat-crab-actor[data-pose="rest"] .crab-sleep-eyes { display: inline; }
-.chat-crab-actor[data-pose="rest"] .chat-crab-status { animation: pet-sleep-sign 3s steps(3, end) infinite; }
-@keyframes pet-sleep-sign { 50% { transform: translate(-50%, -4px); opacity: .5; } }
-
-/* Mood gestures run while standing, giving way to locomotion and work. */
-.chat-crab-actor[data-pose="idle"] .crab-body { animation: pet-look 7s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="bright"] .crab-body,
-.chat-crab-actor[data-pose="idle"] [data-mood="flutter"] .crab-body { animation: pet-happy 3s linear infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="bright"] .crab-claw-left,
-.chat-crab-actor[data-pose="idle"] [data-mood="flutter"] .crab-claw-left,
-.chat-crab-actor[data-pose="idle"] [data-mood="close"] .crab-claw-left { animation: pet-cheer-left 3s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="bright"] .crab-claw-right,
-.chat-crab-actor[data-pose="idle"] [data-mood="flutter"] .crab-claw-right { animation: pet-cheer-right 3s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="low"] .crab-body { animation: none; transform: translateY(2px) rotate(-5deg); }
-.chat-crab-actor[data-pose="idle"] [data-mood="low"] .crab-claw { transform: translateY(2px); }
-.chat-crab-actor[data-pose="idle"] [data-mood="angry"] .crab-body { animation: pet-stomp 2s steps(2, end) infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="angry"] .crab-claw { transform: translateY(-3px) rotate(20deg); }
-.chat-crab-actor[data-pose="idle"] [data-mood="uneasy"] .crab-body,
-.chat-crab-actor[data-pose="idle"] [data-mood="curious"] .crab-body { animation: pet-think 3s steps(3, end) infinite; }
-.chat-crab-actor[data-pose="idle"] [data-mood="jealous"] .crab-body { animation: pet-stomp 3s steps(2, end) infinite; }
-@keyframes pet-look { 0%, 75%, 100% { transform: rotate(0); } 82% { transform: rotate(-6deg); } 92% { transform: rotate(6deg); } }
-@keyframes pet-happy { 0%, 15%, 35%, 100% { transform: translateY(0); } 7%, 25% { transform: translateY(-4px); } }
-@keyframes pet-stomp { 0%, 25%, 100% { transform: translate(0, 0); } 5%, 15% { transform: translate(-1px, -2px) rotate(-5deg); } 10%, 20% { transform: translate(1px, 1px) rotate(5deg); } }
-
-.chat-crab-perch .chat-crab-actor[data-pose][data-reduced="true"] :is(.crab-body, .crab-claw, .crab-leg, .crab-fx, .chat-crab-status, .crab-bubble),
-.chat-crab-perch[data-paused="true"] .chat-crab-actor[data-pose] :is(.crab-body, .crab-claw, .crab-leg, .crab-fx, .chat-crab-status, .crab-bubble) { animation: none; }
-@media (prefers-reduced-motion: reduce) {
-  .chat-crab-perch .chat-crab-actor[data-pose][data-reduced] :is(.crab-body, .crab-claw, .crab-leg, .crab-fx, .chat-crab-status, .crab-bubble) { animation: none; }
-}
+/* Motion is drawn on SVG groups by the shared life controller, so the pet's
+   explicit animation choice does not get silently cancelled by CSS duration rules. */
+.pet-layer { position: absolute; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; }
+.pet-layer[data-paused="true"] { visibility: hidden; }
+.pet-actor { position: absolute; left: 0; top: 0; display: grid; place-items: center; padding: 6px; margin: 0; border: 0; background: none; pointer-events: auto; user-select: none; -webkit-tap-highlight-color: transparent; cursor: grab; }
+.pet-actor[hidden] { display: none; }
+.pet-actor[data-phase="drag"] { cursor: grabbing; }
+.pet-actor:focus-visible { outline: 2px solid var(--aster-accent); border-radius: var(--k-s-3); }
+.pet-actor .crab-fx { display: none; }
+.pet-actor svg { overflow: visible; }
+.pet-actor .crab-body, .pet-actor .crab-claw, .pet-actor .crab-leg { animation: none; transform-origin: 0 0; }
+.pet-actor .crab-sleep-eyes { display: none; }
+.pet-actor[data-phase="rest"] .crab-awake-eyes { display: none; }
+.pet-actor[data-phase="rest"] .crab-sleep-eyes { display: inline; }
+.pet-laptop { position: absolute; bottom: 0; left: 12%; pointer-events: none; opacity: 0; }
+.pet-speech { position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%); max-width: min(160px, 65vw); width: max-content; padding: var(--k-s-3) var(--k-s-4); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: var(--aster-fg); font-size: var(--k-t-2); line-height: var(--k-lh-2); box-shadow: var(--k-card-shadow); pointer-events: none; }
+.pet-actor[data-edge="left"] .pet-speech { left: 0; transform: none; }
+.pet-actor[data-edge="right"] .pet-speech { left: auto; right: 0; transform: none; }
+.pet-status { position: absolute; left: 50%; bottom: 100%; color: var(--aster-accent); font-size: var(--k-t-3); pointer-events: none; }
+.pet-actor[data-phase="think"] .pet-status::before { content: '···'; }
+.pet-actor[data-phase="rest"] .pet-status::before { content: 'z Z'; }
+.pet-actor:has(.pet-speech) .pet-status { visibility: hidden; }
+.pet-page { height: 100%; min-height: 0; overflow-y: auto; color: var(--aster-fg); }
+.pet-page-body { padding: var(--k-s-4) var(--k-page-x) var(--k-s-8); max-width: 680px; margin: auto; }
+.pet-preview { position: relative; height: 310px; border: 1px solid var(--aster-line); border-radius: var(--k-s-5); background: var(--aster-bg); overflow: hidden; }
+.pet-preview-messages { height: 100%; padding: 48px var(--k-s-5) var(--k-s-5); overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 42px; }
+.pet-example { flex-shrink: 0; padding: var(--k-s-3) var(--k-s-4); max-width: 85%; font-size: var(--k-t-3); border-radius: var(--k-s-4); border: 1px solid var(--aster-line); background: var(--aster-surface); }
+.pet-example-right { align-self: flex-end; }
+.pet-hint { font-size: var(--k-t-2); color: var(--aster-muted); line-height: var(--k-lh-2); margin: var(--k-s-4) 0; }
+.pet-tabs { display: flex; gap: var(--k-s-3); margin: var(--k-s-5) 0; }
+.pet-tabs button { flex: 1; min-height: var(--k-tap); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: inherit; font-size: var(--k-t-3); }
+.pet-tabs [aria-selected="true"], .pet-action-grid [aria-pressed="true"] { border-color: var(--aster-accent); background: color-mix(in srgb, var(--aster-accent) 12%, var(--aster-bg)); }
+.pet-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--k-s-3); }
+.pet-action-grid button { display: flex; flex-direction: column; gap: var(--k-s-2); text-align: left; padding: var(--k-s-4); min-height: var(--k-tap); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: inherit; font-size: var(--k-t-3); }
+.pet-action-grid small { color: var(--aster-muted); font-size: var(--k-t-2); line-height: var(--k-lh-2); }
+.pet-settings { display: flex; flex-direction: column; gap: var(--k-s-3); }
+.pet-settings label { display: flex; align-items: center; justify-content: space-between; gap: var(--k-s-4); min-height: var(--k-tap); font-size: var(--k-t-3); border-bottom: 1px solid var(--aster-line); }
+.pet-settings select { min-height: var(--k-tap); max-width: 65%; background: var(--aster-surface); color: inherit; border: 1px solid var(--aster-line); border-radius: var(--k-s-3); padding: var(--k-s-2) var(--k-s-3); }
+.pet-settings input { width: 22px; height: 22px; accent-color: var(--aster-accent); }

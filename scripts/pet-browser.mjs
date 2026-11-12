@@ -1,0 +1,35 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+await mkdir('screenshots/pet', {recursive:true});
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce',recordVideo:{dir:'screenshots/pet/video'}});
+const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+try {
+  await page.goto('http://127.0.0.1:8080/pet');
+  await page.getByRole('heading',{name:'桌宠',exact:true}).waitFor({timeout:60000});
+  const actor=page.locator('.pet-actor');await actor.waitFor({state:'visible'});
+  const x=()=>actor.evaluate(e=>e.style.transform);
+  const at=await x();await page.waitForTimeout(6500);assert.notEqual(await x(),at,'autonomous motion must work even when the system requests reduced motion and pet motion is explicitly on');
+  await page.getByRole('button',{name:'小电脑',exact:false}).click();
+  await page.waitForFunction(()=>document.querySelector('.pet-actor')?.dataset.phase==='work');
+  assert.equal(await page.locator('.pet-laptop').evaluate(e=>getComputedStyle(e).opacity),'1');
+  const body=page.locator('.crab-body');const pose=await body.getAttribute('transform');await page.waitForTimeout(150);assert.notEqual(await body.getAttribute('transform'),pose,'SVG body must move');
+  await page.screenshot({path:'screenshots/pet/mobile-work.png'});
+  await actor.click({force:true});await page.locator('.pet-speech').waitFor();
+  await page.waitForTimeout(1500);
+  const box=await actor.boundingBox();assert(box);await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+100,box.y-70,{steps:10});
+  assert.equal(await actor.getAttribute('data-phase'),'drag');await page.screenshot({path:'screenshots/pet/mobile-drag.png'});await page.mouse.up();
+  await page.getByRole('button',{name:'自由活动',exact:false}).click();await page.waitForTimeout(2200);
+  await page.getByRole('tab',{name:'陪伴设置'}).click();await page.getByLabel('大小',{exact:true}).selectOption('52');
+  await page.waitForFunction(()=>document.querySelector('.pet-actor')?.style.width==='64px');
+  await page.getByLabel('允许拖动',{exact:true}).uncheck();await page.getByLabel('短句气泡',{exact:true}).uncheck();
+  await page.screenshot({path:'screenshots/pet/mobile-settings.png'});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no horizontal overflow');
+  await page.getByLabel('短句气泡',{exact:true}).check();await page.getByLabel('允许拖动',{exact:true}).check();
+  await page.getByRole('tab',{name:'动作预览'}).click();await page.getByRole('button',{name:'跳气泡',exact:false}).click();await page.waitForTimeout(1400);
+  await page.screenshot({path:'screenshots/pet/mobile-actions.png'});
+  const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.screenshot({path:'screenshots/pet/desktop.png'});await desktop.close();
+  assert.deepEqual(errors,[],'browser runtime errors');
+  console.log('PASS: movement, articulated SVG, laptop, drag, speech, settings, mobile and desktop rendering');
+} finally {await context.close();await browser.close();}

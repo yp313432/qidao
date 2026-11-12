@@ -1783,9 +1783,6 @@ export function ChatView() {
           这里再收到 `pb-0.5`（2px）—— 留 2px 是因为完全贴底时卡片圆角会跟屏幕圆角打架。 */}
       <div className="lq-composer-dock pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-0.5">
         <div ref={composerWrap} className="pointer-events-auto">
-          {/* A stable perch follows the keyboard; its height is included in message padding. */}
-          <ChatCrab scroller={scroller} composer={composerWrap} paused={menu || Boolean(thinkSheet)}
-            busy={busy} working={Boolean(step)} replay={crabReplay} />
           {/* 引用中的小条（长按气泡之后出现；点 × 取消） */}
           {quote && (
             <div className="mx-1 mb-1 flex items-center gap-2 rounded-2xl border border-line bg-chip px-3 py-2 text-[11px] text-muted">
@@ -1861,6 +1858,9 @@ export function ChatView() {
           document.body,
         )}
 
+
+      <ChatCrab scroller={scroller} composer={composerWrap} paused={menu || Boolean(thinkSheet)}
+        busy={busy} working={Boolean(step)} replay={crabReplay} />
 
       {/* 思考链弹层：整个页面**只挂这一个**，内容跟着被点开的那条消息走 */}
       <ThinkingSheet

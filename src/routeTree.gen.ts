@@ -16,6 +16,7 @@ import { Route as AppChatSettingsRouteImport } from './routes/_app/chat-settings
 import { Route as AppCoreRouteImport } from './routes/_app/core'
 import { Route as AppDataRouteImport } from './routes/_app/data'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
+import { Route as AppPetRouteImport } from './routes/_app/pet'
 import { Route as AppMeRouteImport } from './routes/_app/me'
 import { Route as AppMemoriesRouteImport } from './routes/_app/memories'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
@@ -112,6 +113,11 @@ const AppDataRoute = AppDataRouteImport.update({
 const AppEnvRoute = AppEnvRouteImport.update({
   id: '/env',
   path: '/env',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPetRoute = AppPetRouteImport.update({
+  id: '/pet',
+  path: '/pet',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMeRoute = AppMeRouteImport.update({
@@ -437,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
+  '/pet': typeof AppPetRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
@@ -507,6 +514,7 @@ export interface FileRoutesByTo {
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
+  '/pet': typeof AppPetRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
@@ -579,6 +587,7 @@ export interface FileRoutesById {
   '/_app/core': typeof AppCoreRoute
   '/_app/data': typeof AppDataRoute
   '/_app/env': typeof AppEnvRoute
+  '/_app/pet': typeof AppPetRoute
   '/_app/me': typeof AppMeRoute
   '/_app/memories': typeof AppMemoriesRoute
   '/_app/memory': typeof AppMemoryRoute
@@ -653,6 +662,7 @@ export interface FileRouteTypes {
     | '/core'
     | '/data'
     | '/env'
+    | '/pet'
     | '/me'
     | '/memories'
     | '/memory'
@@ -723,6 +733,7 @@ export interface FileRouteTypes {
     | '/core'
     | '/data'
     | '/env'
+    | '/pet'
     | '/me'
     | '/memories'
     | '/memory'
@@ -794,6 +805,7 @@ export interface FileRouteTypes {
     | '/_app/core'
     | '/_app/data'
     | '/_app/env'
+    | '/_app/pet'
     | '/_app/me'
     | '/_app/memories'
     | '/_app/memory'
@@ -926,6 +938,13 @@ declare module '@tanstack/react-router' {
       path: '/env'
       fullPath: '/env'
       preLoaderRoute: typeof AppEnvRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/pet': {
+      id: '/_app/pet'
+      path: '/pet'
+      fullPath: '/pet'
+      preLoaderRoute: typeof AppPetRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/me': {
@@ -1451,6 +1470,7 @@ interface AppRouteChildren {
   AppCoreRoute: typeof AppCoreRoute
   AppDataRoute: typeof AppDataRoute
   AppEnvRoute: typeof AppEnvRoute
+  AppPetRoute: typeof AppPetRoute
   AppMeRoute: typeof AppMeRoute
   AppMemoriesRoute: typeof AppMemoriesRoute
   AppMemoryRoute: typeof AppMemoryRoute
@@ -1478,6 +1498,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCoreRoute: AppCoreRoute,
   AppDataRoute: AppDataRoute,
   AppEnvRoute: AppEnvRoute,
+  AppPetRoute: AppPetRoute,
   AppMeRoute: AppMeRoute,
   AppMemoriesRoute: AppMemoriesRoute,
   AppMemoryRoute: AppMemoryRoute,

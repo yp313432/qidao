@@ -1,0 +1,38 @@
+name: 桌宠构建与动作验收
+on:
+  pull_request:
+    paths: ['src/**', 'scripts/pet-*.mjs', '.github/workflows/pet-check.yml']
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      QIDAO_TARGET: android
+      VITE_DIRECT_UPSTREAM: '1'
+      VITE_AUTH_ENABLED: 'false'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --experimental-strip-types scripts/pet-life.test.mjs
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - name: 启动应用并检查动作
+        run: |
+          npm run dev > /tmp/pet-dev.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8080/pet > /dev/null; then break; fi
+            sleep 2
+          done
+          node scripts/pet-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pet-browser-evidence
+          path: screenshots/pet

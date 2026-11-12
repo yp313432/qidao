@@ -20,6 +20,7 @@ const EXACT = [
   "/core",
   "/data",
   "/env",
+  "/pet",
   "/me",
   "/memories",
   "/memory",
