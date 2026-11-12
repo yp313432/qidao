@@ -486,7 +486,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        */
       {
         const st0 = useApp.getState();
-        const groups = stickerGroupList(st0.stickerLib, st0.stickerGroups);
+        const groups = settings.aiStickers === false ? [] : stickerGroupList(st0.stickerLib, st0.stickerGroups);
         if (groups.length > 0) {
           const brief = groups
             .map((g) => {
@@ -555,9 +555,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
           })()
         : null;
       /** 这一轮真的发出去的动作 kind（顺序稳定）—— P3 之后不再总是 61 个 */
-      const kindsSent = selection
+      const kindsSent = (selection
         ? selection.kinds
-        : ACTION_SCHEMA.map((a) => a.kind);
+        : ACTION_SCHEMA.map((a) => a.kind)).filter((kind) => settings.aiStickers !== false || kind !== "sticker.send");
       /** 这一轮是不是"只发了一部分"（要给模型那份兜底说明，免得他以为做不到） */
       const selective = kindsSent.length < ACTION_SCHEMA.length;
       if (native) {
@@ -1235,6 +1235,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
   const send = useCallback(
     async (text: string, attachments?: Attachment[]) => {
       if (!text.trim() && !attachments?.length) return;
+      if (sendQueue.getSnapshot().running && useApp.getState().settings.replyWhileBusy === false) {
+        pushToast("当前回复完成后再发，或在对话设置开启「回复时允许补充消息」。");
+        return;
+      }
       const { conversationId } = useApp.getState().appendUserMessage(text, attachments);
       const current = useApp.getState().settings;
       const delay = current.mergeSend === false || attachments?.some((a) => a.kind === "audio")
@@ -1305,7 +1309,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
   const stop = useCallback(() => { sendQueue.stop(); abortRef.current?.abort(); }, []);
 
   /** `step` 给界面显示"第 N 步 · 正在执行 X"（agent loop 的进度，见 runToolLoop 的 onStep） */
-  return { busy: busy || sending.running || sending.pending > 0, pendingCount: sending.pending, liveId, step, send, regenerate, stop, aiName };
+  return { busy: busy || sending.running || sending.pending > 0, replying: busy || sending.running,
+    pendingCount: sending.pending, liveId, step, send, regenerate, stop, aiName };
 }
 
 /**

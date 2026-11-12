@@ -306,10 +306,11 @@ final class WakeEngine {
   static Outcome tick(Context ctx) {
     Date now = new Date();
     String today = dayKey(now);
+    // 必须先用上一轮的时间做判断；先写 now 会让每一轮都命中「离上次太近」。
+    String mode = decide(ctx, now);
     WakePrefs.putLong(ctx, WakePrefs.LAST_WAKE_MS, now.getTime());
     WakePrefs.put(ctx, WakePrefs.WAKE_COUNT, String.valueOf(WakePrefs.num(ctx, WakePrefs.WAKE_COUNT, 0) + 1));
 
-    String mode = decide(ctx, now);
     if ("没打开（或者还没接模型）".equals(mode) || mode.startsWith("安静") || mode.startsWith("离上次")
         || mode.startsWith("他说自己") || mode.startsWith("今天说够")) {
       return new Outcome("没醒：" + mode, false, false);
@@ -399,14 +400,9 @@ final class WakeEngine {
 
     String notifyText = wantAction ? actionSummary(text) : text;
     int seq = WakePrefs.num(ctx, WakePrefs.WAKE_COUNT, 0);
-    if (wantAction) {
-      WakeNotify.show(ctx, aiName, notifyText, seq);
-    } else {
-      /* 主动说话也弹（用户要的：他说了我要知道） */
-      WakeNotify.show(ctx, aiName, notifyText, seq);
-    }
+    boolean notified = WakeNotify.show(ctx, aiName, notifyText, seq);
 
-    return new Outcome(("diary".equals(mode) ? "他写了日记" : "free".equals(mode) ? "他自己做了件事" : "他主动说了一句"), true, true);
+    return new Outcome(("diary".equals(mode) ? "他写了日记" : "free".equals(mode) ? "他自己做了件事" : "他主动说了一句"), notified, true);
   }
 
   /** 动作 JSON → 人看的一句摘要（通知上不能摊参数） */
@@ -430,3 +426,4 @@ final class WakeEngine {
     return s.trim();
   }
 }
+

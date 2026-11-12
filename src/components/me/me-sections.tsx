@@ -1,4 +1,4 @@
-import { ChatDeliverySettings } from "./chat-delivery-settings";
+import { ChatDeliverySettings, ChatStickerSettings } from "./chat-delivery-settings";
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
@@ -1089,19 +1089,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
           {/* 分句、逐条发送节奏、合并等待和正文清理。 */}
           <ChatDeliverySettings />
 
-          {/*
-        ── 表情包（2026-11 用户要的"他自己会发表情"）─────────────────
-        两块：① 入库时**去白底**（照片/白底截图 → 真正的透明表情）
-             ② 他能**自己决定发一张**（动作 `sticker.send`，挑哪张由客户端定）
-        "按情绪挑"要等"给表情打标签"那一步，所以这里先不给它编不存在的开关。
-      */}
-          <Sub title="表情包">
-            <Row
-              label="传表情时自动去白底"
-              checked={settings.stickerRemoveWhite !== false}
-              onChange={(v) => patch({ stickerRemoveWhite: v })}
-            />
-          </Sub>
+          <ChatStickerSettings />
         </>
       ),
     },

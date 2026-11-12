@@ -21,6 +21,7 @@ useApp.setState((s) => ({ settings: { ...s.settings,
   toolProtocol: "native", toolProbeOk: true, voiceReplies: false, notifications: false,
   segmentReply: true, segmentMaxParts: 6, segmentMaxSentences: 1, segmentSmartDelay: true, segmentCharDelayMs: 60,
   mergeSend: true, mergeSendDelayMs: 600, assistantAutoClean: true,
+  aiStickers: !new URLSearchParams(location.search).has("no-stickers"),
   permissions: Object.fromEntries(Object.keys(s.settings.permissions).map((key) => [key, "allow"])),
 }, conversations: [], activeId: null, pendingActions: [], actionLog: [], emotionEvents: [], mcp: [], httpTools: [],
   stickerLib: empty ? [] : [{ id: "gif", group: "开心", url: gif },
@@ -29,7 +30,8 @@ useApp.setState((s) => ({ settings: { ...s.settings,
 const clean = (text: string) => text;
 const noMessages = [];
 function Fixture() {
-  const { busy, send, stop, pendingCount, liveId } = useChatStream({ forceProtocol: "native" });
+  const { busy, replying, send, stop, pendingCount, liveId } = useChatStream({ forceProtocol: "native" });
+  const allowSupplements = useApp((s) => s.settings.replyWhileBusy !== false);
   const messages = useApp((s) => s.conversations.find((c) => c.id === s.activeId)?.messages ?? noMessages);
   const emotionEvents = useApp((s) => s.emotionEvents);
   const charDelay = useApp((s) => s.settings.segmentCharDelayMs);
@@ -48,7 +50,7 @@ function Fixture() {
         cleanPart={clean} cleanTail={clean} />}
       {m.attachments?.map((a) => <img key={a.id} data-testid="sticker" src={a.dataUrl} alt="表情" width="60" height="60" />)}
     </div>)}</section>
-    <Composer streaming={busy} queuedCount={pendingCount} onStop={stop} onSend={(text, atts) => void send(text, atts)} />
+    <Composer streaming={busy} disabled={replying && !allowSupplements} queuedCount={pendingCount} onStop={stop} onSend={(text, atts) => void send(text, atts)} />
     <output data-testid="busy">{busy ? "busy" : "idle"}</output>
     <pre hidden data-testid="messages">{JSON.stringify(messages)}</pre>
     <pre hidden data-testid="emotions">{JSON.stringify(emotionEvents)}</pre>

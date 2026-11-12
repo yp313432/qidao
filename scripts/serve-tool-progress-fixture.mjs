@@ -16,7 +16,7 @@ const config = { configFile: false,
   server: { host: "0.0.0.0", port: 8080, strictPort: true },
   preview: { host: "0.0.0.0", port: 8081, strictPort: true },
   build: { outDir: ".tool-progress-dist", emptyOutDir: true,
-    rollupOptions: { input: ["tool-progress-fixture.html", "tool-reply-fixture.html", "chat-delivery-fixture.html"].map((p) => fileURLToPath(new URL(p, import.meta.url))) } },
+    rollupOptions: { input: ["tool-progress-fixture.html", "tool-reply-fixture.html", "chat-delivery-fixture.html", "chat-page-fixture.html"].map((p) => fileURLToPath(new URL(p, import.meta.url))) } },
 };
 if (production) await build(config);
 const server = production ? await preview(config) : await createServer(config);

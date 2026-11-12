@@ -6,7 +6,8 @@ export const Route = createFileRoute("/_app/chat-settings")({
     <MePage
       tab="chat"
       title="对话"
-      subtitle="思考过程、回复长短、分段、表情包 —— 都只影响他怎么跟你说话"
+      subtitle="思考过程、标点分句、发送节奏、连发与表情包"
     />
   ),
 });
+

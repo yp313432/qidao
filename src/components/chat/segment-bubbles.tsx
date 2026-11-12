@@ -13,6 +13,7 @@ type Props = {
 const seen = new Set<string>();
 export function SegmentBubbles({ parts, liveTail = false, delay, fresh, deliveryKey, cleanPart, press, hideIfEmpty }: Props) {
   const smart = useApp((s) => s.settings.segmentSmartDelay !== false);
+  const pacing = useApp((s) => s.settings.segmentPacing !== false);
   const charDelayMs = useApp((s) => s.settings.segmentCharDelayMs ?? 60);
   const pace = useRef({ smart, charDelayMs, delayMs: delay });
   pace.current = { smart, charDelayMs, delayMs: delay };
@@ -24,7 +25,7 @@ export function SegmentBubbles({ parts, liveTail = false, delay, fresh, delivery
   const unfinished = liveTail && !/[。！？!?….][”’"'」』）)\]}]*$|```\s*$|~~~\s*$/.test(clean.at(-1) ?? "");
   useEffect(() => {
     if (deliveryKey) seen.add(deliveryKey);
-    if (!animate.current) { setShown(JSON.parse(signature)); return; }
+    if (!animate.current || !pacing) { setShown(JSON.parse(signature)); return; }
     let timer: ReturnType<typeof setTimeout> | undefined;
     const queue = model.current;
     queue.update(JSON.parse(signature), unfinished, Date.now());
@@ -35,8 +36,8 @@ export function SegmentBubbles({ parts, liveTail = false, delay, fresh, delivery
     };
     tick();
     return () => clearTimeout(timer);
-  }, [signature, unfinished, deliveryKey, smart, charDelayMs, delay]);
-  const pending = animate.current && (shown.length < clean.length || unfinished);
+  }, [signature, unfinished, deliveryKey, smart, charDelayMs, delay, pacing]);
+  const pending = animate.current && pacing && (shown.length < clean.length || unfinished);
   return <div className="space-y-1.5">
     {shown.map((part, index) => <div key={index} ref={hideIfEmpty}
       {...(!press ? {} : press(part) as HTMLAttributes<HTMLDivElement>)} data-role="ai"

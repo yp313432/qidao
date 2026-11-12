@@ -17,8 +17,8 @@ const upstream = createServer(async (req, res) => {
   requests.push(body);
   const used = body.messages.filter((m) => m.role === "tool").length;
   const frames = [];
-  if (scenario === "queue") {
-    await sleep(900);
+  if (scenario === "queue" || scenario === "pagequeue") {
+    await sleep(scenario === "pagequeue" ? 1800 : 900);
     frames.push(frame({ content: "收到。会一起考虑。" }));
   } else if (!used) {
     const name = scenario === "cleanup" ? "emotion_report" : "sticker_send";
@@ -30,9 +30,9 @@ const upstream = createServer(async (req, res) => {
     await sleep(scenario === "stickers" ? 1200 : 30);
     frames.push(frame({ content: scenario === "cleanup"
       ? '我在听。{"primaryEmotion":"开心","intensity":0.5}<emotion>开心</emotion>[表情包]慢慢说。'
-      : scenario === "empty" ? "表情库暂时没有图片，先陪你聊聊。" : "[表情包]" }));
+      : scenario === "empty" ? "表情库暂时没有图片，先陪你聊聊。" : scenario === "disabled" ? "你关闭了 AI 发表情，先陪你聊聊。" : "[表情包]" }));
   }
-  frames.push(frame({}, !used && scenario !== "queue" ? "tool_calls" : "stop"));
+  frames.push(frame({}, !used && scenario !== "queue" && scenario !== "pagequeue" ? "tool_calls" : "stop"));
   res.writeHead(200, { ...cors, "content-type": "text/event-stream" });
   for (const f of frames) res.write(`data: ${JSON.stringify(f)}\n\n`);
   res.end("data: [DONE]\n\n");
@@ -81,6 +81,8 @@ try {
     assert.equal(await bubbles.count(), 1);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 2);
     assert.equal((await bubbles.allTextContents()).join(""), "换个说法。新的补充。");
+    await page.getByRole("switch", { name: "逐条发送", exact: true }).click();
+    assert.equal(await page.getByRole("switch", { name: "智能发送节奏" }).count(), 0);
     if (process.env.QIDAO_SHOTS) {
       await mkdir(process.env.QIDAO_SHOTS, { recursive: true });
       await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/chat-delivery-mobile.png`, fullPage: true });
@@ -119,9 +121,9 @@ try {
     assert.deepEqual(errors, []); await context.close();
     console.log("PASS real input: rapid sends merge, supplements queue, no restart or lost user bubbles");
   }
-  for (scenario of ["cleanup", "stickers", "empty"]) {
+  for (scenario of ["cleanup", "stickers", "empty", "disabled"]) {
     requests.length = 0;
-    const { context, page, errors } = await open(scenario === "empty" ? "?empty" : "");
+    const { context, page, errors } = await open(scenario === "empty" ? "?empty" : scenario === "disabled" ? "?no-stickers" : "");
     await send(page, scenario === "cleanup" ? "记下你的情绪，再陪我聊聊。" : "给我发两张开心的表情。" );
     if (scenario === "stickers") {
       await page.waitForFunction(() => document.querySelectorAll('[data-testid="sticker"]').length === 2);
@@ -142,9 +144,61 @@ try {
     } else {
       assert.equal(await page.getByTestId("sticker").count(), 0);
       assert.match(requests[1].messages.find((m) => m.role === "tool").content, /失败/);
+      if (scenario === "disabled") assert.equal(requests[0].tools.some((t) => t.function.name === "sticker_send"), false);
     }
     assert.deepEqual(errors, []); await context.close();
     console.log(`PASS real chat/actions: ${scenario}`);
+  }
+  {
+    scenario = "pagequeue"; requests.length = 0;
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const page = await context.newPage(); const errors = [];
+    page.on("pageerror", (e) => { errors.push(e.message); console.error("FULL PAGE ERROR", e.stack); });
+    await page.goto(`${base}/scripts/chat-page-fixture.html?settings`);
+    const switches = [["逐条发送", "segmentPacing"], ["智能发送节奏", "segmentSmartDelay"], ["合并发送", "mergeSend"],
+      ["回复时允许补充消息", "replyWhileBusy"], ["自动清理内部标记", "assistantAutoClean"], ["AI 主动发表情", "aiStickers"], ["按标点分句", "segmentReply"]];
+    // Switch nested choices off before hiding their parent.
+    for (const [label, key] of [switches[1], switches[0], ...switches.slice(2)]) {
+      await page.getByRole("switch", { name: label, exact: true }).click();
+      assert.equal(await page.evaluate((k) => window.qidaoFixture.read().settings[k], key), false);
+    }
+    await page.waitForTimeout(700); await page.reload();
+    await page.getByRole("switch", { name: "按标点分句", exact: true }).waitFor();
+    for (const [, key] of switches) assert.equal(await page.evaluate((k) => window.qidaoFixture.read().settings[k], key), false, `${key} persists`);
+    for (const [label] of [switches.at(-1), switches[0], switches[1], ...switches.slice(2, -1)]) {
+      await page.getByRole("switch", { name: label, exact: true }).click();
+    }
+    if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/conversation-settings-mobile.png`, fullPage: true });
+    await page.evaluate(() => window.qidaoFixture.navigate("/"));
+    const input = page.getByRole("textbox", { name: "消息输入框", exact: true });
+    await input.tap(); await page.keyboard.insertText("先听我说");
+    await page.getByRole("button", { name: "发送", exact: true }).tap();
+    for (let n = 0; n < 100 && !requests.length; n++) await sleep(20);
+    assert.equal(requests.length, 1);
+    assert.equal(await input.isEnabled(), true);
+    // Native-like touch and key insertion, including hit testing: fill() alone cannot establish focusability.
+    await input.tap();
+    assert.equal(await input.evaluate((el) => document.activeElement === el), true);
+    await page.keyboard.insertText("回复期间补充第一条");
+    await page.keyboard.press("Enter");
+    assert.equal(await input.evaluate((el) => document.activeElement === el), true);
+    await page.keyboard.insertText("回复期间补充第二条");
+    await page.getByRole("button", { name: "发送", exact: true }).tap();
+    await page.waitForFunction(() => window.qidaoFixture.read().messages.filter((m) => m.role === "assistant" && m.content).length === 2,
+      undefined, { timeout: 30000 });
+    assert.equal(requests.length, 2);
+    assert.match(requests[1].messages.at(-1).content, /回复期间补充第一条[\s\S]*回复期间补充第二条/);
+    assert.equal(await page.evaluate(() => window.qidaoFixture.read().messages.filter((m) => m.role === "user").length), 3);
+    // Opting out blocks the real chat input while replying and restores it afterwards.
+    await page.evaluate(() => window.qidaoFixture.navigate("/chat-settings"));
+    await page.getByRole("switch", { name: "回复时允许补充消息", exact: true }).click();
+    await page.evaluate(() => window.qidaoFixture.navigate("/"));
+    await input.tap(); await page.keyboard.insertText("这次等你回复完"); await page.keyboard.press("Enter");
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="消息输入框"]')?.disabled === true);
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="消息输入框"]')?.disabled === false,
+      undefined, { timeout: 30000 });
+    assert.deepEqual(errors, []); await context.close();
+    console.log("PASS full app shell: conversation switches persist, touch/keyboard supplements work, opt-out blocks only active replies");
   }
 } finally {
   await browser.close();

@@ -715,9 +715,12 @@ export type Settings = {
   /** 关闭智能节奏时的固定间隔（毫秒，400–4000） */
   segmentDelayMs?: number;
   segmentSmartDelay?: boolean;
+  segmentPacing?: boolean;
   segmentCharDelayMs?: number;
   mergeSend?: boolean;
   mergeSendDelayMs?: number;
+  replyWhileBusy?: boolean;
+  aiStickers?: boolean;
   assistantAutoClean?: boolean;
   /**
    * ── 主动说话（2026-11 用户要的"他自己察觉到、自己开口"）──────────

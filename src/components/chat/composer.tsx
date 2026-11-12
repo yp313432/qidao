@@ -233,6 +233,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
     // 底部导航现在是**常驻**的（"打字时收下去"那个机制整个删了），
     // 所以这里不需要再操心导航的显隐。
     onSend(t, atts.length ? atts : undefined);
+    ta.current?.focus({ preventScroll: true });
   }
 
   async function pickFiles(files: File[]) {
@@ -1024,6 +1025,8 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
              → 不动高度（保持一行字 + 一行按键），只把整条往两侧放一点点：
              外层 dock 的左右内缩 8→3、这层的 px-1.5→px-1，卡片比原来长 14px。 */
           rows={1}
+          aria-label="消息输入框"
+          enterKeyHint="send"
           value={value}
           disabled={disabled}
           /*
@@ -1436,6 +1439,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
           <button
             type="button"
             aria-label={streaming && !value.trim() && !pending.length ? "停止回复" : "发送"}
+            onMouseDown={(e) => e.preventDefault()}
             disabled={disabled || (!streaming && !value.trim() && !pending.length)}
             onClick={() => { if (streaming && !value.trim() && !pending.length) onStop?.(); else submit(); }}
             className={cn(

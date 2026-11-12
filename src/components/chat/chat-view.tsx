@@ -484,7 +484,7 @@ export function ChatView() {
   /** 他现在醒着还是打盹（只由 lib/awake.ts 写）—— 用户 m10324 要能一眼看到 */
   const awakeState = useApp((s) => s.awakeState);
   // 发送逻辑与语音页共用（见 lib/use-chat.ts）
-  const { busy, pendingCount, liveId, step, send, regenerate, stop } = useChatStream();
+  const { busy, replying, pendingCount, liveId, step, send, regenerate, stop } = useChatStream();
   const thinkSheet = conv?.messages.find((m) => m.id === thinkSheetId);
   // 感知层：告诉 AI 你此刻在干什么（上一条活动会留在轨迹里）
   useActivity("在和你聊天", conv?.title ?? "新对话");
@@ -1829,7 +1829,7 @@ export function ChatView() {
               const el = scroller.current;
               if (el) el.scrollTop = el.scrollHeight;
             }}
-            disabled={Boolean(editing) && busy}
+            disabled={Boolean(editing) ? busy : replying && settings.replyWhileBusy === false}
             queuedCount={pendingCount} onStop={stop}
             streaming={busy}
             editingText={editing?.text ?? null}

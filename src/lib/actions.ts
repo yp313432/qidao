@@ -752,6 +752,7 @@ const stamp = (t: number): string =>
      */
     case "sticker.send": {
       const store = useApp.getState();
+      if (store.settings.aiStickers === false) return "发送表情失败：你在对话设置里关闭了 AI 主动发表情。";
       const feel = str((action as { feel?: unknown }).feel).trim();
       const usable = store.stickerLib.filter((s) => stickerAttachment(s.url, s.id));
       const picked = pickStickerByGroup(usable, feel, store.lastStickerUrl);
