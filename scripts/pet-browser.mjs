@@ -29,7 +29,8 @@ try {
   await page.getByLabel('短句气泡',{exact:true}).check();await page.getByLabel('允许拖动',{exact:true}).check();
   await page.getByRole('tab',{name:'动作预览'}).click();await page.getByRole('button',{name:'跳气泡',exact:false}).click();await page.waitForTimeout(1400);
   await page.screenshot({path:'screenshots/pet/mobile-actions.png'});
-  const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.screenshot({path:'screenshots/pet/desktop.png'});await desktop.close();
+  console.log('PET_MOBILE_IMAGE='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));
+  const desktop=await browser.newPage({viewport:{width:1365,height:900}});await desktop.goto('http://127.0.0.1:8080/pet');await desktop.locator('.pet-actor').waitFor({state:'visible'});await desktop.screenshot({path:'screenshots/pet/desktop.png'});console.log('PET_DESKTOP_IMAGE='+(await desktop.screenshot({type:'jpeg',quality:35})).toString('base64'));await desktop.close();
   assert.deepEqual(errors,[],'browser runtime errors');
   console.log('PASS: movement, articulated SVG, laptop, drag, speech, settings, mobile and desktop rendering');
 } finally {await context.close();await browser.close();}
