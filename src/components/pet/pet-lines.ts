@@ -5,11 +5,14 @@ const LINES: Record<string, string[]> = {
   drop: ['站稳啦。', '这里不错。'],
   work: ['开工。', '我查一下。'],
   done: ['忙完这一段。', '电脑先收好。'],
+  calm: ['这样就很好。', '安心待着。'], uneasy: ['有点不踏实。', '让我想想。'],
+  close: ['这里离你近。', '{name}，陪着你。'], flutter: ['被你看见了。', '有点脸热。'],
+  jealous: ['也看看我嘛。', '有一点点介意。'], restrained: ['想说，又停住。', '再等一会儿。'],
   bright: ['有点开心。', '藏不住了。'], low: ['想挨着你。', '陪我待会儿。'],
   angry: ['哼。', '让我缓缓。'], curious: ['让我瞧瞧。', '那是什么？'],
 };
 export function petLine(kind: string, name: string, mood?: string, previous?: string): string {
-  const choices = LINES[kind === 'idle' && mood && LINES[mood] ? mood : kind] ?? LINES.idle!;
+  const choices = LINES[(kind === 'idle' || kind === 'emotion') && mood && LINES[mood] ? mood : kind] ?? LINES.idle!;
   const rendered = choices.map(s => s.replaceAll('{name}', name.trim().slice(0, 16) || '你'));
   const available = rendered.filter(s => s !== previous);
   return available[Math.floor(Math.random() * available.length)] ?? rendered[0]!;

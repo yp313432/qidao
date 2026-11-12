@@ -1,3 +1,7 @@
+import { KSwitch } from '@/components/ui-kit/k-switch';
+import { PetChoice } from './pet-choice';
+import { LEXICON } from '@/plugins/emotion-lifeform/lib/emotion/lexicon';
+import { GESTURE_HINTS } from './pet-emotion';
 import { useRef, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { ChatCrab } from '@/components/chat/chat-crab';
@@ -20,24 +24,27 @@ export function PetPage() {
   const save = (patch: Partial<typeof pet>) => useApp.getState().patchSettings({ chatCrab: { ...pet, ...patch } });
   const list = useRef<HTMLDivElement>(null), composer = useRef<HTMLDivElement>(null);
   const [action, setAction] = useState<PetAction>('auto'), [key, setKey] = useState(0);
-  const [tab, setTab] = useState<'actions' | 'settings'>('actions');
+  const [tab, setTab] = useState<'actions' | 'emotions' | 'settings'>('actions');
+  const [emotion, setEmotion] = useState(LEXICON[0]!.id);
+  const [intensity, setIntensity] = useState(65);
   const current = ACTIONS.find(a => a.id === action)!;
+  const showingEmotion = tab === 'emotions';
   return <div className="pet-page">
     <PageHeader title="桌宠" to="/" backLabel="返回聊天" description="一只住在聊天气泡之间的小螃蟹" />
     <div className="pet-page-body">
       <section className="pet-preview" aria-label="桌宠动作预览">
         <div ref={list} className="pet-preview-messages">
-          <div className="k-bubble pet-example">今天想去哪里玩？</div>
-          <div className="k-bubble pet-example pet-example-right">就在这里，陪着你。</div>
-          <div className="k-bubble pet-example">跳过来，让我摸摸。</div>
-          <div className="k-bubble pet-example pet-example-right">也可以把我拖到另一边。</div>
+          <div className="k-bubble pet-example">今天去哪玩？</div>
+          <div className="k-bubble pet-example pet-example-right">就在这里陪你。</div>
+          <div className="k-bubble pet-example">跳过来，摸摸。</div>
         </div>
-        <ChatCrab scroller={list} composer={composer} paused={false} busy={false} working={false} replay={0} preview={action} previewKey={key} />
+        <ChatCrab scroller={list} composer={composer} paused={false} busy={false} working={false} replay={0} preview={showingEmotion ? 'emotion' : action} previewKey={key} emotionPreview={showingEmotion ? emotion : undefined} emotionIntensity={intensity} />
       </section>
-      <p className="pet-hint">{current.description} 拖动小螃蟹也能预览拖放。</p>
+      <p className="pet-hint">{showingEmotion ? GESTURE_HINTS[emotion] : current.description} 拖动小螃蟹也能预览拖放。</p>
       {settings.motion === 'off' && <p className="pet-hint">App 的全局动效当前已关闭，身体动作会静止。可在外观设置里开启。</p>}
       <div className="pet-tabs" role="tablist" aria-label="桌宠选项">
         <button type="button" role="tab" aria-selected={tab === 'actions'} onClick={() => setTab('actions')}>动作预览</button>
+        <button type="button" role="tab" aria-selected={showingEmotion} onClick={() => { setTab('emotions'); setKey(k => k + 1); }}>情绪预览</button>
         <button type="button" role="tab" aria-selected={tab === 'settings'} onClick={() => setTab('settings')}>陪伴设置</button>
       </div>
       {tab === 'actions' ? <div className="pet-action-grid" role="tabpanel">
@@ -45,19 +52,20 @@ export function PetPage() {
           onClick={() => { setAction(a.id); setKey(k => k + 1); }}>
           <span>{a.title}</span><small>{a.description}</small>
         </button>)}
-      </div> : <section className="pet-settings" role="tabpanel">
-        <label>在聊天显示<input type="checkbox" checked={pet.enabled} onChange={e => save({ enabled: e.target.checked })} /></label>
-        <label>大小<select aria-label="大小" value={chatCrabSize(pet.size)} onChange={e => save({ size: Number(e.target.value) as 36 | 44 | 52 })}>
-          <option value={36}>小 · 36 × 27</option><option value={44}>中 · 44 × 33</option><option value={52}>大 · 52 × 39</option>
-        </select></label>
-        <label>活动量<select aria-label="活动量" value={pet.activity} onChange={e => save({ activity: e.target.value as 'lively' | 'quiet' })}>
-          <option value="lively">活泼</option><option value="quiet">安静</option>
-        </select></label>
-        <label>允许拖动<input type="checkbox" checked={pet.draggable} onChange={e => save({ draggable: e.target.checked })} /></label>
-        <label>短句气泡<input type="checkbox" checked={pet.speech} onChange={e => save({ speech: e.target.checked })} /></label>
-        <label>桌宠动作<select aria-label="桌宠动作" value={pet.motion} onChange={e => save({ motion: e.target.value as 'on' | 'off' | 'auto' })}>
-          <option value="on">开启</option><option value="auto">跟随系统</option><option value="off">关闭</option>
-        </select></label>
+      </div> : showingEmotion ? <section role="tabpanel" aria-label="情绪预览">
+        <p className="pet-hint">仅演示，不改变真实情绪记录。</p>
+        <label className="pet-intensity">情绪强度 <input aria-label="情绪强度" type="range" min="0" max="100" value={intensity} onChange={e => setIntensity(Number(e.target.value))} /><output>{intensity}</output></label>
+        <div className="pet-action-grid">
+          {LEXICON.map(g => <button type="button" key={g.id} aria-label={g.title.replace(/^[A-Z]\.\s*/, '')} aria-pressed={emotion === g.id}
+            onClick={() => { setEmotion(g.id); setKey(k => k + 1); }}><span>{g.title.replace(/^[A-Z]\.\s*/, '')}</span><small>{GESTURE_HINTS[g.id]}</small></button>)}
+        </div>
+      </section> : <section className="pet-settings" role="tabpanel">
+        <div className="pet-setting-row"><span>在聊天显示</span><KSwitch label="在聊天显示" checked={pet.enabled} onChange={enabled => save({ enabled })} /></div>
+        <div className="pet-setting-row"><span>大小</span><PetChoice label="大小" value={String(chatCrabSize(pet.size))} options={[["36","小 · 36 × 27"],["44","中 · 44 × 33"],["52","大 · 52 × 39"]]} onChange={v => save({ size: Number(v) as 36 | 44 | 52 })} /></div>
+        <div className="pet-setting-row"><span>活动量</span><PetChoice label="活动量" value={pet.activity} options={[["lively","活泼"],["quiet","安静"]]} onChange={v => save({ activity: v as 'lively' | 'quiet' })} /></div>
+        <div className="pet-setting-row"><span>允许拖动</span><KSwitch label="允许拖动" checked={pet.draggable} onChange={draggable => save({ draggable })} /></div>
+        <div className="pet-setting-row"><span>短句气泡</span><KSwitch label="短句气泡" checked={pet.speech} onChange={speech => save({ speech })} /></div>
+        <div className="pet-setting-row"><span>桌宠动作</span><PetChoice label="桌宠动作" value={pet.motion} options={[["on","开启"],["auto","跟随系统"],["off","关闭"]]} onChange={v => save({ motion: v as 'on' | 'auto' | 'off' })} /></div>
         <p className="pet-hint">称呼使用资料里的名字：{settings.displayName || '你'}。短句在本机生成，不额外请求模型。</p>
         <button type="button" className="k-btn" onClick={() => save({ anchor: undefined })}>重置聊天中的落脚位置</button>
       </section>}

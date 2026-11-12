@@ -4,7 +4,7 @@ export type Scene = { width: number; height: number; surfaces: Surface[]; obstac
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(Math.max(lo, hi), v));
 export function arc(a: Point, b: Point, t: number): Point {
   const u = t * t * (3 - 2 * t);
-  return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u - Math.sin(Math.PI * t) * Math.min(62, 24 + Math.abs(b.x - a.x) * .18) };
+  return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u - Math.sin(Math.PI * t) * Math.min(96, 24 + Math.abs(b.x - a.x) * .18 + Math.abs(b.y - a.y) * .25) };
 }
 export function measureScene(layer: HTMLElement, list: HTMLElement, composer: HTMLElement | null, w: number, h: number): Scene {
   const box = layer.getBoundingClientRect(), view = list.getBoundingClientRect();
@@ -32,9 +32,10 @@ export function measureScene(layer: HTMLElement, list: HTMLElement, composer: HT
   if (!surfaces.length) surfaces.push({ x: 4, y: Math.max(4, height - h - 4) });
   return { width, height, surfaces, obstacles, left: left - box.left, top: top - box.top };
 }
-export function pathClear(a: Point, b: Point, scene: Scene, w: number, h: number, layer: DOMRect): boolean {
+export function pathClear(a: Point, b: Point, scene: Scene, w: number, h: number, layer: DOMRect, jumping = true): boolean {
   for (let i = 1; i < 20; i++) {
-    const p = arc(a, b, i / 20);
+    const t = i / 20;
+    const p = jumping ? arc(a, b, t) : { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
     if (p.y < 0) return false;
     if (scene.obstacles.some(r => p.x + w - 7 > r.left - layer.left - scene.left && p.x + 7 < r.right - layer.left - scene.left && p.y + h - 5 > r.top - layer.top - scene.top && p.y + 5 < r.bottom - layer.top - scene.top)) return false;
   }
@@ -44,4 +45,17 @@ export function motionReduced(app: string | undefined, pet: string | undefined, 
   if (app === 'off' || pet === 'off') return true;
   if (pet === 'on' || app === 'on') return false;
   return system;
+}
+
+/** Preview routes are chosen as complete valid pairs, never from an arbitrary position. */
+export function previewRoute(scene: Scene, w: number, h: number, layer: DOMRect, mode: string): { from: Surface; to: Surface; jump: boolean } | undefined {
+  const platforms = scene.surfaces.filter(p => p.element);
+  for (const a of [...platforms].reverse()) {
+    for (const b of platforms) {
+      const jump = a.element !== b.element;
+      if ((mode === 'jump') !== jump || Math.hypot(a.x-b.x,a.y-b.y) < 28) continue;
+      if (pathClear(a,b,scene,w,h,layer,jump) && pathClear(b,a,scene,w,h,layer,jump)) return { from: a, to: b, jump };
+    }
+  }
+  return undefined;
 }

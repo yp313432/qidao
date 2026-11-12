@@ -1,14 +1,17 @@
-import { arc, clamp, measureScene, pathClear, type Point, type Surface } from './pet-scene.ts';
-export type PetAction = 'auto' | 'walk' | 'jump' | 'poke' | 'think' | 'work' | 'rest' | 'cheer';
-export type LifeOptions = { size: number; quiet: boolean; reduced: boolean; paused: boolean; busy: boolean; working: boolean; draggable: boolean; preview: PetAction; previewKey?: number; anchor?: Point };
+import { emotionPose } from './pet-emotion.ts';
+import { arc, clamp, measureScene, pathClear, previewRoute, type Point, type Surface } from './pet-scene.ts';
+export type PetAction = 'auto' | 'walk' | 'jump' | 'poke' | 'think' | 'work' | 'rest' | 'cheer' | 'emotion';
+export type LifeOptions = { size: number; quiet: boolean; reduced: boolean; paused: boolean; busy: boolean; working: boolean; draggable: boolean; preview: PetAction; previewKey?: number; anchor?: Point; demo?: boolean; mood?: string; intensity?: number; emotionKey?: string };
 type Hooks = { line: (kind: string) => void; drop?: (point: Point) => void };
 export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTMLElement, composer: HTMLElement | null, options: () => LifeOptions, hooks: Hooks) {
   let frame = 0, dead = false, last = 0, now = performance.now(), changed = now, next = now + 1000;
   let position: Surface | undefined, from: Point | undefined, target: Surface | undefined;
   let phase = 'idle', jumping = false, drag: { id: number; x: number; y: number; origin: Point; active: boolean } | undefined;
   let carrying = false;
+  let emotionKey: string | undefined, pendingMood: string | undefined, activeMood: string | undefined, nextEmotion = now + 12000;
+  let demoPair: ReturnType<typeof previewRoute>; 
   let previousWork = false, preview: PetAction = 'auto', previewKey = -1, lastLine = now;
-  let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity;
+  let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity, measuredSize = 0;
   const body = actor.querySelector<SVGGElement>('.crab-body');
   const left = actor.querySelector<SVGElement>('.crab-claw-left'), right = actor.querySelector<SVGElement>('.crab-claw-right');
   const legs = Array.from(actor.querySelectorAll<SVGElement>('.crab-leg'));
@@ -28,11 +31,13 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     if (phase === 'poke' || phase === 'cheer') { y = -Math.abs(Math.sin(Math.min(1, age / 1000) * Math.PI * 2)) * 5; ly = ry = -3 - Math.abs(beat) * 2; }
     if (phase === 'rest') { y = 3; ly = ry = 2; }
     if (phase === 'idle') angle = Math.sin(age * .0015) * 3;
+    const mood = phase === 'emotion' ? emotionPose(activeMood, age, options().intensity) : emotionPose(undefined, 0);
+    if (phase === 'emotion') { y = mood.y; angle = mood.angle; ly = mood.ly; ry = mood.ry; }
     if (reduced) { y = angle = ly = ry = 0; }
-    body?.setAttribute('transform', `translate(0 ${y.toFixed(2)}) rotate(${angle.toFixed(2)} 12 14)`);
-    left?.setAttribute('transform', `translate(0 ${ly.toFixed(2)})`);
-    right?.setAttribute('transform', `translate(0 ${ry.toFixed(2)})`);
-    legs.forEach((leg, i) => leg.setAttribute('transform', reduced ? '' : phase === 'walk' ? `translate(${Math.sin(age * .018 + (i % 2) * Math.PI).toFixed(2)} ${(-Math.max(0, Math.sin(age * .018 + (i % 2) * Math.PI)) * 2).toFixed(2)})` : phase === 'jump' || phase === 'drag' || phase === 'rest' ? 'translate(0 -2)' : ''));
+    body?.setAttribute('transform', `translate(${reduced ? 0 : mood.x.toFixed(2)} ${y.toFixed(2)}) rotate(${angle.toFixed(2)} 12 14)`);
+    left?.setAttribute('transform', `translate(${reduced ? 0 : mood.lx.toFixed(2)} ${ly.toFixed(2)}) rotate(${reduced ? 0 : mood.la.toFixed(2)} 1.5 9.5)`);
+    right?.setAttribute('transform', `translate(${reduced ? 0 : mood.rx.toFixed(2)} ${ry.toFixed(2)}) rotate(${reduced ? 0 : mood.ra.toFixed(2)} 22.5 9.5)`);
+    legs.forEach((leg, i) => leg.setAttribute('transform', reduced ? '' : phase === 'emotion' ? `translate(0 ${(mood.step * (i % 2 ? -1 : 1)).toFixed(2)})` : phase === 'walk' ? `translate(${Math.sin(age * .018 + (i % 2) * Math.PI).toFixed(2)} ${(-Math.max(0, Math.sin(age * .018 + (i % 2) * Math.PI)) * 2).toFixed(2)})` : phase === 'jump' || phase === 'drag' || phase === 'rest' ? 'translate(0 -2)' : ''));
     if (laptop) {
       const visible = ['unpack','work','wait','pack'].includes(phase) || (['drag','jump','land'].includes(phase) && carrying);
       const t = reduced ? 1 : Math.min(1, age / 600);
@@ -46,8 +51,10 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     const o = options(), w = Math.max(44, o.size + 12), h = Math.max(44, o.size * .75 + 12);
     layer.dataset.paused = String(o.paused);
     if (o.paused) { frame = requestAnimationFrame(tick); return; }
-    if (!sceneCache || now - measured > 140) { sceneCache = measureScene(layer, list, composer, w, h); measured = now; }
+    if (!sceneCache || measuredSize !== o.size || now - measured > 140) { measuredSize = o.size; sceneCache = measureScene(layer, list, composer, w, h); measured = now; }
     const scene = sceneCache;
+    if (o.emotionKey !== emotionKey) { emotionKey = o.emotionKey; pendingMood = o.mood; }
+    actor.dataset.mood = o.mood ?? ''; 
     if (!position) {
       const anchor = o.anchor;
       position = anchor ? { x: anchor.x * scene.width, y: anchor.y * scene.height } : { ...scene.surfaces[scene.surfaces.length - 1]! };
@@ -63,6 +70,12 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
       const packing = preview === 'work' && o.preview !== 'work';
       preview = o.preview; previewKey = o.previewKey ?? 0; stop();
       set(packing ? 'pack' : preview === 'auto' || preview === 'jump' || preview === 'walk' ? 'idle' : preview === 'work' ? 'unpack' : preview); changed = now; next = now;
+      demoPair = undefined;
+      if (o.demo && ['walk','jump','auto'].includes(preview)) {
+        demoPair = previewRoute(scene,w,h,layer.getBoundingClientRect(),preview === 'jump' ? 'jump' : 'walk');
+        if (demoPair) { position = { ...demoPair.from }; from = { ...position }; target = { ...demoPair.to }; set(demoPair.jump ? 'crouch' : 'walk'); }
+      }
+      if (preview === 'emotion') { activeMood = o.mood; actor.dataset.emotion = activeMood ?? ''; say('emotion'); }
     }
     if (!drag && o.preview === 'auto') {
       if (o.working && !previousWork) { stop(); set('unpack'); say('work'); }
@@ -72,16 +85,36 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
       if (phase === 'idle' && o.busy && !o.working) { stop(); set('think'); }
       if (phase === 'think' && !o.busy) { set('idle'); next = now + 800; }
     }
+    if (o.preview === 'auto' && phase === 'idle' && !o.busy && !o.working && !drag && !o.reduced && (pendingMood || now >= nextEmotion)) {
+      activeMood = pendingMood ?? o.mood; pendingMood = undefined;
+      if (activeMood) { stop(); set('emotion'); actor.dataset.emotion = activeMood; say('emotion'); }
+      nextEmotion = now + (o.quiet ? 24000 : 14000);
+    }
+    if (o.preview === 'emotion' && phase === 'idle') { activeMood = o.mood; set('emotion'); }
     let age = now - changed;
+    if (phase === 'emotion' && age >= 4400) {
+      if (o.preview === 'emotion') changed = now;
+      else { set('idle'); next = now + 1200; }
+    }
     if (o.preview === 'work' && phase === 'idle') set('unpack');
     if (phase === 'unpack' && age > 650) set('work');
     if (phase === 'pack' && age > 650) { set('cheer'); say('done'); }
     if (['poke','cheer','land'].includes(phase) && age > (phase === 'land' ? 250 : 1150)) { set('idle'); next = now + 1200; }
     if (phase === 'idle' && now >= next && !o.busy && !o.working && !drag && !o.reduced && ['auto','walk','jump'].includes(o.preview)) {
       const box = layer.getBoundingClientRect();
-      const choices = scene.surfaces.filter(p => (o.preview !== 'walk' || Math.abs(p.y - position!.y) < 8) && Math.hypot(p.x - position!.x, p.y - position!.y) > 25 && Math.hypot(p.x - position!.x, p.y - position!.y) < 280 && pathClear(position!, p, scene, w, h, box));
-      const chosen = choices[Math.floor(Math.random() * choices.length)];
-      if (chosen) { from = { ...position }; target = chosen; position.element = undefined; jumping = Math.abs(chosen.y - position.y) > 8 || o.preview === 'jump'; set(jumping ? 'crouch' : 'walk'); }
+      if (o.demo && demoPair) {
+        // Reverse a verified route, or choose a jump after walking during free activity.
+        if (o.preview === 'auto') {
+          const candidates = scene.surfaces.filter(p => Math.hypot(p.x-position!.x,p.y-position!.y)>28 && pathClear(position!,p,scene,w,h,box,Math.abs(p.y-position!.y)>8));
+          const pick = candidates[Math.floor(Math.random()*candidates.length)];
+          if (pick) demoPair = { from: { ...position }, to: pick, jump: Math.abs(pick.y-position.y)>8 };
+        } else demoPair = { from: demoPair.to, to: demoPair.from, jump: demoPair.jump };
+        from = { ...position }; target = { ...demoPair.to }; position.element = undefined; set(demoPair.jump ? 'crouch' : 'walk');
+      } else {
+        const choices = scene.surfaces.filter(p => (o.preview !== 'walk' || Math.abs(p.y-position!.y)<8) && Math.hypot(p.x-position!.x,p.y-position!.y)>25 && Math.hypot(p.x-position!.x,p.y-position!.y)<400 && pathClear(position!,p,scene,w,h,box,Math.abs(p.y-position!.y)>8 || o.preview==='jump'));
+        const chosen = choices[Math.floor(Math.random()*choices.length)];
+        if (chosen) { from = { ...position }; target = chosen; position.element = undefined; jumping = Math.abs(chosen.y-position.y)>8 || o.preview==='jump'; set(jumping ? 'crouch' : 'walk'); }
+      }
       next = now + (o.quiet ? 6500 : 2300) + Math.random() * 1600;
     }
     if (phase === 'crouch' && age > 200) set('jump');
