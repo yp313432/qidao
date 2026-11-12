@@ -259,6 +259,7 @@ export function htmlToText(html: string): { title: string; text: string } {
   const body = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? html;
   const text = body
     .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
+    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, " ")
     // 整块丢掉脚本/样式/导航这些"读起来没意义"的部分
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")

@@ -225,7 +225,7 @@ export function callSentence(
     : build ? build(parsed) : `做了件「${call.kind}」的事`;
 
   if (call.category === "pending" || call.category === "skipped") {
-    return { line: `${name} ${call.category === "pending" ? "这一步还没拿到结果" : "这一步本轮未执行"}`,
+    return { line: `${name} ${call.category === "pending" ? "这一步还没拿到结果" : "这一步本轮未拿到结果"}`,
       why: call.result ? str(call.result, 120) : undefined };
   }
 

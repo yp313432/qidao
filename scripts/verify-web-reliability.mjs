@@ -143,6 +143,7 @@ test("private URLs never reach transport in browser or native mode", async () =>
 
 test("HTML body excludes title and decodes numeric character entities", () => {
   assert.equal(htmlToText('<title>标题</title><body>&#20013;&#x6587;</body>').text, "中文");
+  assert.equal(htmlToText('<title>只有标题</title><div id="root"></div>').text, "");
 });
 
 test("all tool families use the same progress labels, including registered external names", async () => {

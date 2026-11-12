@@ -17,7 +17,7 @@ export function toolProgressLabel(calls: { name: string; args: string }[]): stri
     }
     if (kind === "web.search") return "网页搜索";
     if (kind === "web.fetch") return "读取网页";
-    return kind ?? call.name;
+    return kind ? toolCallTitle(kind, call.name, call.args) : "未识别的工具";
   }).join("、");
 }
 
