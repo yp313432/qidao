@@ -273,6 +273,8 @@ export function parentOf(path: string, liquid = false): string | null {
     return "/";
   }
 
+  if (p === "/pet") return "/";
+
   // 1) 三级页
   const explicit = TERTIARY_PARENT[p];
   if (explicit) return explicit;
@@ -365,7 +367,7 @@ const KEEPS_NAV = ["/play/plugins"] as const;
 export function hidesNav(path: string): boolean {
   const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
   if ((KEEPS_NAV as readonly string[]).includes(p)) return false;
-  return FULL_BLEED_PREFIXES.some((prefix) => p.startsWith(prefix));
+  return p === "/pet" || FULL_BLEED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 /**

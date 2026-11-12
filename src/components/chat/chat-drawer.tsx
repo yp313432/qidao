@@ -21,7 +21,6 @@ import { Avatar } from "@/components/shared/avatar";
 import { DrawerCosmos, DrawerSky } from "@/components/chat/drawer-decor";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
-import { chatCrabSize } from "@/lib/chat-crab-settings";
 import { cn } from "@/lib/utils";
 
 /**
@@ -59,12 +58,6 @@ export function ChatDrawer({
   const activeId = useApp((s) => s.activeId);
   const settings = useApp((s) => s.settings);
 
-  const [showCrab, setShowCrab] = useState(false);
-  const pet = { enabled: true, activity: "lively" as const, ...settings.chatCrab,
-    size: chatCrabSize(settings.chatCrab?.size) };
-  const savePet = (patch: Partial<typeof pet>) => {
-    useApp.getState().patchSettings({ chatCrab: { ...pet, ...patch } });
-  };
   const liquid = materialOf(settings) === "liquid";
   const solidPaper = isSolid(settings);
 
@@ -85,7 +78,7 @@ export function ChatDrawer({
     { label: "学习", Icon: BookOpen, go: () => void navigate({ to: "/play/learn" }) },
     { label: "花园", Icon: Flower2, go: () => void navigate({ to: "/play/garden" }) },
     { label: "插件", Icon: Puzzle, go: () => void navigate({ to: "/play/plugins" }) },
-    { label: "桌宠", Icon: Bug, go: null },
+    { label: "桌宠", Icon: Bug, go: () => void navigate({ to: "/pet" as never }) },
   ];
 
   if (!open) return null;
@@ -237,47 +230,21 @@ export function ChatDrawer({
           第 4 条：底栏左边头像 → 设置页（图一 /me）；
           第 8 条：底栏右边「+ 新建对话」，与头像相对。
         */}
+        {!liquid && <button type="button" className="k-btn mx-3 mb-3" onClick={() => { void navigate({ to: "/pet" as never }); onClose(); }}>桌宠 · 动作与设置</button>}
         {liquid && (
           <>
             {/* m02943 第 4 条②：功能八条上面也加一个小字分组标题「功能」，
                 跟上面「对话」一组同一个模子（小字 + 淡色 + 字距）。 */}
             <p className="lq-group-head lq-group-head--func">功能</p>
             <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
-              {showCrab ? (
-                <div className="flex flex-col gap-2 pb-2 text-sm">
-                  <button type="button" className="lq-func__row" onClick={() => setShowCrab(false)}>‹ 桌宠</button>
-                  <label className="flex items-center justify-between gap-2 px-2">
-                    在聊天显示 <input type="checkbox" checked={pet.enabled}
-                      onChange={(e) => savePet({ enabled: e.target.checked })} />
-                  </label>
-                  <label className="flex items-center justify-between gap-2 px-2">
-                    大小 <select className="k-input" value={pet.size}
-                      onChange={(e) => savePet({ size: Number(e.target.value) as typeof pet.size })}>
-                      <option value={36}>小 · 36 × 27</option>
-                      <option value={44}>中 · 44 × 33</option>
-                      <option value={52}>大 · 52 × 39</option>
-                    </select>
-                  </label>
-                  <label className="flex items-center justify-between gap-2 px-2">
-                    活动量 <select className="k-input" value={pet.activity}
-                      onChange={(e) => savePet({ activity: e.target.value === "quiet" ? "quiet" : "lively" })}>
-                      <option value="lively">活泼</option>
-                      <option value="quiet">安静</option>
-                    </select>
-                  </label>
-                  <button type="button" className="lq-func__row" disabled={!pet.enabled}
-                    onClick={() => { setShowCrab(false); onCrabReplay(); onClose(); }}>
-                    <Bug className="lq-func__ico" strokeWidth={1.6} /> 回聊天看动作
-                  </button>
-                </div>
-              ) : (
+              {
               drawerFuncs.map(({ label, Icon, go }) => (
                 <button
                   key={label}
                   type="button"
                   className="lq-func__row"
                   onClick={() => {
-                    if (!go) { setShowCrab(true); return; }
+                    if (!go) return;
                     go();
                     onClose();
                   }}
@@ -286,7 +253,7 @@ export function ChatDrawer({
                   <span>{label}</span>
                 </button>
               ))
-              )}
+              }
             </nav>
             <div className="lq-sheet-foot relative z-10 flex shrink-0 items-center justify-between gap-2 px-3">
               <button
