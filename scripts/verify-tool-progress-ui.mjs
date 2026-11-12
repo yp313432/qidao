@@ -10,7 +10,7 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const page = await browser.newPage({ viewport });
     const errors = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("pageerror", (e) => { errors.push(e.message); console.error("BROWSER ERROR", e.message); });
     await page.route("**/src/lib/actions.ts*", (route) => route.fulfill({ contentType: "application/javascript",
       body: "export async function runAction() { return new Promise(() => {}); }" }));
     for (const [scene, label] of [["web", "网页搜索"], ["read", "读取网页"], ["mcp", "MCP · 记忆 / 检索"], ["http", "HTTP · 天气"]]) {
@@ -21,12 +21,20 @@ try {
       assert.equal(await page.getByText("⏳ 正在执行：", { exact: false }).count(), 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       await page.screenshot({ path: `${out}/tool-${scene}-${viewport.width}.png` });
+      if (process.env.QIDAO_SCREENSHOT_PREVIEW === "1" && scene === "web" && viewport.width === 390) {
+        console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "tool-web-mobile.jpg",
+          base64: (await page.screenshot({ type: "jpeg", quality: 45 })).toString("base64") }));
+      }
     }
     await page.goto(`${base}/scripts/tool-progress-fixture.html?scene=mcp&mode=done`);
     await page.getByRole("dialog").waitFor();
     await page.getByRole("button", { name: /小克.*调用了/ }).click();
     assert.match(await page.getByRole("dialog").innerText(), /上次聊到了周末散步/);
     await page.screenshot({ path: `${out}/tool-result-${viewport.width}.png` });
+    if (process.env.QIDAO_SCREENSHOT_PREVIEW === "1" && viewport.width === 1280) {
+      console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "tool-result-desktop.jpg",
+        base64: (await page.screenshot({ type: "jpeg", quality: 40 })).toString("base64") }));
+    }
     await page.goto(`${base}/scripts/tool-progress-fixture.html?scene=mcp&mode=ask`);
     await page.getByRole("button", { name: "允许一次", exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "拒绝", exact: true }).count(), 1);

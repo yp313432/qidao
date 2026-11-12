@@ -31,12 +31,12 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: 工具过程浏览器验收
         run: |
-          npm run dev > /tmp/qidao-web-dev.log 2>&1 &
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs > /tmp/qidao-web-dev.log 2>&1 &
           for attempt in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8080/scripts/tool-progress-fixture.html > /dev/null; then break; fi
             sleep 1
           done
-          QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-tool-progress-ui.mjs
+          QIDAO_SCREENSHOT_PREVIEW=1 QIDAO_SHOTS="$GITHUB_WORKSPACE/screenshots" node scripts/verify-tool-progress-ui.mjs || { tail -80 /tmp/qidao-web-dev.log; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
