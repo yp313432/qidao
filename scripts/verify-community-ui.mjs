@@ -42,7 +42,7 @@ try {
   console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "skills-mobile", base64: (await page.screenshot({ type: "jpeg", quality: 55, fullPage: true })).toString("base64") }));
   await page.evaluate(() => window.qidaoFixture.navigate("/play/plugins/edit"));
   await page.getByRole("textbox", { name: "名字", exact: true }).fill("第三方网页");
-  await page.getByRole("textbox", { name: "地址", exact: true }).fill("https://example.com");
+  await page.getByRole("textbox", { name: /^地址/ }).fill("https://example.com");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   assert.equal(await page.evaluate(() => window.qidaoFixture.read().settings.customPlugins.at(-1).openMode), "browser");
   const popupPromise = context.waitForEvent("page"); await page.getByRole("link", { name: /^第三方网页/ }).click();
