@@ -57,14 +57,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: 编译安卓原生 MCP 网络层
+      - name: 编译并检查安卓原生 MCP 网络层
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
           npx cap sync android
           chmod +x android/gradlew
           cd android
-          ./gradlew :app:compileDebugJavaWithJavac --no-daemon
+          ./gradlew :app:compileDebugJavaWithJavac :app:lintVitalRelease --no-daemon
       - uses: actions/upload-artifact@v4
         if: always()
         with:
