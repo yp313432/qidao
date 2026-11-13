@@ -188,6 +188,8 @@ export type ToolLoopStop =
   | "unknownAction";
 
 export type RunToolLoopResult = {
+  /** Last assistant round, separate from the aggregate thinking displayed by the UI. */
+  reasoningContent?: string;
   /** 各轮可见正文拼起来（工具轮的"我去查一下"也在这儿） */
   content: string;
   thinking: string;
@@ -860,6 +862,7 @@ export async function runToolLoop(input: {
   const extra: ApiMessage[] = [];
   const rounds: ToolRoundRecord[] = [];
   let thinking = "";
+  let reasoningContent = "";
   /**
    * 「最后一轮有正文的那段」—— 工具循环里模型常常是**先说一段 → 调工具 → 拿到结果又重说一遍**。
    * 老写法把每轮正文都 `content +=` 拼起来，用户就看到同一段说了两遍（m02726 的截图）。
@@ -900,6 +903,7 @@ export async function runToolLoop(input: {
 
   for (let round = 1; round <= maxRounds; round += 1) {
     roundText = "";
+    let roundThinking = "";
     const r = await input.send({
       messages: [...input.baseMessages, ...extra],
       tools: input.tools,
@@ -907,7 +911,7 @@ export async function runToolLoop(input: {
         if (d.content) {
           roundText += d.content;
         }
-        if (d.thinking) thinking += d.thinking;
+        if (d.thinking) { thinking += d.thinking; roundThinking += d.thinking; }
         input.onDelta?.(d);
         if (d.content) input.onContent?.(roundText, round);
       },
@@ -929,6 +933,7 @@ export async function runToolLoop(input: {
         elapsedMs: Date.now() - startedAt,
       };
     }
+    reasoningContent = r.thinking || roundThinking;
     if (r.error) error = r.error;
     // 有些传输只在完成时返回整段内容；采用完成结果，同时把最终快照交给界面。
     const completedText = r.content || roundText;
@@ -987,7 +992,7 @@ export async function runToolLoop(input: {
     input.onRound?.(record);
     // ⭐ 关键的一步：结果**立刻**变成 tool 消息，下一轮请求就带着它
     //    （`r.thinking` 一并回传 —— 开了思考模式的上游缺这个字段会 400）
-    extra.push(...toolResultMessages(r.toolCalls, outcomes, r.thinking, completedText));
+    extra.push(...toolResultMessages(r.toolCalls, outcomes, reasoningContent, completedText));
 
     /**
      * ⭐ 未知动作的闸门命中：**不再请求模型**，这一轮就收尾。
@@ -1022,6 +1027,7 @@ export async function runToolLoop(input: {
     // 只留最后一轮有正文的那段（中间轮次的"先说一段"不再拼进同一条消息）
     content: lastRoundText,
     thinking,
+    reasoningContent,
     pendingCalls,
     usage,
     stalled,

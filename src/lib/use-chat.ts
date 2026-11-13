@@ -420,6 +420,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const ac = new AbortController();
       abortRef.current = ac;
       let thinking = "";
+      let reasoningContent: string | undefined;
       let content = "";
       /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
       let hadContent = false;
@@ -826,6 +827,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         }
         // 收尾与流式显示用同一份正文；不能把先前工具轮的草稿存回会话或拿去朗读。
         content = result.content;
+        reasoningContent = result.reasoningContent;
         dirty = true;
         flush();
         state.reqError = result.error;
@@ -1157,6 +1159,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         parts,
         attachments,
         thinking,
+        reasoningContent: reasoningContent ?? thinking,
         thinkingDurationMs: Date.now() - started,
         // 有 usage 就带上工具 token；上游没返 usage 但确实发了工具定义时，也单独记一笔
         usage: usage
@@ -1277,7 +1280,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const idx = target.messages.findIndex((m) => m.id === messageId);
         if (idx < 0) return;
         st.patchMessage(conversationId, messageId, {
-          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined, requestError: undefined,
+          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined, requestError: undefined, reasoningContent: undefined,
           content: "", thinking: "", thinkingDurationMs: 0, feedback: undefined,
         });
         const kept = target.summary

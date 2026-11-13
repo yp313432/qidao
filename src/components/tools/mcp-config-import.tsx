@@ -1,3 +1,5 @@
+import { isNativeApp } from "@/lib/platform";
+import { saveNativeTextFile } from "@/lib/native-device";
 import { useState } from "react";
 import { KButton } from "@/components/ui-kit";
 import { useApp } from "@/lib/store";
@@ -5,15 +7,21 @@ import { importMcpConfig, termuxConfig, termuxTerminal } from "@/lib/mcp-config"
 import bridgeScript from "../../../public/bridges/qidao-mcp-bridge.mjs?raw";
 import { TextInput, TextArea } from "./editor-page";
 
-function download(name: string, contents: string) {
+async function download(name: string, contents: string) {
+  if (isNativeApp()) return saveNativeTextFile(name, contents);
   const url = URL.createObjectURL(new Blob([contents], { type: "text/plain;charset=utf-8" }));
   const link = document.createElement("a"); link.href = url; link.download = name; link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 export function McpConfigImport() {
   const servers = useApp((s) => s.mcp);
   const [raw, setRaw] = useState(""), [message, setMessage] = useState("");
   const [bridgeUrl, setBridgeUrl] = useState("http://127.0.0.1:8767");
+  async function exportFile(name: string, contents: string) {
+    try { if (await download(name, contents)) setMessage(`已保存 ${name}；请放在手机 Download 目录。`); }
+    catch (error) { setMessage(`文件保存失败：${(error as Error).message}`); }
+  }
   function install() {
     try {
       const imported = importMcpConfig(raw, bridgeUrl);
@@ -47,8 +55,8 @@ export function McpConfigImport() {
     {message && <p role="status" className="k-note">{message}</p>}
     {servers.some((server) => server.transport === "stdio" || server.bridgeRole === "terminal") && <details className="k-note"><summary>Termux 首次连接与本地 MCP</summary><div className="k-note__body k-list">
       <p>首次先在 Termux 安装 Node.js。启用终端工具后，其余兼容的 Python / uv / MCP 依赖可请 AI 检查并安装。下载下面两个文件，配置文件包含你填写的环境变量和连接令牌，请保留在自己的设备上。</p>
-      <KButton onClick={() => download("qidao-mcp-bridge.mjs", bridgeScript)}>下载桥接脚本</KButton>
-      <KButton onClick={() => download("qidao-mcp.json", JSON.stringify(termuxConfig(servers), null, 2))}>导出 Termux 配置</KButton>
+      <KButton onClick={() => void exportFile("qidao-mcp-bridge.mjs", bridgeScript)}>下载桥接脚本</KButton>
+      <KButton onClick={() => void exportFile("qidao-mcp.json", JSON.stringify(termuxConfig(servers), null, 2))}>导出 Termux 配置</KButton>
       <p>文件放在手机 Download 目录后，在 Termux 运行：</p>
       <pre className="k-long">{'termux-setup-storage\npkg install nodejs\nnode ~/storage/downloads/qidao-mcp-bridge.mjs ~/storage/downloads/qidao-mcp.json'}</pre>
       <p>看到“桥接已启动”后回栖岛点测试连接，再说“检查 Termux 环境并帮我配置 MCP”。任务启动后 AI 要查询状态，直到拿到输出和退出码。保持 Termux 运行；修改配置后需重新导出并重启桥接。终端任务不支持交互输入，请使用无需交互的安装命令。</p>

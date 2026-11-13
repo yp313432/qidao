@@ -48,7 +48,7 @@ Termux 是 Android 上的终端环境。多数纯 Node/Python MCP 可在依赖�
 ## 让 AI 使用已有 Termux
 
 “工具 → MCP → 让 AI 操作 Termux → 添加 Termux 控制”会添加一个独立的终端 MCP。
-首次下载桥接脚本和配置，在已有 Termux 安装 Node.js 并启动脚本，然后回 App 测试连接。
+首次下载桥接脚本和配置（安卓使用系统文件保存界面，请选 Download 目录），在已有 Termux 安装 Node.js 并启动脚本，然后回 App 测试连接。
 桥接未运行时，AI 无法启动 Termux 或绕过安卓应用沙箱；无需为了连接先安装 Ubuntu。
 连接后可以说“检查 Termux 环境，帮我安装这个 MCP 缺少的依赖”。
 

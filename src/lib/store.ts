@@ -2017,9 +2017,9 @@ export const useApp = create<AppState>()(
           .map((c) => ({
             ...c,
             messages: c.messages.map((m, i) =>
-              i >= c.messages.length - THINKING_KEEP || !m.thinking
+              i >= c.messages.length - THINKING_KEEP || (!m.thinking && !m.reasoningContent)
                 ? m
-                : { ...m, thinking: "" },
+                : { ...m, thinking: "", reasoningContent: undefined },
             ),
           })),
         activeId: s.conversations.find((c) => c.id === s.activeId && !c.incognito)?.id ?? null,

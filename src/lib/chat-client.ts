@@ -840,7 +840,8 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
           : [];
       // 没有图片就走纯文本（兼容所有上游）；
       // 有图片就发 content parts，模型支持视觉时自然就看得见。
-      if (images.length === 0) return { role: m.role, content: text, ...(m.role === "assistant" && m.thinking ? { reasoning_content: m.thinking } : {}) };
+      const reasoning = m.reasoningContent ?? m.thinking;
+      if (images.length === 0) return { role: m.role, content: text, ...(m.role === "assistant" && reasoning ? { reasoning_content: reasoning } : {}) };
       return {
         role: m.role,
         content: [

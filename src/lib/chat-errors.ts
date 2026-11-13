@@ -26,6 +26,10 @@ export function chatError(raw: string) {
   if (/reasoning_content/i.test(detail)) {
     category = "接口协议错误 · 思考内容缺失";
     suggestion = "上游要求回传历史 assistant 消息的 reasoning_content。更新后重试；若旧记录的思考内容已被清理，请新建对话。无需更换密钥。";
+  } else if (/先.*(?:地址|密钥|模型)|未配置|请填写|缺少.*(?:地址|密钥|模型)/.test(detail)) {
+    category = "配置不完整"; suggestion = "到模型设置补全服务地址、API 密钥和模型 ID。";
+  } else if (/CORS|cross.origin/i.test(detail)) {
+    category = "浏览器跨域限制"; suggestion = "该网页请求被同源策略拦截；使用 App 原生网络通道，或由接口服务配置允许的来源。";
   } else if (status === 401 || /invalid.api.key|incorrect.api.key|authentication/i.test(detail)) {
     category = "认证失败"; suggestion = "检查该模型接口的 API 密钥及服务地址。";
   } else if (status === 403) {

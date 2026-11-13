@@ -173,6 +173,8 @@ export type ChatMessage = {
   thinkingDurationMs: number;
   /** Request diagnostics are UI data, never assistant dialogue sent upstream. */
   requestError?: string;
+  /** Final assistant round only; display thinking can span multiple tool rounds. */
+  reasoningContent?: string;
   createdAt: number;
   model?: ModelId;
   savedToDocs?: boolean;

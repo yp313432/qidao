@@ -1289,7 +1289,6 @@ export function ChatView() {
                             )}
                             {/* 思考链不再占正文的地方 —— 点开从**底部弹一层**（Claude 那种）
                             （用户："改成 Claude 那种思考链，点开是从下面弹出来的那种，单独一层"） */}
-                            {m.requestError && <div role="alert" data-testid="chat-request-error" className="k-note whitespace-pre-wrap break-words select-text">{m.requestError}</div>}
                             {(() => {
                               /**
                                * ⭐ 过程只留**一行入口**（用户 m12579）：

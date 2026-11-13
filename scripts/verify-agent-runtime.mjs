@@ -62,6 +62,43 @@ test("server JSON failure retains status and never falls through to a second dir
   } finally { globalThis.fetch = real; }
 });
 
+test("tool subrounds replay their own reasoning and persist only the final assistant reasoning", async () => {
+  const { runToolLoop } = await import("../src/lib/tool-loop.ts");
+  const { historyForApi } = await import("../src/lib/chat-client.ts");
+  let count = 0;
+  const result = await runToolLoop({
+    baseMessages: [{ role: "user", content: "查环境" }], tools: [],
+    send: async ({ messages, onDelta }) => {
+      count++;
+      if (count === 1) {
+        onDelta({ thinking: "工具轮原始思考" });
+        return { content: "", thinking: "工具轮原始思考", toolCalls: [{ id: "call1", name: "sense_time", arguments: "{}" }] };
+      }
+      assert.equal(messages.find((m) => m.tool_calls).reasoning_content, "工具轮原始思考");
+      assert.equal(messages.at(-1).role, "tool");
+      onDelta({ thinking: "最后回复的原始思考", content: "完成" });
+      return { content: "完成", thinking: "最后回复的原始思考", toolCalls: [] };
+    },
+    runActions: async () => [{ ok: true, category: "success", result: "真实结果", title: "时间", notice: "完成" }],
+  });
+  assert.equal(result.thinking, "工具轮原始思考最后回复的原始思考");
+  assert.equal(result.reasoningContent, "最后回复的原始思考");
+  const next = historyForApi([{ role: "assistant", content: result.content, thinking: result.thinking, reasoningContent: result.reasoningContent }], { autoCompact: false });
+  assert.equal(next[0].reasoning_content, "最后回复的原始思考");
+});
+
+test("direct errors retain HTTP metadata and the submitted assistant reasoning", async () => {
+  const { makeDirectRound } = await import("../src/lib/chat-client.ts");
+  const real = globalThis.fetch; let payload;
+  globalThis.fetch = async (_url, request) => { payload = JSON.parse(request.body); return Response.json({ error: { type: "invalid_request_error", message: "reasoning_content required" } }, { status: 400, headers: { "x-request-id": "direct-id" } }); };
+  try {
+    const messages = [{ role: "assistant", content: "前答", reasoning_content: "必须回传" }, { role: "user", content: "继续" }];
+    const result = await makeDirectRound({ model: "sonnet", customBaseUrl: "https://fixture.example/v1", customApiKey: "test-key", upstreamModel: "fixture", messages })( { messages, tools: [], onDelta() {} });
+    assert.equal(payload.messages[0].reasoning_content, "必须回传"); assert.match(result.error, /HTTP 400/); assert.match(result.error, /direct-id/);
+    assert.equal(result.toolsRejected, false);
+  } finally { globalThis.fetch = real; }
+});
+
 async function completed(runtime, job) {
   for (let i = 0; i < 20; i++) {
     const result = await runtime.call("status", { jobId: job.jobId, waitMs: 1000 });
