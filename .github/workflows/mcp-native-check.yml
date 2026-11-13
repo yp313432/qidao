@@ -61,21 +61,13 @@ jobs:
           profile: pixel_5
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            adb reverse tcp:8767 tcp:8767
-            adb reverse tcp:4650 tcp:4650
-            chmod +x android/gradlew
-            cd android
-            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell pm grant com.yanping.qidao android.permission.POST_NOTIFICATIONS
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.yanping.qidao.McpNativeRoundTripTest
+          script: bash scripts/verify-android-mcp.sh
       - name: 设备与服务日志
         if: always()
         run: |
           cat /tmp/native-mcp.log || true
-          adb logcat -d -s Capacitor Capacitor/Console TestRunner AndroidRuntime > /tmp/native-logcat.txt || true
+          test -f /tmp/native-logcat.txt || adb logcat -d > /tmp/native-logcat.txt || true
+          node -e 'const fs=require("node:fs");if(fs.existsSync("/tmp/native-mcp.png"))console.log("QIDAO_PREVIEW "+JSON.stringify({name:"android-mcp",base64:fs.readFileSync("/tmp/native-mcp.png").toString("base64")}));'
           tail -120 /tmp/native-logcat.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
@@ -86,3 +78,4 @@ jobs:
             android/app/build/outputs/androidTest-results/
             /tmp/native-mcp.log
             /tmp/native-logcat.txt
+            /tmp/native-mcp.png
