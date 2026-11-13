@@ -184,7 +184,7 @@ export function ThinkingSheet({
           {steps && steps.length > 0 ? (
             <StepList steps={steps} live={live} activeStep={activeStep} />
           ) : (
-            <p className="whitespace-pre-wrap text-[0.95em] leading-[1.85] text-muted">
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[0.95em] leading-[1.85] text-muted">
               {text || (live && activeStep ? "" : "（没有思考内容）")}
               {live && activeStep && <span className="mt-2 block text-[12px] text-subtle" role="status">{activeStep}</span>}
               {live && <span className="ml-0.5 animate-pulse">▍</span>}
@@ -231,7 +231,7 @@ function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boole
                 <span className="flex items-start gap-2">
                   <span
                     className={cn(
-                      "flex-1 whitespace-pre-wrap text-[12px] leading-[1.75] text-muted",
+                      "min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[12px] leading-[1.75] text-muted",
                       !expanded && "line-clamp-2",
                     )}
                   >

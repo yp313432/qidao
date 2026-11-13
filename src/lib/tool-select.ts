@@ -332,6 +332,14 @@ export function selectActionKinds(input: SelectToolsInput): SelectToolsResult {
     return { kinds, groups, dropped: all.length - kinds.length };
   };
 
+  const current = normalize(input.text);
+  if (input.enabled !== false && /网页抓取|搜网页|网页搜索|网上搜|上网查|网上查|读.{0,8}网页/.test(current)) {
+    const kinds = all.filter((kind) =>
+      allowed(kind) && (always.has(kind) || kind === "web.search" || kind === "web.fetch"),
+    );
+    return { kinds, groups: ["工具"], dropped: all.length - kinds.length };
+  }
+
   if (input.enabled === false) return everything([...ALL_GROUPS]);
 
   /** 把"这句话 + 最近几轮"拼起来找关键词（跨轮上下文：他上一条说要记日记，这条只说"好"） */
