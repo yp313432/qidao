@@ -138,9 +138,9 @@ export function startMcpBridge(config, { port = 8767, host = "127.0.0.1" } = {})
     if (req.method !== "POST") { res.writeHead(405).end(); return; }
     let sessionId;
     try {
-      let raw = "";
-      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 1_000_000) throw new Error("Request too large"); }
-      const message = JSON.parse(raw);
+      const chunks = []; let bytes = 0;
+      for await (const chunk of req) { bytes += chunk.length; if (bytes > 1_000_000) throw new Error("Request too large"); chunks.push(chunk); }
+      const message = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") throw new Error("Invalid JSON-RPC request");
       let session;
       if (message.method === "initialize") {

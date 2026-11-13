@@ -5,6 +5,7 @@ import { createTerminalRuntime, startMcpBridge, TERMINAL_NAME } from "../public/
 import { chatError, formatChatError, upstreamError } from "../src/lib/chat-errors.ts";
 import { termuxConfig, termuxTerminal } from "../src/lib/mcp-config.ts";
 import { once } from "node:events";
+import { request as httpRequest } from "node:http";
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === "@capacitor/core") return { shortCircuit: true, url: "data:text/javascript,export const Capacitor = {isNativePlatform:()=>false};" };
@@ -163,6 +164,18 @@ test("terminal bridge requires opt-in and token, exposes real MCP execution and 
     const status = await request("tools/call", { name: "status", arguments: { jobId: job.jobId, waitMs: 1000 } });
     assert.equal(JSON.parse(status.result.content[0].text).stdout, "桥接执行成功");
     assert.equal(JSON.parse(status.result.content[0].text).exitCode, 0);
+    // Split a Chinese command inside a UTF-8 code point, as real TCP chunks may do.
+    const payload = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "execute", arguments: { command: "printf 分块中文" } } }));
+    const split = payload.indexOf(Buffer.from("分")) + 1;
+    const unicode = await new Promise((resolve, reject) => {
+      const req = httpRequest(url, { method: "POST", headers: { authorization: `Bearer ${terminal.bridgeToken}`, "mcp-session-id": session, "content-type": "application/json" } }, (res) => {
+        const chunks = []; res.on("data", (c) => chunks.push(c)); res.on("end", () => resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))));
+      });
+      req.on("error", reject); req.write(payload.subarray(0, split)); setTimeout(() => req.end(payload.subarray(split)), 20);
+    });
+    const unicodeJob = JSON.parse(unicode.result.content[0].text);
+    const unicodeResult = await request("tools/call", { name: "status", arguments: { jobId: unicodeJob.jobId, waitMs: 1000 } });
+    assert.equal(JSON.parse(unicodeResult.result.content[0].text).stdout, "分块中文");
   } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
   const disabled = startMcpBridge({ ...config, qidaoBridge: { ...config.qidaoBridge, terminalEnabled: false } }, { port: 0 }); await once(disabled, "listening");
   try {
