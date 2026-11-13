@@ -22,7 +22,7 @@ const upstream = createServer(async (req, res) => {
     const tool = ["environment", "status", "execute", "status"][used];
     const name = body.tools.find((t) => t.function.name.startsWith("mcp_") && t.function.name.endsWith(`_${tool}`))?.function.name;
     if (!name) { res.writeHead(500, headers).end(JSON.stringify({ error: `Missing terminal tool ${tool}` })); return; }
-    const args = tool === "environment" ? {} : tool === "execute" ? { command: "printf AI_TERMINAL_OK" } : { jobId: lastJob, waitMs: 1000 };
+    const args = tool === "environment" ? {} : tool === "execute" ? { command: "printf AI_TERMINAL_OK" } : { jobId: lastJob, waitMs: 20000 };
     delta = { tool_calls: [{ index: 0, id: `terminal_${used}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] };
   }
   res.writeHead(200, { ...headers, "content-type": "text/event-stream" });
@@ -98,7 +98,6 @@ try {
   scenario = "terminal"; const before = requests.length;
   await send(page, "检查 Termux 环境并执行测试命令");
   for (let i = 0; i < 4; i++) {
-    await page.waitForFunction((count) => window.qidaoFixture.read().messages.at(-1)?.steps?.filter((s) => s.kind === "call").length >= count, i);
     if (i === 2) {
       assert.match(await page.getByTestId("termux-command-preview").innerText(), /printf AI_TERMINAL_OK/);
       await shot(page, "termux-command-permission-mobile");

@@ -34,18 +34,6 @@ jobs:
           QIDAO_TARGET: android
           VITE_DIRECT_UPSTREAM: "1"
           VITE_AUTH_ENABLED: "false"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - name: 编译安卓原生 MCP 网络层
-        run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
-          npx cap sync android
-          chmod +x android/gradlew
-          cd android
-          ./gradlew :app:compileDebugJavaWithJavac --no-daemon
       - run: npx playwright install --with-deps chromium
       - name: 开发页面验收
         run: |
@@ -65,6 +53,18 @@ jobs:
           done
           QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/agent/production node scripts/verify-agent-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
           QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/community/production node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: 编译安卓原生 MCP 网络层
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+          npx cap sync android
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:compileDebugJavaWithJavac --no-daemon
       - uses: actions/upload-artifact@v4
         if: always()
         with:
