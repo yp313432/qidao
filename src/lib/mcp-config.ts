@@ -9,7 +9,7 @@ export function importMcpConfig(raw: string, bridgeUrl = "http://127.0.0.1:8767"
   const entries = Object.entries(servers);
   if (!entries.length || entries.length > 100) throw new Error("一次请导入 1 到 100 个 MCP 服务");
   const parsed = entries.map(([name, rawServer]): ImportedMcp => {
-    if (!name.trim() || name === "@skills") throw new Error("MCP 名称不能为空，也不能使用保留名称 @skills");
+    if (!name.trim() || ["@skills", "__qidao_terminal"].includes(name)) throw new Error("MCP 名称不能为空，也不能使用保留名称 @skills");
     if (!rawServer || typeof rawServer !== "object" || Array.isArray(rawServer)) throw new Error(`${name} 的配置必须是对象`);
     const server = rawServer as Record<string, unknown>;
     const headers = server.headers ?? {};
@@ -38,10 +38,18 @@ export function importMcpConfig(raw: string, bridgeUrl = "http://127.0.0.1:8767"
   return parsed;
 }
 
-/** Export only stdio records to the user-run Termux bridge; never execute on import. */
+export function termuxTerminal(bridgeUrl = "http://127.0.0.1:8767", bridgeToken = crypto.randomUUID()): ImportedMcp {
+  const url = new URL(bridgeUrl);
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) || !/^https?:$/.test(url.protocol)) throw new Error("Termux 桥接地址必须是手机本机地址");
+  return { name: "Termux 终端", description: "Termux 终端：检查环境、执行命令、读取输出及停止任务。首次启动桥接后可由 AI 排查和安装 MCP 依赖；沿用工具操作权限。", transport: "http", url: `${url.origin}/mcp/__qidao_terminal`, bridgeRole: "terminal", bridgeToken,
+    command: "", args: "", headersText: `Authorization: Bearer ${bridgeToken}`, enabled: true, kind: "mcp" };
+}
+
+/** Export stdio processes and an explicit terminal opt-in to the user-started bridge. */
 export function termuxConfig(servers: readonly McpServer[]) {
   const local = servers.filter((s) => s.transport === "stdio");
+  const terminal = servers.find((s) => s.bridgeRole === "terminal" && s.enabled);
   return { mcpServers: Object.fromEntries(local.map((server) => [server.name, {
     command: server.command, args: JSON.parse(server.args || "[]"), env: server.env ?? {}, ...(server.cwd ? { cwd: server.cwd } : {}), disabled: !server.enabled,
-  }])), qidaoBridge: { tokens: Object.fromEntries(local.map((server) => [server.name, server.bridgeToken ?? ""])) } };
+  }])), qidaoBridge: { ...(terminal ? { terminalEnabled: true } : {}), tokens: Object.fromEntries([...local, ...(terminal ? [terminal] : [])].map((server) => [server.bridgeRole === "terminal" ? "__qidao_terminal" : server.name, server.bridgeToken ?? ""])) } };
 }

@@ -77,6 +77,7 @@ export function parseToolArgs(raw: string): ToolArgsParse {
 export function looksLikeToolsUnsupported(status: number, body: string): boolean {
   if (status !== 400 && status !== 404 && status !== 422) return false;
   const text = (body ?? "").toLowerCase();
+  if (/reasoning_content/.test(text)) return false;
   if (!/tool|工具|函数调用/.test(text)) return false;
   return /not supported|unsupported|unknown|invalid|unrecognized|no such|不支持|不允许|无法识别|不能识别/.test(
     text,

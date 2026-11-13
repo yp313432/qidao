@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KButton } from "@/components/ui-kit";
 import { useApp } from "@/lib/store";
-import { importMcpConfig, termuxConfig } from "@/lib/mcp-config";
+import { importMcpConfig, termuxConfig, termuxTerminal } from "@/lib/mcp-config";
 import bridgeScript from "../../../public/bridges/qidao-mcp-bridge.mjs?raw";
 import { TextInput, TextArea } from "./editor-page";
 
@@ -25,7 +25,19 @@ export function McpConfigImport() {
       setRaw("");
     } catch (error) { setMessage((error as Error).message || "配置导入失败"); }
   }
+  function connectTerminal() {
+    try {
+      if (servers.some((server) => (server.bridgeRole === "terminal" || server.name === "Termux 终端"))) { setMessage("已添加 Termux，展开下方说明启动桥接后测试连接。"); return; }
+      useApp.getState().addMcp({ ...termuxTerminal(bridgeUrl), tools: [] });
+      setMessage("已添加 Termux 控制入口。下载脚本和配置、在 Termux 首次启动后测试连接，AI 才能执行命令。");
+    } catch (error) { setMessage((error as Error).message); }
+  }
   return <div className="k-list">
+    <details className="k-note"><summary>让 AI 操作 Termux</summary><div className="k-note__body k-list">
+      <p>连接后 AI 可以检查环境、安装 MCP 依赖、执行命令和读取退出码。命令通过现有工具权限确认后执行；首次启动仍需你在 Termux 操作一次。</p>
+      <TextInput label="手机上的 Termux 桥接地址" value={bridgeUrl} onChange={setBridgeUrl} />
+      <KButton onClick={connectTerminal}>添加 Termux 控制</KButton>
+    </div></details>
     <details className="k-note"><summary>导入社区 MCP 配置</summary><div className="k-note__body k-list">
       <TextArea label="粘贴 mcpServers JSON 配置" rows={7} value={raw} onChange={setRaw} placeholder={'{"mcpServers":{"服务名":{"type":"streamable_http","url":"https://example.com/mcp"}}}'} />
       <TextInput label="Termux 桥接地址（command 型服务使用）" value={bridgeUrl} onChange={setBridgeUrl} />
@@ -33,13 +45,13 @@ export function McpConfigImport() {
       <p>远程 HTTP / SSE 直接连接；npx、uvx、Python 配置保留命令、参数和环境变量，通过你的 Termux 运行。</p>
     </div></details>
     {message && <p role="status" className="k-note">{message}</p>}
-    {servers.some((server) => server.transport === "stdio") && <details className="k-note"><summary>用已有 Termux 运行本地 MCP</summary><div className="k-note__body k-list">
-      <p>先在 Termux 安装所需的 Node.js / Python / uv 及服务依赖。下载下面两个文件，配置文件包含你填写的环境变量和连接令牌，请保留在自己的设备上。</p>
+    {servers.some((server) => server.transport === "stdio" || server.bridgeRole === "terminal") && <details className="k-note"><summary>Termux 首次连接与本地 MCP</summary><div className="k-note__body k-list">
+      <p>首次先在 Termux 安装 Node.js。启用终端工具后，其余兼容的 Python / uv / MCP 依赖可请 AI 检查并安装。下载下面两个文件，配置文件包含你填写的环境变量和连接令牌，请保留在自己的设备上。</p>
       <KButton onClick={() => download("qidao-mcp-bridge.mjs", bridgeScript)}>下载桥接脚本</KButton>
       <KButton onClick={() => download("qidao-mcp.json", JSON.stringify(termuxConfig(servers), null, 2))}>导出 Termux 配置</KButton>
       <p>文件放在手机 Download 目录后，在 Termux 运行：</p>
       <pre className="k-long">{'termux-setup-storage\npkg install nodejs\nnode ~/storage/downloads/qidao-mcp-bridge.mjs ~/storage/downloads/qidao-mcp.json'}</pre>
-      <p>看到“桥接已启动”后回栖岛点测试连接。保持 Termux 运行；缺少解释器、依赖或 cwd 不存在时，服务仍无法启动，导入不会代替环境安装。</p>
+      <p>看到“桥接已启动”后回栖岛点测试连接，再说“检查 Termux 环境并帮我配置 MCP”。任务启动后 AI 要查询状态，直到拿到输出和退出码。保持 Termux 运行；修改配置后需重新导出并重启桥接。终端任务不支持交互输入，请使用无需交互的安装命令。</p>
     </div></details>}
   </div>;
 }

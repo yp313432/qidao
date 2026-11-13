@@ -1,3 +1,4 @@
+import { upstreamError } from "./chat-errors";
 import type { ModelId } from "./models";
 import { getModel } from "./models";
 import type { ChatMessage, PermissionMode, ReplyStyle } from "./types";
@@ -55,8 +56,8 @@ export type ApiMessage = {
   /**
    * 这一条 assistant 消息**当时的思考链原文**（DeepSeek 思考模式要求）。
    *
-   * 只在"开了思考 + 带 tool_calls 回灌"时必须给：缺了它上游直接 400
-   * （`reasoning_content is required`）。普通消息不带这个字段。
+   * 开了思考并携带 tools 时，历史 assistant（包括没有 tool_calls 的轮次）
+   * 也必须回传，不能在下一条用户消息的历史组装中丢掉。
    */
   reasoning_content?: string;
 };
@@ -184,19 +185,6 @@ function parseJsonSafe(text: string): unknown {
   }
 }
 
-/** 上游回的错误正文 → 一句人话（JSON 的 error.message 优先，其次原文前 160 字） */
-function digestErrorBody(status: number, text: string): string {
-  let msg = `上游返回 ${status}`;
-  try {
-    const j = JSON.parse(text) as { error?: { message?: string } | string };
-    msg =
-      typeof j.error === "string" ? j.error : (j.error?.message ?? `${msg}：${text.slice(0, 160)}`);
-  } catch {
-    msg = `${msg}：${text.slice(0, 160)}`;
-  }
-  return msg;
-}
-
 /** 一次流式请求的结果（两种"结束后才知道的状态"） */
 type StreamOutcome = {
   /** 看门狗掐断了连接（已经收到的内容仍然有效） */
@@ -322,7 +310,7 @@ async function streamDirect(
       if (nat) {
         const raw = typeof nat.data === "string" ? nat.data : JSON.stringify(nat.data ?? {});
         if (nat.status < 200 || nat.status >= 300) {
-          onDelta({ error: digestErrorBody(nat.status, raw), done: true });
+          onDelta({ error: upstreamError(nat.status, raw), done: true });
           return { stalled: false, toolsRejected: looksLikeToolsUnsupported(nat.status, raw) };
         }
         onDelta({ meta: { model } });
@@ -380,7 +368,7 @@ async function streamDirect(
     } catch {
       /* ignore */
     }
-    onDelta({ error: digestErrorBody(res.status, text), done: true });
+    onDelta({ error: upstreamError(res.status, text, res.headers.get("x-request-id")), done: true });
     /**
      * 只认"明确拒绝 tools"这一种 —— 401（密钥）、429（限流）、5xx（对方挂了）
      * 摘掉 tools 也一样不通，降级只会掩盖真正的问题。
@@ -450,7 +438,7 @@ async function readSseStream(
         error?: { message?: string } | string;
       };
       if (j.error) {
-        const m = typeof j.error === "string" ? j.error : (j.error.message ?? "上游报错");
+        const m = upstreamError(undefined, JSON.stringify(j));
         onDelta({ error: m, done: true });
         finished = true;
         return;
@@ -625,14 +613,14 @@ async function postServerChat(
    * 否则用户会看到"发出去了、一个字都不回"这种最难查的失败。
    */
   const ctype = res.headers.get("content-type") ?? "";
-  if (!ctype.includes("text/event-stream")) return null;
+  if (res.ok && !ctype.includes("text/event-stream")) return null;
 
   if (!res.ok) {
     let msg = `请求失败 ${res.status}`;
     let toolsUnsupported: boolean | undefined;
     try {
       const j = (await res.json()) as { error?: string; toolsUnsupported?: boolean };
-      if (j.error) msg = j.error;
+      if (j.error) msg = upstreamError(res.status, JSON.stringify(j));
       toolsUnsupported = j.toolsUnsupported;
     } catch {
       /* ignore */
@@ -692,7 +680,9 @@ export async function streamChat(
     return;
   }
 
-  const res = await postServerChat(req, onDelta, signal);
+  const outcome: { fail?: { status: number; message: string } } = {};
+  const res = await postServerChat(req, onDelta, signal, outcome);
+  if (outcome.fail) return;
   if (!res) {
     // 服务端那一跳不可用 → 直连（错误信息已经在上面报过了，这里只补数据）
     await streamDirect(req, onDelta, signal);
@@ -728,10 +718,7 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
       assembledMessages: messages,
       actionTools: tools ?? undefined,
     };
-    const fail: { status: number; message: string; toolsUnsupported?: boolean } = {
-      status: 0,
-      message: "",
-    };
+    const outcome: { fail?: { status: number; message: string; toolsUnsupported?: boolean } } = {};
     const receiveDelta = (d: ChatDelta) => {
       if (d.error) error = d.error;
       if (d.usage) usage = d.usage;
@@ -744,8 +731,9 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
       payload,
       receiveDelta,
       signal,
-      { fail },
+      outcome,
     );
+    const fail = outcome.fail ?? { status: 0, message: "" };
 
     if (!res) {
       /**
@@ -798,8 +786,8 @@ export type HistoryOpts = {
 };
 
 function tokensOf(m: ApiMessage): number {
-  if (typeof m.content === "string") return estimateTokens(m.content);
-  let n = 0;
+  if (typeof m.content === "string") return estimateTokens(m.content) + estimateTokens(m.reasoning_content || "");
+  let n = estimateTokens(m.reasoning_content || "");
   for (const p of m.content) {
     if (p.type === "text") n += estimateTokens(p.text);
     else n += 260; // 一张图粗估
@@ -852,7 +840,7 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
           : [];
       // 没有图片就走纯文本（兼容所有上游）；
       // 有图片就发 content parts，模型支持视觉时自然就看得见。
-      if (images.length === 0) return { role: m.role, content: text };
+      if (images.length === 0) return { role: m.role, content: text, ...(m.role === "assistant" && m.thinking ? { reasoning_content: m.thinking } : {}) };
       return {
         role: m.role,
         content: [
