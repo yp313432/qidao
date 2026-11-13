@@ -25,7 +25,8 @@ if (typeof navigator !== "undefined" && navigator.storage?.persist) {
   void navigator.storage.persist().catch(() => undefined);
 }
 import { ACTION_PERMISSION, actionTitle } from "./action-meta";
-import { DEFAULT_MCP, normalizeTools } from "./mcp";
+import { DEFAULT_MCP, normalizeTools, closeMcpSession } from "./mcp";
+import type { SkillPackage } from "./skills";
 import { isOwnApi, QUOTA_LIMIT, QUOTA_WINDOW_MS, type ModelId } from "./models";
 import { defaultPermissions, permissionDef } from "./permissions";
 import { kindLabel, parseMusicLink } from "./music-embed";
@@ -444,6 +445,10 @@ export type AppState = {
   model: ModelId;
   mcp: McpServer[];
   httpTools: HttpTool[];
+  skills: SkillPackage[];
+  addSkills: (skills: SkillPackage[]) => void;
+  patchSkill: (id: string, patch: Partial<Pick<SkillPackage, "enabled">>) => void;
+  removeSkill: (id: string) => void;
   /** 用户当前在干什么（供 AI 感知） */
   activity: ActivityEntry | null;
   recentActivity: ActivityEntry[];
@@ -695,7 +700,7 @@ export type AppState = {
   resolveAction: (id: string, allow: boolean, remember: boolean, message: string) => void;
   clearActionLog: () => void;
   /** 加一个插件（玩乐 → 插件 → 添加）：只填名字 + 地址就够了 */
-  addPlugin: (p: { name: string; hint?: string; url: string }) => string;
+  addPlugin: (p: { name: string; hint?: string; url: string; openMode?: "browser" | "embed" }) => string;
   patchPlugin: (id: string, patch: Partial<CustomPlugin>) => void;
   removePlugin: (id: string) => void;
   recordGame: (result: "win" | "loss" | "draw") => void;
@@ -786,6 +791,17 @@ export const useApp = create<AppState>()(
       model: "sonnet",
       mcp: DEFAULT_MCP,
       httpTools: EXAMPLE_HTTP_TOOLS,
+      skills: [],
+      addSkills: (skills) => set((s) => {
+        const names = new Set(s.skills.map((skill) => skill.name));
+        for (const skill of skills) {
+          if (names.has(skill.name)) throw new Error(`已有同名 Skill：${skill.name}，请先删除旧版再导入`);
+          names.add(skill.name);
+        }
+        return { skills: [...s.skills, ...skills] };
+      }),
+      patchSkill: (id, patch) => set((s) => ({ skills: s.skills.map((skill) => skill.id === id ? { ...skill, ...patch } : skill) })),
+      removeSkill: (id) => set((s) => ({ skills: s.skills.filter((skill) => skill.id !== id) })),
       activity: null,
       recentActivity: [],
       pendingActions: [],
@@ -940,7 +956,7 @@ export const useApp = create<AppState>()(
        * 说明留空就自动写一句"自己加的插件"。地址做个基本校验（必须是 http(s)），
        * 免得存进去一个点开必然失败的串（那种失败最难查）。
        */
-      addPlugin: ({ name, hint, url }) => {
+      addPlugin: ({ name, hint, url, openMode = "browser" }) => {
         const id = uid("plg");
         const clean = url.trim();
         set((s) => ({
@@ -951,6 +967,7 @@ export const useApp = create<AppState>()(
               {
                 id,
                 name: name.trim().slice(0, 20) || "未命名插件",
+                openMode,
                 hint: (hint ?? "").trim().slice(0, 40) || "自己加的插件",
                 url: clean,
                 enabled: true,
@@ -1683,7 +1700,7 @@ export const useApp = create<AppState>()(
       addMcp: (server) => set((s) => ({ mcp: [...s.mcp, { ...server, id: uid("mcp") }] })),
       patchMcp: (id, patch) =>
         set((s) => ({ mcp: s.mcp.map((m) => (m.id === id ? { ...m, ...patch } : m)) })),
-      removeMcp: (id) => set((s) => ({ mcp: s.mcp.filter((m) => m.id !== id) })),
+      removeMcp: (id) => { closeMcpSession(id); set((s) => ({ mcp: s.mcp.filter((m) => m.id !== id) })); },
       saveDoc: (doc) =>
         set((s) => ({
           docs: [{ ...doc, id: uid("doc"), createdAt: Date.now() }, ...s.docs],
@@ -1941,6 +1958,7 @@ export const useApp = create<AppState>()(
           memories,
           worldBook,
           mcp,
+          skills: Array.isArray(saved.skills) ? saved.skills.filter((skill) => skill && typeof skill.name === "string" && Array.isArray(skill.files)) : [],
           /**
            * **表情库**：老版本存的是 `stickers: string[]`（那时候还没有分组）。
            * 这里平滑迁到 `{id,url,group}` —— 全部进「未分组」，**一张都不丢**。
@@ -2004,6 +2022,7 @@ export const useApp = create<AppState>()(
         model: s.model,
         mcp: s.mcp,
         httpTools: s.httpTools,
+        skills: s.skills,
         actionLog: s.actionLog,
         gameStats: s.gameStats,
         gardenChess: s.gardenChess,

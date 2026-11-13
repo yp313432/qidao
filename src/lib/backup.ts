@@ -23,6 +23,7 @@ const SECRET_KEYS = [
   "token",
   "password",
   "secret",
+  "bridgetoken",
   "cookie",
 ];
 
@@ -58,6 +59,10 @@ function scrub(node: unknown, hits: string[]): unknown {
   if (node && typeof node === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k.toLowerCase() === "env" && v && typeof v === "object" && !Array.isArray(v)) {
+        out[k] = Object.fromEntries(Object.keys(v).map((key) => { hits.push(`env.${key}`); return [key, ""]; }));
+        continue;
+      }
       if (SECRET_KEYS.includes(k.toLowerCase()) && typeof v === "string" && v.trim()) {
         hits.push(k);
         out[k] = "";

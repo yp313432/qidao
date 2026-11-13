@@ -7,6 +7,8 @@ import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
+import { openPluginWeb } from "@/lib/plugin-open";
+import { pushToast } from "@/lib/toast";
 
 /**
  * **插件** —— 玩乐区里的一个新区：一个目录装所有插件。
@@ -31,7 +33,7 @@ export function PluginHub() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
-      <PageHeader title="插件" description="装进栖岛的小页面" />
+      <PageHeader title="插件" description="网页应用与内置扩展" />
 
       <div className="px-4">
         <ul className="space-y-2.5">
@@ -50,6 +52,12 @@ export function PluginHub() {
                 <Link
                   to="/play/plugins/$slug"
                   params={{ slug: p.slug }}
+                  onClick={(event) => {
+                    if (off) { event.preventDefault(); return; }
+                    if (p.custom && p.openMode === "browser" && p.url) {
+                      event.preventDefault(); void openPluginWeb(p.url).catch((error: unknown) => pushToast((error as Error).message || "网页没能打开"));
+                    }
+                  }}
                   className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
@@ -106,8 +114,8 @@ export function PluginHub() {
         </Link>
 
         <p className="mt-4 px-1 text-[11px] leading-4 text-subtle">
-          能嵌进来的是"允许被嵌的网页"（你自己做的最稳）。有些网站明确禁止被嵌 ——
-          那种点开会告诉你怎么回事，并给你一个用浏览器打开的按钮。
+          普通网站默认独立打开，不要求网站允许嵌入。嵌入模式适合明确支持它的小应用。
+          网页入口不会自动获得读取聊天或操作栖岛的权限；社区 MCP 和 Skills 在工具页管理。
         </p>
       </div>
     </div>

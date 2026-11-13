@@ -475,7 +475,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       };
 
       // MCP 服务器 + 用户自己配的 HTTP 接口，一起交给提示词（一处实现见 promptToolsFor）
-      const tools = promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools);
+      const tools = promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools, useApp.getState().skills);
       const context = buildContext();
       /**
        * **让他知道表情库有哪些分组**（用户 m10324："发表情包不按分组来，随意发不准"）。
@@ -620,6 +620,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           selectiveTools: nativeTools && selective,
           // 外部工具已经并进 tools 了 → 提示词里那句文字清单换成一句"直接用工具调"
           nativeExternal: nativeTools && externalNative,
+          skills: useApp.getState().skills,
         };
       };
 
@@ -1321,4 +1322,3 @@ function stripOverlap(prev: string, next: string): string {
   }
   return next;
 }
-

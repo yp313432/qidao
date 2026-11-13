@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { McpConfigImport } from "./mcp-config-import";
 import { Link } from "@tanstack/react-router";
 import { KeyRound, Loader2, Pencil, Plus, ShieldCheck, Trash2, Wifi } from "lucide-react";
 import { ToolCard } from "@/components/tools/tool-card";
@@ -117,6 +118,7 @@ export function McpServers() {
 
   return (
     <div className="k-list">
+      <McpConfigImport />
       <div className="k-sect">
         <p className="k-sect__title">MCP · {servers.length} 个</p>
         <Link to="/tools/mcp" search={{}} className="k-sect__act">

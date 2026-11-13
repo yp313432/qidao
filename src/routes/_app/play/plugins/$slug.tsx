@@ -3,6 +3,9 @@ import { PluginFrame } from "@/components/play/plugin-frame";
 import { useEffect } from "react";
 import { pluginBySlug } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
+import { openPluginWeb } from "@/lib/plugin-open";
+import { pushToast } from "@/lib/toast";
+import { KButton } from "@/components/ui-kit";
 
 /**
  * **用户自己加的插件**（iframe 型）—— `/play/plugins/c_<id>`。
@@ -29,6 +32,12 @@ function CustomPluginView() {
 
   if (!plugin) return null;
   if (!plugin.url) throw notFound();
+  if (plugin.enabled === false) return <p className="k-note">这个插件已关闭，请回插件列表启用。</p>;
+  if (plugin.openMode === "browser") return <div className="k-page k-list">
+    <h1>{plugin.name}</h1><p>这个网页将独立打开，看完可直接返回栖岛。</p>
+    <KButton onClick={() => void openPluginWeb(plugin.url!).catch((error: unknown) => pushToast((error as Error).message))}>打开网页</KButton>
+    <KButton onClick={() => void navigate({ to: "/play/plugins" })}>返回插件列表</KButton>
+  </div>;
 
   return <PluginFrame url={plugin.url} title={plugin.name} local={false} />;
 }

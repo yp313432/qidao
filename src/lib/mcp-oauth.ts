@@ -1,4 +1,5 @@
 import { isNativeApp } from "./platform";
+import { mcpFetch as fetch } from "./mcp-fetch.ts";
 import { kvGet, kvRemove, kvSetJSON } from "@/lib/data/local-kv";
 import type { McpOAuth, McpServer } from "./types";
 

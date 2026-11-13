@@ -168,6 +168,7 @@ export const SETTINGS_SMALL_KEYS = [
   "quota",
   "mcp",
   "httpTools",
+  "skills",
   "chatDrafts",
   "activeId",
   "currentEmbedId",
