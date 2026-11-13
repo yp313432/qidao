@@ -11,17 +11,18 @@
 配置包含 `command / args / env / cwd` 时，栖岛会保留配置并使用本机桥接地址。导入本身不会执行这些命令。
 
 1. 在工具 → MCP 导入配置。
-2. 展开“用已有 Termux 运行本地 MCP”，下载 `qidao-mcp-bridge.mjs` 和导出的 `qidao-mcp.json`。
+2. 展开“Termux 首次连接与本地 MCP”，下载 `qidao-mcp-bridge.mjs` 和导出的 `qidao-mcp.json`。
 3. 在 Termux 安装对应的 Node.js、Python、uv 和服务依赖。仅安装 Termux 不代表解释器和依赖已齐全；并非所有桌面依赖都兼容 Android。
-4. 文件位于手机 Download 目录时运行：
+4. 文件位于手机 Download 目录时，逐条运行，等命令结束重新出现 `$` 再继续。已有下载目录可跳过第一条；如果 `termux-setup-storage` 询问 `(y/n)`，仅输入 `y` 并回车，不要把下一条安装命令当作回答：
 
 ```sh
 termux-setup-storage
-pkg install nodejs
-node ~/storage/downloads/qidao-mcp-bridge.mjs ~/storage/downloads/qidao-mcp.json
+pkg install nodejs -y
+cd ~/storage/downloads
+node qidao-mcp-bridge.mjs qidao-mcp.json
 ```
 
-5. 保持 Termux 运行，回栖岛点测试连接。修改配置或新增服务后重新导出并重启桥接。
+5. 看到“栖岛 MCP 桥接已启动”后保持 Termux 运行，回栖岛点测试连接。修改配置或新增服务后重新导出并重启桥接。
 
 桥接仅监听 `127.0.0.1:8767`，用配置中的随机令牌鉴权；服务命令仅来自用户下载并运行的配置文件，不接受 HTTP 传入任意启动命令。配置包含你填写的环境变量，保留在自己设备中。关闭/过期会话会终止对应子进程组。
 

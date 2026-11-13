@@ -2,12 +2,12 @@
 /** User-started loopback MCP bridge; terminal commands require explicit local opt-in and a bearer token. */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { homedir } from "node:os";
-import { pathToFileURL } from "node:url";
-import { resolve, isAbsolute } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isAbsolute } from "node:path";
 
 export const TERMINAL_NAME = "__qidao_terminal";
 export const terminalTools = [
@@ -188,7 +188,13 @@ export function startMcpBridge(config, { port = 8767, host = "127.0.0.1" } = {})
   return server;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+export function isCliEntry(moduleUrl, entry = process.argv[1]) {
+  if (!entry) return false;
+  try { return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(entry); }
+  catch { return false; }
+}
+
+if (isCliEntry(import.meta.url)) {
   try {
     const file = process.argv[2]; if (!file) throw new Error("Usage: node qidao-mcp-bridge.mjs qidao-mcp.json");
     const config = JSON.parse(readFileSync(file, "utf8"));

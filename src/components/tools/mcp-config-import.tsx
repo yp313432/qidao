@@ -57,8 +57,13 @@ export function McpConfigImport() {
       <p>首次先在 Termux 安装 Node.js。启用终端工具后，其余兼容的 Python / uv / MCP 依赖可请 AI 检查并安装。下载下面两个文件，配置文件包含你填写的环境变量和连接令牌，请保留在自己的设备上。</p>
       <KButton onClick={() => void exportFile("qidao-mcp-bridge.mjs", bridgeScript)}>下载桥接脚本</KButton>
       <KButton onClick={() => void exportFile("qidao-mcp.json", JSON.stringify(termuxConfig(servers), null, 2))}>导出 Termux 配置</KButton>
-      <p>文件放在手机 Download 目录后，在 Termux 运行：</p>
-      <pre className="k-long">{'termux-setup-storage\npkg install nodejs\nnode ~/storage/downloads/qidao-mcp-bridge.mjs ~/storage/downloads/qidao-mcp.json'}</pre>
+      <p>文件放在手机 Download 目录后，按下面步骤逐条运行。每次等命令结束、重新出现 $ 后再继续，别一次粘贴全部命令。</p>
+      <p>① 首次允许存储访问，已有 downloads 目录可跳过。若询问 (y/n)，只输入 y 并回车；这时不要输入下一条命令。</p>
+      <pre className="k-long">termux-setup-storage</pre>
+      <p>② 安装 Node.js，-y 会自动确认安装：</p>
+      <pre className="k-long">pkg install nodejs -y</pre>
+      <p>③ 先进入下载目录，再启动桥接，两条命令分别回车：</p>
+      <pre className="k-long">{'cd ~/storage/downloads\nnode qidao-mcp-bridge.mjs qidao-mcp.json'}</pre>
       <p>看到“桥接已启动”后回栖岛点测试连接，再说“检查 Termux 环境并帮我配置 MCP”。任务启动后 AI 要查询状态，直到拿到输出和退出码。保持 Termux 运行；修改配置后需重新导出并重启桥接。终端任务不支持交互输入，请使用无需交互的安装命令。</p>
     </div></details>}
   </div>;

@@ -1,4 +1,9 @@
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, copyFileSync, symlinkSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { createTerminalRuntime, startMcpBridge, TERMINAL_NAME } from "../public/bridges/qidao-mcp-bridge.mjs";
@@ -14,6 +19,27 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
+
+test("Termux CLI starts through a downloads symlink, directly and with symlink-preserving Node flags", () => {
+  const root = mkdtempSync(join(tmpdir(), "qidao-cli-"));
+  try {
+    const actual = join(root, "Download"), linked = join(root, "downloads");
+    mkdirSync(actual); symlinkSync(actual, linked, "dir");
+    copyFileSync(fileURLToPath(new URL("../public/bridges/qidao-mcp-bridge.mjs", import.meta.url)), join(actual, "qidao-mcp-bridge.mjs"));
+    const missing = join(root, "missing-config.json");
+    for (const flags of [[], ["--preserve-symlinks-main"]]) {
+      for (const directory of [actual, linked]) {
+        const child = spawnSync(process.execPath, [...flags, join(directory, "qidao-mcp-bridge.mjs"), missing], { encoding: "utf8" });
+        assert.equal(child.status, 1, "CLI must attempt to read config instead of silently exiting");
+        assert.match(child.stderr, /ENOENT/); assert.match(child.stderr, /missing-config/);
+      }
+    }
+    const afterCd = spawnSync(process.execPath, ["qidao-mcp-bridge.mjs", missing], { cwd: linked, encoding: "utf8" });
+    assert.equal(afterCd.status, 1); assert.match(afterCd.stderr, /ENOENT/);
+    const imported = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(new URL("../public/bridges/qidao-mcp-bridge.mjs", import.meta.url).href)})`], { encoding: "utf8" });
+    assert.equal(imported.status, 0); assert.equal(imported.stdout, ""); assert.equal(imported.stderr, "");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 test("diagnostics preserve upstream metadata and classify reasoning failures before retry/fallback", async () => {
   const error = upstreamError(400, JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_messages", message: "The reasoning_content in the thinking mode must be passed back to the API. invalid tool messages" }, request_id: "request-123" }));
