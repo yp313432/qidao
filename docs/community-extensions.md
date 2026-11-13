@@ -44,3 +44,31 @@ Termux 是 Android 上的终端环境。多数纯 Node/Python MCP 可在依赖�
 ## 验证
 
 `scripts/verify-community.mjs` 覆盖远程协议、原生事件流、真实 stdio 子进程、ZIP 和配置；`scripts/verify-community-ui.mjs` 覆盖真实页面上的 MCP 握手、Skill 持久化/读取/停用及第三方网页独立打开。CI 同时执行类型检查、安卓前端构建和原生 Java 编译。自动测试不等同于用户手机上的 Termux 真机验证。
+
+## 让 AI 使用已有 Termux
+
+“工具 → MCP → 让 AI 操作 Termux → 添加 Termux 控制”会添加一个独立的终端 MCP。
+首次下载桥接脚本和配置（安卓使用系统文件保存界面，请选 Download 目录），在已有 Termux 安装 Node.js 并启动脚本，然后回 App 测试连接。
+桥接未运行时，AI 无法启动 Termux 或绕过安卓应用沙箱；无需为了连接先安装 Ubuntu。
+连接后可以说“检查 Termux 环境，帮我安装这个 MCP 缺少的依赖”。
+
+终端提供 environment、execute、status、cancel 四个工具，仍通过已有 `tool.call` / MCP 权限闸门。
+execute 返回任务 ID，AI 必须读取 status 的 stdout、stderr、退出码和状态后才能判断成功。
+status 可等待最多20秒以减少轮询；命令默认超时2分钟、最大10分钟，最多同时4个任务。
+输出仅保留每个流最后64KiB，明确标记截断；不支持输入密码、交互式安装或终端模拟。
+安装等耗时任务可以继续查询状态，直到完成；根据实际 command_not_found、permission_denied、cwd_unavailable、timeout 等错误排查。
+删除/覆盖/敏感操作须先向用户说明并得到明确同意，不得利用终端绕过 App 的权限。
+桥接仅监听本机，要求配置中的独立随机令牌并拒绝带 Origin 的网页请求，且只有显式导出 `terminalEnabled: true` 才开放终端。
+关闭会话或桥接会停止相应任务；禁用/删除 App 里的终端后重新导出配置并重启桥接，可撤销终端入口。
+运行不兼容 Android 的 Linux 二进制时仍可能需要 proot Linux；依赖能否安装取决于社区服务本身。
+
+## 模型请求的错误诊断
+
+模型错误单独显示错误类别、建议、HTTP 状态、服务商错误码/类型、request_id（服务商有返回时）和原文，且不作为助手正文送入下一轮历史。
+已知密钥及 Bearer 令牌脱敏；参数、认证、思考协议等确定性错误不自动重试，只有限流、服务异常、超时等可重试错误最多重试一次。
+有正文后断流仍保留正文，并显示诊断；执行过工具后不会为了重试而重复执行整轮工具。
+
+DeepSeek 思考模式携带 tools 时要求所有保留的历史 assistant 回传 reasoning_content，即使该轮没有 tool_calls。
+历史组装、提示词组装和同轮工具结果回灌均保留真实思考内容；仍遵守仅保存最近40条思考记录的存储上限，不伪造空思考来掩盖问题。
+旧版本已经清理掉的思考无法恢复，遇到该协议错误时提示新建对话。
+依据：https://api-docs.deepseek.com/guides/thinking_mode/

@@ -10,7 +10,7 @@ const config = { configFile: false,
       if (id === "@/lib/actions") return "\0fixture-actions";
       if (id === "fixture-real-actions") return fileURLToPath(new URL("../src/lib/actions.ts", import.meta.url));
     },
-    load(id) { if (id === "\0fixture-actions") return "export async function runAction(action, ctx) { if (action.kind === 'sticker.send' || (action.kind === 'emotion.report' && action.group)) return (await import('fixture-real-actions')).runAction(action, ctx); if (action.kind === 'emotion.report') return '已核对'; return new Promise(() => {}); }"; },
+    load(id) { if (id === "\0fixture-actions") return "export async function runAction(action, ctx) { if ((action.kind === 'tool.call' && action.server === 'Termux 终端') || action.kind === 'sticker.send' || (action.kind === 'emotion.report' && action.group)) return (await import('fixture-real-actions')).runAction(action, ctx); if (action.kind === 'emotion.report') return '已核对'; return new Promise(() => {}); }"; },
   }, react(), tailwindcss()],
   resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
   server: { host: "0.0.0.0", port: 8080, strictPort: true },

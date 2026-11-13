@@ -211,7 +211,7 @@ export const PERMISSIONS: PermissionDef[] = [
 
   // ---------------- 外部工具 ----------------
   { id: "http_tools", title: "调用 HTTP 工具", hint: "你自己配的那些接口", risk: "L2", status: "partial", group: "tools" },
-  { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配的 MCP 服务器（HTTP 地址）", risk: "L2", status: "partial", group: "tools" },
+  { id: "mcp_tools", title: "调用 MCP 工具", hint: "你配置的外部工具，含已启用的 Termux 命令", risk: "L2", status: "partial", group: "tools" },
   /**
    * ⚠️ 2026-10：`todo` → `ready`。手机上真的能用了 —— `web.search` / `web.fetch`
    * 走 Capacitor 自带的**原生 HTTP**（绕开 WebView 跨域），所以这条不再是"占位"。

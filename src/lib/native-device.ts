@@ -17,6 +17,7 @@ import { IS_APP } from "@/lib/platform";
  */
 
 type DeviceApi = {
+  saveTextFile: (o: { name: string; contents: string }) => Promise<{ ok: boolean }>;
   listApps: () => Promise<{ ok: boolean; apps?: { pkg: string; label: string }[]; total?: number }>;
   openApp: (o: { query: string }) => Promise<{
     ok: boolean;
@@ -278,4 +279,11 @@ export async function clipboardWrite(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** User-initiated exports use Android's document picker without storage permissions. */
+export async function saveNativeTextFile(name: string, contents: string): Promise<boolean> {
+  const device = api();
+  if (!device) throw new Error("原生文件保存通道未就绪，请更新 App");
+  return (await device.saveTextFile({ name, contents })).ok;
 }

@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: "22"
       - run: node --experimental-strip-types scripts/verify-community.mjs
+      - run: node --experimental-strip-types scripts/verify-agent-runtime.mjs
       - run: node verify-action-registry.mjs
       - run: node --experimental-strip-types verify-tool-recall.mjs
       - run: node scripts/guard-styles.mjs
@@ -33,6 +34,25 @@ jobs:
           QIDAO_TARGET: android
           VITE_DIRECT_UPSTREAM: "1"
           VITE_AUTH_ENABLED: "false"
+      - run: npx playwright install --with-deps chromium
+      - name: 开发页面验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs > /tmp/community-dev.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/scripts/chat-page-fixture.html >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-agent-ui.mjs || { tail -60 /tmp/community-dev.log; exit 1; }
+          node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-dev.log; exit 1; }
+      - name: 生产页面验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/community-prod.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8081/scripts/chat-page-fixture.html >/dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/agent/production node scripts/verify-agent-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/community/production node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,25 +65,10 @@ jobs:
           chmod +x android/gradlew
           cd android
           ./gradlew :app:compileDebugJavaWithJavac --no-daemon
-      - run: npx playwright install --with-deps chromium
-      - name: 开发页面验收
-        run: |
-          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs > /tmp/community-dev.log 2>&1 &
-          for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8080/scripts/chat-page-fixture.html >/dev/null; then break; fi
-            sleep 1
-          done
-          node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-dev.log; exit 1; }
-      - name: 生产页面验收
-        run: |
-          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/community-prod.log 2>&1 &
-          for attempt in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:8081/scripts/chat-page-fixture.html >/dev/null; then break; fi
-            sleep 1
-          done
-          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/community/production node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: community-screenshots
-          path: screenshots/community/
+          path: |
+            screenshots/community/
+            screenshots/agent/

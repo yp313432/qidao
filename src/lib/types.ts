@@ -171,6 +171,10 @@ export type ChatMessage = {
   content: string;
   thinking: string;
   thinkingDurationMs: number;
+  /** Request diagnostics are UI data, never assistant dialogue sent upstream. */
+  requestError?: string;
+  /** Final assistant round only; display thinking can span multiple tool rounds. */
+  reasoningContent?: string;
   createdAt: number;
   model?: ModelId;
   savedToDocs?: boolean;
@@ -962,6 +966,8 @@ export type McpServer = {
   env?: Record<string, string>;
   cwd?: string;
   bridgeToken?: string;
+  /** Explicit opt-in to the locally started terminal MCP runtime. */
+  bridgeRole?: "terminal";
   /** 每行一个 "Key: Value" */
   headersText: string;
   enabled: boolean;

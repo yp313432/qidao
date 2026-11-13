@@ -567,7 +567,7 @@ export function normalizeContent(content: string | unknown[]): string | unknown[
   return String(content ?? "");
 }
 
-export type ApiMsg = { role: string; content: string | unknown[] };
+export type ApiMsg = { role: string; content: string | unknown[]; reasoning_content?: string };
 
 /**
  * 把他最近动手的结果整理成几行，回灌给下一轮。
@@ -623,7 +623,8 @@ export function assembleMessages(
     { role: "system", content: staticPrompt },
     ...raw.map((m, i) => {
       const base = normalizeContent(m.content);
-      if (i !== lastUser || !perception) return { role: m.role, content: base };
+      const reasoning = m.role === "assistant" && m.reasoning_content ? { reasoning_content: m.reasoning_content } : {};
+      if (i !== lastUser || !perception) return { role: m.role, content: base, ...reasoning };
       if (typeof base === "string") return { role: m.role, content: base + perception };
       return {
         role: m.role,

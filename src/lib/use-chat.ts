@@ -1,3 +1,4 @@
+import { chatError, formatChatError } from "@/lib/chat-errors";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
 import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup";
@@ -419,6 +420,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const ac = new AbortController();
       abortRef.current = ac;
       let thinking = "";
+      let reasoningContent: string | undefined;
       let content = "";
       /** 这次流里**真的拿到过正文**吗（只有思考或只有报错都不算成功 → 会自动重试） */
       let hadContent = false;
@@ -642,13 +644,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const onDelta = (d: ChatDelta, replaceContent = false) => {
         lastBeat = Date.now();
         if (d.error) {
-          /**
-           * 错误正文先当"这一轮的话"显示出来（`content || d.error`：已经有正文就不覆盖）。
-           * 注意它**不置 hadContent** —— 只有报错、没有正文时还要走"自动重试一次"那条路。
-           */
-          content = content || d.error;
-          schedule();
-          flush();
+          state.reqError = d.error;
           return;
         }
         if (d.finishReason) finishReason = d.finishReason;
@@ -831,6 +827,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         }
         // 收尾与流式显示用同一份正文；不能把先前工具轮的草稿存回会话或拿去朗读。
         content = result.content;
+        reasoningContent = result.reasoningContent;
         dirty = true;
         flush();
         state.reqError = result.error;
@@ -859,6 +856,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       };
       let lastErr: unknown = null;
       let rejectedToText = false;
+      let retries = 0;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         hadContent = false;
         finishReason = undefined;
@@ -900,6 +898,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
         // 成功 = 真的拿到了正文 **或** 真的调用了工具（两者有一个就不算失败）
         if (hadContent || state.usedNative) break;
         if (attempt === 2) break;
+        const failure = state.reqError || (lastErr instanceof Error ? lastErr.message : "");
+        if (!chatError(failure).retryable) break;
+        retries += 1;
         content = "";
         thinking = "";
         usage = undefined;
@@ -926,7 +927,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               ...base,
               messages: [
                 ...base.messages,
-                { role: "assistant", content } as (typeof base.messages)[number],
+                { role: "assistant", content, ...(thinking ? { reasoning_content: thinking } : {}) } as (typeof base.messages)[number],
                 {
                   role: "user",
                   content:
@@ -962,13 +963,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
         if (tail.trim().length > 0) state.steps.push({ kind: "think", text: tail.trim() });
         state.splitAt = thinking.length;
       }
-      if (!hadContent && !state.usedNative && !ac.signal.aborted) {
-        const why = state.reqError || (lastErr as Error | null)?.message;
-        content =
-          (why ? `${why}\n\n` : "") +
-          "没拿到正文。可能是：连接被掐断（思考链太长时容易这样），地址/密钥不对，或者网络不通。\n\n" +
-          "已经自动重试过一次了。可以再点「重新生成」，或者跟他说「想短一点、先给结论」。";
-      }
+      const failure = state.reqError || (lastErr instanceof Error ? lastErr.message : "");
+      const requestError = !ac.signal.aborted && (failure || (!hadContent && !state.usedNative))
+        ? formatChatError(failure, retries) : undefined;
       // 收尾：把最后攒着的那一点写进去，并停掉定时器
       if (flushTimer) {
         window.clearTimeout(flushTimer);
@@ -1104,12 +1101,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
       attachStickers();
       const stickerAtts = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments?.filter((a) => a.kind === "sticker") ?? [];
       const finalText =
-        shownText(content) || (stickerAtts.length ? "" :
-        // 空的正文分两种：一种是他真的没说话，一种是**被掐断了**。
-        // 后者如果显示成"（空回复）"，用户只会以为坏了 —— 得说清是什么情况。
-        (thinking.trim().length > 0
-          ? "他想了很久，正文却一个字都没写出来 —— 多半是连接被中途掐断了（思考链越长，经过代理时越容易被掐）。\n\n可以试试：下面的「重新生成」，或者直接跟他说「想短一点、先给结论」。"
-          : "（空回复）"));
+        shownText(content) || (stickerAtts.length || requestError ? "" :
+        (ac.signal.aborted ? "（已停止）" : "（空回复）"));
 
       /**
        * **分段回复**：把正文切成几个气泡（见 `lib/segment.ts`）。
@@ -1143,6 +1136,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         if (
           convNow &&
           spoken.length >= 2 &&
+          !requestError &&
           !spoken.includes("（空回复）") &&
           shouldVoiceReply(convNow.messages)
         ) {
@@ -1161,9 +1155,11 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       useApp.getState().finalizeAssistant(conversationId, messageId, {
         content: finalText,
+        requestError,
         parts,
         attachments,
         thinking,
+        reasoningContent: reasoningContent ?? thinking,
         thinkingDurationMs: Date.now() - started,
         // 有 usage 就带上工具 token；上游没返 usage 但确实发了工具定义时，也单独记一笔
         usage: usage
@@ -1284,7 +1280,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const idx = target.messages.findIndex((m) => m.id === messageId);
         if (idx < 0) return;
         st.patchMessage(conversationId, messageId, {
-          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined,
+          parts: undefined, attachments: undefined, steps: undefined, rounds: undefined, requestError: undefined, reasoningContent: undefined,
           content: "", thinking: "", thinkingDurationMs: 0, feedback: undefined,
         });
         const kept = target.summary

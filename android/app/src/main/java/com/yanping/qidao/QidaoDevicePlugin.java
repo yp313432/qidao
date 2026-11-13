@@ -1,5 +1,10 @@
 package com.yanping.qidao;
 
+import android.app.Activity;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -44,6 +49,36 @@ import java.util.Locale;
  */
 @CapacitorPlugin(name = "QidaoDevice")
 public class QidaoDevicePlugin extends Plugin {
+
+  /** Blob anchor downloads are unreliable in Android WebView; use the system file picker. */
+  @PluginMethod
+  public void saveTextFile(PluginCall call) {
+    String name = call.getString("name", "");
+    String contents = call.getString("contents");
+    if (name.isEmpty() || name.contains("/") || name.contains("\\") || contents == null || contents.length() > 2_000_000) {
+      call.reject("invalid_file: 文件名或内容无效"); return;
+    }
+    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType(name.endsWith(".json") ? "application/json" : "application/octet-stream");
+    intent.putExtra(Intent.EXTRA_TITLE, name);
+    try { startActivityForResult(call, intent, "textFileSelected"); }
+    catch (Exception error) { call.reject("file_picker_unavailable: 无法打开保存文件界面", error); }
+  }
+
+  @ActivityCallback
+  private void textFileSelected(PluginCall call, ActivityResult result) {
+    if (call == null) return;
+    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+      call.resolve(new JSObject().put("ok", false)); return;
+    }
+    Uri uri = result.getData().getData();
+    try (OutputStream stream = getContext().getContentResolver().openOutputStream(uri, "wt")) {
+      if (stream == null) throw new Exception("文件不可写");
+      stream.write(call.getString("contents", "").getBytes(StandardCharsets.UTF_8));
+      call.resolve(new JSObject().put("ok", true));
+    } catch (Exception error) { call.reject("file_write_failed: 保存失败，请检查位置和空间", error); }
+  }
 
   /** 能打开的 App 上限：手机装上几百个 App 时，全列出来会把提示词撑爆 */
   private static final int MAX_APPS = 120;

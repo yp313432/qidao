@@ -1036,6 +1036,7 @@ export function ChatView() {
                 const noBody =
                   !mine &&
                   !hasRenderedText(m.content) &&
+                  !m.requestError &&
                   visibleParts.length === 0 &&
                   !(m.attachments && m.attachments.length);
                 const pendingPlaceholder =
@@ -1357,6 +1358,7 @@ export function ChatView() {
                             不收尾再重排（用户 m06419 第 3 条）。
                           · 段间浮现靠 CSS 延迟（不挂计时器：翻历史会重播动画）；
                             `bubble-in` 只在生成后 20 秒内加。 */}
+                            {m.requestError && <div role="alert" data-testid="chat-request-error" className="k-note whitespace-pre-wrap break-words select-text">{m.requestError}</div>}
                             {(() => {
                               /**
                                * 语音模式下**正文不再单独出一个气泡**（用户 m11599：

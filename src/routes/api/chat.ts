@@ -1,3 +1,4 @@
+import { upstreamError } from "@/lib/chat-errors";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ActionTool } from "@/lib/action-schema";
 import { getModel, type ModelId, type ReasoningEffort } from "@/lib/models";
@@ -229,33 +230,11 @@ export const Route = createFileRoute("/api/chat")({
         });
 
         if (!upstream.ok || !upstream.body) {
-          let detail = `上游 ${upstream.status}`;
-          let toolsUnsupported = false;
-          try {
-            const err = (await upstream.json()) as {
-              error?: { message?: string } | string;
-              toolsUnsupported?: boolean;
-            };
-            if (typeof err.error === "string") detail = err.error;
-            else if (err.error?.message) detail = err.error.message;
-            toolsUnsupported = err.toolsUnsupported === true;
-          } catch {
-            /* ignore */
-          }
-          /**
-           * ⚠️ 这个标记是**降级的唯一依据**，别删。
-           *
-           * 上游回 400「tools is not supported」时，这里是 502 —— 客户端只看状态码
-           * 会把它当成"服务端挂了"，于是**永远不降级**，用户就卡在报错上。
-           * 所以"要不要摘掉 tools 重试"这个判断必须由服务端显式说清楚。
-           */
-          if (/tool/i.test(detail) && /not supported|unsupported|unknown|invalid|不支持/i.test(detail)) {
-            toolsUnsupported = true;
-          }
-          const friendly = /credits|subscription|quota|rate limit/i.test(detail)
-            ? "模型额度暂时不可用。可以稍后再试，或到「我的」填写自己的 OpenAI 兼容上游。"
-            : detail;
-          return Response.json({ error: friendly, toolsUnsupported }, { status: 502 });
+          const raw = await upstream.text();
+          const detail = upstreamError(upstream.status, raw, upstream.headers.get("x-request-id"));
+          const toolsUnsupported = !/reasoning_content/i.test(detail) &&
+            [400, 404, 422].includes(upstream.status) && /tools?/i.test(detail) && /not supported|unsupported|unknown parameter/i.test(detail);
+          return Response.json({ error: detail, toolsUnsupported }, { status: upstream.ok ? 502 : upstream.status });
         }
 
         const encoder = new TextEncoder();
@@ -288,6 +267,10 @@ export const Route = createFileRoute("/api/chat")({
                   }
                   try {
                     const parsed = JSON.parse(raw) as unknown;
+                    if (parsed && typeof parsed === "object" && "error" in parsed) {
+                      send({ error: upstreamError(undefined, raw), done: true });
+                      continue;
+                    }
                     const delta = extractDelta(parsed);
                     if (delta.thinking || delta.content || delta.usage || delta.toolCalls) send(delta);
                   } catch {
