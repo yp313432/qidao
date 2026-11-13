@@ -66,7 +66,7 @@ jobs:
         if: always()
         run: |
           cat /tmp/native-mcp.log || true
-          test -f /tmp/native-logcat.txt || adb logcat -d > /tmp/native-logcat.txt || true
+          test -f /tmp/native-logcat.txt || timeout 10s adb logcat -d > /tmp/native-logcat.txt || true
           node -e 'const fs=require("node:fs");if(fs.existsSync("/tmp/native-mcp.png"))console.log("QIDAO_PREVIEW "+JSON.stringify({name:"android-mcp",base64:fs.readFileSync("/tmp/native-mcp.png").toString("base64")}));'
           tail -120 /tmp/native-logcat.txt || true
       - uses: actions/upload-artifact@v4

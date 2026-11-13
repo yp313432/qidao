@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 capture_device() {
-  adb logcat -d > /tmp/native-logcat.txt 2>&1 || true
-  adb exec-out screencap -p > /tmp/native-mcp.png || true
+  timeout 10s adb logcat -d > /tmp/native-logcat.txt 2>&1 || true
+  timeout 10s adb exec-out screencap -p > /tmp/native-mcp.png || true
   tail -100 /tmp/native-logcat.txt || true
 }
 trap capture_device EXIT
