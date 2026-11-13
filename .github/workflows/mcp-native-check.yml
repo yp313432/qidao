@@ -7,7 +7,25 @@ on:
     paths: ["src/lib/mcp*", "src/lib/tool-*.ts", "src/components/tools/**", "android/**", "scripts/*mcp*", "scripts/chat-page-fixture.tsx", ".github/workflows/mcp-native-check.yml"]
 permissions:
   contents: read
+  actions: read
 jobs:
+  previous-failure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 读取前次安卓失败报告
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_TEST_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          prior_run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=$NATIVE_TEST_BRANCH&status=completed&per_page=30" --jq '.workflow_runs[] | select(.name == "安卓 WebView MCP 原生通道验收" and .conclusion == "failure") | .id' | head -n 1)
+          if [ -z "$prior_run" ]; then exit 0; fi
+          gh run download "$prior_run" --repo "$GITHUB_REPOSITORY" --name android-mcp-native-results --dir /tmp/native-prior || exit 0
+          python3 - <<'PYREPORT'
+          from pathlib import Path
+          for report in Path("/tmp/native-prior").rglob("*.xml"):
+              print(str(report))
+              print(report.read_text(errors="replace")[:40000])
+          PYREPORT
   emulator:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -52,6 +70,11 @@ jobs:
             if curl -fsS http://127.0.0.1:4650/health >/dev/null; then break; fi
             sleep 1
           done
+      - name: 预先构建调试 APK，减少模拟器运行时的内存占用
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --max-workers=2
       - name: 安卓模拟器中的原生握手与 AI 实际执行
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -59,6 +82,8 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_5
+          ram-size: 1536M
+          heap-size: 256M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash scripts/verify-android-mcp.sh
@@ -79,3 +104,4 @@ jobs:
             /tmp/native-mcp.log
             /tmp/native-logcat.txt
             /tmp/native-mcp.png
+            /tmp/native-logcat-live.txt
