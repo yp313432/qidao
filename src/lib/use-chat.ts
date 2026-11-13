@@ -697,6 +697,30 @@ export function useChatStream(opts: UseChatOpts = {}) {
         limitNote?: string;
       };
 
+      let requestNumber = 0;
+      const recordInput = (
+        req: ReturnType<typeof buildReq>,
+        messages: readonly ApiMessage[],
+        tools: Parameters<ToolRoundSend>[0]["tools"],
+      ) => {
+        const system = systemPrompt(req);
+        const withoutResults = { ...req, recentActions: undefined };
+        const withoutPersonal = { ...withoutResults, worldAlways: undefined, worldHit: undefined, persona: undefined };
+        const base = estimateTokens(systemPrompt(withoutPersonal));
+        const personal = estimateTokens(systemPrompt(withoutResults)) - base;
+        const recentResults = estimateTokens(system) - base - personal;
+        const count = (part: readonly ApiMessage[]) =>
+          part.length ? estimateTokens(JSON.stringify(part)) : 0;
+        const history = count(messages.slice(1).filter((message) => message.role !== "tool"));
+        const results = recentResults + count(messages.filter((message) => message.role === "tool"));
+        const definitions = tools?.length ? estimateTokens(JSON.stringify(tools)) : 0;
+        const id = ++requestNumber;
+        crumb("chat", `请求 ${id} · 输入估算：提示词 ${base} · 世界书/人设 ${personal} · 对话 ${history} · 工具定义 ${definitions} · 动作结果 ${results}`);
+        return (reported?: ChatMessage["usage"]) => {
+          crumb("chat", `请求 ${id} · 上游输入 ${reported?.prompt ?? "未返回"} · 缓存命中 ${reported?.cached ?? "未返回"}`);
+        };
+      };
+
       /** 原生 tools 那条路：拼好 messages + 循环。同步抛错（真的异常）由外层接住转成重试。 */
       const runNative = async (state: AttemptState): Promise<void> => {
         /**
@@ -740,7 +764,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
               ? makeDirectRound(reqActive)
               : makeServerRound(reqActive);
           return async (args) => {
+            const report = recordInput(reqActive, args.messages, args.tools);
             const r = await inner(args);
+            report(r.usage);
             for (const c of r.toolCalls) {
               if (!known.has(c.name)) {
                 // 上游把工具调用"变成一坨普通文字"时常见的形状：名字是垃圾。
@@ -873,7 +899,14 @@ export function useChatStream(opts: UseChatOpts = {}) {
             await runNative(state);
           } else {
             try {
-        await streamChat(buildReq(false), onDelta, ac.signal);
+              const req = buildReq(false);
+              const report = recordInput(req, assembleMessages(req, history) as ApiMessage[], null);
+              let reported: ChatMessage["usage"];
+              await streamChat(req, (delta) => {
+                if (delta.usage) reported = delta.usage;
+                onDelta(delta);
+              }, ac.signal);
+              report(reported);
       } finally {
         window.clearInterval(stallTimer);
       }
