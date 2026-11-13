@@ -25,6 +25,10 @@ jobs:
           for report in Path("/tmp/native-prior").rglob("*.xml"):
               print(str(report))
               print(report.read_text(errors="replace")[:40000])
+          for log in Path("/tmp/native-prior").rglob("native-logcat-live.txt"):
+              lines = log.read_text(errors="replace").splitlines()
+              useful = [line for line in lines if any(word in line for word in ["Capacitor", "chromium", "AndroidRuntime", "TestRunner", "McpNative", "FATAL", "lowmemory", "ANR"])]
+              print("\n".join(useful[-180:]))
           PYREPORT
   emulator:
     runs-on: ubuntu-latest
@@ -78,14 +82,14 @@ jobs:
       - name: 安卓模拟器中的原生握手与 AI 实际执行
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
           target: google_apis
-          profile: pixel_5
+          profile: pixel_2
           ram-size: 1536M
           heap-size: 256M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -feature -Vulkan
           script: bash scripts/verify-android-mcp.sh
       - name: 设备与服务日志
         if: always()

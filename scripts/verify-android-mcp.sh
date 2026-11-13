@@ -13,10 +13,13 @@ PYREPORT
   timeout 10s adb exec-out screencap -p > /tmp/native-mcp.png || true
   tail -100 /tmp/native-logcat.txt || true
   if [[ -f /tmp/native-logcat-live.txt ]]; then
-    rg "Capacitor|chromium|AndroidRuntime|TestRunner|McpNativeRoundTrip|FATAL|ANR|lowmemory" /tmp/native-logcat-live.txt | tail -150 || true
+    grep -E "Capacitor|chromium|AndroidRuntime|TestRunner|McpNativeRoundTrip|FATAL|ANR|lowmemory" /tmp/native-logcat-live.txt | tail -150 || true
   fi
 }
 trap capture_device EXIT
+adb shell wm size 480x800
+adb shell wm density 160
+free -h
 adb reverse tcp:8767 tcp:8767
 adb reverse tcp:4650 tcp:4650
 cd android
