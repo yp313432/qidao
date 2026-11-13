@@ -21,7 +21,7 @@ export const terminalTools = [
 export function createTerminalRuntime({ cwd = homedir(), shell = process.env.SHELL || "sh" } = {}) {
   const jobs = new Map();
   let closed = false;
-  const view = (job) => ({ jobId: job.id, state: job.state, cwd: job.cwd, stdout: job.stdout.toString("utf8"), stderr: job.stderr.toString("utf8"), truncated: job.truncated, exitCode: job.exitCode, signal: job.signal, category: job.category });
+  const view = (job) => ({ jobId: job.id, state: job.state, exitCode: job.exitCode, signal: job.signal, category: job.category, cwd: job.cwd, truncated: job.truncated, stderr: job.stderr.toString("utf8"), stdout: job.stdout.toString("utf8") });
   const terminate = (job, reason) => {
     if (job.state !== "running") return;
     job.category = reason;

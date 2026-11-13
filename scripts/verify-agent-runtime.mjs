@@ -130,6 +130,7 @@ test("terminal bounds output, reports timeout/cancellation and closes running ta
   try {
     const huge = await completed(runtime, await runtime.call("execute", { command: "head -c 100000 /dev/zero" }));
     assert.equal(huge.stdout.length, 65536); assert.equal(huge.truncated, true);
+    assert.match(JSON.stringify(huge).slice(0, 8000), /"exitCode":0/, "MCP display truncation must retain status and exit code");
     const timeout = await completed(runtime, await runtime.call("execute", { command: "sleep 20", timeoutMs: 30 }));
     assert.equal(timeout.state, "timeout"); assert.equal(timeout.category, "timeout");
     const job = await runtime.call("execute", { command: "sleep 20" });
