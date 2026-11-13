@@ -29,6 +29,7 @@ export type PluginKind = "iframe" | "native";
 
 /** 一个插件在目录里的样子 */
 export type PluginEntry = {
+  openMode?: "browser" | "embed";
   id: string;
   name: string;
   /** 一行小字（卡片上显示的说明） */
@@ -96,6 +97,7 @@ export function customToEntry(p: CustomPlugin): PluginEntry {
     hint: p.hint || "自己加的插件",
     kind: "iframe",
     url: p.url,
+    openMode: p.openMode ?? "browser",
     slug: `c_${p.id}`,
     custom: true,
     enabled: p.enabled,

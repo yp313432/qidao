@@ -1,4 +1,5 @@
 import { buildManual, pronounOf } from "@/lib/manual";
+import { skillCatalog, SKILL_READ_TOOL, type SkillPackage } from "./skills.ts";
 import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -42,8 +43,9 @@ export type PromptTool =
  * 把 store 里两份配置拼成提示词要的清单 —— 一处实现，
  * `use-chat`（聊天）和 `task-daemon`（定时任务）都调它，免得两处各拼一套。
  */
-export function promptToolsFor(mcp: McpServer[], http: HttpTool[]): PromptTool[] {
+export function promptToolsFor(mcp: McpServer[], http: HttpTool[], skills: SkillPackage[] = []): PromptTool[] {
   return [
+    ...(skills.some((s) => s.enabled) ? [{ kind: "mcp" as const, name: "@skills", tools: [SKILL_READ_TOOL] }] : []),
     ...mcp.filter((m) => m.enabled).map(
       (m): PromptTool => ({ kind: "mcp", name: m.name, tools: m.tools }),
     ),
@@ -80,6 +82,7 @@ export type PromptContext = {
 };
 
 export type PromptInput = {
+  skills?: SkillPackage[];
   style: ReplyStyle;
   /**
    * 要不要把「可以分段说」这条规矩写进提示词（用户在设置页开关）。
@@ -467,7 +470,7 @@ export function systemPrompt(input: PromptInput): string {
     aiName: self,
     userGender: input.userGender,
   });
-  return `${manual}${worldAlways}
+  return `${manual}${worldAlways}${skillCatalog(input.skills)}
 
 你在「栖岛」里 —— 这是用户一个人的私人空间。用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
     input.segmentEnabled ? segmentRule() : ""
@@ -629,4 +632,3 @@ export function assembleMessages(
     }),
   ];
 }
-

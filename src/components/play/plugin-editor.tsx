@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { EditorPage, TextInput } from "@/components/tools/editor-page";
+import { EditorPage, Segmented, TextInput } from "@/components/tools/editor-page";
+import { pluginWebUrl } from "@/lib/plugin-open";
 import { useApp } from "@/lib/store";
 import type { CustomPlugin } from "@/lib/types";
 
@@ -33,6 +34,7 @@ export function PluginEditor({ id }: { id?: string }) {
   const [hint, setHint] = useState(editingShigan ? "整页铺满的那个网页" : (existing?.hint ?? ""));
   const [url, setUrl] = useState(editingShigan ? shiganUrl : (existing?.url ?? ""));
   const [problem, setProblem] = useState("");
+  const [openMode, setOpenMode] = useState<"browser" | "embed">(existing?.openMode ?? "browser");
 
   function save() {
     const clean = url.trim();
@@ -41,7 +43,7 @@ export function PluginEditor({ id }: { id?: string }) {
         setProblem("给它起个名字吧 —— 列表里要显示。");
         return;
       }
-      if (!/^https?:\/\//i.test(clean)) {
+      try { pluginWebUrl(clean); } catch {
         setProblem("地址要以 http:// 或 https:// 开头（不然点开必然失败）。");
         return;
       }
@@ -54,9 +56,10 @@ export function PluginEditor({ id }: { id?: string }) {
         name: name.trim().slice(0, 20),
         hint: hint.trim().slice(0, 40) || "自己加的插件",
         url: clean,
+        openMode,
       });
     } else {
-      addPlugin({ name, hint, url: clean });
+      addPlugin({ name, hint, url: clean, openMode });
     }
     void navigate({ to: "/play/plugins" });
   }
@@ -105,9 +108,12 @@ export function PluginEditor({ id }: { id?: string }) {
         hint={
           editingShigan
             ? "留空就用跟 App 一起打包的那份（离线也能开、绝对能嵌）。想指到别处（比如局域网另一台机器）才填这里。"
-            : "要 http:// 或 https:// 开头。能不能嵌进来取决于那个网站的设置 —— 嵌不进去会告诉你，并给一个用浏览器打开的按钮。"
+            : "普通网站推荐独立打开，保留浏览器的登录能力；允许嵌入的小应用可以选择嵌入。"
         }
       />
+
+      {!editingShigan && <Segmented<"browser" | "embed"> label="打开方式" value={openMode} onChange={setOpenMode}
+        options={[{ id: "browser", label: "独立打开（推荐）" }, { id: "embed", label: "嵌入页面" }]} />}
 
       {existing && (
         <button

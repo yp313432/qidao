@@ -1,4 +1,5 @@
 import { isNativeApp } from "./platform";
+import { mcpFetch as fetch } from "./mcp-fetch.ts";
 import { kvGet, kvRemove, kvSetJSON } from "@/lib/data/local-kv";
 import type { McpOAuth, McpServer } from "./types";
 
@@ -162,7 +163,7 @@ export function resourceMetadataFrom(wwwAuth: string | null): string | null {
  * 资源是 `https://host/mcp` 时，元数据在
  * `https://host/.well-known/oauth-protected-resource/mcp` 或根下。
  */
-export async function discover(server: McpServer, wwwAuth?: string | null): Promise<Discovery> {
+export async function discover(server: McpServer, wwwAuth?: string | null, signal: AbortSignal = AbortSignal.timeout(20000)): Promise<Discovery> {
   const target = server.url.trim();
   let origin = "";
   let path = "";
@@ -185,7 +186,7 @@ export async function discover(server: McpServer, wwwAuth?: string | null): Prom
   for (const url of prmUrls) {
     tried += `\n  · ${url}`;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal });
       if (res.ok) {
         prm = (await res.json()) as { resource?: string; authorization_servers?: string[] };
         break;
@@ -205,12 +206,12 @@ export async function discover(server: McpServer, wwwAuth?: string | null): Prom
   }
 
   const authorizationServer = prm.authorization_servers?.[0] ?? origin;
-  const as = await discoverAs(authorizationServer);
+  const as = await discoverAs(authorizationServer, signal);
   return { resource: prm.resource ?? target, authorizationServer, as };
 }
 
 /** 第 3 步：授权服务器元数据（RFC 8414；顺手兼容 OIDC 的 discovery） */
-export async function discoverAs(authorizationServer: string): Promise<AsMetadata> {
+export async function discoverAs(authorizationServer: string, signal: AbortSignal = AbortSignal.timeout(20000)): Promise<AsMetadata> {
   const base = authorizationServer.replace(/\/+$/, "");
   let origin = base;
   let path = "";
@@ -232,7 +233,7 @@ export async function discoverAs(authorizationServer: string): Promise<AsMetadat
 
   for (const url of candidates) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal });
       if (!res.ok) continue;
       const meta = (await res.json()) as Partial<AsMetadata>;
       if (meta.authorization_endpoint && meta.token_endpoint) {
@@ -494,6 +495,7 @@ export async function completeAuthorize(params: {
  */
 export async function accessTokenFor(
   server: McpServer,
+  signal: AbortSignal = AbortSignal.timeout(20000),
 ): Promise<{ token?: string; patch?: Partial<McpOAuth>; message?: string }> {
   const o = server.oauth;
   if (!o?.accessToken) return {};
@@ -517,6 +519,7 @@ export async function accessTokenFor(
 
   try {
     const res = await fetch(o.tokenEndpoint, {
+      signal,
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,

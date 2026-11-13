@@ -1,0 +1,69 @@
+name: 社区 MCP、Skills 与网页入口验收
+on:
+  pull_request:
+    paths: ["src/**", "public/bridges/**", "android/**", "scripts/**", "verify-*.mjs", ".github/workflows/community-check.yml"]
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --experimental-strip-types scripts/verify-community.mjs
+      - run: node verify-action-registry.mjs
+      - run: node --experimental-strip-types verify-tool-recall.mjs
+      - run: node scripts/guard-styles.mjs
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm run build && node scripts/copy-static.mjs
+        env:
+          QIDAO_TARGET: android
+          VITE_DIRECT_UPSTREAM: "1"
+          VITE_AUTH_ENABLED: "false"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: 编译安卓原生 MCP 网络层
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+          npx cap sync android
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:compileDebugJavaWithJavac --no-daemon
+      - run: npx playwright install --with-deps chromium
+      - name: 开发页面验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs > /tmp/community-dev.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/scripts/chat-page-fixture.html >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-dev.log; exit 1; }
+      - name: 生产页面验收
+        run: |
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/community-prod.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8081/scripts/chat-page-fixture.html >/dev/null; then break; fi
+            sleep 1
+          done
+          QIDAO_TEST_BASE=http://127.0.0.1:8081 QIDAO_SHOTS=screenshots/community/production node scripts/verify-community-ui.mjs || { tail -60 /tmp/community-prod.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-screenshots
+          path: screenshots/community/

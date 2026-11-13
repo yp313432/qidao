@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { openPluginWeb } from "@/lib/plugin-open";
+import { pushToast } from "@/lib/toast";
 
 /**
  * **iframe 型插件的统一外壳** —— 时感用它，用户以后自己加的插件也用它（一份代码）。
@@ -376,6 +378,8 @@ export function PluginFrame({
         className="min-h-0 w-full flex-1 border-0"
         style={{ backgroundColor: frameBg || "#fff" }}
       />
+      {!local && <button type="button" className="k-btn absolute right-3 top-3 z-10" onClick={() =>
+        void openPluginWeb(url).catch((error: unknown) => pushToast((error as Error).message))}>独立打开</button>}
 
       {/* 返回钮：压在左上角、半透明黑底（跟时感同一套，用户已经用惯了）
           m03230：插件页被 app-shell 排除在统一返回键之外 —— 它压在**任意**插件背景上，
@@ -422,7 +426,7 @@ export function PluginFrame({
                 type="button"
                 onClick={() => {
                   setOpened(true);
-                  window.open(url, "_blank", "noopener");
+                  void openPluginWeb(url).catch((error: unknown) => pushToast((error as Error).message));
                 }}
                 className="flex items-center gap-1 rounded-full bg-white/20 px-3 py-1.5 text-[11px] whitespace-nowrap text-white"
               >

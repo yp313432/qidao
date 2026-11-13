@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
+import { SkillManager } from "@/components/tools/skill-manager";
 import { SummaryList } from "@/components/tools/summary-list";
 import { ToolCard } from "@/components/tools/tool-card";
 import { KButton, KChip, KEmpty, KHead } from "@/components/ui-kit";
@@ -14,6 +15,7 @@ import { formatDay } from "@/lib/utils";
 const TABS = [
   { id: "http", label: "HTTP" },
   { id: "mcp", label: "MCP" },
+  { id: "skills", label: "Skills" },
   { id: "summary", label: "摘要" },
   /**
    * **文档**（2026-11 用户 m07602）："工具区的表情包做好之后也可以删了，把文档换过去吧"。
@@ -91,6 +93,7 @@ export function ToolsView() {
         {tab === "http" && <HttpTools />}
 
         {tab === "mcp" && <McpServers />}
+        {tab === "skills" && <SkillManager />}
 
         {/*
           ── 摘要（2026-11）──────────────────────────────────────

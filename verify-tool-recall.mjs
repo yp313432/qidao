@@ -166,6 +166,13 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["sense.foreground", "感知"],
   ["sense.usage", "感知"],
   ["sense.screen", "感知"],
+  ["device.listApps", "动手"],
+  ["device.openApp", "动手"],
+  ["device.share", "动手"],
+  ["device.clipboardRead", "动手"],
+  ["device.clipboardWrite", "动手"],
+  ["device.openMap", "动手"],
+  ["device.addCalendar", "动手"],
 ];
 
 const ALL_KINDS = ACTION_SCHEMA_KIND_GROUP.map((pair) => pair[0]);
@@ -187,7 +194,7 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * → **93**（2026-11 加花圃养护五个 `garden.flower.{plant,water,feed,pick,gift}`）。
  * → **99**（2026-11 加日记/动态/信三读三锁六个 `*.read` / `*.pin`）。
  */
-const EXPECTED_TOTAL = 95;
+const EXPECTED_TOTAL = 102;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -444,7 +451,7 @@ async function main() {
   );
   check(
     `tool-select.ts 导出 ALL_GROUPS（${ALL_GROUPS?.length} 组）与 ALWAYS_KINDS（${ALWAYS_KINDS?.length} 个）`,
-    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 12 && ALWAYS_KINDS.length === 8,
+    Array.isArray(ALL_GROUPS) && ALL_GROUPS.length === 13 && ALWAYS_KINDS.length === 8,
     j([ALL_GROUPS?.length, ALWAYS_KINDS?.length]),
   );
   const firstImport = (TOOL_SELECT_SRC.match(/^\s*import\s.*$/m) ?? [""])[0].trim();

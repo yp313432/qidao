@@ -24,6 +24,7 @@
  */
 
 import type { ActionTool } from "@/lib/action-schema";
+import { SKILL_READ_TOOL } from "./skills.ts";
 
 /** 一条外部工具在"名字 → 怎么执行"上的档案 */
 export type ExternalToolEntry =
@@ -246,7 +247,10 @@ export async function buildExternalTools(
 ): Promise<ExternalActionTool[]> {
   const { useApp } = await import("@/lib/store");
   const st = useApp.getState();
-  const { tools, entries, skipped } = buildExternalToolDefs(st.mcp, st.httpTools, limit);
+  const mcp = [...st.mcp];
+  if (st.skills?.some((skill) => skill.enabled)) mcp.unshift({ id: "@skills", name: "@skills", enabled: true,
+    description: "用户启用的 Skills", transport: "http", url: "", command: "", args: "", headersText: "", kind: "mcp", tools: [SKILL_READ_TOOL] });
+  const { tools, entries, skipped } = buildExternalToolDefs(mcp, st.httpTools, limit);
   registry = entries;
   lastSkipped = skipped;
   return tools;

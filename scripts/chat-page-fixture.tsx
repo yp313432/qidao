@@ -4,6 +4,9 @@ import { createMemoryHistory, createRootRoute, createRoute, createRouter, Router
 import { AppShell } from "../src/components/shell/app-shell";
 import { ChatView } from "../src/components/chat/chat-view";
 import { MePage } from "../src/components/me/me-page";
+import { ToolsView } from "../src/components/views/tools-view";
+import { PluginHub } from "../src/components/play/plugin-hub";
+import { PluginEditor } from "../src/components/play/plugin-editor";
 import { useApp } from "../src/lib/store";
 import { waitHydrated } from "../src/lib/store-ready";
 import "../src/styles.css";
@@ -29,10 +32,14 @@ const root = createRootRoute({ component: AppShell });
 const chat = createRoute({ getParentRoute: () => root, path: "/", component: ChatView });
 const settings = createRoute({ getParentRoute: () => root, path: "/chat-settings", component: () =>
   <MePage tab="chat" title="对话" subtitle="思考过程、标点分句、发送节奏、连发与表情包" /> });
-const router = createRouter({ routeTree: root.addChildren([chat, settings]),
-  history: createMemoryHistory({ initialEntries: [new URLSearchParams(location.search).has("settings") ? "/chat-settings" : "/"] }) });
+const tools = createRoute({ getParentRoute: () => root, path: "/tools", component: ToolsView });
+const plugins = createRoute({ getParentRoute: () => root, path: "/play/plugins", component: PluginHub });
+const pluginEditor = createRoute({ getParentRoute: () => root, path: "/play/plugins/edit", component: () => <PluginEditor /> });
+const router = createRouter({ routeTree: root.addChildren([chat, settings, tools, plugins, pluginEditor]),
+  history: createMemoryHistory({ initialEntries: [new URLSearchParams(location.search).has("settings") ? "/chat-settings" : new URLSearchParams(location.search).has("tools") ? "/tools" : "/"] }) });
 Object.assign(window, { qidaoFixture: {
   navigate: (path: string) => router.navigate({ to: path }),
-  read: () => ({ settings: useApp.getState().settings, messages: useApp.getState().conversations.flatMap((c) => c.messages) }),
+  read: () => ({ settings: useApp.getState().settings, skills: useApp.getState().skills, mcp: useApp.getState().mcp, messages: useApp.getState().conversations.flatMap((c) => c.messages) }),
+  readSkill: async (name: string) => (await import("../src/lib/actions")).runAction({ kind: "tool.call", server: "@skills", tool: "read", args: { name } }, { navigate: () => {} }),
 } });
 createRoot(document.getElementById("fixture")!).render(<RouterProvider router={router} />);

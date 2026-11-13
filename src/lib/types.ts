@@ -448,6 +448,7 @@ export type ReplyStyle = "default" | "concise" | "explanatory";
  * 存的就这三样：名字、一句说明、地址（外加一个开关）。
  */
 export type CustomPlugin = {
+  openMode?: "browser" | "embed";
   id: string;
   name: string;
   hint: string;
@@ -957,6 +958,10 @@ export type McpServer = {
   /** stdio 历史字段，界面已不再填写 */
   command: string;
   args: string;
+  /** stdio services are started by the user's Termux bridge. */
+  env?: Record<string, string>;
+  cwd?: string;
+  bridgeToken?: string;
   /** 每行一个 "Key: Value" */
   headersText: string;
   enabled: boolean;
@@ -1404,4 +1409,3 @@ export type ActionLogEntry = {
   message: string;
   at: number;
 };
-

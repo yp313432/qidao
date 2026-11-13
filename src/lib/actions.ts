@@ -14,6 +14,7 @@ import {
   rollRound,
 } from "@/lib/garden-catch";
 import { buildHttpRequest, executeHttpRequest } from "@/lib/http-tools";
+import { readSkillResource } from "./skills";
 import { WALK_PLACES, placeByZh } from "@/lib/garden-walk";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { callTool } from "@/lib/mcp";
@@ -1185,6 +1186,11 @@ ${lines.join("\n")}`;
       if (!toolName) return "没说是哪个工具，调不了。";
 
       const live = useApp.getState();
+      if (serverName === "@skills") {
+        if (toolName !== "read") return "Skill 只提供 read 读取工具";
+        const result = readSkillResource(live.skills ?? [], action.args && typeof action.args === "object" ? action.args as Record<string, unknown> : {});
+        return result.ok ? `读取 Skill 的结果：\n${result.text}` : `读取 Skill 失败：${result.text}`;
+      }
       const usable = live.mcp.filter((m) => m.enabled);
       const server =
         usable.find((m) => m.name.trim().toLowerCase() === serverName.toLowerCase()) ??
@@ -1459,5 +1465,3 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
   }
   return receipt;
 }
-
-
