@@ -116,10 +116,11 @@ export function HttpToolEditor({ id }: { id?: string }) {
 
       <div className="mt-4 rounded-2xl border border-dashed border-line px-4 py-3">
         <p className="text-[12px] leading-5 text-muted">
-          保存回列表后点「调用」，会真的发一次请求。浏览器有跨域（CORS）限制，
-          对方服务器没放开的话会被挡住 —— 那不是栖岛的问题，是对方的事。
+          保存后回列表点「调用」测试。App 使用系统网络，不受浏览器跨域（CORS）限制；
+          网页版需要接口开放跨域，或填写你自己的服务端中转地址。
         </p>
       </div>
     </EditorPage>
   );
 }
+
