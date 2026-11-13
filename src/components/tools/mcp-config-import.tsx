@@ -3,6 +3,7 @@ import { KButton } from "@/components/ui-kit";
 import { useApp } from "@/lib/store";
 import { importMcpConfig, termuxConfig } from "@/lib/mcp-config";
 import bridgeScript from "../../../public/bridges/qidao-mcp-bridge.mjs?raw";
+import { TextInput, TextArea } from "./editor-page";
 
 function download(name: string, contents: string) {
   const url = URL.createObjectURL(new Blob([contents], { type: "text/plain;charset=utf-8" }));
@@ -26,12 +27,8 @@ export function McpConfigImport() {
   }
   return <div className="k-list">
     <details className="k-note"><summary>导入社区 MCP 配置</summary><div className="k-note__body k-list">
-      <label className="k-field"><span>粘贴 mcpServers JSON 配置</span>
-        <textarea className="k-input" rows={7} value={raw} onChange={(event) => setRaw(event.target.value)} placeholder={'{"mcpServers":{"服务名":{"type":"streamable_http","url":"https://example.com/mcp"}}}'} />
-      </label>
-      <label className="k-field"><span>Termux 桥接地址（command 型服务使用）</span>
-        <input className="k-input" value={bridgeUrl} onChange={(event) => setBridgeUrl(event.target.value)} />
-      </label>
+      <TextArea label="粘贴 mcpServers JSON 配置" rows={7} value={raw} onChange={setRaw} placeholder={'{"mcpServers":{"服务名":{"type":"streamable_http","url":"https://example.com/mcp"}}}'} />
+      <TextInput label="Termux 桥接地址（command 型服务使用）" value={bridgeUrl} onChange={setBridgeUrl} />
       <KButton disabled={!raw.trim()} onClick={install}>导入配置</KButton>
       <p>远程 HTTP / SSE 直接连接；npx、uvx、Python 配置保留命令、参数和环境变量，通过你的 Termux 运行。</p>
     </div></details>

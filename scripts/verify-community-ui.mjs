@@ -22,14 +22,14 @@ try {
   await page.getByText("导入社区 MCP 配置", { exact: true }).click();
   await page.getByRole("textbox", { name: "粘贴 mcpServers JSON 配置" }).fill(JSON.stringify({ mcpServers: { 社区测试: { type: "streamable_http", url: "http://127.0.0.1:4651/mcp" }, Termux测试: { command: "node", args: ["test.mjs"], env: { TEST_KEY: "kept" } } } }));
   await page.getByRole("button", { name: "导入配置", exact: true }).click();
-  await page.getByRole("status").getByText(/已导入 2 个服务/).waitFor();
+  await page.getByRole("status").filter({ hasText: /已导入 2 个服务/ }).waitFor();
   assert.equal(await page.evaluate(() => window.qidaoFixture.read().mcp.find((m) => m.name === "Termux测试").env.TEST_KEY), "kept");
   await page.getByRole("button", { name: /^社区测试/ }).click();
   await page.getByRole("button", { name: "测试连接", exact: true }).click();
   await page.getByText(/拿到 1 个工具/).first().waitFor();
   await page.getByRole("button", { name: "Skills", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "SKILL.md", mimeType: "text/markdown", buffer: Buffer.from("---\nname: UI测试技能\ndescription: 测试按需加载\n---\n读取完成后回答测试成功。") });
-  await page.getByRole("status").getByText(/已导入 1 个 Skill/).waitFor();
+  await page.getByRole("status").filter({ hasText: /已导入 1 个 Skill/ }).waitFor();
   const receipt = await page.evaluate(() => window.qidaoFixture.readSkill("UI测试技能"));
   assert.match(receipt, /读取完成后回答测试成功/);
   await page.getByRole("switch", { name: "启用 UI测试技能" }).click();
@@ -45,7 +45,7 @@ try {
   await page.getByRole("textbox", { name: "地址", exact: true }).fill("https://example.com");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   assert.equal(await page.evaluate(() => window.qidaoFixture.read().settings.customPlugins.at(-1).openMode), "browser");
-  const popupPromise = page.waitForEvent("popup"); await page.getByRole("link", { name: /第三方网页/ }).click();
+  const popupPromise = context.waitForEvent("page"); await page.getByRole("link", { name: /^第三方网页/ }).click();
   const popup = await popupPromise; await popup.close();
   assert.equal(await page.locator("#plugin-frame").count(), 0, "third-party default never attempts iframe injection");
   await page.setViewportSize({ width: 1280, height: 900 });
