@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Loader2, Pencil, Play, Plus, Sparkles, Trash2 } from "lucide-react";
 import { ToolCard } from "@/components/tools/tool-card";
 import { KButton, KChip, KEmpty, KSwitch } from "@/components/ui-kit";
-import { buildHttpRequest, paramsOfTool } from "@/lib/http-tools";
+import { buildHttpRequest, executeHttpRequest, paramsOfTool } from "@/lib/http-tools";
 import { EXAMPLE_HTTP_TOOLS, useApp } from "@/lib/store";
 import type { HttpTool } from "@/lib/types";
 
@@ -78,8 +78,8 @@ export function HttpTools() {
         }));
         return;
       }
-      const res = await fetch(built.url, built.init);
-      const text = (await res.text()).slice(0, 4000);
+      const res = await executeHttpRequest(built);
+      const text = res.text.slice(0, 4000);
       setResults((m) => ({
         ...m,
         [tool.id]: { status: res.status, ms: Math.round(performance.now() - started), text },
@@ -91,7 +91,7 @@ export function HttpTools() {
           status: 0,
           ms: Math.round(performance.now() - started),
           text: "",
-          error: `${(err as Error).message || "请求失败"}\n\n常见原因：对方服务器没开跨域(CORS)、地址写错、或网络不通。`,
+          error: `${(err as Error).message || "请求失败"}\n\n浏览器中请检查对方是否开放跨域（CORS）；App 中请检查地址、鉴权或网络。`,
         },
       }));
     } finally {
@@ -227,8 +227,16 @@ export function HttpTools() {
         <summary>说明 · 这个标签怎么用</summary>
         <div className="k-note__body">
           <p>
-            自己填地址和请求头，点「调用」会真的发一次请求 —— 不依赖 AI。浏览器有跨域（CORS）
-            限制，对方服务器不放开的话会被挡住。
+            点「新建」，填写名称、地址和请求方法；需要密钥时按接口文档填写请求头，POST 的内容填在请求体里。
+            保存后点「调用」测试，启用后 AI 也能使用。
+          </p>
+          <p>
+            App 使用系统网络发送 HTTP 请求，不受浏览器跨域（CORS）限制。网页版需要接口开放跨域，
+            或填写你自己的服务端中转地址；在请求头里添加 CORS 字段不能解除限制。
+          </p>
+          <p>
+            HTTP 工具调用你配置的接口，通常返回 JSON 或文本；网页抓取读取一个网页并提取正文，
+            不用逐个添加 HTTP 工具。需要登录、验证码或依赖网页脚本生成的正文仍可能读不到。
           </p>
           <p>
             星芒也能调它：他会按工具名提议、过你的权限闸门之后真的发出去。「可改的参数」是从你配好的请求里读出来的（GET
@@ -243,3 +251,4 @@ export function HttpTools() {
     </div>
   );
 }
+

@@ -13,6 +13,53 @@
  */
 type NativeRes = { status: number; data: unknown };
 
+export type NativeHttpOptions = {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  data?: unknown;
+  connectTimeout?: number;
+  readTimeout?: number;
+  responseType?: "text" | "arraybuffer";
+};
+
+type NativeHttpClient = {
+  request: (options: NativeHttpOptions) => Promise<NativeRes & {
+    url?: string;
+    headers?: Record<string, string>;
+  }>;
+};
+
+type NativeBridge = {
+  isNativePlatform?: () => boolean;
+  Plugins?: { CapacitorHttp?: NativeHttpClient };
+  nativePromise?: (plugin: string, method: string, options: NativeHttpOptions) => ReturnType<NativeHttpClient["request"]>;
+};
+
+function bridge(): NativeBridge | undefined {
+  return (globalThis as unknown as { Capacitor?: NativeBridge }).Capacitor;
+}
+
+export function isNativeHttpPlatform(): boolean {
+  return Boolean(bridge()?.isNativePlatform?.());
+}
+
+/**
+ * 使用 APK 启动时已注入的桥，不再等待动态模块加载。
+ * Capacitor 8 的 nativePromise 可直接调用内置 CapacitorHttp 插件；
+ * Plugins 上已有代理时优先复用它。两条路都不会修改全局 fetch。
+ */
+export function getNativeHttp(): NativeHttpClient | null {
+  const cap = bridge();
+  if (!cap?.isNativePlatform?.()) return null;
+  const http = cap.Plugins?.CapacitorHttp;
+  if (typeof http?.request === "function") return http;
+  if (typeof cap.nativePromise === "function") {
+    return { request: (options) => cap.nativePromise!("CapacitorHttp", "request", options) };
+  }
+  return null;
+}
+
 export async function nativeHttp(o: {
   url: string;
   method?: string;
@@ -20,14 +67,9 @@ export async function nativeHttp(o: {
   data?: unknown;
 }): Promise<NativeRes | null> {
   try {
-    const cap = (globalThis as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
-      .Capacitor;
-    if (!cap?.isNativePlatform?.()) return null;
-    const mod = (await import("@capacitor/core")) as unknown as {
-      CapacitorHttp?: { request: (o: Record<string, unknown>) => Promise<NativeRes> };
-    };
-    if (!mod.CapacitorHttp) return null;
-    return await mod.CapacitorHttp.request({ ...o, connectTimeout: 20_000, readTimeout: 120_000 });
+    const http = getNativeHttp();
+    if (!http) return null;
+    return await http.request({ ...o, connectTimeout: 20_000, readTimeout: 120_000 });
   } catch {
     return null;
   }
@@ -45,3 +87,4 @@ export function looksLikeNetworkBlock(err: unknown): boolean {
     msg,
   );
 }
+

@@ -14,7 +14,7 @@
  *
  * 解法是 Capacitor 8 **自带**的 `CapacitorHttp`：它把请求交给原生 OkHttp 发，
  * 拿到结果再回给 JS —— **不是 WebView 发的请求，所以根本没有同源策略**。
- * 零新插件、零 key、不用写 Java。
+ * 共用 `native-http.ts` 的已注入桥接，不等待动态 JS 模块；零新插件、零 key。
  *
  * ⚠️ **不要**在 `capacitor.config.ts` 里开 `plugins.CapacitorHttp.enabled = true`
  * ——那是把全局 `fetch`/`XMLHttpRequest` 打补丁。这里只**直接调** `CapacitorHttp.request()`，
@@ -35,6 +35,7 @@
   所以带 `.ts` 的写法 tsc / Vite 都认（`sense-core.ts` / `tool-select.ts` 那几个
   纯模块走的也是"纯 node 能直接 import"这条规矩）。
 */
+import { getNativeHttp, isNativeHttpPlatform } from "./native-http.ts";
 import { decodeWebBytes, htmlToText, isPublicHttpUrl, WEB_FETCH_HEADERS } from "./web-extract.ts";
 
 /** 取网页的默认上限（端上比服务端宽松一点：读长文更常见，但绝不无限） */
@@ -80,12 +81,7 @@ export type WebSearchResult =
 
 /* ────────────────────────── 原生 HTTP 那一层 ────────────────────────── */
 
-type CapacitorHttpResponse = { status: number; url?: string; data?: unknown; headers?: Record<string, string> };
-
-function isNativeWeb(): boolean {
-  const cap = (globalThis as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return Boolean(cap?.isNativePlatform?.());
-}
+const isNativeWeb = isNativeHttpPlatform;
 
 /** 浏览器走自己的服务端；APK 仍直接走原生 HTTP，不向第三方转发网址。 */
 function hasWebServer(): boolean {
@@ -109,48 +105,6 @@ async function webApi(path: string, timeoutMs: number): Promise<Record<string, u
   } catch (err) {
     return { ok: false, why: (err as Error).name === "AbortError" ? "网页接口请求超时" : (err as Error).message };
   } finally { clearTimeout(timer); }
-}
-
-/** 拿 CapacitorHttp（只在真的跑在原生里、且这个版本带着它的时候才拿得到） */
-async function nativeHttp(): Promise<{
-  request: (o: {
-    url: string;
-    method?: string;
-    headers?: Record<string, string>;
-    data?: unknown;
-    connectTimeout?: number;
-    readTimeout?: number;
-    responseType?: "arraybuffer";
-  }) => Promise<CapacitorHttpResponse>;
-} | null> {
-  try {
-    const w = globalThis as unknown as {
-      Capacitor?: { isNativePlatform?: () => boolean };
-    };
-    // 先看最便宜的那个判据：不是原生就**连模块都不 import**（网页版没这个必要）
-    if (!w.Capacitor?.isNativePlatform?.()) return null;
-    const mod = (await import("@capacitor/core")) as unknown as {
-      CapacitorHttp?: {
-        request: (o: {
-          url: string;
-          method?: string;
-          headers?: Record<string, string>;
-          data?: unknown;
-          connectTimeout?: number;
-          readTimeout?: number;
-          responseType?: "arraybuffer";
-        }) => Promise<CapacitorHttpResponse>;
-      };
-    };
-    return mod.CapacitorHttp ?? null;
-  } catch {
-    /*
-      老包 / 网页版 / 这个版本没带 CapacitorHttp —— 一律返回 null，
-      由调用方回落到普通 fetch。**绝不抛**：拿不到原生只是"慢一点/可能被跨域拦"，
-      不是"这个功能坏了"。
-    */
-    return null;
-  }
 }
 
 /* ────────────────────────── 取网页（带护栏） ────────────────────────── */
@@ -202,12 +156,8 @@ export async function fetchWebText(
 ): Promise<WebFetchResult> {
   const timeoutMs = opts.timeoutMs ?? WEB_FETCH_DEFAULTS.timeoutMs;
   /**
-   * ⚠️ **总时限**（2026-11 真机踩到，这是"搜索总是超时"的真凶）：
-   * 原来那道硬超时只装在"原生请求"那一步上，而它**前面**还有一步
-   * `await nativeHttp()`（动态 import + 环境探测）—— 那一步**没有任何时限**。
-   * 真机上就卡在那儿：搜索自己的 14 秒预算、11 秒硬超时**一个都没轮上**，
-   * 最后是闸门那把 45 秒保险丝兜的（用户看到的就是「等了 45 秒没有结果」）。
-   * 现在把**整个函数**套一层，里面哪一步卡住都有回音。
+   * 整个函数保留总时限，覆盖原生请求、读取与解码。
+   * 原生桥直接同步取得，不再因动态 import 的短暂延迟误报「通道未就绪」。
    */
   const budget = timeoutMs + NATIVE_HTTP_HARD_MS + 2000;
   return await withDeadline(fetchWebTextInner(rawUrl, timeoutMs, opts), budget, () => ({
@@ -228,7 +178,7 @@ async function fetchWebTextInner(
   const url = checked.url.toString();
   const headers = { ...WEB_FETCH_HEADERS, ...(opts.headers ?? {}) };
 
-  const http = await withDeadline(nativeHttp(), Math.min(timeoutMs, 1500), () => null);
+  const http = getNativeHttp();
   if (isNativeWeb() && !http) return { ok: false, why: "原生网页请求通道未就绪，请重试；未改用会被跨域拦截的网页请求" };
   if (http) {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -509,4 +459,5 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
 export function hitLine(i: number, h: WebHit): string {
   return `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.snippet}`;
 }
+
 

@@ -1,4 +1,5 @@
 import type { HttpTool } from "./types";
+import { getNativeHttp, isNativeHttpPlatform } from "./native-http.ts";
 
 /**
  * HTTP 工具的**请求构造** —— 只有这一份实现，两个地方共用：
@@ -97,6 +98,45 @@ export type BuiltRequest =
   | { ok: true; url: string; init: RequestInit; note: string }
   | { ok: false; error: string };
 
+/** 手动调用与 AI 调用共用：APK 走系统网络，浏览器保留 CORS 约束。 */
+export async function executeHttpRequest(
+  built: Extract<BuiltRequest, { ok: true }>,
+  timeoutMs = 20_000,
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const url = new URL(built.url);
+  if (!/^https?:$/.test(url.protocol)) throw new Error("HTTP 工具只支持 http 或 https 地址");
+  const http = getNativeHttp();
+  if (isNativeHttpPlatform() && !http) throw new Error("原生网络通道未就绪，请重新打开 App 后重试");
+  const ac = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      ac.abort();
+      reject(new Error("HTTP 请求超时，请检查地址或稍后重试"));
+    }, timeoutMs);
+  });
+  try {
+    const request = (async () => {
+      if (http) {
+        const res = await http.request({
+          url: url.toString(), method: built.init.method ?? "GET",
+          headers: Object.fromEntries(new Headers(built.init.headers)),
+          data: built.init.body ?? undefined, responseType: "text",
+          connectTimeout: timeoutMs, readTimeout: timeoutMs,
+        });
+        if (!res.status) throw new Error("原生请求没拿到状态码");
+        return { ok: res.status >= 200 && res.status < 300, status: res.status,
+          text: typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "") };
+      }
+      const res = await fetch(built.url, { ...built.init, signal: ac.signal });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    })();
+    return await Promise.race([request, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * 拼出最终要发的那一次请求。
  *
@@ -167,3 +207,4 @@ export function buildHttpRequest(
   }
   return { ok: true, url, init, note };
 }
+

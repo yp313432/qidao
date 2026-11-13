@@ -174,6 +174,19 @@ try {
     for (const [label] of [switches.at(-1), switches[0], switches[1], ...switches.slice(2, -1)]) {
       await page.getByRole("switch", { name: label, exact: true }).click();
     }
+    const stickerSwitch = page.getByRole("switch", { name: "传表情时自动去白底", exact: true });
+    await stickerSwitch.scrollIntoViewIfNeeded();
+    const stickerCard = await stickerSwitch.evaluate((control) => {
+      const card = control.closest(".k-sub");
+      const rect = card.getBoundingClientRect();
+      const lastRow = card.lastElementChild.getBoundingClientRect();
+      return { bottom: rect.bottom, contentBottom: lastRow.bottom,
+        padding: parseFloat(getComputedStyle(card).paddingBottom), viewport: innerHeight };
+    });
+    assert.ok(stickerCard.contentBottom + stickerCard.padding <= stickerCard.bottom + 1,
+      "sticker card must enclose its last row and bottom padding");
+    assert.ok(stickerCard.bottom <= stickerCard.viewport, "bottom border can be scrolled into view");
+    assert.equal(await page.getByText(/思考链保存在这台设备/).count(), 0);
     if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/conversation-settings-mobile.png`, fullPage: true });
     await page.evaluate(() => window.qidaoFixture.navigate("/"));
     const input = page.getByRole("textbox", { name: "消息输入框", exact: true });
@@ -210,3 +223,4 @@ try {
   await browser.close();
   await new Promise((resolve) => upstream.close(resolve));
 }
+

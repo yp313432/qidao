@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { readWebPage, webSearch, parseBingHtml } from "../src/lib/web-http.ts";
 import { decodeWebBytes, htmlToText } from "../src/lib/web-extract.ts";
+import { buildHttpRequest, executeHttpRequest } from "../src/lib/http-tools.ts";
+import { getNativeHttp } from "../src/lib/native-http.ts";
 
-// Replace only the Capacitor boundary; execute the production request/parse logic.
+// Native cases use the injected APK bridge, with no dynamically loaded module.
 registerHooks({ resolve(specifier, context, next) {
-  if (specifier === "@capacitor/core") return { shortCircuit: true, url:
-    "data:text/javascript,export const CapacitorHttp = {request: (o) => globalThis.__webTestNative(o)};" };
+  if (specifier === "@capacitor/core") throw new Error("native HTTP must not depend on a lazy chunk");
   if (specifier.startsWith("@/")) return { shortCircuit: true,
     url: new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href };
   return next(specifier, context);
@@ -68,7 +69,11 @@ test("missing server route and authentication failures are not article content",
 
 test("native reading requests bytes and decodes a GBK page", async () => {
   browser();
-  globalThis.Capacitor = { isNativePlatform: () => true };
+  globalThis.Capacitor = { isNativePlatform: () => true, nativePromise(plugin, method, opts) {
+    assert.equal(plugin, "CapacitorHttp");
+    assert.equal(method, "request");
+    return globalThis.__webTestNative(opts);
+  } };
   globalThis.fetch = () => { throw new Error("must not use WebView fetch or server"); };
   globalThis.__webTestNative = async (opts) => {
     assert.equal(opts.responseType, "arraybuffer");
@@ -80,6 +85,66 @@ test("native reading requests bytes and decodes a GBK page", async () => {
   assert.equal(result.ok, true);
   assert.equal(result.via, "native");
   assert.equal(result.text, "中文");
+});
+
+test("native plugin proxy is reused and cannot be used in browser mode", async () => {
+  const http = { request: async () => ({ status: 200, data: "ok" }) };
+  globalThis.Capacitor = { isNativePlatform: () => true, Plugins: { CapacitorHttp: http },
+    nativePromise() { throw new Error("use the existing proxy"); } };
+  assert.equal(getNativeHttp(), http);
+  globalThis.Capacitor.isNativePlatform = () => false;
+  assert.equal(getNativeHttp(), null);
+});
+
+test("missing or rejecting APK bridge never falls back to WebView fetch", async () => {
+  browser();
+  globalThis.fetch = () => { throw new Error("must not use WebView fetch"); };
+  globalThis.Capacitor = { isNativePlatform: () => true };
+  assert.match((await readWebPage("https://example.com")).why, /通道未就绪/);
+  globalThis.Capacitor.nativePromise = async () => { throw new Error("native network unavailable"); };
+  assert.match((await readWebPage("https://example.com")).why, /native network unavailable/);
+});
+
+const httpTool = { method: "POST", url: "https://example.com/api", body: '{"city":"杭州"}',
+  headersText: "Authorization: Bearer test-key" };
+
+test("custom HTTP preserves POST body and auth through the APK bridge", async () => {
+  globalThis.fetch = () => { throw new Error("must not use WebView fetch"); };
+  globalThis.Capacitor = { isNativePlatform: () => true, nativePromise: async (plugin, method, opts) => {
+    assert.equal(plugin, "CapacitorHttp");
+    assert.equal(method, "request");
+    assert.equal(opts.url, httpTool.url);
+    assert.equal(opts.method, "POST");
+    assert.equal(opts.headers.authorization, "Bearer test-key");
+    assert.equal(opts.headers["content-type"], "application/json");
+    assert.deepEqual(JSON.parse(opts.data), { city: "北京" });
+    return { status: 200, data: { city: "北京", weather: "晴" } };
+  } };
+  const res = await executeHttpRequest(buildHttpRequest(httpTool, { city: "北京" }));
+  assert.equal(res.ok, true);
+  assert.equal(res.status, 200);
+  assert.deepEqual(JSON.parse(res.text), { city: "北京", weather: "晴" });
+});
+
+test("custom HTTP keeps native business errors and browser GET parameters", async () => {
+  globalThis.Capacitor = { isNativePlatform: () => true, nativePromise: async () => ({ status: 401, data: "bad key" }) };
+  assert.deepEqual(await executeHttpRequest(buildHttpRequest(httpTool)), { ok: false, status: 401, text: "bad key" });
+  delete globalThis.Capacitor;
+  globalThis.fetch = async (url, init) => {
+    assert.equal(new URL(url).searchParams.get("city"), "北京");
+    assert.equal(init.method, "GET");
+    return new Response("weather");
+  };
+  const request = buildHttpRequest({ ...httpTool, method: "GET", url: "https://example.com/?city=杭州" }, { city: "北京" });
+  assert.equal((await executeHttpRequest(request)).text, "weather");
+});
+
+test("custom HTTP has a total deadline for a stalled native bridge or browser body", async () => {
+  globalThis.Capacitor = { isNativePlatform: () => true, nativePromise: () => new Promise(() => {}) };
+  await assert.rejects(executeHttpRequest(buildHttpRequest(httpTool), 20), /超时/);
+  delete globalThis.Capacitor;
+  globalThis.fetch = async () => ({ text: () => new Promise(() => {}) });
+  await assert.rejects(executeHttpRequest(buildHttpRequest(httpTool), 20), /超时/);
 });
 
 test("byte decoder honors meta charset and falls back for unknown encoding", () => {
@@ -166,3 +231,4 @@ test("external call history retains its actual title and pending is not success"
   assert.match(callSentence(call, "小克").line, /记忆\/检索/);
   assert.match(callSentence({ ...call, category: "pending", ok: false }, "小克").line, /还没拿到结果/);
 });
+

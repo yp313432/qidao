@@ -13,7 +13,7 @@ import {
   recordOutcome,
   rollRound,
 } from "@/lib/garden-catch";
-import { buildHttpRequest } from "@/lib/http-tools";
+import { buildHttpRequest, executeHttpRequest } from "@/lib/http-tools";
 import { WALK_PLACES, placeByZh } from "@/lib/garden-walk";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { callTool } from "@/lib/mcp";
@@ -1244,15 +1244,15 @@ ${lines.join("\n")}`;
       if (!built.ok) return `调用「${hit.name}」失败：${built.error}`;
 
       try {
-        const res = await fetch(built.url, built.init);
-        const text = (await res.text()).slice(0, 2000);
+        const res = await executeHttpRequest(built);
+        const text = res.text.slice(0, 2000);
         const head = `${hit.method} ${built.url}`;
         if (!res.ok) {
           return `调用「${hit.name}」失败（HTTP ${res.status}）${built.note}\n${head}\n${text || "(空响应)"}`;
         }
         return `调用「${hit.name}」的结果${built.note}：\n${head}\n${text || "(空响应)"}`;
       } catch (err) {
-        return `调用「${hit.name}」失败：${(err as Error).message || "网络错误"}（多半是对方没开跨域，或者地址/网络有问题）`;
+        return `调用「${hit.name}」失败：${(err as Error).message || "网络错误"}（浏览器中请检查跨域设置；App 中请检查地址、权限或网络）`;
       }
     }
 
@@ -1459,4 +1459,5 @@ export async function runAction(action: AppAction, ctx: ActionContext): Promise<
   }
   return receipt;
 }
+
 
