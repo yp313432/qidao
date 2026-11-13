@@ -1,3 +1,4 @@
+import { KButton } from "@/components/ui-kit";
 import { redactError } from "@/lib/chat-errors";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -159,13 +160,9 @@ export function ActionGate() {
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => void approve(false)}
-              className="rounded-full bg-ink px-4 py-3 text-sm font-medium text-ink-fg"
-            >
+            <KButton onClick={() => void approve(false)} className="font-medium">
               允许一次
-            </button>
+            </KButton>
             <button
               type="button"
               onClick={() => void approve(true)}

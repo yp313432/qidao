@@ -100,6 +100,17 @@ try {
   for (let i = 0; i < 4; i++) {
     if (i === 2) {
       assert.match(await page.getByTestId("termux-command-preview").innerText(), /printf AI_TERMINAL_OK/);
+      const contrast = await page.getByRole("button", { name: "允许一次", exact: true }).evaluate((button) => {
+        const style = getComputedStyle(button), canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
+        canvas.width = canvas.height = 1;
+        const luminance = (color) => {
+          ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1);
+          return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+        };
+        const fg = luminance(style.color), bg = luminance(style.backgroundColor);
+        return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+      });
+      assert.ok(contrast >= 4.5, `permission button must be readable: contrast ${contrast}`);
       await shot(page, "termux-command-permission-mobile");
     }
     await page.getByRole("button", { name: "允许一次", exact: true }).click();
