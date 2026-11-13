@@ -1,9 +1,9 @@
 /** Shared by native/direct requests, the server route and the chat UI. */
-export function redactError(text: string): string {
+export function redactError(text: string, maxLength = 4000): string {
   return text.replace(/\bBearer\s+[^\s"',}]+/gi, "Bearer [已隐藏]")
     .replace(/\bsk-[a-z0-9_-]{8,}/gi, "[密钥已隐藏]")
     .replace(/(["']?(?:api[_-]?key|authorization|access[_-]?token)["']?\s*[:=]\s*["']?)[^\s"',}&]+/gi, "$1[已隐藏]")
-    .slice(0, 4000);
+    .slice(0, maxLength);
 }
 
 export function upstreamError(status: number | undefined, raw: string, requestId?: string | null): string {

@@ -1,3 +1,4 @@
+import { redactError } from "@/lib/chat-errors";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
@@ -24,12 +25,17 @@ import { cn } from "@/lib/utils";
  */
 export function ActionGate() {
   const pending = useApp((s) => s.pendingActions);
+  const servers = useApp((s) => s.mcp);
   const permissions = useApp((s) => s.settings.permissions);
   const navigate = useNavigate();
 
   const current = pending[0] ?? null;
   const def = current?.permission ? permissionDef(current.permission) : undefined;
   const critical = def?.risk === "L3";
+  const terminalAction = current?.action.kind === "tool.call" ? current.action : undefined;
+  const terminalArgs = terminalAction?.tool === "execute" &&
+    servers.some((server) => server.bridgeRole === "terminal" && server.name === terminalAction.server)
+    ? terminalAction.args : undefined;
   /**
    * ⚠️ 这里**不能**写成 `permissions[current.permission] ?? "ask"`：没有权限的动作
    * 会掉进"询问"那条路、弹出一张"某项权限"的卡片，等于把已经删掉的情绪权限
@@ -102,7 +108,7 @@ export function ActionGate() {
       />
       <div
         className={cn(
-          "glass-menu relative z-10 w-full max-w-sm rounded-3xl px-5 py-5",
+          "glass-menu relative z-10 w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-3xl px-5 py-5",
           liquid && "lq-dialog backdrop-blur-xl",
           critical && "ring-2 ring-warn/50",
         )}
@@ -119,6 +125,10 @@ export function ActionGate() {
         </div>
 
         <p className="mt-3 text-[15px] leading-7 font-medium">{current.title}</p>
+        {typeof terminalArgs?.command === "string" && <div className="k-note" data-testid="termux-command-preview">
+          <p>将在 Termux 执行以下命令：</p><pre className="k-long max-h-48 overflow-y-auto whitespace-pre-wrap break-words">{redactError(terminalArgs.command, 16000)}</pre>
+          <p>工作目录：{typeof terminalArgs.cwd === "string" ? terminalArgs.cwd : "Termux HOME"}</p>
+        </div>}
 
         <div className="mt-3 rounded-2xl bg-chip px-3.5 py-3">
           <p className="text-[12px] font-medium">{def?.title ?? current.permission ?? ""}</p>

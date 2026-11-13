@@ -99,6 +99,10 @@ try {
   await send(page, "检查 Termux 环境并执行测试命令");
   for (let i = 0; i < 4; i++) {
     await page.waitForFunction((count) => window.qidaoFixture.read().messages.at(-1)?.steps?.filter((s) => s.kind === "call").length >= count, i);
+    if (i === 2) {
+      assert.match(await page.getByTestId("termux-command-preview").innerText(), /printf AI_TERMINAL_OK/);
+      await shot(page, "termux-command-permission-mobile");
+    }
     await page.getByRole("button", { name: "允许一次", exact: true }).click();
     for (let n = 0; n < 600 && requests.length < before + i + 2; n++) await new Promise((resolve) => setTimeout(resolve, 50));
     assert.ok(requests.length >= before + i + 2, "gated terminal result must return to the model");

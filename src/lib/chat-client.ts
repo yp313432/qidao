@@ -616,15 +616,12 @@ async function postServerChat(
   if (res.ok && !ctype.includes("text/event-stream")) return null;
 
   if (!res.ok) {
-    let msg = `请求失败 ${res.status}`;
+    const raw = await res.text();
+    const msg = upstreamError(res.status, raw, res.headers.get("x-request-id"));
     let toolsUnsupported: boolean | undefined;
     try {
-      const j = (await res.json()) as { error?: string; toolsUnsupported?: boolean };
-      if (j.error) msg = upstreamError(res.status, JSON.stringify(j));
-      toolsUnsupported = j.toolsUnsupported;
-    } catch {
-      /* ignore */
-    }
+      toolsUnsupported = (JSON.parse(raw) as { toolsUnsupported?: boolean }).toolsUnsupported;
+    } catch { /* Plain text errors still retain status and body. */ }
     /**
      * ⚠️ 这里有个容易踩的坑：本地 dev server 把上游的 400 变成了 **502**，
      * 所以"上游不要 tools"这个信号**只能靠服务端显式告诉我们**（`toolsUnsupported`），
