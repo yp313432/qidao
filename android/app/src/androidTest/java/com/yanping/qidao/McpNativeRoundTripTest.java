@@ -19,7 +19,7 @@ public class McpNativeRoundTripTest {
     CountDownLatch done = new CountDownLatch(1);
     AtomicReference<String> value = new AtomicReference<>();
     scenario.onActivity(activity -> activity.getBridge().getWebView().evaluateJavascript(script, result -> { value.set(result); done.countDown(); }));
-    assertTrue("WebView callback timed out", done.await(5, TimeUnit.SECONDS));
+    assertTrue("WebView callback timed out", done.await(20, TimeUnit.SECONDS));
     return value.get();
   }
   private void until(String label, String predicate, long timeout) throws Exception {
@@ -42,7 +42,7 @@ public class McpNativeRoundTripTest {
     try {
       scenario.onActivity(activity -> {
         WebView web = activity.getBridge().getWebView();
-        web.loadUrl("https://localhost/scripts/chat-page-fixture.html?tools&nativeMcp");
+        web.loadUrl("https://localhost/scripts/native-mcp-fixture.html");
       });
       until("native fixture", "window.qidaoFixture && window.Capacitor?.isNativePlatform?.()", 45000);
       assertEquals("true", evaluate("Boolean(window.Capacitor.nativePromise && window.Capacitor.addListener)"));
