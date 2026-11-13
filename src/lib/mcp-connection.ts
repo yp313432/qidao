@@ -35,9 +35,11 @@ export async function readMcpEvents(response: Response, onEvent: (event: string,
       buffer += decoder.decode(value, { stream: !done });
       if (buffer.length > 2_000_000) throw new Error("MCP 事件过大");
       let pos: number;
-      while ((pos = buffer.indexOf("\n")) >= 0) {
-        const current = buffer.slice(0, pos).replace(/\r$/, "");
-        buffer = buffer.slice(pos + 1);
+      while ((pos = buffer.search(/[\r\n]/)) >= 0) {
+        if (!done && buffer[pos] === "\r" && pos === buffer.length - 1) break;
+        const current = buffer.slice(0, pos);
+        const separator = buffer[pos] === "\r" && buffer[pos + 1] === "\n" ? 2 : 1;
+        buffer = buffer.slice(pos + separator);
         if (line(current)) return;
       }
       if (done) { if (buffer) line(buffer.replace(/\r$/, "")); line(""); return; }

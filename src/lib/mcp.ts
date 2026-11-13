@@ -17,11 +17,12 @@ function parseHeaders(text: string): Headers {
 }
 async function headersFor(
   server: McpServer,
+  signal: AbortSignal,
 ): Promise<{ headers: Headers; oauthPatch?: Partial<McpOAuth> }> {
   const headers = parseHeaders(server.headersText);
   let oauthPatch: Partial<McpOAuth> | undefined;
   if (!headers.has("authorization")) {
-    const t = await accessTokenFor(server);
+    const t = await accessTokenFor(server, signal);
     if (t.token) headers.set("authorization", `Bearer ${t.token}`);
     if (t.patch) oauthPatch = t.patch;
   }
@@ -56,7 +57,7 @@ export async function probeServer(server: McpServer): Promise<McpProbe> {
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 20000);
   let oauthPatch: Partial<McpOAuth> | undefined;
   try {
-    const prepared = await headersFor(server); oauthPatch = prepared.oauthPatch;
+    const prepared = await headersFor(server, controller.signal); oauthPatch = prepared.oauthPatch;
     const connection = await connectionFor(server, prepared.headers, controller.signal);
     const tools: McpTool[] = []; let cursor: string | undefined; const seen = new Set<string>();
     for (let page = 0; ; page++) {
@@ -76,7 +77,7 @@ export async function probeServer(server: McpServer): Promise<McpProbe> {
     closeMcpSession(server.id);
     let needsAuth = false;
     if (error instanceof McpHttpError && error.status === 401 && server.transport !== "stdio") {
-      try { await discover(server, null); needsAuth = true; } catch { /* Manual header authentication remains available. */ }
+      try { await discover(server, null, controller.signal); needsAuth = true; } catch { /* Manual header authentication remains available. */ }
     }
     return { ok: false, tools: [], oauthPatch, needsAuth, message: failure(error) + (needsAuth ? "\n可以回列表点「去授权」。" : "") };
   } finally { clearTimeout(timer); }
@@ -106,7 +107,7 @@ export async function callTool(server: McpServer, tool: string, args: Record<str
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 90000);
   let oauthPatch: Partial<McpOAuth> | undefined;
   try {
-    const prepared = await headersFor(server); oauthPatch = prepared.oauthPatch;
+    const prepared = await headersFor(server, controller.signal); oauthPatch = prepared.oauthPatch;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const connection = await connectionFor(server, prepared.headers, controller.signal);

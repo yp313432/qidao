@@ -1693,13 +1693,17 @@ export const useApp = create<AppState>()(
        * 真正的轮转交给发送消息时的 bumpQuota 去做。
        */
       quotaResetAt: () => get().quota.windowStart + QUOTA_WINDOW_MS,
-      toggleMcp: (id) =>
+      toggleMcp: (id) => {
+        closeMcpSession(id);
         set((s) => ({
           mcp: s.mcp.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)),
-        })),
+        }));
+      },
       addMcp: (server) => set((s) => ({ mcp: [...s.mcp, { ...server, id: uid("mcp") }] })),
-      patchMcp: (id, patch) =>
-        set((s) => ({ mcp: s.mcp.map((m) => (m.id === id ? { ...m, ...patch } : m)) })),
+      patchMcp: (id, patch) => {
+        if (patch.url !== undefined || patch.headersText !== undefined || patch.transport !== undefined || patch.oauth !== undefined || patch.enabled === false) closeMcpSession(id);
+        set((s) => ({ mcp: s.mcp.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
+      },
       removeMcp: (id) => { closeMcpSession(id); set((s) => ({ mcp: s.mcp.filter((m) => m.id !== id) })); },
       saveDoc: (doc) =>
         set((s) => ({

@@ -97,6 +97,19 @@ test("SSE parser handles split UTF-8, CRLF and multiple data lines", async () =>
   const stream = new ReadableStream({ start(controller) { for (const byte of bytes) controller.enqueue(Uint8Array.of(byte)); controller.close(); } });
   await readMcpEvents(new Response(stream), (type, data) => { received.push([type, JSON.parse(data)]); });
   assert.deepEqual(received, [["message", { 中文: "好" }]]);
+  const standalone = [];
+  await readMcpEvents(new Response('data: {"ok":true}\r\r'), (_type, data) => { standalone.push(JSON.parse(data)); });
+  assert.deepEqual(standalone, [{ ok: true }]);
+});
+
+test("OAuth discovery and refresh honor a caller's cancellation", async () => {
+  const { discover, accessTokenFor } = await import("../src/lib/mcp-oauth.ts");
+  const ac = new AbortController(); ac.abort();
+  let calls = 0;
+  globalThis.fetch = async (_url, init) => { calls++; assert.equal(init.signal, ac.signal); throw new DOMException("aborted", "AbortError"); };
+  await assert.rejects(discover({ url: "https://example.com/mcp" }, null, ac.signal));
+  const result = await accessTokenFor({ oauth: { accessToken: "expired", refreshToken: "refresh", tokenEndpoint: "https://example.com/token", expiresAt: 1, clientId: "test" } }, ac.signal);
+  assert.match(result.message, /aborted/); assert.ok(calls >= 2);
 });
 
 test("native streamed fetch exposes headers immediately and aborts the native request", async () => {
