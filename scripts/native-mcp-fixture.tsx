@@ -1,10 +1,12 @@
-// CI-only entry: real MCP UI, chat hook and action gate, without the unrelated app shell.
+// CI-only entry: real MCP UI and agent loop, without unrelated chat input/audio lifecycle.
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider, useNavigate } from "@tanstack/react-router";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { McpServers } from "../src/components/tools/mcp-servers";
 import { ActionGate } from "../src/components/shared/action-gate";
-import { Composer } from "../src/components/chat/composer";
-import { useChatStream } from "../src/lib/use-chat";
+import { actionToolsFor } from "../src/lib/action-schema";
+import { makeDirectRound } from "../src/lib/chat-client";
+import { runToolLoop, type RunToolLoopResult } from "../src/lib/tool-loop";
 import { termuxTerminal } from "../src/lib/mcp-config";
 import { useApp } from "../src/lib/store";
 import "../src/styles.css";
@@ -14,32 +16,30 @@ await new Promise<void>((resolve) => {
 });
 useApp.getState().setHydrated(true);
 useApp.setState((state) => ({ settings: { ...state.settings,
-  customBaseUrl: "http://127.0.0.1:4650/v1", customApiKey: "fixture-key", upstreamModel: "fixture-model",
   permissions: { ...state.settings.permissions, mcp_tools: "allow" },
-  toolProtocol: "native", toolProbeOk: true, voiceReplies: false, notifications: false,
-  motion: "off", wakeEnabled: false, autonomyEnabled: false, mergeSend: false,
-  chatCrab: { enabled: false, size: 32, activity: "quiet" },
+  motion: "off", wakeEnabled: false, autonomyEnabled: false,
 }, conversations: [], activeId: null, pendingActions: [], actionLog: [], httpTools: [],
   mcp: [{ ...termuxTerminal("http://127.0.0.1:8767", "native-test-token"), id: "native-termux", tools: [] }],
 }));
-function NativeRoot() {
-  const navigate = useNavigate();
-  return <main><button className="k-btn" onClick={() => void navigate({ to: "/tools" })}>MCP</button><Outlet /><ActionGate /></main>;
+let result: Pick<RunToolLoopResult, "content" | "rounds"> = { content: "", rounds: [] };
+async function runNativeAi() {
+  const messages = [{ role: "user" as const, content: "检查 Termux 环境并执行测试命令" }];
+  const send = makeDirectRound({ model: "sonnet", customBaseUrl: "http://127.0.0.1:4650/v1", customApiKey: "fixture-key", upstreamModel: "fixture-model", messages });
+  const completed = await runToolLoop({ baseMessages: messages, tools: actionToolsFor(["tool.call"]), send });
+  result = { content: completed.error ? `ERROR: ${completed.error}` : completed.content, rounds: completed.rounds };
+  return result;
 }
-function NativeChat() {
-  const { busy, replying, send, stop, pendingCount } = useChatStream({ forceProtocol: "native" });
-  const messages = useApp((state) => state.conversations.find((c) => c.id === state.activeId)?.messages);
-  return <section><h1>原生 MCP 调用</h1>{messages?.map((message) => <p key={message.id}>{message.content || message.requestError}</p>)}
-    <Composer streaming={busy} disabled={replying} queuedCount={pendingCount} onStop={stop} onSend={(text, attachments) => void send(text, attachments)} />
-  </section>;
+function NativeRoot() {
+  const [content, setContent] = useState("");
+  return <main><h1>安卓原生 MCP 验收</h1><McpServers />
+    <button className="k-btn" onClick={() => void runNativeAi().then((value) => setContent(value.content)).catch((error) => { result = { content: String(error), rounds: [] }; setContent(String(error)); })}>执行原生 AI 工具测试</button>
+    <p>{content}</p><ActionGate />
+  </main>;
 }
 const root = createRootRoute({ component: NativeRoot });
-const chat = createRoute({ getParentRoute: () => root, path: "/", component: NativeChat });
-const tools = createRoute({ getParentRoute: () => root, path: "/tools", component: McpServers });
-const router = createRouter({ routeTree: root.addChildren([chat, tools]), history: createMemoryHistory({ initialEntries: ["/tools"] }) });
+const router = createRouter({ routeTree: root, history: createMemoryHistory({ initialEntries: ["/"] }) });
 Object.assign(window, { qidaoFixture: {
-  navigate: (path: string) => router.navigate({ to: path }),
-  read: () => ({ mcp: useApp.getState().mcp, messages: useApp.getState().conversations.flatMap((c) => c.messages) }),
+  read: () => ({ mcp: useApp.getState().mcp, messages: [result] }),
   setMcpUrl: (url: string) => useApp.getState().patchMcp("native-termux", { url, status: undefined, tools: [] }),
 } });
 createRoot(document.getElementById("fixture")!).render(<RouterProvider router={router} />);

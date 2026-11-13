@@ -46,7 +46,7 @@ public class McpNativeRoundTripTest {
       });
       until("native fixture", "window.qidaoFixture && window.Capacitor?.isNativePlatform?.()", 45000);
       assertEquals("true", evaluate("Boolean(window.Capacitor.nativePromise && window.Capacitor.addListener)"));
-      click("MCP", false); click("Termux 终端", true); click("测试连接", false);
+      click("Termux 终端", true); click("测试连接", false);
       until("real Android MCP handshake", "window.qidaoFixture.read().mcp[0]?.status?.ok === true", 25000);
       assertEquals("4", evaluate("window.qidaoFixture.read().mcp[0].tools.length"));
       evaluate("window.qidaoFixture.setMcpUrl('http://127.0.0.1:8779/mcp')");
@@ -57,10 +57,7 @@ public class McpNativeRoundTripTest {
       evaluate("window.qidaoFixture.setMcpUrl('http://127.0.0.1:8767/mcp/__qidao_terminal')");
       click("测试连接", false);
       until("native recovery", "window.qidaoFixture.read().mcp[0]?.status?.ok === true", 25000);
-      evaluate("window.qidaoFixture.navigate('/')");
-      until("chat input", "document.querySelector('textarea[aria-label=\"消息输入框\"]')", 15000);
-      evaluate("(function(){const el=document.querySelector('textarea[aria-label=\"消息输入框\"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,'调用 MCP 外部工具：检查 Termux 环境并执行测试命令');el.dispatchEvent(new Event('input',{bubbles:true}));})()");
-      click("发送", false);
+      click("执行原生 AI 工具测试", false);
       until("AI native terminal execution", "window.qidaoFixture.read().messages.at(-1)?.content === 'MCP_NATIVE_ANDROID_OK'", 60000);
       assertEquals("4", evaluate("window.qidaoFixture.read().messages.at(-1).rounds.flatMap(r=>r.calls).length"));
       assertEquals("true", evaluate("window.qidaoFixture.read().messages.at(-1).rounds.flatMap(r=>r.calls).every(c=>c.ok === true)"));
