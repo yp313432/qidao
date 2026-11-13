@@ -226,12 +226,20 @@ try {
     }, parts);
     const bubble = page.locator('[data-role="ai"]').filter({ hasText: "只复制这段" }).first();
     await bubble.waitFor({ timeout: 20000 });
+    // Wait for all paced bubbles before holding still: delivery scrolls intentionally cancel a long press.
+    await page.getByRole("link", { name: "打开文档", exact: true }).waitFor({ timeout: 20000 });
     const openCopy = async () => {
       await bubble.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(250);
       await bubble.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 60, clientY: 200 });
       await page.waitForTimeout(650);
       await bubble.dispatchEvent("pointerup", { pointerType: "touch" });
-      await page.getByRole("button", { name: "复制…", exact: true }).click();
+      try { await page.getByRole("button", { name: "复制…", exact: true }).click({ timeout: 5000 }); }
+      catch (error) {
+        if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/copy-menu-error.png`, fullPage: true });
+        if (process.env.QIDAO_SCREENSHOT_PREVIEW) console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "copy-menu-error", base64: (await page.screenshot({ type: "jpeg", quality: 65, fullPage: true })).toString("base64") }));
+        throw error;
+      }
       await page.getByRole("dialog", { name: "复制消息" }).waitFor();
     };
     await openCopy();
@@ -246,6 +254,7 @@ try {
     await page.getByRole("button", { name: "整条回复", exact: true }).click();
     assert.equal(await preview.innerText(), parts.join("\n\n"));
     if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/copy-message-mobile.png`, fullPage: true });
+    if (process.env.QIDAO_SCREENSHOT_PREVIEW) console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "copy-message-mobile", base64: (await page.screenshot({ type: "jpeg", quality: 65, fullPage: true })).toString("base64") }));
     await page.getByRole("button", { name: "复制 Markdown", exact: true }).click();
     assert.equal(await page.evaluate(() => window.__copiedMessage), parts.join("\n\n"));
     await openCopy();
@@ -259,6 +268,7 @@ try {
     await page.getByRole("alert").filter({ hasText: "复制失败" }).waitFor();
     await page.setViewportSize({ width: 1280, height: 900 });
     if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/copy-message-desktop.png`, fullPage: true });
+    if (process.env.QIDAO_SCREENSHOT_PREVIEW) console.log("QIDAO_PREVIEW " + JSON.stringify({ name: "copy-message-desktop", base64: (await page.screenshot({ type: "jpeg", quality: 65, fullPage: true })).toString("base64") }));
     await page.keyboard.press("Escape");
     assert.equal(await page.getByRole("dialog", { name: "复制消息" }).count(), 0);
     const link = page.getByRole("link", { name: "打开文档", exact: true });

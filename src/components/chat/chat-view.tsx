@@ -704,7 +704,7 @@ export function ChatView() {
         pressTimer.current = window.setTimeout(() => {
           pressFrom.current = null;
           crumb("longpress", "计时器开卡片");
-          setMsgMenu({ id, part: brief });
+          setMsgMenu({ id, part: raw });
         }, 600);
       },
       onPointerMove: (e: React.PointerEvent) => {
@@ -730,7 +730,7 @@ export function ChatView() {
         window.clearTimeout(pressTimer.current);
         if (brief) {
           crumb("longpress", "右键开卡片");
-          setMsgMenu({ id, part: brief });
+          setMsgMenu({ id, part: raw });
         }
       },
     };
