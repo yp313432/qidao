@@ -246,6 +246,22 @@ try {
     const preview = page.getByRole("region", { name: "复制预览" });
     assert.equal(await preview.innerText(), "只复制这段\n保留第二行");
     assert.equal(await page.getByRole("button", { name: "纯文本", exact: true }).getAttribute("aria-pressed"), "true");
+    const copyContrast = await page.getByRole("button", { name: "复制纯文本", exact: true }).evaluate((button) => {
+      const style = getComputedStyle(button);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      const luminance = (css) => {
+        ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1);
+        const values = Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3).map((v) => {
+          const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+      };
+      const a = luminance(style.color), b = luminance(style.backgroundColor);
+      return { color: style.color, background: style.backgroundColor, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+    });
+    assert.ok(copyContrast.ratio >= 4.5, `copy button text must be readable: ${JSON.stringify(copyContrast)}`);
     await page.getByRole("button", { name: "复制纯文本", exact: true }).click();
     assert.equal(await page.evaluate(() => window.__copiedMessage), "只复制这段\n保留第二行");
     await openCopy();

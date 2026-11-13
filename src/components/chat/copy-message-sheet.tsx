@@ -52,7 +52,7 @@ export function CopyMessageSheet({ message, onClose }: { message: CopyMessage; o
         </div>
         <div tabIndex={0} role="region" aria-label="复制预览" className="k-copy-sheet__preview">{preview}</div>
         {error && <p role="alert" className="k-copy-sheet__error">{error}</p>}
-        <button type="button" disabled={copying || !preview.trim()} onClick={() => void copy()} className="k-btn k-btn--primary mt-3 shrink-0 disabled:opacity-50">
+        <button type="button" disabled={copying || !preview.trim()} onClick={() => void copy()} className="k-btn mt-3 shrink-0 disabled:opacity-50">
           <Copy />{copying ? "正在复制…" : format === "plain" ? "复制纯文本" : "复制 Markdown"}
         </button>
       </Dialog.Content>
