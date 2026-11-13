@@ -118,6 +118,7 @@ const WEB_POINTER = (ta: string) => `【联网：搜网页 / 读网页正文（�
 · 读回来是正文，不是网页标签 —— 照着说人话，别把整段原文抄给${ta}。
 · 只读 http/https 的公开网页；内网/本机地址会被直接拒掉（那是安全护栏，不是故障）。
 · 拿不到就如实说拿不到，绝不编一个网页内容出来。
+· ${ta}要网址时，优先给搜索/读取实际返回的完整 http/https 链接，可用 [页面标题](网址)。App 会把它显示成可点的链接，由${ta}点击后打开浏览器；不要声称已经替${ta}打开，也不要编造搜索结果的地址。
 · 也别每轮都搜：${ta}没问、你不需要的时候别联网。`;
 
 export type ManualInput = {
@@ -236,3 +237,4 @@ export function buildManual(input: ManualInput): string {
     permissionSection(input, ta),
   ].join("\n");
 }
+

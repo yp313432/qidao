@@ -57,6 +57,10 @@
   --k-z-nav: 30;
   --k-z-sheet: 60;
   --k-z-toast: 90;
+  --k-z-copy-scrim: 90;
+  --k-z-copy-sheet: 91;
+  --k-copy-max-h: 85dvh;
+  --k-copy-max-w: 42rem;
 
   /* ── 语义色：只从主题派生，这里是唯一入口 ──────────────────── */
   --k-bg: var(--aster-bg);
@@ -181,3 +185,4 @@
   --k-code-h: 160px;
   --k-long-h: 224px;
 }
+

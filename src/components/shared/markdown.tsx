@@ -1,5 +1,27 @@
 import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { messageLinks } from "@/lib/message-links";
+import { openPluginWeb } from "@/lib/plugin-open";
+import { pushToast } from "@/lib/toast";
+
+function linkedText(text: string, key: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  for (const link of messageLinks(text)) {
+    if (link.start > last) nodes.push(text.slice(last, link.start));
+    nodes.push(<a key={`${key}-link-${link.start}`} href={link.url} target="_blank" rel="noopener noreferrer"
+      className="k-message-link"
+      onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault(); e.stopPropagation();
+        void openPluginWeb(link.url).catch(() => pushToast("打开链接失败，请长按链接复制网址后重试。"));
+      }}>{link.label}</a>);
+    last = link.end;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
 
 function inline(text: string, key: string) {
   const parts: ReactNode[] = [];
@@ -8,12 +30,12 @@ function inline(text: string, key: string) {
   let m: RegExpExecArray | null;
   let i = 0;
   while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
+    if (m.index > last) parts.push(...linkedText(text.slice(last, m.index), `${key}-t${i}`));
     const token = m[0];
     if (token.startsWith("**")) {
       parts.push(
         <strong key={`${key}-b${i}`} className="font-medium">
-          {token.slice(2, -2)}
+          {linkedText(token.slice(2, -2), `${key}-b${i}`)}
         </strong>,
       );
     } else {
@@ -26,7 +48,7 @@ function inline(text: string, key: string) {
     last = m.index + token.length;
     i += 1;
   }
-  if (last < text.length) parts.push(text.slice(last));
+  if (last < text.length) parts.push(...linkedText(text.slice(last), `${key}-tail`));
   return parts;
 }
 
@@ -95,3 +117,4 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
     </div>
   );
 });
+

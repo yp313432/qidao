@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Bookmark, Check, Copy, RotateCw, Share2, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
+import { Bookmark, Copy, RotateCw, Share2, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
+import { CopyMessageSheet } from "@/components/chat/copy-message-sheet";
 import { speakTextAsync } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,7 @@ type Props = {
   onSaveDoc?: () => void;
   saved?: boolean;
   busy?: boolean;
+  onCopy?: () => void;
 };
 
 /** AI 回复下方的操作栏：复制 / 赞 / 踩 / 朗读 / 分享 / 存文档 / 重新生成。 */
@@ -22,18 +24,10 @@ export function MessageActions({
   onSaveDoc,
   saved,
   busy,
+  onCopy,
 }: Props) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard?.writeText(content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      /* 忽略：无剪贴板权限 */
-    }
-  }
+  const [copyOpen, setCopyOpen] = useState(false);
+  const copy = () => { if (onCopy) onCopy(); else setCopyOpen(true); };
 
   async function speakTextOut() {
     // 走 lib/tts 的异步入口：App 里会落到安卓系统朗读引擎上
@@ -44,7 +38,7 @@ export function MessageActions({
     try {
       const nav = navigator as Navigator & { share?: (d: { text: string }) => Promise<void> };
       if (typeof nav.share === "function") await nav.share({ text: content });
-      else await copy();
+      else copy();
     } catch {
       /* 用户取消分享 */
     }
@@ -52,8 +46,9 @@ export function MessageActions({
 
   return (
     <div className="mt-2.5 flex items-center gap-0.5 text-muted">
-      <IconBtn label={copied ? "已复制" : "复制"} onClick={() => void copy()}>
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+      {copyOpen && <CopyMessageSheet message={{ part: content, full: content }} onClose={() => setCopyOpen(false)} />}
+      <IconBtn label="复制" onClick={copy}>
+        <Copy className="size-4" />
       </IconBtn>
       <IconBtn label="有帮助" active={feedback === "up"} onClick={() => onFeedback("up")}>
         <ThumbsUp className="size-4" />
@@ -110,3 +105,4 @@ function IconBtn({
     </button>
   );
 }
+

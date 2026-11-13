@@ -1,7 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { readWebPage, webSearch, parseBingHtml } from "../src/lib/web-http.ts";
+import { readWebPage, webSearch, parseBingHtml, parseDuckDuckGoHtml } from "../src/lib/web-http.ts";
 import { decodeWebBytes, htmlToText } from "../src/lib/web-extract.ts";
 import { buildHttpRequest, executeHttpRequest } from "../src/lib/http-tools.ts";
 import { getNativeHttp } from "../src/lib/native-http.ts";
@@ -28,6 +28,7 @@ afterEach(() => {
 const browser = () => Object.defineProperty(globalThis, "location", { configurable: true, value: { protocol: "https:" } });
 const html = '<html><head><title>文章</title></head><body><p>这是读到的正文。</p></body></html>';
 const rss = '<rss><channel><item><title>新闻标题</title><link>https://example.com/news</link><description>新闻摘要</description></item></channel></rss>';
+const ddgHtml = '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fnews">新闻标题</a><a class="result__snippet">新闻摘要</a>';
 
 test("browser reading uses its server and preserves truncation", async () => {
   browser();
@@ -164,23 +165,52 @@ test("HTTP errors, empty shells and verification pages are failures", async () =
 
 test("one successful search returns without waiting for slow sibling", async () => {
   globalThis.fetch = async (url, init) => {
-    if (url.includes("cn.bing.com")) return new Response(rss);
+    if (url.includes("html.duckduckgo.com")) return new Response(ddgHtml);
     return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true }));
   };
   const start = Date.now();
   const result = await webSearch("新闻", { timeoutMs: 400 });
   assert.equal(result.ok, true);
+  assert.equal(result.engine, "duckduckgo");
   assert.ok(Date.now() - start < 250, "fast result must not wait for the other endpoint's timeout");
   assert.equal(result.results[0].title, "新闻标题");
 });
 
 const resultHtml = '<li data-x="1" class="b_algo other"><h2><a href="https://example.com/news">新闻正文标题</a></h2><p>这里是摘要。</p></li>';
-test("RSS failure falls back to actual HTML result blocks", async () => {
-  globalThis.fetch = async (url) => new Response(url.includes("format=rss") ? "<html>无 feed</html>" : resultHtml);
+test("DuckDuckGo failure falls back to actual Bing HTML without requesting RSS", async () => {
+  globalThis.fetch = async (url) => {
+    assert.equal(url.includes("format=rss"), false);
+    return new Response(url.includes("duckduckgo.com") ? "<html>验证页面</html>" : resultHtml);
+  };
   const result = await webSearch("新闻");
   assert.equal(result.ok, true);
   assert.equal(result.engine, "bing-html");
   assert.equal(result.results[0].snippet, "这里是摘要。");
+});
+
+test("DuckDuckGo HTML/Lite unwrap targets, decode Chinese, deduplicate and reject private URLs", () => {
+  const html = ddgHtml.replace("新闻标题", "&#20013;&#25991;");
+  assert.deepEqual(parseDuckDuckGoHtml(html + html), [{ title: "中文", url: "https://example.com/news", snippet: "新闻摘要" }]);
+  assert.deepEqual(parseDuckDuckGoHtml('<a href="http://127.0.0.1/" class="result-link">本机</a>'), []);
+  assert.deepEqual(parseDuckDuckGoHtml('<a class="result__a" href="/settings">设置</a>'), []);
+  assert.deepEqual(parseDuckDuckGoHtml('<a href="https://example.org/" class="result-link">Lite 结果</a><td class="result-snippet">摘要</td>'),
+    [{ title: "Lite 结果", url: "https://example.org/", snippet: "摘要" }]);
+});
+
+test("Chinese queries retain every character and a good preferred result wins over fast Bing", async () => {
+  const query = "杭州 今晚天气 & 中文/编码？";
+  globalThis.fetch = async (raw) => {
+    const url = new URL(raw);
+    assert.equal(url.searchParams.get("q"), query);
+    assert.match(url.hostname, /duckduckgo\.com$/);
+    return new Response(ddgHtml);
+  };
+  assert.equal((await webSearch(query)).engine, "duckduckgo");
+});
+
+test("an RSS response is never silently accepted as the new search source", async () => {
+  globalThis.fetch = async () => new Response(rss);
+  assert.equal((await webSearch("新闻")).ok, false);
 });
 
 test("HTML search unwraps Bing redirect links and rejects private targets", () => {
@@ -231,4 +261,5 @@ test("external call history retains its actual title and pending is not success"
   assert.match(callSentence(call, "小克").line, /记忆\/检索/);
   assert.match(callSentence({ ...call, category: "pending", ok: false }, "小克").line, /还没拿到结果/);
 });
+
 

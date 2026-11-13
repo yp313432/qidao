@@ -216,6 +216,58 @@ try {
     await page.waitForFunction(() => document.querySelector('textarea[aria-label="消息输入框"]')?.disabled === true);
     await page.waitForFunction(() => document.querySelector('textarea[aria-label="消息输入框"]')?.disabled === false,
       undefined, { timeout: 30000 });
+    // Exercise the production bubble menu, not just the formatter in isolation.
+    const parts = ["**只复制这段**\n保留第二行", "另一段不应混入。", "[打开文档](https://example.com/docs) 和 https://example.org/path。"];
+    await page.evaluate((parts) => {
+      const first = window.qidaoFixture.read().messages.find((m) => m.role === "assistant");
+      window.qidaoFixture.setCopyExample(first.id, parts.join("\n\n"), parts);
+      window.__copiedMessage = null;
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => { window.__copiedMessage = text; } } });
+    }, parts);
+    const bubble = page.locator('[data-role="ai"]').filter({ hasText: "只复制这段" }).first();
+    await bubble.waitFor({ timeout: 20000 });
+    const openCopy = async () => {
+      await bubble.scrollIntoViewIfNeeded();
+      await bubble.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 60, clientY: 200 });
+      await page.waitForTimeout(650);
+      await bubble.dispatchEvent("pointerup", { pointerType: "touch" });
+      await page.getByRole("button", { name: "复制…", exact: true }).click();
+      await page.getByRole("dialog", { name: "复制消息" }).waitFor();
+    };
+    await openCopy();
+    const preview = page.getByRole("region", { name: "复制预览" });
+    assert.equal(await preview.innerText(), "只复制这段\n保留第二行");
+    assert.equal(await page.getByRole("button", { name: "纯文本", exact: true }).getAttribute("aria-pressed"), "true");
+    await page.getByRole("button", { name: "复制纯文本", exact: true }).click();
+    assert.equal(await page.evaluate(() => window.__copiedMessage), "只复制这段\n保留第二行");
+    await openCopy();
+    await page.getByRole("button", { name: "Markdown 源码", exact: true }).click();
+    assert.equal(await preview.innerText(), parts[0]);
+    await page.getByRole("button", { name: "整条回复", exact: true }).click();
+    assert.equal(await preview.innerText(), parts.join("\n\n"));
+    if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/copy-message-mobile.png`, fullPage: true });
+    await page.getByRole("button", { name: "复制 Markdown", exact: true }).click();
+    assert.equal(await page.evaluate(() => window.__copiedMessage), parts.join("\n\n"));
+    await openCopy();
+    assert.equal(await page.getByRole("button", { name: "纯文本", exact: true }).getAttribute("aria-pressed"), "true");
+    // A denied write keeps the panel open with an honest error; fallback is also tested.
+    await page.evaluate(() => {
+      navigator.clipboard.writeText = async () => { throw new Error("denied"); };
+      document.execCommand = () => false;
+    });
+    await page.getByRole("button", { name: "复制纯文本", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "复制失败" }).waitFor();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/copy-message-desktop.png`, fullPage: true });
+    await page.keyboard.press("Escape");
+    assert.equal(await page.getByRole("dialog", { name: "复制消息" }).count(), 0);
+    const link = page.getByRole("link", { name: "打开文档", exact: true });
+    await link.waitFor({ timeout: 20000 });
+    await page.evaluate(() => { window.__openedUrl = ""; window.open = (url) => { window.__openedUrl = url; return null; }; });
+    await link.click();
+    assert.equal(await page.evaluate(() => window.__openedUrl), "https://example.com/docs");
+    assert.equal(await page.getByRole("dialog").count(), 0, "link click must not open a bubble menu");
+    console.log("PASS copy sheet: one bubble / whole reply, plain / Markdown, line breaks, denied clipboard, desktop/mobile and clickable links");
     assert.deepEqual(errors, []); await context.close();
     console.log("PASS full app shell: conversation switches persist, touch/keyboard supplements work, opt-out blocks only active replies");
   }
@@ -223,4 +275,5 @@ try {
   await browser.close();
   await new Promise((resolve) => upstream.close(resolve));
 }
+
 

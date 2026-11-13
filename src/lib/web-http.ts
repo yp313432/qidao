@@ -47,7 +47,7 @@ export const WEB_FETCH_DEFAULTS = {
 /**
  * 搜网页的**总预算**与**单地址预算**。
  *
- * 为什么要有"总预算"这一层：搜索是**依次试两个地址**（cn.bing.com → www.bing.com）。
+ * 为什么要有"总预算"这一层：先试 DuckDuckGo，再用 Bing 网页结果兜底。
  * 2026-11 之前在真机上出事的那次：每地址 12 秒、最坏 24 秒，而闸门那把保险丝是 20 秒
  * → 保险丝先响，用户看到的全是"超时"，可其实搜索还在跑。
  * 现在：单地址最多 8 秒、**总共最多 14 秒**，第二个地址只能花"总预算剩下来的时间"
@@ -76,7 +76,7 @@ export type WebFetchResult =
 export type WebHit = { title: string; url: string; snippet: string };
 
 export type WebSearchResult =
-  | { ok: true; engine: "bing-rss" | "bing-html" | "bocha"; query: string; results: WebHit[] }
+  | { ok: true; engine: "duckduckgo" | "bing-rss" | "bing-html" | "bocha"; query: string; results: WebHit[] }
   | { ok: false; why: string; engine?: string };
 
 /* ────────────────────────── 原生 HTTP 那一层 ────────────────────────── */
@@ -325,6 +325,10 @@ export function decodeEntities(s: string): string {
     .replace(/&#0?39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (all, n: string) => {
+      const code = n[0].toLowerCase() === "x" ? parseInt(n.slice(1), 16) : Number(n);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : all;
+    })
     .replace(/<[^>]+>/g, "")
     .trim();
 }
@@ -384,19 +388,35 @@ export function parseBingHtml(html: string, limit = 8): WebHit[] {
   return out;
 }
 
-/**
- * **搜网页**（端上）。
- *
- * 现在只有一条路：免 key 的 Bing RSS，两个域名**并发**各试一次
- * （实测 `cn.bing.com` 在国内通，`www.bing.com` 是服务端那条老路用的，留着当备用）。
- *
- * TODO（博查 BochaAI）：博查是这一层唯一"实测允许跨域（`ACAO: *`）"的正规搜索 API，
- * 效果比抓 RSS 稳。但现在**设置里没有存这个 key 的位置**（服务端那条读的是
- * `process.env.BOCHA_KEY`，APK 里没有 `process.env`），所以端上先不做 ——
- * 等设置页真的开了这个字段（例如 `settings.bochaKey`），在这里加一条分支即可：
- *   `POST https://api.bochaai.com/v1/web-search`，`authorization: Bearer <key>`。
- * ⚠️ 那时候**也不许**把 key 写进日志/动作结果/审批标题里。
- */
+/** Parse only real DuckDuckGo HTML/Lite results, unwrap redirects and reject private targets. */
+export function parseDuckDuckGoHtml(html: string, limit = 8): WebHit[] {
+  const anchors = [...html.matchAll(/<a\b[^>]*class\s*=\s*["'][^"']*\b(?:result__a|result-link)\b[^"']*["'][^>]*>[\s\S]*?<\/a>/gi)];
+  const out: WebHit[] = [];
+  for (let i = 0; i < anchors.length; i++) {
+    const anchor = anchors[i];
+    const href = anchor[0].match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (!href) continue;
+    let url: URL;
+    try {
+      url = new URL(decodeEntities(href), "https://duckduckgo.com");
+      if (/(^|\.)duckduckgo\.com$/i.test(url.hostname)) {
+        const target = url.searchParams.get("uddg");
+        if (!target) continue;
+        url = new URL(target);
+      }
+    } catch { continue; }
+    if (!isPublicHttpUrl(url.href).ok || /(^|\.)duckduckgo\.com$/i.test(url.hostname)) continue;
+    const title = decodeEntities(anchor[0].replace(/^<a\b[^>]*>|<\/a>$/gi, ""));
+    if (!title || out.some((hit) => hit.url === url.href)) continue;
+    const block = html.slice(anchor.index! + anchor[0].length, anchors[i + 1]?.index ?? html.length);
+    const snippet = decodeEntities(block.match(/<(?:a|div|td)\b[^>]*class\s*=\s*["'][^"']*\b(?:result__snippet|result-snippet)\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|td)>/i)?.[1] ?? "").slice(0, 300);
+    out.push({ title, url: url.href, snippet });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** DuckDuckGo first; Bing HTML only if it fails. RSS is no longer an automatic source. */
 export async function webSearch(rawQuery: string, opts: { limit?: number; timeoutMs?: number } = {}): Promise<WebSearchResult> {
   const q = rawQuery.trim();
   if (!q) return { ok: false, why: "要给我一个搜索词" };
@@ -407,51 +427,47 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
     const results = (result.results as WebHit[]).filter((h) => h && typeof h.title === "string"
       && typeof h.url === "string" && isPublicHttpUrl(h.url).ok).slice(0, limit);
     if (!results.length) return { ok: false, why: "搜索接口没有返回可用结果" };
-    const engine = result.engine === "bocha" || result.engine === "bing-html" ? result.engine : "bing-rss";
+    const engine = result.engine === "duckduckgo" || result.engine === "bocha" || result.engine === "bing-html" ? result.engine : "bing-rss";
     return { ok: true, query: q, engine, results };
   }
-  /** 总预算（默认 14 秒）—— 两个地址加起来不许超过它 */
+  /** Shared budget includes the preferred engine and the fallback. */
   const deadline = Date.now() + (opts.timeoutMs ?? WEB_SEARCH_BUDGET_MS);
 
-  const endpoints = [
-    `https://cn.bing.com/search?q=${encodeURIComponent(q)}&format=rss`,
-    `https://www.bing.com/search?q=${encodeURIComponent(q)}&format=rss`,
-  ];
   const tried: string[] = [];
-  /**
-   * ⚠️ **两个地址并发问，谁先成功用谁**（2026-11 改）。
-   *
-   * 原来是"排队试"：先 cn.bing.com（最多 8 秒），不行再 www.bing.com
-   * —— 而后者在国内基本不通，等于**白吃掉整个预算**，最坏要 14 秒才告诉用户"搜不到"。
-   * 并发之后最坏 ~8 秒，而且两个都通时命中率更高。
-   */
-  const attempts = Promise.any(
-    endpoints.map(async (endpoint, index) => {
-      let why = "返回里没有结果条目（可能是验证页）";
-      // 每个域名先读 RSS，失败再试 HTML；两个域名谁先拿到结果就返回。
-      for (const url of [endpoint, endpoint.replace("&format=rss", "&setlang=zh-CN")]) {
-        const left = deadline - Date.now();
-        if (left <= 0) break;
+  async function attempt(endpoints: string[], parse: (html: string, limit: number) => WebHit[], budget: number) {
+    if (budget <= 0) return null;
+    const requests = Promise.any(endpoints.map(async (url) => {
+      try {
         const got = await fetchWebText(url, {
-          timeoutMs: Math.min(WEB_SEARCH_PER_ENDPOINT_MS, left), maxBytes: 600_000,
+          timeoutMs: Math.max(1, Math.min(WEB_SEARCH_PER_ENDPOINT_MS, budget)), maxBytes: 600_000,
         });
-        if (!got.ok) { why = got.why; continue; }
-        if (got.status !== 200) { why = `HTTP ${got.status}`; continue; }
-        const rss = parseBingRss(got.text, limit);
-        const results = rss.length ? rss : parseBingHtml(got.text, limit);
-        if (results.length) return { ok: true as const, engine: rss.length ? "bing-rss" as const : "bing-html" as const, results };
+        if (!got.ok) throw new Error(got.why);
+        if (got.status !== 200) throw new Error(`HTTP ${got.status}`);
+        const results = parse(got.text, limit);
+        if (!results.length) throw new Error("没有可用结果条目（可能是验证页）");
+        return results;
+      } catch (err) {
+        tried.push(`${new URL(url).hostname}：${(err as Error).message}`);
+        throw err;
       }
-      tried.push(`${index === 0 ? "cn.bing.com" : "www.bing.com"}：${why}`);
-      throw new Error(why);
-    }),
-  ).catch(() => null);
+    })).catch(() => null);
+    return withDeadline(requests, budget, () => null);
+  }
 
-  const hit = await withDeadline(attempts, Math.max(1, deadline - Date.now()), () => null);
-  if (hit) return { ok: true, engine: hit.engine, query: q, results: hit.results };
+  const encoded = encodeURIComponent(q);
+  const primary = await attempt([
+    `https://html.duckduckgo.com/html/?q=${encoded}&kl=cn-zh`,
+    `https://lite.duckduckgo.com/lite/?q=${encoded}&kl=cn-zh`,
+  ], parseDuckDuckGoHtml, Math.min(6_000, Math.max(0, (deadline - Date.now()) / 2)));
+  if (primary) return { ok: true, engine: "duckduckgo", query: q, results: primary };
+  const fallback = await attempt([
+    `https://cn.bing.com/search?q=${encoded}&setlang=zh-CN`,
+    `https://www.bing.com/search?q=${encoded}&setlang=zh-CN`,
+  ], parseBingHtml, Math.max(0, deadline - Date.now()));
+  if (fallback) return { ok: true, engine: "bing-html", query: q, results: fallback };
   return {
     ok: false,
-    engine: "bing-rss",
-    why: `搜索没成功（${tried.join("；") || "没有任何可用通路"}）。可能是网络不通，或者对方接口变了。`,
+    why: `DuckDuckGo 和 Bing 网页搜索都没成功（${tried.join("；") || "请求超时"}）。可能是网络不通，或者对方接口变了；未使用 RSS 结果。`,
   };
 }
 
@@ -459,5 +475,6 @@ export async function webSearch(rawQuery: string, opts: { limit?: number; timeou
 export function hitLine(i: number, h: WebHit): string {
   return `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.snippet}`;
 }
+
 
 

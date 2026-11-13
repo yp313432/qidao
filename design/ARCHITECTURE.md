@@ -63,6 +63,12 @@
 1. **样式：模式 = 一套变量。** 改观感改 `src/styles/modes/*.css` 里的值，不许新增选择器。细则见 [`README.md`](./README.md)。
 2. **结构：页面薄，逻辑进 `lib/`。** 页面只摆部件；有判断、有请求、有状态的东西一律下沉。
 
+消息复制与网址（2026-11）：`chat/copy-message-sheet.tsx` 负责两种格式和复制范围，
+`lib/message-copy.ts` 保留换行、转换纯文本及处理剪贴板失败；`lib/message-links.ts`
+共用 HTTP(S) 链接解析，Markdown 中点击后走现有 `plugin-open.ts` 浏览器通道。
+长按菜单保留当前气泡原文，不再把整条消息直接写入剪贴板。复制 UI 使用 kit/tokens。
+搜索由 `web-http.ts` 共用 DuckDuckGo HTML/Lite 优先、Bing HTML 兜底；不再自动使用 RSS。
+
 ---
 
 ## 3. 症状 → 改哪里（整个 app 级）
@@ -457,3 +463,4 @@ npm run dev       # 真机/浏览器看效果
   （用户 m09260："这个应该也是可以换背景的呀"）。垫底层只能给玻璃提供柔光
   （`::before/::after` 的 radial-gradient，本身是半透明的），底色留给 app-shell 的
   `.background-canvas` 那一层。
+

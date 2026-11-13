@@ -355,6 +355,7 @@ import { Markdown } from "@/components/shared/markdown";
 import { SegmentBubbles } from "@/components/chat/segment-bubbles";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
+import { CopyMessageSheet, type CopyMessage } from "@/components/chat/copy-message-sheet";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
@@ -662,10 +663,12 @@ export function ChatView() {
    * 下一步：把气泡下面那排图标（赞/踩/朗读/分享/收藏）也搬进来，只留统计那行。
    */
   const [msgMenu, setMsgMenu] = useState<{ id: string; part: string } | null>(null);
+  const [copyMessage, setCopyMessage] = useState<CopyMessage | null>(null);
+  useEffect(() => { setMsgMenu(null); setCopyMessage(null); }, [activeId]);
   /** 点图片全屏看大图（用户 m01498 第 3 条："照片要能点击放大"）—— 存 dataUrl，null = 关着 */
   const [viewImg, setViewImg] = useState<string | null>(null);
   const quotePress = (id: string, raw: string) => {
-    const brief = raw.replace(/\s+/g, " ").trim();
+    const brief = raw.trim();
     /**
      * ⚠️ **长按自己的消息为什么一直没卡片**（真机踩了两回，这次弄明白了）：
      *   气泡上有 `select-none`。安卓长按它时**没有可选中/可复制的东西**，
@@ -1554,11 +1557,11 @@ export function ChatView() {
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
                                   onClick={() => {
-                                    void navigator.clipboard?.writeText(m.content);
+                                    setCopyMessage({ part: msgMenu.part, full: mine ? splitQuote(m.content).body : cleanForRender(m.content) });
                                     setMsgMenu(null);
                                   }}
                                 >
-                                  复制
+                                  复制…
                                 </button>
                                 {mine && !busy && (
                                   <button
@@ -1590,6 +1593,10 @@ export function ChatView() {
                                     {m.content && !streaming && (
                                       <MessageActions
                                         content={m.content}
+                                        onCopy={() => {
+                                          setCopyMessage({ part: msgMenu.part, full: cleanForRender(m.content) });
+                                          setMsgMenu(null);
+                                        }}
                                         feedback={m.feedback}
                                         busy={busy}
                                         saved={m.savedToDocs}
@@ -1768,6 +1775,8 @@ export function ChatView() {
           </div>,
           document.body,
         )}
+
+      {copyMessage && <CopyMessageSheet message={copyMessage} onClose={() => setCopyMessage(null)} />}
 
       {/*
         **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层，然后消息是可滚动消息流，
@@ -2214,4 +2223,5 @@ function VoiceBubble({
     </div>
   );
 }
+
 

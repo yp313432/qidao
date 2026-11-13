@@ -1,4 +1,76 @@
 @import "./chat-crab.css";
+
+/* Message copy sheet: shared geometry and palette tokens, no native dialogs. */
+.k-copy-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--k-z-copy-scrim);
+  background: color-mix(in oklab, var(--k-fg) 25%, transparent);
+}
+.k-copy-sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: var(--k-z-copy-sheet);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--k-copy-max-w);
+  max-height: var(--k-copy-max-h);
+  margin-inline: auto;
+  padding: var(--k-s-4) var(--k-s-5) calc(var(--k-safe-b) + var(--k-s-5));
+  border: var(--k-border-w) solid var(--k-line);
+  border-bottom: 0;
+  border-radius: var(--k-card-radius) var(--k-card-radius) 0 0;
+  background: var(--k-bg);
+  color: var(--k-fg);
+  box-shadow: var(--k-card-shadow);
+}
+.k-copy-sheet__handle {
+  flex: none;
+  width: var(--k-track-w);
+  height: var(--k-s-2);
+  margin: 0 auto var(--k-s-4);
+  border-radius: var(--k-ctl-radius);
+  background: var(--k-line);
+}
+.k-copy-sheet__title {
+  font: inherit;
+  font-size: var(--k-t-4);
+  font-weight: 700;
+}
+.k-copy-sheet__description {
+  margin-bottom: var(--k-s-4);
+  color: var(--k-muted);
+  font-size: var(--k-t-2);
+}
+.k-copy-sheet__preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--k-tap);
+  padding: var(--k-s-4);
+  overflow: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  font-size: var(--k-t-3);
+  line-height: var(--k-lh-2);
+}
+.k-copy-sheet__error {
+  margin-top: var(--k-s-3);
+  color: var(--k-warn);
+  font-size: var(--k-t-2);
+}
+.k-message-link {
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: var(--k-line);
+  text-underline-offset: var(--k-s-2);
+}
 /*
   层：kit —— 组件层。页面只拼这些类，不许自己写颜色/字号/阴影。
 
@@ -1316,3 +1388,4 @@ html:not([data-keyboard="up"]) .shell-ime-pad {
 @media (prefers-reduced-motion: reduce) {
   .chat-crab-actor .crab-shell, .chat-crab-actor .crab-leg { animation: none; }
 }
+

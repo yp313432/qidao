@@ -31,15 +31,7 @@ export const Route = createFileRoute("/api/search")({
           // 博查失败就往下走抓取兜底，别让用户什么都拿不到
         }
 
-        /*
-          兜底顺序是有讲究的（2026-10 实测）：
-            ① **Bing 的 RSS 接口**（`&format=rss`）—— 官方 feed，返回结构化 XML，
-               783ms、10 条；这种接口不吃反爬，**从境外网络（Cloudflare）也能用**
-            ② 抓 Bing 的 HTML 结果页 —— 在这台机器上能出结果，但**从 Cloudflare 上
-               失败过**（用户手机实测 502），所以只能排在后面当兜底
-          DDG / Wikipedia / SearXNG 在这台机器上直接连不通（网络到不了），没法验，
-          所以不放进来充数。
-        */
+        // 与 APK 共用：DuckDuckGo 优先，Bing HTML 兜底，不再自动使用 RSS。
         const scraped = await webSearch(q, { limit: 5, timeoutMs: Math.max(1, deadline - Date.now()) });
         if (scraped.ok) return json(scraped);
 
@@ -90,3 +82,4 @@ async function viaBocha(q: string, key: string): Promise<Record<string, unknown>
     clearTimeout(timer);
   }
 }
+

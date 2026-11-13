@@ -43,7 +43,13 @@ const router = createRouter({ routeTree: root.addChildren([chat, settings, tools
 Object.assign(window, { qidaoFixture: {
   navigate: (path: string) => router.navigate({ to: path }),
   read: () => ({ settings: useApp.getState().settings, skills: useApp.getState().skills, mcp: useApp.getState().mcp, messages: useApp.getState().conversations.flatMap((c) => c.messages) }),
+  setCopyExample: (id: string, content: string, parts: string[]) => {
+    const state = useApp.getState();
+    const conversation = state.conversations.find((c) => c.messages.some((m) => m.id === id));
+    if (conversation) state.patchMessage(conversation.id, id, { content, parts });
+  },
   setMcpUrl: (url: string) => useApp.getState().patchMcp("native-termux", { url, status: undefined, tools: [] }),
   readSkill: async (name: string) => (await import("../src/lib/actions")).runAction({ kind: "tool.call", server: "@skills", tool: "read", args: { name } }, { navigate: () => {} }),
 } });
 createRoot(document.getElementById("fixture")!).render(<RouterProvider router={router} />);
+
