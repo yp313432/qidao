@@ -7,6 +7,7 @@ import { MePage } from "../src/components/me/me-page";
 import { ToolsView } from "../src/components/views/tools-view";
 import { PluginHub } from "../src/components/play/plugin-hub";
 import { PluginEditor } from "../src/components/play/plugin-editor";
+import { termuxTerminal } from "../src/lib/mcp-config";
 import { useApp } from "../src/lib/store";
 import { waitHydrated } from "../src/lib/store-ready";
 import "../src/styles.css";
@@ -17,15 +18,17 @@ await new Promise<void>((resolve) => {
   else { const off = useApp.persist.onFinishHydration(() => { off(); resolve(); }); }
 });
 useApp.getState().setHydrated(true);
+const nativeMcp = new URLSearchParams(location.search).has("nativeMcp");
 if (!localStorage.getItem("fixture-chat-ready")) {
   useApp.setState((s) => ({ settings: { ...s.settings,
     customBaseUrl: "http://127.0.0.1:4650/v1", customApiKey: "fixture-key", upstreamModel: "fixture-model",
+    ...(nativeMcp ? { permissions: { ...s.settings.permissions, mcp_tools: "allow" as const } } : {}),
     toolProtocol: "native", toolProbeOk: true, voiceReplies: false, notifications: false,
     motion: "off", wakeEnabled: false, autonomyEnabled: false,
     chatCrab: { enabled: false, size: 32, activity: "quiet" },
     segmentReply: true, segmentPacing: true, segmentSmartDelay: true, segmentMaxParts: 6, segmentMaxSentences: 1,
     mergeSend: true, mergeSendDelayMs: 600, replyWhileBusy: true, assistantAutoClean: true, aiStickers: true,
-  }, conversations: [], activeId: null, pendingActions: [], actionLog: [], mcp: [], httpTools: [] }));
+  }, conversations: [], activeId: null, pendingActions: [], actionLog: [], mcp: nativeMcp ? [{ ...termuxTerminal("http://127.0.0.1:8767", "native-test-token"), id: "native-termux", tools: [] }] : [], httpTools: [] }));
   localStorage.setItem("fixture-chat-ready", "1");
 }
 const root = createRootRoute({ component: AppShell });
@@ -40,6 +43,7 @@ const router = createRouter({ routeTree: root.addChildren([chat, settings, tools
 Object.assign(window, { qidaoFixture: {
   navigate: (path: string) => router.navigate({ to: path }),
   read: () => ({ settings: useApp.getState().settings, skills: useApp.getState().skills, mcp: useApp.getState().mcp, messages: useApp.getState().conversations.flatMap((c) => c.messages) }),
+  setMcpUrl: (url: string) => useApp.getState().patchMcp("native-termux", { url, status: undefined, tools: [] }),
   readSkill: async (name: string) => (await import("../src/lib/actions")).runAction({ kind: "tool.call", server: "@skills", tool: "read", args: { name } }, { navigate: () => {} }),
 } });
 createRoot(document.getElementById("fixture")!).render(<RouterProvider router={router} />);

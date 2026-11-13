@@ -1,0 +1,88 @@
+name: 安卓 WebView MCP 原生通道验收
+on:
+  pull_request:
+    paths: ["src/lib/mcp*", "src/lib/tool-*.ts", "src/components/tools/**", "android/**", "scripts/*mcp*", "scripts/chat-page-fixture.tsx", ".github/workflows/mcp-native-check.yml"]
+  push:
+    branches: [main]
+    paths: ["src/lib/mcp*", "src/lib/tool-*.ts", "src/components/tools/**", "android/**", "scripts/*mcp*", "scripts/chat-page-fixture.tsx", ".github/workflows/mcp-native-check.yml"]
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: node --experimental-strip-types scripts/verify-mcp-native.mjs
+      - name: 构建真实 App 和仅用于验收的网页入口
+        env:
+          QIDAO_TARGET: android
+          VITE_DIRECT_UPSTREAM: "1"
+          VITE_AUTH_ENABLED: "false"
+        run: |
+          npm run typecheck
+          npm run build
+          node scripts/copy-static.mjs
+          npx cap sync android
+          node scripts/with-app-env.mjs node scripts/serve-tool-progress-fixture.mjs --production > /tmp/native-fixture-build.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8081/scripts/chat-page-fixture.html >/dev/null; then break; fi
+            sleep 1
+          done
+          cp -a .tool-progress-dist/. android/app/src/main/assets/public/
+          node scripts/make-keystore.mjs
+      - name: 准备设备与本机服务
+        run: |
+          sudo chmod 666 /dev/kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+          node scripts/serve-mcp-native-fixture.mjs > /tmp/native-mcp.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4650/health >/dev/null; then break; fi
+            sleep 1
+          done
+      - name: 安卓模拟器中的原生握手与 AI 实际执行
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb reverse tcp:8767 tcp:8767
+            adb reverse tcp:4650 tcp:4650
+            chmod +x android/gradlew
+            cd android
+            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell pm grant com.yanping.qidao android.permission.POST_NOTIFICATIONS
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.yanping.qidao.McpNativeRoundTripTest
+      - name: 设备与服务日志
+        if: always()
+        run: |
+          cat /tmp/native-mcp.log || true
+          adb logcat -d -s Capacitor Capacitor/Console TestRunner AndroidRuntime > /tmp/native-logcat.txt || true
+          tail -120 /tmp/native-logcat.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-mcp-native-results
+          path: |
+            android/app/build/reports/androidTests/
+            android/app/build/outputs/androidTest-results/
+            /tmp/native-mcp.log
+            /tmp/native-logcat.txt

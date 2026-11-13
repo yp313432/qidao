@@ -21,6 +21,7 @@ jobs:
       - run: node --experimental-strip-types scripts/verify-tool-replies.mjs
       - run: node --experimental-strip-types scripts/verify-chat-delivery.mjs
       - run: node --experimental-strip-types scripts/verify-agent-runtime.mjs
+      - run: node --experimental-strip-types scripts/verify-mcp-native.mjs
       - run: node --experimental-strip-types scripts/probe-web-network.mjs
       - run: npm ci --no-audit --no-fund
         env:

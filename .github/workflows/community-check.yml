@@ -14,6 +14,7 @@ jobs:
           node-version: "22"
       - run: node --experimental-strip-types scripts/verify-community.mjs
       - run: node --experimental-strip-types scripts/verify-agent-runtime.mjs
+      - run: node --experimental-strip-types scripts/verify-mcp-native.mjs
       - run: node verify-action-registry.mjs
       - run: node --experimental-strip-types verify-tool-recall.mjs
       - run: node scripts/guard-styles.mjs

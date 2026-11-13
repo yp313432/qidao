@@ -58,6 +58,19 @@ export function parseToolArgs(raw: string): ToolArgsParse {
   }
 }
 
+/** Recover only unambiguous legacy envelopes around tool.call; preserve its inner MCP arguments. */
+export function routedToolArgs(kind: string, args: Record<string, unknown>): Record<string, unknown> {
+  if (kind !== "tool.call" || "server" in args || "tool" in args || Object.keys(args).length !== 1) return args;
+  for (const key of ["arguments", "parameters", "args"]) {
+    const nested = args[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const value = nested as Record<string, unknown>;
+      if (typeof value.server === "string" && value.server.trim() && typeof value.tool === "string" && value.tool.trim()) return value;
+    }
+  }
+  return args;
+}
+
 /**
  * 上游是不是**明确拒绝**了 `tools` 这个参数？
  *

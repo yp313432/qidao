@@ -1,3 +1,4 @@
+import { redactError } from "@/lib/chat-errors";
 import { useState } from "react";
 import { McpConfigImport } from "./mcp-config-import";
 import { Link } from "@tanstack/react-router";
@@ -49,23 +50,26 @@ export function McpServers() {
 
   async function test(server: McpServer) {
     setTesting(server.id);
-    const result = await probeServer(server);
-    const patch: Partial<McpServer> = {
-      status: {
-        ok: result.ok,
-        at: Date.now(),
-        message: result.message,
-        needsAuth: result.needsAuth,
-      },
-      // 工具清单落库 —— 这个字段一直有，但以前从来没被填过
-      tools: result.tools,
-    };
-    // 探测过程中续期出来的新令牌，写回去
-    if (result.oauthPatch) {
-      patch.oauth = { ...(server.oauth ?? { clientId: "" }), ...result.oauthPatch } as McpOAuth;
-    }
-    useApp.getState().patchMcp(server.id, patch);
-    setTesting(null);
+    try {
+      const result = await probeServer(server);
+      const patch: Partial<McpServer> = {
+        status: {
+          ok: result.ok,
+          at: Date.now(),
+          message: result.message,
+          needsAuth: result.needsAuth,
+        },
+        // 工具清单落库 —— 这个字段一直有，但以前从来没被填过
+        tools: result.tools,
+      };
+      // 探测过程中续期出来的新令牌，写回去
+      if (result.oauthPatch) {
+        patch.oauth = { ...(server.oauth ?? { clientId: "" }), ...result.oauthPatch } as McpOAuth;
+      }
+      useApp.getState().patchMcp(server.id, patch);
+    } catch (error) {
+      useApp.getState().patchMcp(server.id, { status: { ok: false, at: Date.now(), message: `MCP_CLIENT_ERROR：连接测试异常：${redactError(error instanceof Error ? error.message : String(error))}` } });
+    } finally { setTesting(null); }
   }
 
   /**

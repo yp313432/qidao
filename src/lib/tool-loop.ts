@@ -1,7 +1,7 @@
 import { ACTION_SCHEMA, kindOfToolName, type ActionTool } from "@/lib/action-schema";
 import { ACTION_PERMISSION, actionTitle } from "@/lib/action-meta";
 import type { ApiMessage, ChatDelta } from "@/lib/chat-client";
-import { parseToolArgs } from "@/lib/tool-wire";
+import { parseToolArgs, routedToolArgs } from "@/lib/tool-wire";
 import type { AssembledToolCall } from "@/lib/tool-calls";
 import type { AppAction, ToolCallRecord } from "@/lib/types";
 // 外部工具（MCP / 自配 HTTP）走同一条原生 tools 通道 —— 见 `external-tools.ts` 的文件头
@@ -340,8 +340,9 @@ export async function runOneAction(
     };
   }
 
+  const args = routedToolArgs(kind, parsed.args);
   const missing = (def?.fields ?? [])
-    .filter((f) => f.required && !(f.name in parsed.args))
+    .filter((f) => f.required && (!(f.name in args) || (kind === "tool.call" && ["server", "tool"].includes(f.name) && (typeof args[f.name] !== "string" || !(args[f.name] as string).trim()))))
     .map((f) => f.name);
   if (missing.length > 0) {
     return {
@@ -351,11 +352,14 @@ export async function runOneAction(
       notice: `❌ ${kind} · 少了参数「${missing.join("、")}」`,
       result:
         `「${kind}」没执行：少了必填参数「${missing.join("、")}」。` +
-        `这个动作要的参数是：${describeFields(def)}。补齐之后再调一次。`,
+        `收到的字段：${Object.keys(parsed.args).join("、") || "（空对象）"}。` +
+        `这个动作要的参数是：${describeFields(def)}。` +
+        (kind === "tool.call" ? `server、tool 应直接放在最外层；args 只放 MCP 工具本身的参数。示例：{"server":"服务名","tool":"工具名","args":{}}。` : "") +
+        `补齐之后再调一次。`,
     };
   }
 
-  const action = { kind, ...parsed.args } as AppAction;
+  const action = { ...args, kind } as AppAction;
   return await gateAction(action, app, signal, deadline);
 }
 

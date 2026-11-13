@@ -56,9 +56,12 @@ export async function probeServer(server: McpServer): Promise<McpProbe> {
   if (!server.url.trim()) return { ok: false, tools: [], message: server.transport === "stdio" ? "请先配置 Termux 桥接地址" : "还没填地址。" };
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 20000);
   let oauthPatch: Partial<McpOAuth> | undefined;
+  let stage = "准备认证";
   try {
     const prepared = await headersFor(server, controller.signal); oauthPatch = prepared.oauthPatch;
+    stage = "初始化握手";
     const connection = await connectionFor(server, prepared.headers, controller.signal);
+    stage = "读取工具清单";
     const tools: McpTool[] = []; let cursor: string | undefined; const seen = new Set<string>();
     for (let page = 0; ; page++) {
       if (page >= 100) throw new Error("MCP 工具清单分页过多");
@@ -79,7 +82,7 @@ export async function probeServer(server: McpServer): Promise<McpProbe> {
     if (error instanceof McpHttpError && error.status === 401 && server.transport !== "stdio") {
       try { await discover(server, null, controller.signal); needsAuth = true; } catch { /* Manual header authentication remains available. */ }
     }
-    return { ok: false, tools: [], oauthPatch, needsAuth, message: failure(error) + (needsAuth ? "\n可以回列表点「去授权」。" : "") };
+    return { ok: false, tools: [], oauthPatch, needsAuth, message: ((error as Error)?.name === "AbortError" ? `MCP_TEST_TIMEOUT：连接测试超过20秒（阶段：${stage}），已停止` : `连接测试失败（阶段：${stage}）：${failure(error)}`) + (needsAuth ? "\n可以回列表点「去授权」。" : "") };
   } finally { clearTimeout(timer); }
 }
 
@@ -104,7 +107,7 @@ export function normalizeTools(input: unknown): McpTool[] {
 
 export async function callTool(server: McpServer, tool: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
   if (!server.url.trim()) return { ok: false, text: "还没填地址。" };
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 90000);
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 30000);
   let oauthPatch: Partial<McpOAuth> | undefined;
   try {
     const prepared = await headersFor(server, controller.signal); oauthPatch = prepared.oauthPatch;
