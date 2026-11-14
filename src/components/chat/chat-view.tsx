@@ -356,6 +356,8 @@ import { SegmentBubbles } from "@/components/chat/segment-bubbles";
 import { Composer } from "@/components/chat/composer";
 import { MessageActions } from "@/components/chat/message-actions";
 import { CopyMessageSheet, type CopyMessage } from "@/components/chat/copy-message-sheet";
+import { MessageSourceScope } from "@/components/chat/message-source-scope";
+import { messageWebSources } from "@/lib/web-sources";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
 import { Ticker } from "@/components/chat/ticker";
@@ -1040,6 +1042,7 @@ export function ChatView() {
                   !mine &&
                   !hasRenderedText(m.content) &&
                   !m.requestError &&
+                  messageWebSources(raw).length === 0 &&
                   visibleParts.length === 0 &&
                   !(m.attachments && m.attachments.length);
                 const pendingPlaceholder =
@@ -1271,7 +1274,7 @@ export function ChatView() {
                           })()
                         ) : (
                           /* ⚠️ 同上：`w-full` 必须留（否则长回复会把这一列撑成"一行不换行"） */
-                          <div className="w-full min-w-0">
+                          <MessageSourceScope message={raw}>
                             {/*
                           他发的**语音气泡**（用户 m11313："他发给我也是语音气泡"）。
                           放在正文上方：语音是这条消息本身，正文只是气泡下的转写。
@@ -1516,7 +1519,7 @@ export function ChatView() {
                             */}
                               </p>
                             )}
-                          </div>
+                          </MessageSourceScope>
                         )}
                         {/* ⚠️ **这三个块（长按菜单 / 改 / 编辑框）必须放在 mine 与 他 的分支之外**：
                           以前它们写在「他的」那个分支里 —— 长按自己的消息时状态设了、却什么都不渲染，

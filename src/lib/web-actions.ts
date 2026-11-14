@@ -20,6 +20,7 @@
 */
 import { readWebPage, webSearch } from "./web-http.ts";
 import type { AppAction } from "./types.ts";
+import type { WebReceipt } from "./web-sources.ts";
 
 /** `web.search` 最多给几条（省上下文，也够模型挑） */
 const MAX_HITS = 8;
@@ -39,21 +40,21 @@ export async function runWebAction(
     const query = (action.query ?? "").trim();
     if (!query) return "搜索要给我一个词（query 是空的）。";
     const r = await webSearch(query, { limit: MAX_HITS });
-    if (!r.ok) return `搜「${query}」没成功：${r.why}`;
-    const lines = r.results.map((h, i) => `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.snippet}`);
-    return [
-      `搜「${query}」找到 ${r.results.length} 条（结果来自 ${r.engine}）：`,
-      ...lines,
-      "（要用哪条就再读它的正文。）",
-    ].join("\n");
+    const receipt: WebReceipt = r.ok
+      ? { version: 1, kind: "web.search", ok: true, query, engine: r.engine, results: r.results,
+          summary: `搜「${query}」找到 ${r.results.length} 个来源。当前内容是搜索摘要；按相关性、时效和来源挑选，通常先读 2～3 条。结论引用用 [来源](实际网址)。某页正文读不到时保留这些搜索结果，说明依据范围。` }
+      : { version: 1, kind: "web.search", ok: false, query, results: [], why: r.why, summary: `搜「${query}」未取得结果：${r.why}` };
+    return JSON.stringify(receipt);
   }
 
   const url = (action.url ?? "").trim();
   if (!url) return "读网页要给我一个网址（url 是空的）。";
   const r = await readWebPage(url, { maxChars: MAX_CHARS });
-  if (!r.ok) return `读「${url}」失败：${r.why}`;
-
-  const head = `读到了：${r.title || "(没有标题)"}\n${r.url}（HTTP ${r.status}）`;
-  const tail = r.truncated ? `\n（正文共 ${r.chars} 字，这里截断到前 ${MAX_CHARS} 字。）` : "";
-  return `${head}\n\n${r.text}${tail}`;
+  const receipt: WebReceipt = r.ok
+    ? { version: 1, kind: "web.fetch", ok: true, url: r.url, title: r.title, text: r.text, truncated: r.truncated,
+        summary: r.truncated ? `已读取该页正文，截取前 ${MAX_CHARS} 字。` : "已读取该页正文。" }
+    : { version: 1, kind: "web.fetch", ok: false, url, why: r.why,
+        summary: `这页正文未读到：${r.why}。这次失败只针对该网页，不代表搜索失败；可使用已取得的标题、链接和搜索摘要，或更换来源。不要声称读过全文。` };
+  return JSON.stringify(receipt);
 }
+

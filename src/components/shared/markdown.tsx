@@ -1,14 +1,24 @@
-import { memo, type ReactNode } from "react";
+import { memo, useContext, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { messageLinks } from "@/lib/message-links";
 import { openPluginWeb } from "@/lib/plugin-open";
 import { pushToast } from "@/lib/toast";
+import { WebSourcesContext, type WebSourcesContextValue } from "@/components/chat/web-sources-context";
+import { sourceForUrl } from "@/lib/web-sources";
 
-function linkedText(text: string, key: string): ReactNode[] {
+function linkedText(text: string, key: string, context: WebSourcesContextValue | null): ReactNode[] {
   const nodes: ReactNode[] = [];
   let last = 0;
   for (const link of messageLinks(text)) {
     if (link.start > last) nodes.push(text.slice(last, link.start));
+    const source = sourceForUrl(context?.sources, link.url);
+    if (source && /^(?:来源|出处|参考|source|\[?\d+\]?)$/i.test(link.label.trim())) {
+      nodes.push(<button key={`${key}-source-${link.start}`} type="button" className="k-source-citation"
+        aria-label={`查看来源 ${source.index}：${source.title}`} title={source.title}
+        onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); context?.onSelect(source.url); }}>[{source.index}]</button>);
+      last = link.end; continue;
+    }
     nodes.push(<a key={`${key}-link-${link.start}`} href={link.url} target="_blank" rel="noopener noreferrer"
       className="k-message-link"
       onPointerDown={(e) => e.stopPropagation()}
@@ -23,19 +33,19 @@ function linkedText(text: string, key: string): ReactNode[] {
   return nodes;
 }
 
-function inline(text: string, key: string) {
+function inline(text: string, key: string, context: WebSourcesContextValue | null) {
   const parts: ReactNode[] = [];
   const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
   while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(...linkedText(text.slice(last, m.index), `${key}-t${i}`));
+    if (m.index > last) parts.push(...linkedText(text.slice(last, m.index), `${key}-t${i}`, context));
     const token = m[0];
     if (token.startsWith("**")) {
       parts.push(
         <strong key={`${key}-b${i}`} className="font-medium">
-          {linkedText(token.slice(2, -2), `${key}-b${i}`)}
+          {linkedText(token.slice(2, -2), `${key}-b${i}`, context)}
         </strong>,
       );
     } else {
@@ -48,7 +58,7 @@ function inline(text: string, key: string) {
     last = m.index + token.length;
     i += 1;
   }
-  if (last < text.length) parts.push(...linkedText(text.slice(last), `${key}-tail`));
+  if (last < text.length) parts.push(...linkedText(text.slice(last), `${key}-tail`, context));
   return parts;
 }
 
@@ -63,6 +73,7 @@ function inline(text: string, key: string) {
  * `memo` 之后只有**内容真的变了的那一条**（正在流式输出的那条）才会重新解析。
  */
 export const Markdown = memo(function Markdown({ text, className }: { text: string; className?: string }) {
+  const sourcesContext = useContext(WebSourcesContext);
   const blocks = text.split(/```/);
   return (
     // 用 1em / 相对行高，跟着聊天页的字号设置走 ——
@@ -96,7 +107,7 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
               <ul key={`${i}-${j}`} className="space-y-1 pl-5">
                 {lines.map((l, k) => (
                   <li key={k} className="list-disc">
-                    {inline(l.replace(/^\s*([-*]|\d+\.)\s+/, ""), `${i}-${j}-${k}`)}
+                    {inline(l.replace(/^\s*([-*]|\d+\.)\s+/, ""), `${i}-${j}-${k}`, sourcesContext)}
                   </li>
                 ))}
               </ul>
@@ -107,7 +118,7 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
               {lines.map((l, k) => (
                 <span key={k}>
                   {k > 0 && <br />}
-                  {inline(l, `${i}-${j}-${k}`)}
+                  {inline(l, `${i}-${j}-${k}`, sourcesContext)}
                 </span>
               ))}
             </p>

@@ -7,6 +7,8 @@ const base = process.env.QIDAO_TEST_BASE || "http://127.0.0.1:8080";
 const frame = (delta, finish_reason = null) => ({ choices: [{ index: 0, delta, finish_reason }] });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let scenario = "queue";
+let holdQueue = false;
+let releaseQueue = () => {};
 const requests = [];
 const upstream = createServer(async (req, res) => {
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,POST,OPTIONS" };
@@ -18,7 +20,8 @@ const upstream = createServer(async (req, res) => {
   const used = body.messages.filter((m) => m.role === "tool").length;
   const frames = [];
   if (scenario === "queue" || scenario === "pagequeue") {
-    await sleep(scenario === "pagequeue" ? 1800 : 900);
+    if (scenario === "queue" && holdQueue) await new Promise((resolve) => { releaseQueue = resolve; });
+    else await sleep(scenario === "pagequeue" ? 1800 : 900);
     frames.push(frame({ content: "收到。会一起考虑。" }));
   } else if (!used) {
     const name = scenario === "cleanup" ? "emotion_report" : "sticker_send";
@@ -63,16 +66,21 @@ async function idle(page, assistants) {
 try {
   {
     const { context, page, errors } = await open();
+    await page.evaluate(() => {
+      window.__bubbleArrivals = [];
+      const container = document.querySelector('[data-testid="pace"]');
+      new MutationObserver(() => {
+        const count = container.querySelectorAll('[data-role="ai"]').length;
+        while (window.__bubbleArrivals.length < count) window.__bubbleArrivals.push(performance.now());
+      }).observe(container, { childList: true, subtree: true });
+    });
     await page.getByRole("button", { name: "演示逐条发送" }).click();
     const bubbles = page.getByTestId("pace").locator('[data-role="ai"]');
     await bubbles.first().waitFor();
-    assert.equal(await bubbles.count(), 1);
-    const firstAt = Date.now();
-    await page.waitForTimeout(200); assert.equal(await bubbles.count(), 1);
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 2);
-    const secondAt = Date.now(); assert.ok(secondAt - firstAt >= 400);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="pace"] [data-role="ai"]').length === 3);
-    assert.ok(Date.now() - secondAt >= 700);
+    const arrivals = await page.evaluate(() => window.__bubbleArrivals);
+    assert.ok(arrivals[1] - arrivals[0] >= 400, "second bubble must respect its delivery interval");
+    assert.ok(arrivals[2] - arrivals[1] >= 700, "third bubble must respect its delivery interval");
     await page.getByRole("button", { name: "慢一点", exact: true }).click();
     assert.equal(await page.getByTestId("pace-setting").textContent(), "90");
     // Revision must discard queued old text instead of appending both versions.
@@ -101,7 +109,7 @@ try {
     console.log("PASS history bubbles: immediately visible without replay");
   }
   {
-    scenario = "queue"; requests.length = 0;
+    scenario = "queue"; requests.length = 0; holdQueue = true;
     const { context, page, errors } = await open();
     await send(page, "第一条");
     await send(page, "紧接着补充");
@@ -114,13 +122,16 @@ try {
     await send(page, "回复中补充二");
     await page.getByText("已收下 2 条，合并后自动处理", { exact: true }).waitFor();
     assert.equal(requests.length, 1, "active request must not be restarted");
+    holdQueue = false; releaseQueue();
     await idle(page, 2);
     assert.equal(requests.length, 2);
     assert.match(requests[1].messages.at(-1).content, /回复中补充一[\s\S]*回复中补充二/);
     assert.equal((await stored(page)).filter((m) => m.role === "user").length, 4);
+    holdQueue = true;
     await page.getByRole("button", { name: "重新生成测试回复", exact: true }).click();
     for (let n = 0; n < 100 && requests.length < 3; n++) await sleep(20);
     await send(page, "重新生成期间补充");
+    holdQueue = false; releaseQueue();
     await idle(page, 3);
     assert.equal(requests.length, 4, "regeneration and its supplement each execute once");
     assert.match(requests[3].messages.at(-1).content, /重新生成期间补充/);
@@ -294,10 +305,52 @@ try {
     assert.equal(await page.evaluate(() => window.__openedUrl), "https://example.com/docs");
     assert.equal(await page.getByRole("dialog").count(), 0, "link click must not open a bubble menu");
     console.log("PASS copy sheet: one bubble / whole reply, plain / Markdown, line breaks, denied clipboard, desktop/mobile and clickable links");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      const hits = [
+        { title: "官网公开简介", url: "https://example.com/profile", snippet: "原始搜索摘要。" },
+        { title: "另一篇人物资料", url: "https://example.org/%E7%8E%8B%E4%B8%BA", snippet: "这个来源的搜索摘要仍可查看。" },
+        { title: "补充资料", url: "https://example.net/article", snippet: "候选来源摘要。" },
+      ];
+      const make = (kind, receipt) => ({ kind, name: kind.replace(".", "_"), args: "{}", ok: receipt.ok,
+        result: JSON.stringify({ version: 1, kind, ...receipt }) });
+      const calls = [make("web.search", { ok: true, query: "人物 公开资料", results: hits, engine: "duckduckgo" }),
+        make("web.fetch", { ok: true, title: hits[0].title, url: hits[0].url, text: "实际读取的正文内容。" }),
+        make("web.fetch", { ok: false, url: hits[1].url, why: "网页需要执行 JavaScript" })];
+      const first = window.qidaoFixture.read().messages.find((m) => m.role === "assistant");
+      window.qidaoFixture.setWebSourceExample(first.id, "公开资料可以核对。[来源](https://example.com/profile)", calls);
+    });
+    await page.getByRole("button", { name: "查看来源 · 3", exact: true }).click();
+    const sourcesDialog = page.getByRole("dialog", { name: "来源 · 3", exact: true });
+    await sourcesDialog.waitFor();
+    assert.equal(await sourcesDialog.locator(".k-source-card").count(), 3, "steps/rounds cannot duplicate sources");
+    assert.deepEqual(await sourcesDialog.locator(".k-source-card__state").allTextContents(), ["已读正文", "正文未读到", "搜索摘要"]);
+    assert.ok((await sourcesDialog.innerText()).includes("这个来源的搜索摘要仍可查看。"));
+    await sourcesDialog.getByRole("link", { name: /来源 2：/ }).click();
+    assert.equal(await page.evaluate(() => window.__openedUrl), "https://example.org/%E7%8E%8B%E4%B8%BA");
+    if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/sources-mobile.png`, fullPage: true });
+    await page.getByRole("button", { name: "关闭来源面板", exact: true }).click();
+    await page.getByRole("button", { name: /查看来源 1：官网公开简介/ }).click({ timeout: 20000 });
+    await sourcesDialog.waitFor();
+    assert.equal(await sourcesDialog.locator('.k-source-card[data-highlighted="true"]').count(), 1);
+    assert.equal(await sourcesDialog.getByRole("link", { name: /来源 1：/ }).evaluate((el) => document.activeElement === el), true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    if (process.env.QIDAO_SHOTS) await page.screenshot({ path: `${process.env.QIDAO_SHOTS}/sources-desktop.png`, fullPage: true });
+    await page.keyboard.press("Escape");
+    await page.getByRole("button").filter({ hasText: "动了 3 次手" }).first().click();
+    const step = page.getByRole("button").filter({ hasText: "找到 3 个来源" }).first();
+    await step.click();
+    const thinkingDialog = page.getByRole("dialog");
+    assert.equal(await thinkingDialog.locator(".k-source-card").count(), 3);
+    await thinkingDialog.getByRole("link", { name: /来源 1：/ }).click();
+    assert.equal(await step.getAttribute("aria-expanded"), "true", "opening a source cannot collapse its search step");
+    assert.equal(await page.evaluate(() => window.__openedUrl), "https://example.com/profile");
+    console.log("PASS web sources: cards, read statuses, retained summaries, real URLs, per-answer citations, focused source sheet and independent thinking-step links");
     assert.deepEqual(errors, []); await context.close();
     console.log("PASS full app shell: conversation switches persist, touch/keyboard supplements work, opt-out blocks only active replies");
   }
 } finally {
+  holdQueue = false; releaseQueue();
   await browser.close();
   await new Promise((resolve) => upstream.close(resolve));
 }

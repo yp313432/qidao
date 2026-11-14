@@ -1,13 +1,15 @@
 @import "./chat-crab.css";
 
 /* Message copy sheet: shared geometry and palette tokens, no native dialogs. */
-.k-copy-scrim {
+.k-copy-scrim,
+.k-source-scrim {
   position: fixed;
   inset: 0;
   z-index: var(--k-z-copy-scrim);
   background: color-mix(in oklab, var(--k-fg) 25%, transparent);
 }
-.k-copy-sheet {
+.k-copy-sheet,
+.k-source-sheet {
   position: fixed;
   inset-inline: 0;
   bottom: 0;
@@ -70,6 +72,64 @@
   text-decoration: underline;
   text-decoration-color: var(--k-line);
   text-underline-offset: var(--k-s-2);
+}
+
+/* Web evidence: compact entry, numbered citations and independently actionable cards. */
+.k-source-sheet__scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.k-web-sources { display: grid; gap: var(--k-s-3); min-width: 0; }
+.k-web-result { margin-top: var(--k-s-3); }
+.k-source-card {
+  min-width: 0;
+  padding: var(--k-s-4);
+  border: var(--k-border-w) solid var(--k-line-soft);
+  border-radius: var(--k-card-radius);
+  background: var(--k-surface);
+  color: var(--k-fg);
+  overflow-wrap: anywhere;
+}
+.k-source-card[data-highlighted="true"] { border-color: var(--k-fg); }
+.k-source-card__meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--k-s-2);
+  color: var(--k-muted); font-size: var(--k-t-2);
+}
+.k-source-card__meta > svg,
+.k-source-card__title > svg,
+.k-source-entry > svg { flex: none; width: var(--k-t-4); height: var(--k-t-4); }
+.k-source-card__state { margin-inline-start: auto; }
+.k-source-card__state[data-state="unavailable"] { color: var(--k-warn); }
+.k-source-card__title {
+  display: flex; align-items: center; gap: var(--k-s-3); min-height: var(--k-tap);
+  color: var(--k-fg); font-size: var(--k-t-4); line-height: var(--k-lh-2);
+  font-weight: 700; text-decoration: none;
+}
+.k-source-card__title > span:not(.k-source-card__number) { flex: 1; min-width: 0; }
+.k-source-card__title:hover { text-decoration: underline; }
+.k-source-card__number { flex: none; color: var(--k-muted); font-family: var(--k-font-num); font-size: var(--k-t-2); }
+.k-source-card__snippet,
+.k-source-card__note { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--k-t-3); line-height: var(--k-lh-2); }
+.k-source-card__snippet { color: var(--k-fg); }
+.k-source-card__note { color: var(--k-muted); margin-block: var(--k-s-3); }
+.k-source-card__excerpt { margin-top: var(--k-s-3); font-size: var(--k-t-3); line-height: var(--k-lh-2); }
+.k-source-card__excerpt > summary { cursor: pointer; min-height: var(--k-tap); align-content: center; color: var(--k-muted); }
+.k-source-card__excerpt > p { max-height: var(--k-long-h); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.k-source-entry {
+  display: inline-flex; align-items: center; gap: var(--k-s-3); min-height: var(--k-tap);
+  margin-top: var(--k-s-3); padding-inline: var(--k-s-4);
+  border: var(--k-border-w) solid var(--k-line-soft); border-radius: var(--k-ctl-radius);
+  background: var(--k-chip-bg); color: var(--k-fg); font-size: var(--k-t-3);
+}
+.k-source-citation {
+  display: inline-flex; align-items: center; vertical-align: baseline;
+  margin-inline: var(--k-s-1); padding: var(--k-s-1) var(--k-s-3);
+  border: var(--k-border-w) solid var(--k-line-soft); border-radius: var(--k-ctl-radius);
+  background: var(--k-chip-bg); color: var(--k-fg); font-family: var(--k-font-num); font-size: var(--k-t-3);
+}
+.k-source-citation:focus-visible,
+.k-source-entry:focus-visible,
+.k-source-card__title:focus-visible { outline: var(--k-border-w) solid var(--k-fg); outline-offset: var(--k-s-2); }
+.k-tool-result-text {
+  margin-top: var(--k-s-3); white-space: pre-wrap; overflow-wrap: anywhere;
+  color: var(--k-subtle); font-size: var(--k-t-2); line-height: var(--k-lh-2);
 }
 /*
   层：kit —— 组件层。页面只拼这些类，不许自己写颜色/字号/阴影。

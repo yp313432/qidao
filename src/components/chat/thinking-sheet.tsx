@@ -6,6 +6,7 @@ import { useApp } from "@/lib/store";
 import type { ChatStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
+import { WebToolResult } from "@/components/chat/web-tool-result";
 
 /**
  * 思考链 —— 从底部弹出来的一层（Claude 那种）。
@@ -280,11 +281,12 @@ function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boole
                 )}
               </span>
             </Rail>
+            <div className="min-w-0 flex-1 pb-3.5 pt-0.5">
             <button
               type="button"
               onClick={() => toggle(i)}
               aria-expanded={expanded}
-              className="min-w-0 flex-1 pb-3.5 pt-0.5 text-left"
+              className="w-full text-left"
             >
               <span className="flex items-start gap-2">
                 <span className="min-w-0 flex-1">
@@ -306,12 +308,6 @@ function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boole
                       {s.why}
                     </span>
                   )}
-                  {expanded && step.call.result && (
-                    <span className="mt-1 block whitespace-pre-wrap text-[11px] leading-[1.55] text-subtle [overflow-wrap:anywhere]">
-                      {step.call.result.slice(0, 4000)}
-                      {step.call.result.length > 4000 && "\n（此处展示前 4000 字）"}
-                    </span>
-                  )}
                   {expanded && s.raw && (
                     <span className="mt-0.5 block font-mono text-[10px] leading-[1.5] text-subtle">
                       {s.raw}
@@ -328,6 +324,8 @@ function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boole
                 />
               </span>
             </button>
+            {expanded && step.call.result && <WebToolResult call={step.call} />}
+            </div>
           </div>
         );
       })}
@@ -375,4 +373,5 @@ function Rail({
     </div>
   );
 }
+
 

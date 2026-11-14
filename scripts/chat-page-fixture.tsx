@@ -9,6 +9,7 @@ import { PluginHub } from "../src/components/play/plugin-hub";
 import { PluginEditor } from "../src/components/play/plugin-editor";
 import { termuxTerminal } from "../src/lib/mcp-config";
 import { useApp } from "../src/lib/store";
+import type { ToolCallRecord } from "../src/lib/types";
 import { waitHydrated } from "../src/lib/store-ready";
 import "../src/styles.css";
 
@@ -47,6 +48,12 @@ Object.assign(window, { qidaoFixture: {
     const state = useApp.getState();
     const conversation = state.conversations.find((c) => c.messages.some((m) => m.id === id));
     if (conversation) state.patchMessage(conversation.id, id, { content, parts });
+  },
+  setWebSourceExample: (id: string, content: string, calls: ToolCallRecord[]) => {
+    const state = useApp.getState();
+    const conversation = state.conversations.find((c) => c.messages.some((m) => m.id === id));
+    if (conversation) state.patchMessage(conversation.id, id, { content, parts: [content],
+      steps: calls.map((call) => ({ kind: "call" as const, call })), rounds: [{ round: 1, calls }] });
   },
   setMcpUrl: (url: string) => useApp.getState().patchMcp("native-termux", { url, status: undefined, tools: [] }),
   readSkill: async (name: string) => (await import("../src/lib/actions")).runAction({ kind: "tool.call", server: "@skills", tool: "read", args: { name } }, { navigate: () => {} }),

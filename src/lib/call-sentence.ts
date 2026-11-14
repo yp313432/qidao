@@ -15,6 +15,7 @@
  *   · 这里是**气泡下方的事后回看**用的，要像人说的话，参数只做"细节"那一行。
  */
 import type { AppAction, ToolCallRecord } from "@/lib/types";
+import { webReceiptFromCall } from "./web-sources.ts";
 
 type AnyAction = Record<string, unknown>;
 
@@ -229,6 +230,13 @@ export function callSentence(
       why: call.result ? str(call.result, 120) : undefined };
   }
 
+  const web = webReceiptFromCall(call);
+  if (web) return {
+    line: `${name} ${web.summary}`,
+    detail: web.kind === "web.search" ? str(web.query, 60) : web.url ? new URL(web.url).hostname : undefined,
+    why: web.ok ? undefined : web.why,
+  };
+
   if (!call.ok) {
     /**
      * 失败就说"没成"，别写成"想设了个提醒"那种半截话（中文里完成态套在"想"后面很别扭）。
@@ -255,4 +263,5 @@ export function callSentence(
 export function fallbackPhrase(kind: AppAction["kind"]): string {
   return `做了件「${kind}」的事`;
 }
+
 
