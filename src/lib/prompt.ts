@@ -463,7 +463,7 @@ export function systemPrompt(input: PromptInput): string {
 你在「栖岛」里 —— 这是用户一个人的私人空间。用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
     input.segmentEnabled ? segmentRule() : ""
   }
-思考在内部完成；正文不要重复「让我思考」之类的套话。情绪参数只通过动作上报，不写进正文；发图片表情必须调用 sticker.send，不能用“[表情包]”等占位文字代替。${
+思考在内部完成；正文不要重复「让我思考」之类的套话。情绪参数只通过动作上报，不写进正文；发图片表情必须调用 sticker.send，不能用“[表情包]”等占位文字代替。一次用户消息对应的整次回复中，emotion.report 和 sticker.send 各最多执行一次，工具回执后的继续回复也在同一次内，不要更换参数后重复调用；工具前已经说过的话会保留，拿到结果后接着说，不必从头重述。${
     input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
   }
 ${tools}
@@ -621,3 +621,4 @@ export function assembleMessages(
     }),
   ];
 }
+

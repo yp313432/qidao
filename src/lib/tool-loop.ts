@@ -6,6 +6,7 @@ import type { AssembledToolCall } from "@/lib/tool-calls";
 import type { AppAction, ToolCallRecord } from "@/lib/types";
 // 外部工具（MCP / 自配 HTTP）走同一条原生 tools 通道 —— 见 `external-tools.ts` 的文件头
 import { matchExternalTool, type ExternalActionTool } from "@/lib/external-tools";
+import { mergeReplyText } from "@/lib/reply-text";
 
 /**
  * 能塞进 `tools` 数组的东西：内置动作（`ActionTool`）+ 外部工具（`ExternalActionTool`）。
@@ -125,7 +126,7 @@ export type ToolOutcomeCategory =
   /**
    * 这一轮的时间用完了，**没轮到它跑**（跟 `pending` 是两件不同的事：
    * pending = 卡片真的在等他点；skipped = 权限是"允许"、没有卡片，只是没时间了）。
-   * 2026-11 加：原来这两种共用 `pending`，用户照着"等你点确认"去找卡片，找不到。
+   * 也用于整轮次数限制拦下的重复动作。它们没有入队，不会再弹确认卡片。
    */
   | "skipped";
 
@@ -243,6 +244,37 @@ export async function runActions(
     out.push(await runOneAction(call, signal, useApp, deadline));
   }
   return out;
+}
+
+/**
+ * 一次助手回复共用的执行器：情绪和表情包各最多落地一次。
+ * 必须跨工具请求、文本动作块、重试共用；不能按参数去重（换情绪词也算同一种动作）。
+ * pending / skipped 仍可能在后台或用户确认后执行，保留名额；明确失败才允许重试。
+ */
+export function createTurnActionRunner(execute: typeof runActions = runActions): typeof runActions {
+  const used = new Set<string>();
+  return async (calls, signal, deadline) => {
+    const outcomes: ToolCallOutcome[] = [];
+    for (const call of calls) {
+      const kind = kindOfToolName(call.name);
+      const limited = kind === "emotion.report" || kind === "sticker.send";
+      if (limited && used.has(kind)) {
+        const title = kind === "emotion.report" ? "记录情绪" : "发表情包";
+        outcomes.push({
+          ok: false, category: "skipped", title,
+          notice: `⚠️ ${title} · 本次回复已使用，未重复执行`,
+          result: `本次回复的「${kind}」已执行或仍在等待结果；每次回复最多一次，本次没有再次执行。请根据已有结果继续回复，不要再调用这个动作。`,
+        });
+        continue;
+      }
+      // 执行前占位，同批多个调用和并发请求都不能绕过限制。
+      if (limited) used.add(kind);
+      const [outcome] = await execute([call], signal, deadline);
+      if (limited && outcome && ["badargs", "unknown", "denied", "refused"].includes(outcome.category)) used.delete(kind);
+      outcomes.push(outcome);
+    }
+    return outcomes;
+  };
 }
 
 /** 闸门那一侧给我们的最小接口（真实现是 store，验收脚本给假的 —— 所以这里只认这几个口） */
@@ -850,13 +882,13 @@ export async function runToolLoop(input: {
   onStep?: (s: { round: number; calls: AssembledToolCall[] }) => void;
   onRound?: (r: ToolRoundRecord) => void;
   onDelta?: (d: ChatDelta) => void;
-  /** 当前请求的正文快照。工具前后的正文属于不同草稿，界面替换而非跨轮追加。 */
+  /** 本次回复的完整正文快照，包含工具调用前已经显示的内容。 */
   onContent?: (text: string, round: number) => void;
   signal?: AbortSignal;
   maxRounds?: number;
   budgetMs?: number;
 }): Promise<RunToolLoopResult> {
-  const exec = input.runActions ?? runActions;
+  const exec = input.runActions ?? createTurnActionRunner();
   const maxRounds = Math.max(1, input.maxRounds ?? TOOL_LOOP_MAX);
   const budgetMs = Math.max(1000, input.budgetMs ?? TOOL_LOOP_BUDGET_MS);
   const startedAt = Date.now();
@@ -867,12 +899,8 @@ export async function runToolLoop(input: {
   const rounds: ToolRoundRecord[] = [];
   let thinking = "";
   let reasoningContent = "";
-  /**
-   * 「最后一轮有正文的那段」—— 工具循环里模型常常是**先说一段 → 调工具 → 拿到结果又重说一遍**。
-   * 老写法把每轮正文都 `content +=` 拼起来，用户就看到同一段说了两遍（m02726 的截图）。
-   * 现在只把**最后一轮有正文的**当作最终回答，中间轮次只用来推进工具调用。
-   */
-  let lastRoundText = "";
+  /** 工具前已经说过的话要留在屏幕和存档里，后续请求通常是在接着说。 */
+  let replyText = "";
   /** 当前这一轮攒的正文 */
   let roundText = "";
   let usage: RunToolLoopResult["usage"];
@@ -917,7 +945,7 @@ export async function runToolLoop(input: {
         }
         if (d.thinking) { thinking += d.thinking; roundThinking += d.thinking; }
         input.onDelta?.(d);
-        if (d.content) input.onContent?.(roundText, round);
+        if (d.content) input.onContent?.(mergeReplyText(replyText, roundText), round);
       },
       signal: input.signal,
     });
@@ -942,8 +970,8 @@ export async function runToolLoop(input: {
     // 有些传输只在完成时返回整段内容；采用完成结果，同时把最终快照交给界面。
     const completedText = r.content || roundText;
     if (completedText.trim()) {
-      lastRoundText = completedText;
-      input.onContent?.(completedText, round);
+      replyText = mergeReplyText(replyText, completedText);
+      input.onContent?.(replyText, round);
     }
     if (r.stalled) stalled = true;
     // 用量**累加**（2026-10 修）：工具循环一轮里有好几次上游请求，
@@ -1028,8 +1056,7 @@ export async function runToolLoop(input: {
 
   const hitLimit = stoppedBy !== "done";
   return {
-    // 只留最后一轮有正文的那段（中间轮次的"先说一段"不再拼进同一条消息）
-    content: lastRoundText,
+    content: replyText,
     thinking,
     reasoningContent,
     pendingCalls,
@@ -1054,4 +1081,5 @@ export async function runToolLoop(input: {
       : undefined,
   };
 }
+
 

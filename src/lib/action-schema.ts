@@ -297,7 +297,7 @@ export const ACTION_SCHEMA = [
   {
     kind: "emotion.report",
     group: "自我",
-    summary: "上报一笔情绪",
+    summary: "上报一笔情绪，整次回复最多一次（工具回执后不重复）",
     fields: [
       {
         name: "primaryEmotion",
@@ -354,7 +354,7 @@ export const ACTION_SCHEMA = [
   {
     kind: "sticker.send",
     group: "自我",
-    summary: "发一张表情包",
+    summary: "发一张表情包，整次回复最多一次（工具回执后不重复）",
     fields: [
       {
         name: "feel",
@@ -1149,3 +1149,4 @@ export function renderActionCatalog(): string {
   }
   return lines.join("\n");
 }
+

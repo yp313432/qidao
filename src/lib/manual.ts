@@ -80,12 +80,12 @@ const EMOTION_USAGE = `【情绪怎么报（10 组 · 自由词）】
 · 依据 evidence：最多 1 条，特别纠结时才 2 条。每条要么是
   quote（只引引起波动的那一句，≤${QUOTE_MAX} 字），要么是 summary
   （你自己写的一句摘要，≤${SUMMARY_MAX} 字）。不许引整段对话；超字数会被截断。
-· 节奏：每轮回复末尾都可以报一次（主情绪 + group + 强度/置信度 + 档位）；
+· 节奏：一次用户消息对应的整次回复最多报一次（主情绪 + group + 强度/置信度 + 档位），工具回执后的继续回复也算同一次；
   evidence / summary 只在情绪明显变化时才给 —— 每轮都塞依据等于刷屏，也费钱。`;
 
 /** 每轮系统提示词里的那一小段（只给 10 组 id，不给参考词表）。 */
 const EMOTION_POINTER = `【情绪（10 组 · 自由词）】
-报情绪只有一个动作（每轮回复末尾都可以写，不必等它出现在工具清单里）：
+报情绪只有一个动作（整次回复最多一次，工具回执后不重复；不必等它出现在工具清单里）：
   {"kind":"emotion.report","primaryEmotion":"被看穿的心慌","group":"flutter","secondaryEmotions":["羞","慌"],"intensity":0.6,"confidence":0.7,"dimensions":{"attraction":0.7,"shyness":0.4},"suggestedMode":"flirtatious","evidence":[{"quote":"你刚才那句，我看了两遍"}]}
 · 情绪一律走这一个动作报（旧的 11 维花瓣 state.report 已经没了，别再写它）。
 · primaryEmotion 是自由概括 1~5 个字，写你此刻最贴的说法，不必凑词表原词。
@@ -240,4 +240,5 @@ export function buildManual(input: ManualInput): string {
     permissionSection(input, ta),
   ].join("\n");
 }
+
 

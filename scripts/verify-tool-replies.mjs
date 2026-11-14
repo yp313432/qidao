@@ -20,7 +20,7 @@ registerHooks({ resolve(specifier, context, next) {
   }
   return next(specifier, context);
 } });
-const { runToolLoop, toolResultMessages } = await import("../src/lib/tool-loop.ts");
+const { runToolLoop, toolResultMessages, createTurnActionRunner } = await import("../src/lib/tool-loop.ts");
 const { makeServerRound } = await import("../src/lib/chat-client.ts");
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -46,7 +46,7 @@ async function replay(rounds, extra = {}) {
   return { result, displayed, thought, snapshots, count, requests };
 }
 
-test("tool-before answer is replaced by final answer, in live snapshots and final storage", async () => {
+test("a verbatim replay extends the answer without retracting it or duplicating the prefix", async () => {
   const first = "答案是 A。";
   const final = "答案是 A。工具核对后补充依据。";
   const r = await replay([
@@ -61,12 +61,13 @@ test("tool-before answer is replaced by final answer, in live snapshots and fina
   assert.equal(r.requests[1].find((m) => m.role === "assistant").reasoning_content, "先核对。");
 });
 
-test("several tool rounds do not concatenate drafts into one final reply", async () => {
+test("several tool rounds preserve every distinct paragraph in live snapshots and final storage", async () => {
   const r = await replay(["第一份草稿。", "第二份草稿。", "最终回答。"].map((content, i) => ({
     deltas: [{ content }], result: { content, toolCalls: i < 2 ? [{ ...tool, id: "c" + i }] : [] },
   })));
-  assert.equal(r.displayed, "最终回答。");
-  assert.equal(r.result.content, "最终回答。");
+  assert.equal(r.displayed, "第一份草稿。\n\n第二份草稿。\n\n最终回答。");
+  assert.equal(r.result.content, r.displayed);
+  assert.ok(r.snapshots.filter((s) => s.round >= 2).every((s) => s.text.startsWith("第一份草稿。")));
   assert.equal(r.result.rounds.length, 2);
 });
 
@@ -77,8 +78,8 @@ test("buffered complete responses and genuine chunk streaming use the same round
       { deltas: [{ content: "先回答一次。" }], result: { content: "先回答一次。", toolCalls: [tool] } },
       { deltas: chunked ? [{ content: "这是最后的" }, { content: "完整回答。" }] : [], result: { content } },
     ]);
-    assert.equal(r.displayed, content);
-    assert.equal(r.result.content, content);
+    assert.equal(r.displayed, "先回答一次。\n\n" + content);
+    assert.equal(r.result.content, r.displayed);
   }
 });
 
@@ -88,12 +89,89 @@ test("intentional repetition inside one reply is retained", async () => {
   assert.equal(r.result.content, "好。好。");
 });
 
-test("an empty last request preserves the last nonempty draft without concatenation", async () => {
+test("an empty last request keeps the already displayed answer", async () => {
   const r = await replay([
     { deltas: [{ content: "已收到。" }], result: { content: "已收到。", toolCalls: [tool] } },
     { deltas: [{ content: " " }], result: { content: " " } },
   ]);
   assert.equal(r.result.content, "已收到。");
+  assert.equal(r.displayed, "已收到。");
+});
+
+test("a token-by-token continuation never drops the paragraph before the tool", async () => {
+  const first = "我也想靠近你。";
+  const tail = "再抱紧一点。";
+  const r = await replay([
+    { deltas: [...first].map((content) => ({ content })), result: { toolCalls: [tool] } },
+    { deltas: [...tail].map((content) => ({ content })) },
+  ]);
+  assert.equal(r.result.content, first + "\n\n" + tail);
+  assert.ok(r.snapshots.filter((s) => s.round === 2).every((s) => s.text.startsWith(first)));
+});
+
+test("emotion and sticker limits span batches and different arguments, while other tools can repeat", async () => {
+  const executed = [];
+  const run = createTurnActionRunner(async (calls) => {
+    executed.push(...calls);
+    return calls.map(() => outcome);
+  });
+  const call = (name, value) => ({ ...tool, name, args: JSON.stringify({ value }) });
+  const first = await run([call("emotion_report", "想抱你"), call("emotion_report", "想亲你"),
+    call("sticker_send", "开心"), call("sticker_send", "害羞")]);
+  assert.deepEqual(first.map((o) => o.category), ["ok", "skipped", "ok", "skipped"]);
+  const second = await run([call("emotion_report", "温柔"), call("sticker_send", "拥抱"),
+    call("web_search", "A"), call("web_search", "B")]);
+  assert.deepEqual(second.map((o) => o.category), ["skipped", "skipped", "ok", "ok"]);
+  assert.deepEqual(executed.map((c) => c.name), ["emotion_report", "sticker_send", "web_search", "web_search"]);
+  assert.match(second[0].result, /没有再次执行/);
+});
+
+test("failed parameters may be corrected; successful and pending actions keep their slot", async () => {
+  let attempts = 0;
+  const run = createTurnActionRunner(async () => [++attempts === 1
+    ? { ...outcome, ok: false, category: "badargs" } : outcome]);
+  assert.equal((await run([tool]))[0].category, "badargs");
+  assert.equal((await run([tool]))[0].category, "ok");
+  assert.equal((await run([tool]))[0].category, "skipped");
+  assert.equal(attempts, 2);
+  const pending = createTurnActionRunner(async () => [{ ...outcome, ok: false, category: "pending" }]);
+  assert.equal((await pending([tool, tool]))[1].category, "skipped");
+  let timeouts = 0;
+  const running = createTurnActionRunner(async () => {
+    timeouts += 1;
+    return [{ ...outcome, ok: false, category: "skipped" }];
+  });
+  await running([tool, tool]);
+  assert.equal(timeouts, 1); // 没等到回执不等于没执行，不能重新入队。
+});
+
+test("concurrent calls share the slot; a new reply gets fresh slots", async () => {
+  let release;
+  const run = createTurnActionRunner(async () => {
+    await new Promise((resolve) => { release = resolve; });
+    return [outcome];
+  });
+  const first = run([tool]);
+  assert.equal((await run([tool]))[0].category, "skipped");
+  release();
+  assert.equal((await first)[0].category, "ok");
+  assert.equal((await createTurnActionRunner(async () => [outcome])([tool]))[0].category, "ok");
+});
+
+test("suppressed native calls get tool receipts and do not erase the ongoing reply", async () => {
+  let executions = 0;
+  const run = createTurnActionRunner(async (calls) => {
+    executions += calls.length;
+    return calls.map(() => outcome);
+  });
+  const r = await replay(["先抱抱你。", "靠在我怀里。", "这样暖和吗？"].map((content, i) => ({
+    deltas: [{ content }], result: { content, toolCalls: i < 2
+      ? [{ ...tool, id: "c" + i, args: JSON.stringify({ primaryEmotion: i ? "温柔" : "心动" }) }] : [] },
+  })), { runActions: run });
+  assert.equal(executions, 1);
+  assert.equal(r.result.content, "先抱抱你。\n\n靠在我怀里。\n\n这样暖和吗？");
+  assert.equal(r.result.rounds[1].calls[0].category, "skipped");
+  assert.match(r.requests[2].filter((m) => m.role === "tool")[1].content, /没有再次执行/);
 });
 
 test("abort after a tool keeps partial reply and reports that the loop stopped", async () => {
@@ -131,3 +209,4 @@ test("server transport accumulates content, thinking, calls and usage from the a
   assert.equal(result.usage.prompt, 10);
   assert.equal(deltas.filter((d) => d.content).length, 1);
 });
+
