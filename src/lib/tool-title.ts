@@ -15,6 +15,7 @@ export function toolProgressLabel(calls: { name: string; args: string }[]): stri
       const tool = typeof parsed.args?.tool === "string" ? parsed.args.tool : "工具";
       return `${kind === "tool.call" ? "MCP" : "HTTP"} · ${tool}`;
     }
+    if (kind === "tool.search") return "查找工具说明";
     if (kind === "web.search") return "网页搜索";
     if (kind === "web.fetch") return "读取网页";
     return kind ? toolCallTitle(kind, call.name, call.args) : "未识别的工具";
@@ -51,4 +52,5 @@ export function toolCallTitle(
     return fallback;
   }
 }
+
 

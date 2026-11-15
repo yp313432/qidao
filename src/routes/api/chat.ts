@@ -25,6 +25,7 @@ type Body = {
   actionTools?: ActionTool[];
   /** 这一轮的原生 tools 是**按需挑的**（P3）→ 系统提示词要带一条"筛掉 != 不存在"的兜底规则 */
   selectiveTools?: boolean;
+  discoverExternal?: boolean;
   /**
    * **原生工具循环里已经拼好的 messages**（含系统提示词、assistant 的 tool_calls、
    * role:"tool" 的执行结果）。有它就直接用它当上游的 messages ——

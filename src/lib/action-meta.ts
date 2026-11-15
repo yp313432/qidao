@@ -123,6 +123,7 @@ export const ACTION_PERMISSION: Partial<Record<AppAction["kind"], PermissionId>>
   "date.remove": "date_add",
   "moment.remove": "moment_post",
   "letter.remove": "letter_write",
+  // tool.search 只读本地已启用工具的元数据，不联网、不执行，因此故意不挂权限。
   // 调外部 MCP 工具：落在「调用 MCP 工具」这项权限上（L2，默认要问一下）
   "tool.call": "mcp_tools",
   // 调自己配的 HTTP 工具：落在「调用 HTTP 工具」那项上（另一项权限，可以分别放行）
@@ -366,6 +367,8 @@ export function actionTitle(action: AppAction): string {
       return action.query ? `读动态（找「${action.query.slice(0, 12)}」）` : "读最近的动态";
     case "letter.read":
       return action.query ? `读信（找「${action.query.slice(0, 12)}」）` : "读最近的信";
+    case "tool.search":
+      return `查找工具「${action.query.slice(0, 40)}」`;
     case "tool.call":
       return `调用外部工具「${action.tool}」${action.server ? `（服务器：${action.server.slice(0, 20)}）` : ""}`;
     case "http.call":
@@ -408,3 +411,4 @@ export function actionTitle(action: AppAction): string {
       return `往日历里加「${action.title}」`;
   }
 }
+

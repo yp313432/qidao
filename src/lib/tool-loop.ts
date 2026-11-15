@@ -7,6 +7,7 @@ import type { AppAction, ToolCallRecord } from "@/lib/types";
 // 外部工具（MCP / 自配 HTTP）走同一条原生 tools 通道 —— 见 `external-tools.ts` 的文件头
 import { matchExternalTool, type ExternalActionTool } from "@/lib/external-tools";
 import { mergeReplyText, canFinishAfterSideEffects, StreamTextAccumulator } from "@/lib/reply-text";
+import { DISCOVERY_RESULT_MAX_CHARS } from "@/lib/tool-discovery";
 
 /**
  * 能塞进 `tools` 数组的东西：内置动作（`ActionTool`）+ 外部工具（`ExternalActionTool`）。
@@ -694,7 +695,8 @@ export function toolResultMessages(
   const results: ApiMessage[] = calls.map((c, i) => ({
     role: "tool",
     tool_call_id: c.id ?? `call_${i}`,
-    content: clipToolResult(outcomes[i]?.result ?? outcomes[i]?.notice ?? "（没有结果）"),
+    content: kindOfToolName(c.name) === "tool.search" && (outcomes[i]?.result?.length ?? 0) <= DISCOVERY_RESULT_MAX_CHARS
+      ? outcomes[i]!.result : clipToolResult(outcomes[i]?.result ?? outcomes[i]?.notice ?? "（没有结果）"),
   }));
   return [assistant, ...results];
 }

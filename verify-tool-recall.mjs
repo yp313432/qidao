@@ -155,6 +155,7 @@ const ACTION_SCHEMA_KIND_GROUP = [
   ["moment.remove", "记录"],
   ["letter.remove", "记录"],
   ["letter.update", "记录"],
+  ["tool.search", "工具"],
   ["tool.call", "工具"],
   ["http.call", "工具"],
   ["web.search", "工具"],
@@ -194,7 +195,7 @@ const ACTION_GROUP_OF = Object.fromEntries(ACTION_SCHEMA_KIND_GROUP);
  * → **93**（2026-11 加花圃养护五个 `garden.flower.{plant,water,feed,pick,gift}`）。
  * → **99**（2026-11 加日记/动态/信三读三锁六个 `*.read` / `*.pin`）。
  */
-const EXPECTED_TOTAL = 102;
+const EXPECTED_TOTAL = 103;
 const TOTAL = ALL_KINDS.length;
 
 /** 完全无关键词的句子（D 组用）：一句话不筛，全发，绝不漏。 */
@@ -415,8 +416,14 @@ const JUDGE = {
   oneGroupTwoWords: ({ groups, words }) => groups >= 1 && words >= 2,
 };
 
-const simulate = (text, recent, judgeName, extra) =>
-  simulateWith(hitsFor(text, recent, extra), JUDGE[judgeName]);
+const simulate = (text, recent, judgeName, extra) => {
+  // 真实规则已有明确网页请求的快捷路径，诊断模拟也要覆盖它。
+  if (judgeName === "current" && /网页抓取|搜网页|网页搜索|网上搜|上网查|网上查|读.{0,8}网页/.test(text)) {
+    const kinds = ALL_KINDS.filter((kind) => ALWAYS_KINDS.includes(kind) || kind === "web.search" || kind === "web.fetch");
+    return { wentAll: false, kinds, groups: ["工具"], dropped: TOTAL - kinds.length };
+  }
+  return simulateWith(hitsFor(text, recent, extra), JUDGE[judgeName]);
+};
 
 /** 调真规则（默认全量动作 + 真映射）。 */
 function select(text, recent, allowed) {

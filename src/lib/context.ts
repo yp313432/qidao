@@ -48,8 +48,9 @@ export function computeContext(): ContextBreakdown {
   const conv = st.conversations.find((c) => c.id === st.activeId);
   const all = conv?.messages ?? [];
   const log = st.requestLog;
-  const latest = log.find((entry) => entry.conversationId === st.activeId && entry.purpose !== "summary")
-    ?? log.find((entry) => entry.purpose !== "summary");
+  const chatRequest = (entry: typeof log[number]) => entry.purpose !== "summary" && entry.purpose !== "recovery" && entry.purpose !== "continuation";
+  const latest = log.find((entry) => entry.conversationId === st.activeId && chatRequest(entry))
+    ?? log.find(chatRequest);
   const systemTokens = latest?.inputEstimate?.system ?? latest?.systemTokens ?? 0;
   const toolTokens = latest?.inputEstimate?.tools ?? latest?.tools ?? 0;
   const summary = conv?.summary;

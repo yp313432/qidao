@@ -31,6 +31,12 @@ function Breakdown({ entry }: { entry: RequestLogEntry }) {
         <dt>{label}</dt><dd className="shrink-0 tabular-nums">约 {number(input[key] as number)}</dd>
       </div>)}
     </dl>
+    {Boolean(input.toolGroups?.length) && <dl className="mt-3 space-y-1.5 border-t border-line pt-3 text-[11px] leading-4 text-muted">
+      {input.toolGroups!.map((group) => <div key={group.id} className="flex justify-between gap-3">
+        <dt>{group.label} · {group.count} 个</dt><dd className="shrink-0">约 {group.tokens.toLocaleString()}</dd>
+      </div>)}
+    </dl>}
+    <p className="k-hint mt-2">按需查到的参数说明计入工具结果；读取的 Skill 正文也计入工具结果，不重复算作工具定义。</p>
     <p className="k-hint mt-3">{input.messageCount} 条消息 · {input.toolCount} 个原生工具 · 消息与工具正文 {prettyBytes(input.payloadBytes)}</p>
     {difference !== undefined && <p className="mt-2 text-[12px] leading-5">
       上游输入 − 本地估算：{difference > 0 ? "+" : ""}{difference.toLocaleString()} tokens
@@ -79,6 +85,7 @@ export function RequestUsage({ entries, onClear }: { entries: RequestLogEntry[];
       <p className="mt-2 text-[12px] leading-5">上游输入合计 {stats.known ? number(stats.prompt) : "未返回"} · 输出合计 {stats.outputKnown ? number(stats.completion) : "未返回"}</p>
       <p className="mt-1 text-[12px] text-muted">缓存命中率 {rate(stats.hitRate)} · 命中 {stats.cacheKnown ? number(stats.cached) : "未返回"} tokens</p>
       <p className="k-hint mt-2">输入用量已返回 {stats.known}/{stats.count} 次；缓存比例仅统计同时返回输入和命中量的 {stats.cacheKnown} 次请求。工具执行后再次请求模型，会再次计算输入。</p>
+      {selected.some((entry) => entry.purpose === "summary") && <p className="k-hint mt-2">本合计含回忆总结请求；聊天消息下方只统计生成那次回答的请求。</p>}
       <p className="k-hint mt-2">同一上游与模型内，系统指纹变化 {stats.prefixChanges} 次，工具指纹变化 {stats.toolChanges} 次。指纹相同不代表服务商必然命中缓存。</p>
     </div>}
     {entries.length > 1 && <details className="k-card mt-3">

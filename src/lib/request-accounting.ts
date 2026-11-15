@@ -8,7 +8,10 @@ type Message = {
   tool_calls?: unknown;
   tool_call_id?: string;
 };
+export type ToolTokenGroup = { id: string; label: string; tokens: number; count: number };
 export type InputEstimate = {
+  /** 工具定义分组；旧记录缺失时不补造数据。 */
+  toolGroups?: ToolTokenGroup[];
   system: number;
   tools: number;
   history: number;
@@ -35,7 +38,25 @@ export function measureRequest(
   tools: readonly unknown[] | null | undefined,
   options: { perception?: string; sections?: readonly { id: string; title: string; text: string }[] } = {},
 ): InputEstimate {
+  const groups = new Map<string, ToolTokenGroup>();
+  let toolPrefix = "[", priorToolTokens = estimateTokens("[]");
+  for (let i = 0; i < (tools?.length ?? 0); i++) {
+    const tool = tools![i] as { function?: { name?: string; description?: string } };
+    const name = tool?.function?.name ?? "";
+    const description = tool?.function?.description ?? "";
+    const source = name.startsWith("mcp_") ? description.match(/【MCP · ([^】]+)】/)?.[1] ?? "MCP" : undefined;
+    const id = name === "tool_search" || name === "tool_call" || name === "http_call" ? "gateways"
+      : source === "@skills" ? "skills" : source ? `mcp:${source}` : name.startsWith("http_") ? "http" : "builtin";
+    const label = id === "gateways" ? "外部工具查找与执行入口" : id === "skills" ? "Skills 读取入口"
+      : source ? `MCP · ${source}` : id === "http" ? "自配 HTTP" : "内置工具";
+    toolPrefix += (i ? "," : "") + JSON.stringify(tools![i]);
+    const current = estimateTokens(toolPrefix + "]");
+    const group = groups.get(id) ?? { id, label, tokens: 0, count: 0 };
+    group.tokens += current - priorToolTokens; group.count++; groups.set(id, group); priorToolTokens = current;
+  }
+  if (groups.size) groups.values().next().value!.tokens += estimateTokens("[]");
   const result: InputEstimate = {
+    toolGroups: [...groups.values()],
     system: 0, tools: tools?.length ? estimateTokens(JSON.stringify(tools)) : 0,
     history: 0, dynamic: 0, summary: 0, toolResults: 0, reasoning: 0,
     images: 0, protocol: 0, total: 0, imageCount: 0,

@@ -18,6 +18,13 @@ jobs:
           cache: npm
       - run: node --experimental-strip-types scripts/verify-web-reliability.mjs
       - run: node --experimental-strip-types verify-gate-stuck.mjs
+      - run: node verify-action-registry.mjs
+      - run: node --experimental-strip-types verify-tool-recall.mjs
+      - run: node --experimental-strip-types src/lib/tool-discovery.test.ts
+      - run: node --experimental-strip-types src/lib/request-accounting.test.ts
+      - run: node --experimental-strip-types scripts/verify-chat-turn.mjs
+      - run: node --experimental-strip-types scripts/verify-tool-discovery-prompt.mjs
+      - run: node --experimental-strip-types scripts/verify-tool-discovery-actions.mjs
       - run: node --experimental-strip-types scripts/verify-tool-replies.mjs
       - run: node --experimental-strip-types scripts/verify-chat-delivery.mjs
       - run: node --experimental-strip-types scripts/verify-agent-runtime.mjs

@@ -1,5 +1,6 @@
 import { manualSections, pronounOf, type PromptSection } from "@/lib/manual";
 import { skillCatalog, SKILL_READ_TOOL, type SkillPackage } from "./skills.ts";
+import { externalDiscoveryPrompt, visibleExternalSources } from "./tool-discovery.ts";
 import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
 import { PERMISSIONS, permissionSnapshot } from "@/lib/permissions";
@@ -107,6 +108,8 @@ export type PromptInput = {
    * 也会让模型两种调法混着用（一半走 tool.call、一半走原生名）。
    */
   nativeExternal?: boolean;
+  /** 固定查找/执行入口，外部完整工具说明在本地按需读取。 */
+  discoverExternal?: boolean;
   /**
    * 用户设的称呼（`""` / `"女"` / `"男"`）—— 决定他说「她」还是「他」。
    * 见 `Settings.userGender`：用户点名要的（他思考链里一直用「他」，说了才改）。
@@ -224,6 +227,7 @@ export function segmentRule(): string {
  * 老的那条正文动作块路线只剩降级（上游不认 tools）时才会用到。
  */
 const NATIVE_ACTIONS = (ta: string) => `【操作 App】
+外部能力先用 tool.search 查说明，再用 tool.call / http.call；只看目录不等于已经执行。
 按本轮工具定义传参。等执行结果再汇报，失败如实说明。权限被拒绝就收尾，别反复重试。
 只调用已提供的工具；缺少工具且本轮有兼容说明时，按兼容说明处理。朗读、加词卡等过程动作可顺手做，避免扎堆。
 朋友圈用 moment.comment / moment.like；id 从「此刻的情况」取，省略即最新一条。只给${ta}发的动态点赞，每条最多评论 3 次。`;
@@ -424,11 +428,14 @@ export function systemPromptSections(input: PromptInput): PromptSection[] {
   if (input.worldAlways?.length) {
     add("world", "常驻世界书", input.worldAlways.map((content, i) => `R${i + 1}. ${content}`).join("\n"));
   }
-  add("skills", "技能目录", skillCatalog(input.skills));
+  if (!input.discoverExternal) add("skills", "技能目录", skillCatalog(input.skills));
   add("style", "回复风格", STYLE[input.style] ?? STYLE.default);
   if (input.segmentEnabled) add("segment", "分段规则", segmentRule());
   if (input.persona?.trim()) add("persona", "补充设定", `【补充设定】\n${input.persona.trim()}`);
-  add("external", "外部工具说明", input.nativeExternal ? externalNativeLine(input.tools) : toolCatalog(input.tools, ta));
+  const visible = visibleExternalSources(input.tools, input.skills ?? [], input.permissions);
+  add("external", "外部工具说明", input.discoverExternal
+    ? externalDiscoveryPrompt(visible.tools, visible.skills, Boolean(input.nativeTools))
+    : input.nativeExternal ? externalNativeLine(input.tools) : toolCatalog(input.tools, ta));
   add("actions", input.nativeTools ? "原生工具规则" : "兼容动作说明", input.nativeTools ? NATIVE_ACTIONS(ta) : ABILITIES(ta));
   if (input.nativeTools && input.selectiveTools) {
     add("fallback", "按需工具兼容说明", `${FALLBACK_RULE}\n${renderToolNameList(ACTION_SCHEMA.map((action) => action.kind))}`);

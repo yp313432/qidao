@@ -16,7 +16,7 @@ const boundary = {
     export const makeDirectRound = () => (args) => globalThis.__qidaoTurnFixture.native(args);
     export const makeServerRound = makeDirectRound;
     export const streamChat = (...args) => globalThis.__qidaoTurnFixture.text(...args);`,
-  "@/lib/prompt": `export const promptToolsFor = () => [];
+  "@/lib/prompt": `export const promptToolsFor = (mcp = []) => mcp.filter((server)=>server.enabled).map((server)=>({kind:"mcp",name:server.name,tools:server.tools}));
     export const systemPrompt = () => "test system";
     export const systemPromptSections = () => [{id:"system",title:"系统",text:"test system"}];
     export const perceptionBlock = () => "";
@@ -192,4 +192,60 @@ test("another thinking-only recovery does not loop or silently succeed",async()=
 test("user stop preserves thinking and never starts recovery",async()=>{
   const r=await thinkingScenario("native",{stop:true});
   assert.equal(r.requests.length,1);assert.match(r.message.content,/已停止/);assert.match(r.message.thinking,/已经想清楚/);
+});
+
+test("large external catalogs stay local; discovery then execution uses the same permission runner and actual tool totals", async()=>{
+  const { externalToolCatalog, searchExternalTools } = await import('../src/lib/tool-discovery.ts');
+  const message={id:'discovery-reply',role:'assistant',content:''};const requests=[],logs=[],actions=[];
+  const mcp=[{id:'github',name:'GitHub',enabled:true,tools:[{name:'search_repositories',description:'搜索仓库',inputSchema:{type:'object',properties:{query:{type:'string',description:'此说明不要在闲聊中常驻'.repeat(3000)}},required:['query']}}]}];
+  f.callbacks=[];
+  f.state={settings:{permissions:{mcp_tools:'allow'},mergeSend:false,segmentReply:false,notifications:false},model:'sonnet',
+    conversations:[{id:'conv',messages:[message]}],mcp,httpTools:[],skills:[],requestLog:logs,actionLog:[],pendingActions:[],worldBook:[],stickerLib:[],stickerGroups:[],
+    enabledTools:()=>mcp,takeReplyStickers:()=>[],patchMessage:(_c,_m,patch)=>Object.assign(message,patch),finalizeAssistant:(_c,_m,patch)=>Object.assign(message,patch),
+    logRequest:(entry)=>{const i=logs.findIndex(old=>old.requestId===entry.requestId);if(i<0)logs.unshift(entry);else logs[i]={...logs[i],...entry};},
+    requestAction:(action)=>{
+      actions.push(action);
+      const result=action.kind==='tool.search'?searchExternalTools(externalToolCatalog([{kind:'mcp',name:'GitHub',tools:mcp[0].tools}]),action):'查到两个仓库';
+      f.state.actionLog.unshift({title:action.kind,result:'ok',message:result,at:actions.length});
+    },
+  };
+  f.native=async(args)=>{
+    requests.push(args);
+    const names=args.tools.map(tool=>tool.function.name);
+    assert.ok(names.includes('tool_search'));assert.ok(names.includes('tool_call'));
+    assert.ok(names.every(name=>!name.startsWith('mcp_')));
+    assert.doesNotMatch(JSON.stringify(args.tools),/此说明不要在闲聊中常驻/);
+    const index=requests.length;
+    const call=index===1?{name:'tool_search',args:'{"query":"GitHub"}'}:index===2?{name:'tool_call',args:'{"server":"GitHub","tool":"search_repositories","args":{"query":"qidao"}}'}:null;
+    if(index===2){const body=args.messages.find(m=>m.role==='tool').content;const result=JSON.parse(body.slice(body.indexOf('{'),body.lastIndexOf('}')+1));assert.equal(result.tools[0].call.server,'GitHub');}
+    const content=index===3?'查到两个仓库。':'';
+    if(content)args.onDelta({content});
+    return {content,thinking:'',toolCalls:call?[{...call,id:'step'+index,index:0}]:[],usage:{prompt:100,completion:10,cached:50},finishReason:call?'tool_calls':'stop'};
+  };
+  useChatStream({forceProtocol:'native'});
+  await f.callbacks[0]('conv',message.id,[{role:'user',content:'查一下仓库'}]);
+  assert.equal(requests.length,3);assert.deepEqual(actions.map(action=>action.kind),['tool.search','tool.call']);
+  assert.equal(message.content,'查到两个仓库。');assert.equal(message.usage.prompt,300);assert.equal(message.usage.requests,3);
+  assert.equal(message.usage.tools,logs.reduce((sum,entry)=>sum+entry.inputEstimate.tools,0));
+});
+
+test("text compatibility discovers external tools before execution without native tool support",async()=>{
+  const message={id:'text-discovery',role:'assistant',content:''};const requests=[],actions=[],logs=[];
+  const mcp=[{id:'github',name:'GitHub',enabled:true,tools:[{name:'search_repositories',description:'搜索仓库',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}}]}];
+  f.callbacks=[];
+  f.state={settings:{permissions:{mcp_tools:'allow'},mergeSend:false,segmentReply:false,notifications:false},model:'sonnet',conversations:[{id:'conv',messages:[message]}],mcp,httpTools:[],skills:[],requestLog:logs,actionLog:[],pendingActions:[],worldBook:[],stickerLib:[],stickerGroups:[],
+    enabledTools:()=>mcp,takeReplyStickers:()=>[],patchMessage:(_c,_m,p)=>Object.assign(message,p),finalizeAssistant:(_c,_m,p)=>Object.assign(message,p),
+    logRequest:(entry)=>{const i=logs.findIndex(old=>old.requestId===entry.requestId);if(i<0)logs.unshift(entry);else logs[i]={...logs[i],...entry};},
+    requestAction:(action)=>{actions.push(action);f.state.actionLog.unshift({title:action.kind,result:'ok',message:action.kind==='tool.search'?'GitHub/search_repositories，参数 query:string；用 tool.call 执行':'实际查到两个仓库',at:actions.length});},
+  };
+  f.text=async(req,onDelta)=>{
+    requests.push(req);assert.equal(req.discoverExternal,true);
+    const action=requests.length===1?{kind:'tool.search',query:'GitHub'}:requests.length===2?{kind:'tool.call',server:'GitHub',tool:'search_repositories',args:{query:'qidao'}}:null;
+    onDelta({content:action?'```qidao\n'+JSON.stringify(action)+'\n```':'查到两个仓库。'});
+    onDelta({usage:{prompt:100,completion:10,cached:50}});
+  };
+  useChatStream({forceProtocol:'text'});await f.callbacks[0]('conv',message.id,[{role:'user',content:'查一下仓库'}]);
+  assert.equal(requests.length,3);assert.deepEqual(actions.map(a=>a.kind),['tool.search','tool.call']);
+  assert.equal(message.content,'查到两个仓库。');assert.equal(message.usage.prompt,300);assert.equal(message.usage.requests,3);
+  assert.ok(requests[1].messages.some(m=>m.content.includes('query:string')));
 });

@@ -841,6 +841,17 @@ export const ACTION_SCHEMA = [
     ],
   },
   {
+    kind: "tool.search",
+    group: "工具",
+    summary: "检索本地外部工具说明，不执行",
+    fields: [
+      { name: "query", type: "string", required: true, note: "能力、服务名、工具名；读取参数节点时用结果的完整 id" },
+      { name: "limit", type: "number", required: false, note: "返回条数，1~3，默认 2" },
+      { name: "schemaPath", type: "string", required: false, note: "大型参数说明的 JSON Pointer，按上次结果继续读" },
+      { name: "offset", type: "number", required: false, note: "大型参数说明的子节点分页起点，默认 0" },
+    ],
+  },
+  {
     kind: "tool.call",
     group: "工具",
     summary: "调用一个外部 MCP 工具",
@@ -1149,4 +1160,5 @@ export function renderActionCatalog(): string {
   }
   return lines.join("\n");
 }
+
 

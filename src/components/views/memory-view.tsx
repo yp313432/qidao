@@ -72,7 +72,7 @@ export function MemoryView() {
 
       {/* 预算 */}
       <section className="mt-2">
-        <h2 className="k-sect__title mb-2">当前会话的历史预算预估</h2>
+        <h2 className="k-sect__title mb-2">下一次请求的上下文预估</h2>
         <div className="k-card">
           {!ctx ? (
             <p className="text-[12px] text-subtle">读取中…</p>
@@ -137,6 +137,7 @@ export function MemoryView() {
                 </li>
               </ul>
 
+              <p className="k-hint mt-3">这是下一次请求的本地预算预览，不是上一条回复的账单。逐次实际发送量与上游用量见下方明细；工具续答会重复计入输入。</p>
               {ctx.overBudget && (
                 <p className="k-hint mt-3 text-warn">
                   光是系统提示词 + 工具定义就已经超过你设的 {ctx.budget} 了 ——

@@ -1488,7 +1488,7 @@ export function ChatView() {
                                 {m.usage.prompt
                                   ? `输入 ${m.usage.prompt}${
                                       typeof m.usage.tools === "number" && m.usage.tools > 0
-                                        ? `（工具 ${m.usage.tools}）`
+                                        ? `（工具约 ${m.usage.tools}）`
                                         : (() => {
                                             const n =
                                               (m.steps ?? []).filter((s) => s.kind === "call")
@@ -1501,6 +1501,7 @@ export function ChatView() {
                                           })()
                                     }`
                                   : ""}
+                                {(m.usage.requests ?? 0) > 1 ? ` · ${m.usage.requests} 次请求累计` : ""}
                                 {m.usage.completion ? ` · 输出 ${m.usage.completion}` : ""}
                                 {/*
                               缓存显示成**命中率**（用户："改成缓存命中率，

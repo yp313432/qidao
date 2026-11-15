@@ -4,6 +4,19 @@ import { measureRequest, normalizeUsage, cacheHitRate, mergeReportedUsage, summa
 import { buildManual, manualSections } from "./manual.ts";
 import { defaultPermissions, permissionSnapshot, PERMISSIONS } from "./permissions.ts";
 
+test("工具分项覆盖内置、发现入口、MCP、HTTP 与 Skills，合计等于真实工具数组估算", () => {
+  const tools = [
+    { function: { name: "emotion_report", description: "情绪" } },
+    { function: { name: "tool_search", description: "本地查找" } },
+    { function: { name: "mcp_github_search", description: "【MCP · GitHub】搜索" } },
+    { function: { name: "mcp_skills_read", description: "【MCP · @skills】读取" } },
+    { function: { name: "http_weather", description: "天气" } },
+  ];
+  const result = measureRequest([], tools);
+  assert.equal(result.toolGroups!.reduce((sum, group) => sum + group.tokens, 0), result.tools);
+  assert.deepEqual(new Set(result.toolGroups!.map((group) => group.id)), new Set(["builtin", "gateways", "mcp:GitHub", "skills", "http"]));
+});
+
 test("按真实消息拆分系统、动态、历史思考和工具结果，分类之和等于总量", () => {
   const sections = [{ id: "a", title: "规则", text: "固定规则" }, { id: "b", title: "地图", text: "页面地图" }];
   const system = sections.map((section) => section.text).join("\n\n");

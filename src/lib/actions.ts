@@ -15,6 +15,8 @@ import {
 } from "@/lib/garden-catch";
 import { buildHttpRequest, executeHttpRequest } from "@/lib/http-tools";
 import { readSkillResource } from "./skills";
+import { promptToolsFor } from "@/lib/prompt";
+import { externalToolCatalog, searchExternalTools, visibleExternalSources } from "@/lib/tool-discovery";
 import { WALK_PLACES, placeByZh } from "@/lib/garden-walk";
 import { isKnownPath, knownPathExamples, normalizePath } from "@/lib/known-routes";
 import { callTool } from "@/lib/mcp";
@@ -1180,6 +1182,11 @@ ${lines.join("\n")}`;
      * 这里找到对应的服务器、真的发一次 JSON-RPC `tools/call`，
      * 把结果原样交回去（下一轮以"你刚才动手的结果"回灌给模型）。
      */
+    case "tool.search": {
+      const live = useApp.getState();
+      const visible = visibleExternalSources(promptToolsFor(live.enabledTools(), live.httpTools, live.skills), live.skills ?? [], live.settings.permissions);
+      return searchExternalTools(externalToolCatalog(visible.tools, visible.skills), { query: action.query, limit: action.limit, schemaPath: action.schemaPath, offset: action.offset });
+    }
     case "tool.call": {
       const serverName = str(action.server).trim();
       const toolName = str(action.tool).trim();
@@ -1192,9 +1199,9 @@ ${lines.join("\n")}`;
         return result.ok ? `读取 Skill 的结果：\n${result.text}` : `读取 Skill 失败：${result.text}`;
       }
       const usable = live.mcp.filter((m) => m.enabled);
-      const server =
-        usable.find((m) => m.name.trim().toLowerCase() === serverName.toLowerCase()) ??
-        usable.find((m) => m.tools.some((t) => t.name === toolName));
+      const server = serverName
+        ? usable.find((m) => m.name.trim().toLowerCase() === serverName.toLowerCase())
+        : usable.find((m) => m.tools.some((t) => t.name === toolName));
 
       if (!server) {
         return serverName

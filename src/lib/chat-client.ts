@@ -127,6 +127,7 @@ export type ChatRequest = {
    * 验收脚本也靠它来真跑"上游不认 tools → 自动降级"这条路。生产代码不传它。
    */
   toolProtocol?: "native" | "text";
+  discoverExternal?: boolean;
   /**
    * 这一轮的原生 `tools` 是**按需挑的**（P3 按需注册）：只发跟当前对话相关的动作。
    *

@@ -192,6 +192,8 @@ export type ChatMessage = {
   attachments?: Attachment[];
   /** 上游返回的用量（输入/输出/缓存命中），用于可视化 */
   usage?: {
+    /** 本次回复实际发出的模型请求数；工具估算与输入合计按同一批请求统计。 */
+    requests?: number;
     prompt?: number;
     completion?: number;
     cached?: number;
@@ -1297,6 +1299,7 @@ export type FeatureId =
    *
    * 权限落在 `mcp_tools`（L2）：默认要用户点一下确认。
    */
+  | { kind: "tool.search"; query: string; limit?: number; schemaPath?: string; offset?: number }
   | { kind: "tool.call"; server: string; tool: string; args?: Record<string, unknown> }
   /**
    * **调用一个自己配的 HTTP 工具**（「工具 → HTTP」里那些）。

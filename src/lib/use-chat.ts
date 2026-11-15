@@ -42,7 +42,7 @@ import { partsFor } from "@/lib/segment";
 import { createTurnActionRunner, runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { mergeReplyText, canFinishAfterSideEffects } from "@/lib/reply-text";
 import { shouldRecoverThinking } from "@/lib/generation-policy";
-import { buildExternalTools, MAX_TOOLS_PER_REQUEST } from "@/lib/external-tools";
+import { visibleExternalSources } from "@/lib/tool-discovery";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import { toolProgressLabel } from "@/lib/tool-title";
@@ -483,7 +483,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
       };
 
       // MCP 服务器 + 用户自己配的 HTTP 接口，一起交给提示词（一处实现见 promptToolsFor）
-      const tools = promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools, useApp.getState().skills);
+      const externalSources = visibleExternalSources(
+        promptToolsFor(useApp.getState().enabledTools(), useApp.getState().httpTools, useApp.getState().skills),
+        useApp.getState().skills ?? [], settings.permissions,
+      );
+      const tools = externalSources.tools;
+      const hasExternal = tools.length > 0 || externalSources.skills.length > 0;
       const context = buildContext();
       /**
        * **让他知道表情库有哪些分组**（用户 m10324："发表情包不按分组来，随意发不准"）。
@@ -564,9 +569,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
           })()
         : null;
       /** 这一轮真的发出去的动作 kind（顺序稳定）—— P3 之后不再总是 61 个 */
-      const kindsSent = (selection
-        ? selection.kinds
-        : ACTION_SCHEMA.map((a) => a.kind)).filter((kind) => settings.aiStickers !== false || kind !== "sticker.send");
+      const selectedKinds = new Set(selection ? selection.kinds : ACTION_SCHEMA.map((a) => a.kind));
+      if (hasExternal) selectedKinds.add("tool.search"); else selectedKinds.delete("tool.search");
+      if (tools.some((source) => source.kind === "mcp") || externalSources.skills.length) selectedKinds.add("tool.call");
+      else selectedKinds.delete("tool.call");
+      if (tools.some((source) => source.kind === "http")) selectedKinds.add("http.call"); else selectedKinds.delete("http.call");
+      const kindsSent = ACTION_SCHEMA.map((a) => a.kind).filter((kind) => selectedKinds.has(kind) && (settings.aiStickers !== false || kind !== "sticker.send"));
       /** 这一轮是不是"只发了一部分"（要给模型那份兜底说明，免得他以为做不到） */
       const selective = kindsSent.length < ACTION_SCHEMA.length;
       if (native) {
@@ -585,12 +593,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 探测说支持、结果上游报了 400，降级重试时要立刻按文本协议重拼提示词，
        * 否则模型手里拿的是"按工具调用"的说明、却没有 tools 可用。
        */
-      /**
-       * 这一轮的外部工具（MCP / 自配 HTTP）是不是走**原生 tools**（P0）。
-       * 走原生时提示词里那份文字清单要收掉 —— 否则同一批工具会被说两遍：
-       * 一遍是结构化定义（模型真按它调），一遍是"用 tool.call 调"的自然语言说明。
-       */
-      let externalNative = false;
+      // 外部能力使用固定查找/执行入口，原生与正文兼容协议共用本地目录。
       const buildReq = (nativeTools: boolean) => {
         const base = {
           model,
@@ -626,9 +629,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
           nativeTools,
           // "这一轮只发了一部分" → 提示词里要带上兜底说明（不然他会以为自己做不到）
           selectiveTools: nativeTools && selective,
-          // 外部工具已经并进 tools 了 → 提示词里那句文字清单换成一句"直接用工具调"
-          nativeExternal: nativeTools && externalNative,
-          skills: useApp.getState().skills,
+          // 目录常驻，完整说明由本地 tool.search 按需返回。
+          nativeExternal: false,
+          discoverExternal: true,
+          skills: externalSources.skills,
         };
       };
 
@@ -712,6 +716,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           promptHash: shortHash(system), systemTokens: inputEstimate.system,
           tools: inputEstimate.tools, inputEstimate,
         };
+        toolTokensUsed += inputEstimate.tools;
+        if (purpose === "chat" || purpose === "tool") fixedRef.current = { system: inputEstimate.system, tools: inputEstimate.tools };
         // 发出时记一次，完成时原位补 usage；失败和中断也保留本地输入记录。
         useApp.getState().logRequest(entry);
         crumb("chat", `请求 ${id} · 本地输入估算 ${inputEstimate.total} · 系统 ${inputEstimate.system} · 工具 ${inputEstimate.tools} · 动态 ${inputEstimate.dynamic}`);
@@ -726,19 +732,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       /** 原生 tools 那条路：拼好 messages + 循环。同步抛错（真的异常）由外层接住转成重试。 */
       const runNative = async (state: AttemptState): Promise<void> => {
-        /**
-         * P0：外部工具并进原生 `tools`（见 `lib/external-tools.ts`）。
-         * 建在这一步之前 —— `buildReq()` 要看这个标志决定提示词里要不要再列一遍清单。
-         *
-         * **数量预算（2026-11-07，用户 m05306「参考市面常规要求做限制」）**：
-         * 内置动作和外部工具挤的是同一个 `tools` 数组，而 OpenAI 兼容上游对一次请求
-         * 的工具条数常见上限是 128（超了整轮 400，模型那边表现为"完全没回话"）。
-         * 所以外部工具只能拿 `120 − 这轮内置动作数` 的余量：内置的必须全发
-         * （它们带着几个必用动作，如 emotion.report），外部的是"锦上添花"，先让位。
-         */
+        // 只发送本轮内置动作及固定发现/执行入口，不展开外部参数表。
         const builtinTools = actionToolsFor(kindsSent);
-        const extTools = await buildExternalTools(MAX_TOOLS_PER_REQUEST - builtinTools.length);
-        externalNative = extTools.length > 0;
+        // MCP、HTTP 与 Skills 通过 tool.search 读取说明，调用仍走 tool.call / http.call。
         const reqActive = buildReq(true);
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
         /**
@@ -760,7 +756,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           : assembled;
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
-        const known = new Set([...builtinTools, ...extTools].map((t) => t.function.name));
+        const known = new Set(builtinTools.map((t) => t.function.name));
         const send: ToolRoundSend = (() => {
           const inner =
             (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim()
@@ -802,9 +798,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const result = await runToolLoop({
           send,
           baseMessages: withSummary,
-          // P3：只发这一轮用得上的（没筛就发全部，顺序都跟着 ACTION_SCHEMA 走）
-          // P0（agent）：外部工具接在后面 —— MCP / 自配 HTTP 跟内置动作同一个通道
-          tools: [...builtinTools, ...extTools],
+          // 顺序跟着 ACTION_SCHEMA 走；外部能力只带固定查找/执行入口。
+          tools: builtinTools,
           signal: ac.signal,
           runActions: runTurnActions,
           finishAfterSideEffects: true,
@@ -1000,17 +995,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       // 总结沿用用户设置的消息条数阈值，使用独立请求。
       /** 这一轮系统提示词占多少 token（摘要判定要用，两条路都得有） */
-      let summarySystemTokens = 0;
-      if (native) {
-        const sysText = systemPrompt(buildReq(true));
-        fixedRef.current = {
-          system: estimateTokens(sysText),
-          tools: estimateTokens(JSON.stringify(actionToolsFor(kindsSent))),
-        };
-        // 用户 m08850：把"工具定义花了多少 token"也报出来 —— 只算这一轮真正发出去的那几个动作
-        toolTokensUsed = fixedRef.current.tools;
-        summarySystemTokens = fixedRef.current.system;
-      }
+      const summarySystemTokens = fixedRef.current.system;
 
       /**
        * 走**文本协议**时才有"正文里的动作块"要解析（原生那条路已经在循环里执行完了）。
@@ -1266,9 +1251,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
         thinkingDurationMs: Date.now() - started,
         // 有 usage 就带上工具 token；上游没返 usage 但确实发了工具定义时，也单独记一笔
         usage: usage
-          ? { ...usage, tools: toolTokensUsed || undefined }
+          ? { ...usage, tools: toolTokensUsed || undefined, requests: requestNumber }
           : toolTokensUsed
-            ? { tools: toolTokensUsed }
+            ? { tools: toolTokensUsed, requests: requestNumber }
             : undefined,
         // 这一轮他"真的动过手"的记录（调了哪个动作、成没成）—— 给消息下面那行过程看
         rounds: state.rounds.length > 0 ? state.rounds : undefined,
@@ -1294,7 +1279,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           replyId: requestGroupId,
           history,
           systemTokens: summarySystemTokens || estimateTokens(systemPrompt(buildReq(native))),
-          toolTokens: toolTokensUsed,
+          toolTokens: fixedRef.current.tools,
         });
       } catch {
         /* 摘不出来就照旧走"整条丢"，不能让摘要失败影响这一轮 */
