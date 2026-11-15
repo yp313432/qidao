@@ -118,6 +118,12 @@ export type RequestLogEntry = {
   cached?: number;
   /** 这一轮发给上游的工具定义（JSON Schema）约多少 token —— 没走原生工具就是 0 */
   tools?: number;
+  /** 一条回复可能请求模型多次；逐次记录，避免合计与单次输入混用。 */
+  replyId?: string;
+  conversationId?: string;
+  requestIndex?: number;
+  upstream?: string;
+  inputEstimate?: import("./request-accounting").InputEstimate;
 };
 
 /**
@@ -1415,3 +1421,4 @@ export type ActionLogEntry = {
   message: string;
   at: number;
 };
+

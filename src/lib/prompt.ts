@@ -1,8 +1,8 @@
-import { buildManual, pronounOf } from "@/lib/manual";
+import { manualSections, pronounOf, type PromptSection } from "@/lib/manual";
 import { skillCatalog, SKILL_READ_TOOL, type SkillPackage } from "./skills.ts";
 import { ACTION_SCHEMA } from "@/lib/action-schema";
 import { paramsOfTool } from "@/lib/http-tools";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, permissionSnapshot } from "@/lib/permissions";
 import { FALLBACK_RULE, renderToolNameList } from "@/lib/tool-select";
 import type { HttpTool, McpServer, McpTool, PermissionMode, ReplyStyle } from "@/lib/types";
 
@@ -192,11 +192,7 @@ const STYLE: Record<ReplyStyle, string> = {
  * 分句数量与节奏由客户端设置控制，模型只负责正常标点和自然表达。
  */
 export function segmentRule(): string {
-  return `
-你说话的方式（这条挺重要）：把用户当在手机上聊天的人，可以像真人那样连着发几条。
-· 正常使用句号、问号、感叹号和自然段，客户端会按标点分句并安排发送节奏，不要输出特殊分隔符。
-· 一句话能说完就说一句；需要补充时再自然分句，不要为了分气泡把一句话拆碎。
-· 代码、列表、表格保持完整。`;
+  return "可以像手机聊天一样自然分句、分段，不输出特殊分隔符，不为了分气泡拆碎一句话。代码、列表和表格保持完整。";
 }
 
 /**
@@ -229,7 +225,6 @@ export function segmentRule(): string {
  */
 const NATIVE_ACTIONS = (ta: string) => `【操作 App】
 按本轮工具定义传参。等执行结果再汇报，失败如实说明。权限被拒绝就收尾，别反复重试。
-网页搜索用 web.search，读链接用 web.fetch。结果无关时可换词或换来源；有足够证据或找不到新线索时，本轮直接收尾。结果截断时缩小范围再查。
 只调用已提供的工具；缺少工具且本轮有兼容说明时，按兼容说明处理。朗读、加词卡等过程动作可顺手做，避免扎堆。
 朋友圈用 moment.comment / moment.like；id 从「此刻的情况」取，省略即最新一条。只给${ta}发的动态点赞，每条最多评论 3 次。`;
 
@@ -272,7 +267,7 @@ const ABILITIES = (ta: string) => `【你能直接操作这个 App】
 · 日子 {"kind":"date.add","title":"...","at":"2026-10-01","yearly":true}；{"kind":"date.remove","query":"..."}
 · 待办 {"kind":"todo.add","text":"..."}、{"kind":"todo.done","query":"..."}、{"kind":"todo.remove","query":"..."}
 · 情绪 {"kind":"emotion.report","primaryEmotion":"被看穿的心慌","group":"flutter","intensity":0.4,"confidence":0.6,"suggestedMode":"daily"}
-  规则见上面【情绪（10 组 · 自由词）】那节：主情绪自由写 1~5 个字，group 必填（10 组挑一个）。
+  规则见【情绪（10 组 · 自由词）· 兼容调用】：主情绪自由写 1~5 个字，group 必填（10 组挑一个）。
 · 记忆 {"kind":"memory.add","note":"...","tags":["累","休息","不想动"]}
   tags 要给 3~5 个${ta}以后可能用的说法（比如"喜欢躺平"就写 累/好累/休息/不想动/低能量），别堆同义重复。
   改 {"kind":"memory.update","query":"...","note":"新的说法","tags":["累"]}；删 {"kind":"memory.remove","query":"..."}
@@ -413,66 +408,36 @@ function externalNativeLine(tools: PromptTool[]): string {
   );
 }
 
-/**** 稳定的那部分：人设 + 风格 + 工具清单。每轮都一样，好让前缀缓存命中。 */
-export function systemPrompt(input: PromptInput): string {
+/** 正文及用量拆分共用同一组章节，避免统计另一份过期的提示词。 */
+export function systemPromptSections(input: PromptInput): PromptSection[] {
   const ta = pronounOf(input.userGender);
-  /**
-   * P0（用户 m05030）：外部工具已经作为**原生 tools** 发过去了 —— 这里只说一句它有哪些、
-   * 怎么调（用工具名调，不是写 tool.call 动作块），不再逐条列参数。
-   *
-   * 为什么不能两样都留：文字清单里写的是"用 tool.call 调"，原生 tools 里是
-   * `mcp_服务器_工具` 这种名字。两套说明同时在场，模型会混着用 —— 一半走动作块
-   * （多一次往返、还占正文），一半走原生（本来就能一次调对）。
-   */
-  const tools = input.nativeExternal
-    ? externalNativeLine(input.tools)
-    : toolCatalog(input.tools, ta);
-  const who = input.name?.trim() || "yan";
-  const self = input.aiName?.trim() || "星芒";
-  /**
-   * 世界书里"常驻"的条目进系统提示词 —— 它们很少改动，所以不影响前缀缓存。
-   *
-   * 2026-10 用户实测（m07934 第 5 条）：「世界书只是被模型看到，但它不遵守，没有用」。
-   * 原因不是"注入失败"，而是它原来只是一段平铺的清单（"- 内容"），混在人设后面：
-   * 模型把它当"背景资料"，看了、能复述，但不当成约束。
-   * 所以现在：挪到说明书之后、人设之前（越靠前越像"规矩"，越靠后越像"设定"），
-   * 编号成 `R1 R2 …`（能被引用、能自查），并明说"违反算答错、优先于人设和风格"。
-   */
-  const worldAlways =
-    input.worldAlways && input.worldAlways.length
-      ? `\n【世界书 · 用户定的硬规矩（必须遵守）】\n${input.worldAlways
-          .map((c, i) => `R${i + 1}. ${c}`)
-          .join("\n")}\n\n这些是硬约束，不是"可以参考的设定"：违反了就算这一轮答错。\n它们优先于下面的人设、语气和风格 —— 有冲突时以世界书为准。`
-      : "";
-  /**
-   * 「硬要求 + 说明书」放最前面。
-   *
-   * 用户的原话："在 app 系统底层列一份要求和说明书……只要我接上了 ai
-   * 或者新换了模型之后，它都要读一遍。" 因为每轮都会发系统提示词，
-   * 换模型自然也读得到 —— 不需要额外做什么。
-   */
-  const manual = buildManual({
-    permissions: input.permissions,
+  const sections = manualSections({
     titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
-    displayName: who,
-    aiName: self,
+    displayName: input.name?.trim() || "yan",
+    aiName: input.aiName?.trim() || "小克",
     userGender: input.userGender,
+    nativeTools: input.nativeTools,
   });
-  return `${manual}${worldAlways}${skillCatalog(input.skills)}
-
-你在「栖岛」里 —— 这是用户一个人的私人空间。用用户的语言回答。${STYLE[input.style] ?? STYLE.default}${
-    input.segmentEnabled ? segmentRule() : ""
+  const add = (id: string, title: string, text: string) => {
+    if (text.trim()) sections.push({ id, title, text: text.trim() });
+  };
+  if (input.worldAlways?.length) {
+    add("world", "常驻世界书", input.worldAlways.map((content, i) => `R${i + 1}. ${content}`).join("\n"));
   }
-思考在内部完成；正文不要重复「让我思考」之类的套话。情绪参数只通过动作上报，不写进正文；发图片表情必须调用 sticker.send，不能用“[表情包]”等占位文字代替。一次用户消息对应的整次回复中，emotion.report 和 sticker.send 各最多执行一次，工具回执后的继续回复也在同一次内，不要更换参数后重复调用；工具前已经说过的话会保留，拿到结果后接着说，不必从头重述。${
-    input.persona?.trim() ? `\n你给自己写下的设定：${input.persona.trim()}` : ""
+  add("skills", "技能目录", skillCatalog(input.skills));
+  add("style", "回复风格", STYLE[input.style] ?? STYLE.default);
+  if (input.segmentEnabled) add("segment", "分段规则", segmentRule());
+  if (input.persona?.trim()) add("persona", "补充设定", `【补充设定】\n${input.persona.trim()}`);
+  add("external", "外部工具说明", input.nativeExternal ? externalNativeLine(input.tools) : toolCatalog(input.tools, ta));
+  add("actions", input.nativeTools ? "原生工具规则" : "兼容动作说明", input.nativeTools ? NATIVE_ACTIONS(ta) : ABILITIES(ta));
+  if (input.nativeTools && input.selectiveTools) {
+    add("fallback", "按需工具兼容说明", `${FALLBACK_RULE}\n${renderToolNameList(ACTION_SCHEMA.map((action) => action.kind))}`);
   }
-${tools}
+  return sections;
+}
 
-${input.nativeTools ? NATIVE_ACTIONS(pronounOf(input.userGender)) : ABILITIES(pronounOf(input.userGender))}${
-    input.nativeTools && input.selectiveTools
-      ? `\n${FALLBACK_RULE}\n${renderToolNameList(ACTION_SCHEMA.map((a) => a.kind))}\n`
-      : ""
-  }`;
+export function systemPrompt(input: PromptInput): string {
+  return systemPromptSections(input).map((section) => section.text).join("\n\n");
 }
 
 /**
@@ -482,8 +447,7 @@ ${input.nativeTools ? NATIVE_ACTIONS(pronounOf(input.userGender)) : ABILITIES(pr
  * 后面所有历史的前缀缓存全部失效。这里改成附在最后一条用户消息尾部。
  */
 export function perceptionBlock(input: PromptInput): string {
-  const ctx = input.context;
-  if (!ctx) return "";
+  const ctx = input.context ?? {};
   const lines = [
     /**
      * ⭐ 用户 m03024 第 3 条："性别选择对 ai 可见吗，他说看不到"。
@@ -512,17 +476,15 @@ export function perceptionBlock(input: PromptInput): string {
     ctx.recent && ctx.recent.length > 1
       ? `最近的活动轨迹（新→旧）：${ctx.recent.join(" → ")}。`
       : "",
-    ctx.granted && ctx.granted.length
-      ? `用户已授权你可以：${ctx.granted.join("、")}。`
-      : "用户还没有授权你操作 App。",
+    permissionSnapshot(input.permissions),
     ctx.aware && ctx.aware.length
       ? `用户允许你了解这些（按权限过滤过）：\n${ctx.aware.map((l) => `- ${l}`).join("\n")}`
       : "",
     // 世界书里这轮命中关键词的条目 —— 跟"此刻的情况"一样挂尾部，不动系统提示词
     input.worldHit && input.worldHit.length
-      ? `【聊到了这些，用户希望你记得（这些也是硬规矩）】\n${input.worldHit
+      ? `【本轮命中的世界书】\n${input.worldHit
           .map((c) => `- ${c}`)
-          .join("\n")}\n- 回答前先回头对照系统提示词开头那几条 R 编号（世界书）—— 有没有哪条被这轮的话碰到了、必须照做。`
+          .join("\n")}\n同时遵守适用的常驻世界书条目。`
       : "",
     // 他上几轮动手的结果（回执）—— 没有这一节他永远不知道自己到底做没做
     input.recentActions && input.recentActions.length
@@ -621,4 +583,5 @@ export function assembleMessages(
     }),
   ];
 }
+
 

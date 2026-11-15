@@ -42,29 +42,15 @@ export type ContextBreakdown = {
   overBudget: boolean;
 };
 
-/**
- * 从说明书里把"动作名字清单"抠出来，估这一轮 tools 的大小。
- *
- * 为什么能这么算：说明书的形状是 `全部可用的动作名（逗号分隔）：\na、b、c`
- * （见 `lib/tool-select.ts` 的 `renderToolNameList`）—— 那是**稳定**的一段。
- * 这样就不用为了量个数而在 UI 里重跑一遍"按需注册"的判定（那要看用户的下一句话）。
- */
-function toolTokensFromPrompt(prompt: string): number {
-  const m = prompt.match(/全部可用的动作名[^\n]*\n([^\n]+)/);
-  const names = m?.[1]?.split("、").filter(Boolean) ?? [];
-  if (names.length === 0) return 0;
-  /** 一个动作的 tools 定义 ≈ 它的 JSON：名字 + 说明 + 参数，实测 61 个 ≈ 4007 token */
-  return Math.round((names.length / 61) * 4007);
-}
-
 /** 当前会话在预算里的分布（客户端估算）。 */
 export function computeContext(): ContextBreakdown {
   const st = useApp.getState();
   const conv = st.conversations.find((c) => c.id === st.activeId);
   const all = conv?.messages ?? [];
   const log = st.requestLog;
-  const systemTokens = log[0]?.systemTokens ?? 0;
-  const toolTokens = systemTokens > 0 ? toolTokensFromPrompt(String(log[0]?.prompt ?? "")) : 0;
+  const latest = log.find((entry) => entry.conversationId === st.activeId) ?? log[0];
+  const systemTokens = latest?.inputEstimate?.system ?? latest?.systemTokens ?? 0;
+  const toolTokens = latest?.inputEstimate?.tools ?? latest?.tools ?? 0;
   const summary = conv?.summary;
 
   /**
@@ -182,3 +168,4 @@ export async function computeStorage(): Promise<StorageUsage> {
 }
 
 /** 思考档案会占多少地方（估算）。 */
+

@@ -1,3 +1,4 @@
+import { RequestUsage } from "@/components/me/request-usage";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
@@ -8,7 +9,7 @@ import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-
 import { useApp } from "@/lib/store";
 import { useActivity } from "@/lib/use-activity";
 import { useScrollMemory } from "@/lib/ux";
-import { cn, formatClock } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const BUDGET_STEPS = [2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000, 48000, 64000, 96000];
 const KEEP_STEPS = [4, 8, 12, 16, 24, 32, 40];
@@ -60,27 +61,6 @@ export function MemoryView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 后三个依赖不参与闭包，是"数据一变就重算"的触发器
   const ctx = useMemo(() => (mounted ? computeContext() : null), [mounted, conversations, settings, requestLog]);
 
-  const stats = useMemo(() => {
-    let prompt = 0;
-    let completion = 0;
-    let cached = 0;
-    let prefixChanges = 0;
-    let known = 0;
-    for (let i = 0; i < requestLog.length; i += 1) {
-      const e = requestLog[i]!;
-      if (typeof e.prompt === "number") {
-        prompt += e.prompt;
-        known += 1;
-      }
-      if (typeof e.completion === "number") completion += e.completion;
-      if (typeof e.cached === "number") cached += e.cached;
-      const older = requestLog[i + 1];
-      if (older?.promptHash && e.promptHash && older.promptHash !== e.promptHash) prefixChanges += 1;
-    }
-    return { count: requestLog.length, prompt, completion, cached, known, prefixChanges };
-  }, [requestLog]);
-
-  const hitRate = stats.prompt > 0 ? Math.round((stats.cached / stats.prompt) * 100) : 0;
 
   // `.k-page` 补左右 16px 留白：跟其它二级页保持一致（用户 m04469 第 3 条）
   return (
@@ -92,7 +72,7 @@ export function MemoryView() {
 
       {/* 预算 */}
       <section className="mt-2">
-        <h2 className="k-sect__title mb-2">这一轮请求装了什么</h2>
+        <h2 className="k-sect__title mb-2">当前会话的历史预算预估</h2>
         <div className="k-card">
           {!ctx ? (
             <p className="text-[12px] text-subtle">读取中…</p>
@@ -142,11 +122,11 @@ export function MemoryView() {
               <ul className="mt-3 space-y-1 text-[11px] leading-4 text-muted">
                 <li>
                   <span className="text-accent">■</span> 系统提示词 · 约 {ctx.systemTokens} tokens
-                  {ctx.systemTokens === 0 && "（发过一次消息就有准确值）"}
+                  {ctx.systemTokens === 0 && "（发送后按实际正文估算）"}
                 </li>
                 <li>
                   <span className="text-ok/70">■</span> 工具定义 · 约 {ctx.toolTokens} tokens
-                  <span className="text-subtle">（按需挑的那几个；全发要 4000 左右）</span>
+                  <span className="text-subtle">（参考最近一次实际发送的工具定义）</span>
                 </li>
                 <li>
                   <span className="text-fg/60">■</span> 对话历史 · 约 {ctx.historyTokens} tokens（
@@ -169,7 +149,7 @@ export function MemoryView() {
                   更早的对话已经压成摘要（约 {ctx.summaryTokens} tokens）继续带着走 ——
                   原文不再发出，
                   <span className="font-medium text-fg">省了约 {ctx.summarySaved} tokens</span>
-                  ，而且信息没丢。在对话页顶部那条线里可以看到、改。
+                  。摘要可能遗漏细节，可在对话页顶部查看、修改。
                 </p>
               )}
 
@@ -302,62 +282,7 @@ export function MemoryView() {
         </div>
       </section>
 
-      {/* 缓存与用量 */}
-      <section className="mt-5 px-4">
-        <h2 className="mb-2 flex items-center justify-between">
-          <span>缓存命中与用量</span>
-          {stats.count > 0 && (
-            <button
-              type="button"
-              onClick={() => useApp.getState().clearRequestLog()}
-              className="text-[11px] text-subtle"
-            >
-              清空记录
-            </button>
-          )}
-        </h2>
-        <div className="k-card">
-          {stats.count === 0 ? (
-            <p className="text-[12px] leading-5 text-subtle">
-              还没有请求记录。发一条消息后，这里会显示输入/输出/缓存命中的真实数字，
-              以及「前缀有没有变」—— 缓存命不中通常就是前缀变了。
-            </p>
-          ) : (
-            <>
-              <div className="flex items-baseline justify-between">
-                <p className="text-[15px] font-medium">缓存命中率 {hitRate}%</p>
-                <span className="text-[11px] text-muted">{stats.count} 次请求</span>
-              </div>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-elevated">
-                <span className="block h-full bg-ok" style={{ width: `${hitRate}%` }} />
-              </div>
-              <ul className="mt-3 space-y-1 text-[11px] leading-4 text-muted">
-                <li>输入合计 {stats.prompt.toLocaleString()} tokens</li>
-                <li>输出合计 {stats.completion.toLocaleString()} tokens</li>
-                <li>其中缓存命中 {stats.cached.toLocaleString()} tokens</li>
-                <li>
-                  前缀变更{" "}
-                  <span className={stats.prefixChanges > 0 ? "text-warn" : "text-ok"}>
-                    {stats.prefixChanges}
-                  </span>{" "}
-                  次
-                  {stats.prefixChanges === 0
-                    ? "（系统提示词一直没变，最容易命中）"
-                    : "（每次变都会让历史那段的缓存失效）"}
-                </li>
-                <li className="text-subtle">
-                  指纹 {requestLog[0]?.promptHash || "—"} · 最近 {formatClock(requestLog[0]?.at ?? Date.now())}
-                </li>
-              </ul>
-              {stats.known === 0 && (
-                <p className="mt-2 text-[11px] leading-4 text-warn">
-                  上游没返回 usage —— 有的兼容接口不发。这种情况只看得到前缀诊断。
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </section>
+      <RequestUsage entries={requestLog} onClear={() => useApp.getState().clearRequestLog()} />
 
       {/* 思考链归档已经删掉（回复时当场就能看到，再存一份纯占地方）。
           老数据在加载时已经清空，这里不再有这一块。 */}
@@ -491,3 +416,4 @@ function Stepper({
     </div>
   );
 }
+

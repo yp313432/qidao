@@ -24,6 +24,8 @@ import {
   pickWorldEntries,
   promptToolsFor,
   systemPrompt,
+  systemPromptSections,
+  perceptionBlock,
 } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 import { pushToast } from "@/lib/toast";
@@ -34,7 +36,8 @@ import {
   sweepVoiceAudio,
 } from "@/lib/voice-bubble";
 import { selectActionKinds } from "@/lib/tool-select";
-import { estimateTokens } from "@/lib/tokens";
+import { estimateTokens, shortHash } from "@/lib/tokens";
+import { measureRequest, mergeReportedUsage } from "@/lib/request-accounting";
 import { partsFor } from "@/lib/segment";
 import { createTurnActionRunner, runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
 import { mergeReplyText } from "@/lib/reply-text";
@@ -437,7 +440,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
       let usage: ChatMessage["usage"];
       /** 这一轮工具定义占的 token（只有原生 tools 那条路才有；见 finalize） */
       let toolTokensUsed = 0;
-      let meta: { promptHash?: string; systemTokens?: number; model?: string } | undefined;
 
       /**
        * 流式写入**节流**。
@@ -651,7 +653,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
           return;
         }
         if (d.finishReason) finishReason = d.finishReason;
-        if (d.meta) meta = d.meta;
         if (d.usage) usage = d.usage;
         if (d.thinking) {
           thinking += d.thinking;
@@ -701,25 +702,32 @@ export function useChatStream(opts: UseChatOpts = {}) {
       };
 
       let requestNumber = 0;
+      const requestGroupId = uid("replyrun");
       const recordInput = (
         req: ReturnType<typeof buildReq>,
         messages: readonly ApiMessage[],
         tools: Parameters<ToolRoundSend>[0]["tools"],
       ) => {
         const system = systemPrompt(req);
-        const withoutResults = { ...req, recentActions: undefined };
-        const withoutPersonal = { ...withoutResults, worldAlways: undefined, worldHit: undefined, persona: undefined };
-        const base = estimateTokens(systemPrompt(withoutPersonal));
-        const personal = estimateTokens(systemPrompt(withoutResults)) - base;
-        const recentResults = estimateTokens(system) - base - personal;
-        const count = (part: readonly ApiMessage[]) =>
-          part.length ? estimateTokens(JSON.stringify(part)) : 0;
-        const history = count(messages.slice(1).filter((message) => message.role !== "tool"));
-        const results = recentResults + count(messages.filter((message) => message.role === "tool"));
-        const definitions = tools?.length ? estimateTokens(JSON.stringify(tools)) : 0;
+        const inputEstimate = measureRequest(messages, tools, {
+          perception: perceptionBlock(req), sections: systemPromptSections(req),
+        });
         const id = ++requestNumber;
-        crumb("chat", `请求 ${id} · 输入估算：提示词 ${base} · 世界书/人设 ${personal} · 对话 ${history} · 工具定义 ${definitions} · 动作结果 ${results}`);
+        let upstream = "内置上游";
+        try { if (req.customBaseUrl) upstream = new URL(req.customBaseUrl).host; } catch { upstream = "自定义上游"; }
+        const entry = {
+          at: Date.now(), replyId: requestGroupId, conversationId, requestIndex: id,
+          model: req.upstreamModel || req.model, upstream,
+          promptHash: shortHash(system), systemTokens: inputEstimate.system,
+          tools: inputEstimate.tools, inputEstimate,
+        };
+        // 发出时记一次，完成时原位补 usage；失败和中断也保留本地输入记录。
+        useApp.getState().logRequest(entry);
+        crumb("chat", `请求 ${id} · 本地输入估算 ${inputEstimate.total} · 系统 ${inputEstimate.system} · 工具 ${inputEstimate.tools} · 动态 ${inputEstimate.dynamic}`);
+        let latestReported: ChatMessage["usage"];
         return (reported?: ChatMessage["usage"]) => {
+          latestReported = mergeReportedUsage(latestReported, reported);
+          useApp.getState().logRequest({ ...entry, prompt: latestReported?.prompt, completion: latestReported?.completion, cached: latestReported?.cached });
           crumb("chat", `请求 ${id} · 上游输入 ${reported?.prompt ?? "未返回"} · 缓存命中 ${reported?.cached ?? "未返回"}`);
         };
       };
@@ -768,7 +776,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
               : makeServerRound(reqActive);
           return async (args) => {
             const report = recordInput(reqActive, args.messages, args.tools);
-            const r = await inner(args);
+            const r = await inner({ ...args, onDelta: (delta) => {
+              if (delta.usage) report(delta.usage);
+              args.onDelta(delta);
+            } });
             report(r.usage);
             for (const c of r.toolCalls) {
               if (!known.has(c.name)) {
@@ -907,7 +918,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               const report = recordInput(req, assembleMessages(req, history) as ApiMessage[], null);
               let reported: ChatMessage["usage"];
               await streamChat(req, (delta) => {
-                if (delta.usage) reported = delta.usage;
+                if (delta.usage) { reported = mergeReportedUsage(reported, delta.usage); report(reported); }
                 onDelta(delta);
               }, ac.signal);
               report(reported);
@@ -1130,7 +1141,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           const report = recordInput(req, assembleMessages(req, continuationHistory) as ApiMessage[], null);
           let reported: ChatMessage["usage"];
           await streamChat(req, (delta) => {
-            if (delta.usage) reported = delta.usage;
+            if (delta.usage) { reported = mergeReportedUsage(reported, delta.usage); report(reported); }
             if (delta.content) {
               continuationText += delta.content;
               onDelta({ ...delta, content: mergeReplyText(previous, continuationText) }, true);
@@ -1279,17 +1290,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
         /* 清理失败不影响对话 */
       }
 
-      if (meta) {
-        useApp.getState().logRequest({
-          promptHash: meta.promptHash ?? "",
-          systemTokens: meta.systemTokens ?? 0,
-          model: meta.model ?? model,
-          prompt: usage?.prompt,
-          completion: usage?.completion,
-          cached: usage?.cached,
-          tools: toolTokensUsed || undefined,
-        });
-      }
       // 「本机计数快满了」只在**走服务端**时提醒（那时花的才是服务端那把 key）；
       // 自己带 key 的用户不该被打扰 —— 他花自己的钱，本机不限制。
       if (!isOwnApi(settings) && settings.notifications && settings.quotaAlerts) {
@@ -1394,4 +1394,5 @@ function stripOverlap(prev: string, next: string): string {
   }
   return next;
 }
+
 

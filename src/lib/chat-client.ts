@@ -1,3 +1,4 @@
+import { normalizeUsage, mergeReportedUsage, usageOptionsUnsupported } from "./request-accounting";
 import { upstreamError } from "./chat-errors";
 import type { ModelId } from "./models";
 import { getModel } from "./models";
@@ -274,6 +275,7 @@ async function streamDirect(
     model,
     messages,
     stream: true,
+    stream_options: { include_usage: true },
     max_tokens: maxTokens,
     ...effortBody,
     // 只有真的要走原生工具调用时才带 tools —— 留空就是老协议（正文里的动作块）
@@ -291,6 +293,13 @@ async function streamDirect(
       body: JSON.stringify(payload),
       signal,
     });
+    if ([400, 422].includes(res.status) && usageOptionsUnsupported(res.status, await res.clone().text())) {
+      const { stream_options: _usageOptions, ...compatiblePayload } = payload;
+      res = await fetchImpl(`${base}/chat/completions`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify(compatiblePayload), signal,
+      });
+    }
   } catch (err) {
     /**
      * 「失败才降级」：有些中转/自建网关**没开 CORS**（实测 lmuai 的预检 OPTIONS
@@ -305,7 +314,7 @@ async function streamDirect(
         url: `${base}/chat/completions`,
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        data: { ...payload, stream: false },
+        data: { ...payload, stream: false, stream_options: undefined },
       });
       if (nat) {
         const raw = typeof nat.data === "string" ? nat.data : JSON.stringify(nat.data ?? {});
@@ -336,14 +345,7 @@ async function streamDirect(
         if (msg?.tool_calls?.length) onDelta({ toolCalls: msg.tool_calls });
         if (j?.usage) {
           onDelta({
-            usage: {
-              prompt: j.usage.prompt_tokens,
-              completion: j.usage.completion_tokens,
-              total: j.usage.total_tokens,
-              cached:
-                j.usage.prompt_cache_hit_tokens ??
-                j.usage.prompt_tokens_details?.cached_tokens,
-            },
+            usage: normalizeUsage(j.usage),
           });
         }
         if (!msg?.content && !msg?.tool_calls?.length) {
@@ -455,16 +457,7 @@ async function readSseStream(
       if (d?.tool_calls?.length) onDelta({ toolCalls: d.tool_calls });
       if (j.usage) {
         onDelta({
-          usage: {
-            prompt: j.usage.prompt_tokens,
-            completion: j.usage.completion_tokens,
-            total: j.usage.total_tokens,
-            // 缓存命中：DeepSeek 叫 prompt_cache_hit_tokens，OpenAI 那套在
-            // prompt_tokens_details.cached_tokens —— 两个都读，否则永远是 0
-            cached:
-              j.usage.prompt_cache_hit_tokens ??
-              j.usage.prompt_tokens_details?.cached_tokens,
-          },
+          usage: normalizeUsage(j.usage),
         });
       }
     } catch {
@@ -559,7 +552,7 @@ export function makeDirectRound(req: ChatRequest, fetchImpl?: typeof fetch): Too
       { ...req, assembled: messages, assembledMessages: messages, actionTools: tools ?? undefined },
       (d: ChatDelta) => {
         if (d.error) error = d.error;
-        if (d.usage) usage = d.usage;
+        if (d.usage) usage = mergeReportedUsage(usage, d.usage);
         if (d.thinking) thinking += d.thinking;
         if (d.content) content += d.content;
         if (d.toolCalls) acc.push({ tool_calls: d.toolCalls });
@@ -718,7 +711,7 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
     const outcome: { fail?: { status: number; message: string; toolsUnsupported?: boolean } } = {};
     const receiveDelta = (d: ChatDelta) => {
       if (d.error) error = d.error;
-      if (d.usage) usage = d.usage;
+      if (d.usage) usage = mergeReportedUsage(usage, d.usage);
       if (d.thinking) thinking += d.thinking;
       if (d.content) content += d.content;
       if (d.toolCalls) acc.push({ tool_calls: d.toolCalls });
@@ -875,4 +868,5 @@ export function historyForApi(messages: ChatMessage[], opts: HistoryOpts = {}): 
   if (kept.length === 0) return [];
   return kept;
 }
+
 

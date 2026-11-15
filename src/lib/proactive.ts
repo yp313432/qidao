@@ -1,5 +1,5 @@
 import { resolveAiName } from "@/lib/branding";
-import { pickWorldEntries, promptToolsFor, systemPrompt, type PromptInput } from "@/lib/prompt";
+import { pickWorldEntries, promptToolsFor, systemPrompt, perceptionBlock, type PromptInput } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 
 /**
@@ -107,7 +107,7 @@ export function proactiveSystem(extra?: Partial<PromptInput>): string {
     permissions: s.permissions,
     ...extra,
   };
-  return systemPrompt(input);
+  return systemPrompt(input) + perceptionBlock(input);
 }
 
 /**
@@ -192,3 +192,4 @@ export function proactiveEvent(facts: ProactiveFacts): string {
 
   return lines.join("\n");
 }
+

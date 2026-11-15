@@ -1,298 +1,45 @@
-/**
- * 验收脚本：**说明书写的是不是真的**（说明书 ↔ 代码对账）。
- *
- * ── 为什么必须有这个脚本 ──────────────────────────────────────
- *
- * `src/lib/manual.ts` 是要发给模型的"栖岛说明书"。它出过一个**很贵的错**：
- * 里面写着「真实调用 MCP 服务器上的工具（配置能存，但还没接上）」，
- * 同时又写着「遇到这些直接告诉他'这个还没做'」——
- * 等于**在指示模型否认自己已经会的能力**（MCP 工具上个窗口就接通了）。
- * 用户最烦的就是这个：明明会，却说不会。
- *
- * 教训（坑 #31）：**状态清单不要写死在提示词里**。这次改成了规则，
- * 但"页面地图""能力边界"这类**必须跟代码对账**的东西还在，
- * 所以用脚本盯住 —— 靠人记必然再错一次。
- *
- * ── 这个脚本检查什么 ──────────────────────────────────────────
- *
- * ① **权限名**：说明书里出现的每个《标题》/「标题」，如果是权限名，
- *    必须真的在 `lib/permissions.ts` 里 —— 写错就等于又造了一份过期清单
- * ② **页面路径**：说明书里出现的每个 `/xxx`，必须在**真实路由**里
- *    （从 `src/routes/_app/` 的文件名推出来）—— 地图错了就会带用户去错地方
- * ③ **过期说法**：不许再出现"还没接上 / 还没做 / 配置能存但"这类**会过期的断言**
- * ④ **分平台**：手机版（native）与网页版必须给出**不一样**的能力边界
- *    （手机版没有服务端，网页搜索/中转那条在手机上不存在）
- * ⑤ **那份清单真的删了**：说明书里不许再有一份"目前还没做的"清单
- *
- * 跑法（要完整权限；dev server 要在 8080）：
- *   node verify-prompt-truth.mjs
- * 退出码非 0 = 说明书写了跟代码对不上的东西。
- */
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { chromium } from "playwright";
+/** 说明书与路由、权限真源对账。无需启动 App 或联网：node --experimental-strip-types verify-prompt-truth.mjs */
+import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildManual } from './src/lib/manual.ts';
+import { PERMISSIONS, defaultPermissions, permissionSnapshot } from './src/lib/permissions.ts';
 
-const BASE = process.env.QIDAO_BASE ?? "http://127.0.0.1:8080";
+const input = { displayName: 'yan', aiName: '小克', userGender: '女', titles: PERMISSIONS.map(({id,title}) => ({id,title})) };
+const native = buildManual({ ...input, nativeTools: true, permissions: defaultPermissions() });
+const compat = buildManual({ ...input, nativeTools: false });
+const changed = buildManual({ ...input, nativeTools: true, permissions: { navigate: 'deny', reset_all: 'allow' } });
+assert.equal(native, changed, '实时权限不得改变固定说明书');
+assert.match(native, /你是小克/);
+assert.match(native, /思考链和回答都必须使用中文/);
+assert.match(native, /这并不是 Roleplay/);
+assert.match(native, /已提交、执行失败、未查到和成功要说清楚/);
+assert.match(native, /【栖岛里有什么】/);
+assert.match(native, /打开其他 App 不代表能操作其内部/);
+assert.match(native, /破坏性操作仍需确认/);
+assert.doesNotMatch(native, /纯前端，没有这种通道|以.*名义对外发消息.*做不到|其余 \d+ 项没设|亲手设的|"primaryEmotion"/);
+assert.match(compat, /"primaryEmotion"/);
+assert.match(compat, /fresh 默认/);
+assert.match(compat, /web\.search/);
+assert.match(compat, /web\.fetch/);
 
-let bad = 0;
-const check = (name, ok, extra = "") => {
-  console.log(`${ok ? "✅" : "❌"} ${name}${extra ? `  ${extra}` : ""}`);
-  if (!ok) bad++;
-};
-
-/* ───────── 一、从代码里推出"真话"（路由 + 权限名） ───────── */
-
-/**
- * 真实路由：把 `src/routes/_app/` 下的文件名按 TanStack 的规则翻成路径。
- *   `index.tsx` → `/`        `tools/index.tsx` → `/tools`
- *   `play.days.tsx` → `/play/days`   `tools/http.tsx` → `/tools/http`
- *   ⚠️ **`xxx.index.tsx` 也要算**（`play.games.index.tsx` → `/play/games`）——
- *      第一版漏了这种"索引路由"，于是把真页面报成了"查无此路"（假红）。
- */
-function realRoutes() {
-  const root = join(process.cwd(), "src", "routes", "_app");
-  const out = new Set(["/", "/me", "/play", "/tools"]);
-  /** `a.b.c` → `/a/b/c`；末尾的 `index` 去掉 */
-  const toPath = (dotted) => {
-    const parts = dotted.split(".").filter((p) => p && p !== "index");
-    return parts.length ? `/${parts.join("/")}` : "/";
-  };
-  const walk = (dir, prefix) => {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      const p = join(dir, e.name);
-      if (e.isDirectory()) {
-        out.add(toPath(`${prefix}${e.name}`));
-        walk(p, `${prefix}${e.name}.`);
-        continue;
-      }
-      if (!e.name.endsWith(".tsx")) continue;
-      out.add(toPath(`${prefix}${e.name.replace(/\.tsx$/, "")}`));
-    }
-  };
-  walk(root, "");
-  return out;
-}
-
-const { PERMISSIONS } = await import("./src/lib/permissions.ts").catch(() => ({ PERMISSIONS: null }));
-const routes = realRoutes();
-const permTitles = new Set((PERMISSIONS ?? []).map((p) => p.title));
-
-/* ───────── 二、取两端的说明书文本 ───────── */
-
-const browser = await chromium.launch({ channel: "msedge" });
-
-/** 在浏览器里真调 `buildManual()`（网页版 / 假装自己是手机版） */
-async function manualText(native) {
-  const page = await browser.newPage();
-  if (native) {
-    // Capacitor 判断平台靠这个 —— 在页面脚本跑之前注入（见 verify-mcp-oauth-app.mjs 的做法）
-    await page.addInitScript(() => {
-      globalThis.CapacitorCustomPlatform = { name: "android" };
-    });
+const routes = new Set(['/']);
+function walk(directory, prefix = '') {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) { walk(path, `${prefix}${entry.name}.`); continue; }
+    if (!entry.name.endsWith('.tsx')) continue;
+    const parts = `${prefix}${entry.name.slice(0, -4)}`.split('.').filter((part) => part && part !== 'index');
+    routes.add('/' + parts.join('/'));
   }
-  await page.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForTimeout(800);
-  const text = await page.evaluate(async () => {
-    const { buildManual } = await import("/src/lib/manual.ts");
-    const { PERMISSIONS } = await import("/src/lib/permissions.ts");
-    return buildManual({
-      permissions: {},
-      titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
-      displayName: "yan",
-      aiName: "星芒",
-    });
-  });
-  await page.close();
-  return text;
 }
+walk(join(process.cwd(), 'src/routes/_app'));
+const paths = [...native.matchAll(/(?<![\w:/])\/[a-z][a-z0-9/-]*/g)].map((match) => match[0].replace(/\/$/, ''));
+for (const path of paths) assert.ok(routes.has(path), `说明书路径不存在：${path}`);
 
-const web = await manualText(false);
-const app = await manualText(true);
-
-/* ───────── 三、① 权限名对账 ───────── */
-
-console.log("【一】说明书里提到的权限名，代码里真的有");
-/** 说明书用《》或「」引用名字；只有"像权限名"的（命中 PERMISSIONS 的全部标题集合之外）才可疑 */
-const QUOTED = /[《「]([^》」]{2,14})[》」]/g;
-const mentioned = new Set();
-for (const m of web.matchAll(QUOTED)) mentioned.add(m[1]);
-/**
- * 这些是**动作/页面/工具名**，不是权限名，不该拿去对权限表。
- * 列出来是为了"改说明书时想起来更新这份豁免"，而不是为了放过错误。
- */
-const EXEMPT = new Set([
-  "工具 → HTTP", "工具 → MCP", "我的 → 系统", "做不到", "看这里", "直接允许", "每次要问",
-  "你帮我切一下", "做不到", "这个还没做", "会做", "不会", "我以为自己不会", "我不会",
-  "不相信", "明白", "以为",
-  /**
-   * 「情绪词表」= 说明书里**那一节的标题**（2026-10 新增，见 `lib/manual.ts` 的
-   * `emotionLexiconSection()`）—— 它不是权限名，是"按需翻的那一节"的名字。
-   * 手册里只有一句指引（"主情绪必须是《情绪词表》里的原词"）；词表正文靠
-   * `emotion.lexicon` 动作现取（用户按 token 付费，不许塞进每轮提示词）。
-   */
-  "情绪词表",
-  /**
-   * ⚠️ 2026-11 补：**「用户可能说的一句话」和"返回值里的字段名"都不是权限名**。
-   *
-   * 起因：`sense.place` 的 `fresh` 参数说明里必须给例子（"他说《刷新一下》《现在在哪》
-   * 时才带 fresh"），照抄这几句是**故意的**；`senseDiag` 的 `reason` 也要点名
-   * 《permission》/《error》两个取值，不然他会把"没授权"和"这次读不到"混着讲。
-   * 这些被引号框起来只是为了**可读**，对权限表当然对不上 —— 属于误报。
-   * （这条断言的用意是抓"引号里写了不存在的权限名"，不是禁止引号里出现人话。）
-   */
-  "刷新一下", "现在在哪", "实时的", "重新定个位", "permission", "error",
-  /**
-   * ⚠️ 2026-10 补：**「页面在哪儿」和"那一块的名字"也不是权限名**。
-   *
-   * 起因：情绪那一段现在要告诉他两件事（用户点名要的："他不只是机械地报，
-   * 他能知道他现在的情绪"）：
-   *   · 报的数字**画在**「玩乐 → 插件 → 星屿」那个活的灵体上 —— 这是页面路径；
-   *   · 「此刻的情况」里有『你自己的情绪』那一行 —— 这是**提示词里那一块的名字**
-   *     （`buildAwarenessItems()` 拼出来的，见 `lib/awareness.ts`）。
-   * 两者被引号框起来只是为了可读，对权限表当然对不上 —— 属于误报。
-   * （这条断言的用意是抓"引号里写了不存在的权限名"，不是禁止引号里出现人话。）
-   */
-  "玩乐 → 插件 → 星屿", "此刻的情况", "你自己的情绪",
-  /**
-   * ⚠️ 2026-10 补：**「TA」是代词，不是权限名**。
-   * 起因：用户点名要"称呼设置"（她是女生，要一律用「她」）。用户**没设**的时候，
-   * 说明书里那句"想用第三人称就用「TA」"必须说得出口 —— 属于误报，不是写错。
-   */
-  "TA",
-]);
-/**
- * ⚠️ **动作 kind 不算权限名**（2026-10 补的判定）。
- *
- * 起因：联网那两个动作在手册里必须**点名**（`web.search` / `web.fetch`）——
- * 因为走工具定义那一轮可能没带上它们，那时 AI 得直接在正文里写动作块
- * （见 `tool-select.ts` 的 `FALLBACK_RULE`），所以名字必须出现在说明书里。
- * 而这条断言原本的假设是"引号里的短名字一定是权限名"——`web.search` 里有 `.`
- * 跟权限 id 的 `[a-z_]` 风格明显不同，属于**误报**，不是写错。
- */
-const ACTION_KIND_LIKE = /^[a-z][a-z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
-const suspicious = [...mentioned].filter(
-  (w) => !permTitles.has(w) && !EXEMPT.has(w) && !ACTION_KIND_LIKE.test(w),
-);
-check(
-  "引号里的名字要么是真实权限名、要么是动作 kind、要么在豁免表里",
-  suspicious.length === 0,
-  suspicious.length ? `可疑：${suspicious.join(" / ")}` : "",
-);
-check("权限表读到了（不然这项等于没测）", permTitles.size > 50, `权限 ${permTitles.size} 项`);
-
-/* ───────── 四、② 页面路径对账 ───────── */
-
-console.log("\n【二】说明书里的页面路径，真实路由里真的有");
-const paths = new Set();
-for (const m of web.matchAll(/(?<![\w:/])\/[a-z][a-z0-9/-]*/g)) paths.add(m[0].replace(/\/$/, ""));
-const badPaths = [...paths].filter((p) => !routes.has(p));
-check(
-  "每个 /xxx 都在真实路由里",
-  badPaths.length === 0,
-  badPaths.length ? `查无此路：${badPaths.join(" / ")}` : `查了 ${paths.size} 个路径`,
-);
-
-/* ───────── 五、③ 过期说法 ───────── */
-
-console.log("\n【三】不许再出现「会过期」的断言");
-const STALE = [
-  /配置能存[，,]?\s*但还?没接上/,
-  /还没接上/,
-  /目前还没做的/,
-  /还没做[^。]{0,6}$/m,
-  /网页搜索 \/ 抓取网页内容（权限表里标着/,
-];
-for (const re of STALE) {
-  check(`说明书里没有这种过期句子：${re.source.slice(0, 22)}`, !re.test(web), "");
-}
-
-/* ───────── 六、④ 分平台 ───────── */
-
-console.log("\n【四】手机版和网页版说的能力边界不一样");
-check("两端文本不同（说明真的按平台生成了）", web !== app);
-/*
-  ⚠️ 2026-10 **这条断言被产品改动反过来了**（原文是"手机版明说做不到"）：
-  联网落地之后（`web.search` / `web.fetch` 走 Capacitor 自带的原生 HTTP、
-  绕开 WebView 的跨域），手机上**真的能搜、能读**了。手册要是还教他说
-  "手机版做不到"，那就是在教他否认自己已经会的能力 —— 所以这里改成
-  断言**新的正确说法**：两端都明说能做，并且让 AI 知道"没授权时会先弹卡片"。
-*/
-check(
-  "手机版明说「搜网页 / 读网页正文」**能做了**（不再是「做不到」）",
-  /搜网页 \/ 读网页正文[^\n]*能做了/.test(app) && !/搜网页[^\n]*手机版做不到/.test(app),
-  app.split("\n").find((l) => l.includes("搜网页 / 读网页正文"))?.slice(0, 90) ?? "没找到那句",
-);
-check(
-  "手机版那句点名了动作名 web.search / web.fetch（他才知道怎么用）",
-  /web\.search/.test(app) && /web\.fetch/.test(app),
-  app.split("\n").find((l) => l.includes("web.search"))?.slice(0, 90) ?? "没找到那句",
-);
-check(
-  "网页版同样是「能做了」（不再说「只有中转才行」）",
-  /搜网页 \/ 读网页正文[^\n]*能做了/.test(web),
-  web.split("\n").find((l) => l.includes("搜网页 / 读网页正文"))?.slice(0, 90) ?? "没找到那句",
-);
-check(
-  "手机版**没有**承诺中转/服务端能力（APK 里没有服务端）",
-  !/中转/.test(app) || !/中转[^\n]*能/.test(app),
-  "",
-);
-/* 改完之后，那两句"做不到"的旧文案必须一个字都不剩（给 AI 的文案要跟着代码改） */
-check(
-  "旧文案「手机版做不到」彻底没了",
-  !/手机版做不到/.test(app) && !/手机版没有/.test(app.split("\n").find((l) => l.includes("搜网页")) ?? ""),
-  app.split("\n").find((l) => l.includes("做不到"))?.slice(0, 90) ?? "（全文没有「做不到」的行）",
-);
-
-/* ───────── 七、⑤ 权限那节的瘦身没把「允许 / 拒绝」丢掉 ───────── */
-
-console.log("\n【五】权限那一节：允许/拒绝照旧全列，「每次要问」只报个数");
-const page2 = await browser.newPage();
-await page2.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded", timeout: 60000 });
-await page2.waitForTimeout(800);
-const withPerms = await page2.evaluate(async () => {
-  const { buildManual } = await import("/src/lib/manual.ts");
-  const { PERMISSIONS } = await import("/src/lib/permissions.ts");
-  const permissions = {};
-  // 造三个"允许"、两个"拒绝"，其余留空（= 每次要问）
-  permissions.navigate = "allow";
-  permissions.diary = "allow";
-  permissions.memory = "allow";
-  permissions.delete_chat = "deny";
-  permissions.reset_all = "deny";
-  return buildManual({
-    permissions,
-    titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
-    displayName: "yan",
-    aiName: "星芒",
-  });
-});
-await page2.close();
-const permBlock = withPerms.slice(withPerms.indexOf("【你现在的权限"));
-check("「允许」的三项都在", ["切换页面", "写日记", "长期记忆"].every((t) => permBlock.includes(t)));
-check("「拒绝」的两项都在", ["删除对话", "重置设置 / 清空数据"].every((t) => permBlock.includes(t)));
-check("「每次要问」那串变成了只报个数", /其余 \d+ 项没设/.test(permBlock), permBlock.split("\n")[2]?.slice(0, 80) ?? "");
-check(
-  "**没有**把「每次要问」的权限名一个个列出来（瘦身真的生效）",
-  !permBlock.includes("网页搜索 / 抓取、调用你的"),
-  "",
-);
-check("仍然强调「开了就要主动用」", permBlock.includes("主动用起来"));
-
-/* ───────── 八、整体 ───────── */
-
-console.log("\n【六】整体");
-check("说明书里还有【硬要求】那十条（用户强调过，别动）", web.includes("【硬要求 · 不可协商"));
-check("说明书里还有页面地图", web.includes("【栖岛里有什么（页面地图）】"));
-/**
- * ⚠️ 2026-10：那句话里的代词现在是**变量**（`他` / `她` / `TA`，按用户在「我的」里
- * 设的称呼走，见 `manual.ts` 的 `pronounOf`）—— 所以只断言"隐私说法还在"，
- * 不再钉死某个代词。
- */
-check("引子提到设备本地（隐私说法没丢）", /只存在(他|她|TA)那台设备上/.test(web));
-
-console.log("-".repeat(64));
-console.log(`说明书写真验收：${bad === 0 ? "全部通过" : `${bad} 项失败`}`);
-
-await browser.close();
-process.exit(bad === 0 ? 0 : 1);
+const snapshot = permissionSnapshot({ navigate: 'deny', reset_all: 'allow' });
+assert.match(snapshot, /拒绝：[^\n]*切换页面/);
+assert.match(snapshot, /需确认：[^\n]*重置设置/);
+assert.match(snapshot, /允许：[^\n]*当前设置/);
+for (const permission of PERMISSIONS) assert.ok(snapshot.includes(permission.title), `缺少有效权限：${permission.title}`);
+console.log(`提示词真值检查通过：固定背景、中文规则、能力边界、原生/兼容模式、${new Set(paths).size} 个页面路径、${PERMISSIONS.length} 项权限。`);

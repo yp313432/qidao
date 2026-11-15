@@ -1,3 +1,4 @@
+import { normalizeUsage, usageOptionsUnsupported } from "@/lib/request-accounting";
 import { upstreamError } from "@/lib/chat-errors";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ActionTool } from "@/lib/action-schema";
@@ -108,15 +109,7 @@ function extractDelta(chunk: unknown): {
   // 用量可能单独一帧发过来（此时没有 choices）
   const u = c.usage;
   if (u) {
-    out.usage = {
-      prompt: u.prompt_tokens,
-      completion: u.completion_tokens,
-      cached:
-        u.prompt_cache_hit_tokens ??
-        u.prompt_tokens_details?.cached_tokens ??
-        u.cached_tokens,
-      total: u.total_tokens,
-    };
+    out.usage = normalizeUsage(u);
   }
 
   const d = c.choices?.[0]?.delta;
@@ -207,6 +200,7 @@ export const Route = createFileRoute("/api/chat")({
           model: upstreamModel,
           messages,
           stream: true,
+          stream_options: { include_usage: true },
           max_tokens: body.maxTokens && body.maxTokens > 0 ? body.maxTokens : model.maxTokens,
         };
         /**
@@ -220,7 +214,7 @@ export const Route = createFileRoute("/api/chat")({
         // 所以只有走内置时才带它。
         if (!useCustom) payload.reasoning_effort = model.effort as ReasoningEffort;
 
-        const upstream = await fetch(`${base}/chat/completions`, {
+        let upstream = await fetch(`${base}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -228,6 +222,14 @@ export const Route = createFileRoute("/api/chat")({
           },
           body: JSON.stringify(payload),
         });
+
+        if ([400, 422].includes(upstream.status) && usageOptionsUnsupported(upstream.status, await upstream.clone().text())) {
+          const { stream_options: _usageOptions, ...compatiblePayload } = payload;
+          upstream = await fetch(`${base}/chat/completions`, {
+            method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify(compatiblePayload),
+          });
+        }
 
         if (!upstream.ok || !upstream.body) {
           const raw = await upstream.text();
@@ -298,3 +300,4 @@ export const Route = createFileRoute("/api/chat")({
     },
   },
 });
+

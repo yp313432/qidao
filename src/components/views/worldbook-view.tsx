@@ -1,3 +1,4 @@
+import { shouldUseNativeTools } from "@/lib/tool-protocol";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
@@ -39,10 +40,12 @@ export function WorldbookView() {
   const aiName = useApp((s) => resolveAiName(s.settings.aiName));
   const displayName = useApp((s) => s.settings.displayName);
   const permissions = useApp((s) => s.settings.permissions);
+  const nativeTools = useApp((s) => shouldUseNativeTools(s.settings));
   const navigate = useNavigate();
   /** 内置的「硬要求 + 说明书」正文（跟真正注入的**完全同一份**，所见即所发） */
   const builtinText = buildManual({
     permissions,
+    nativeTools,
     titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
     displayName,
     aiName,
@@ -184,7 +187,7 @@ export function WorldbookView() {
         {/* 内置系统提示词：每轮强制注入、用户改不了（故意的），所以只给一个"开"的只读指示 */}
         <KFold
           title="内置系统提示词"
-          meta="每轮强制注入"
+          meta="固定正文 · 每轮注入"
           trailing={
             <KSwitch
               checked
@@ -194,6 +197,7 @@ export function WorldbookView() {
             />
           }
         >
+          <p className="k-hint mb-3">这里只展示固定正文；开启的世界书、技能、工具和实时状态按请求追加。各段 token 可在「上下文与内存」查看。</p>
           <pre className="k-long">{builtinText}</pre>
           <KButton
             variant="dashed"
@@ -272,3 +276,4 @@ export function WorldbookView() {
     </div>
   );
 }
+

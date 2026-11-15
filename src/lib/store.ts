@@ -996,7 +996,9 @@ export const useApp = create<AppState>()(
         })),
       logRequest: (e) =>
         set((s) => ({
-          requestLog: pushRequestLog(s.requestLog, { ...e, at: e.at ?? Date.now() }),
+          requestLog: e.replyId && e.requestIndex !== undefined && s.requestLog.some((old) => old.replyId === e.replyId && old.requestIndex === e.requestIndex)
+            ? s.requestLog.map((old) => old.replyId === e.replyId && old.requestIndex === e.requestIndex ? { ...old, ...e, at: e.at ?? old.at } : old)
+            : pushRequestLog(s.requestLog, { ...e, at: e.at ?? Date.now() }),
         })),
       clearRequestLog: () => set({ requestLog: [] }),
       addMusicEmbed: (url) => {
@@ -2244,3 +2246,4 @@ if (typeof window !== "undefined") {
     }, 1500);
   });
 }
+

@@ -265,6 +265,19 @@ export function defaultPermissions(): Record<string, PermissionMode> {
   return out;
 }
 
+/** 给模型的有效权限快照；破坏性操作仍需确认，L4 永久拒绝。 */
+export function permissionSnapshot(modes: Record<string, PermissionMode> = {}): string {
+  const defaults = defaultPermissions();
+  const groups: Record<PermissionMode, string[]> = { allow: [], ask: [], deny: [] };
+  for (const permission of PERMISSIONS) {
+    const configured = modes[permission.id] ?? defaults[permission.id] ?? "ask";
+    const effective = permission.risk === "L4" ? "deny"
+      : permission.risk === "L3" && configured === "allow" ? "ask" : configured;
+    groups[effective].push(permission.title);
+  }
+  return `【当前有效权限】\n允许：${groups.allow.join("、") || "无"}\n需确认：${groups.ask.join("、") || "无"}\n拒绝：${groups.deny.join("、") || "无"}`;
+}
+
 export const RISK_LABEL: Record<RiskLevel, string> = {
   L0: "只读",
   L1: "无害",
@@ -301,3 +314,4 @@ export function permissionSummary(
   }
   return { allow, ask, deny, total: PERMISSIONS.length };
 }
+
