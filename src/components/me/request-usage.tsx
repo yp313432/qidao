@@ -5,6 +5,7 @@ import { prettyBytes } from "@/lib/tokens";
 import type { RequestLogEntry } from "@/lib/types";
 import { formatClock } from "@/lib/utils";
 
+const purpose = (entry: RequestLogEntry) => ({ chat: "聊天", tool: "工具续答", continuation: "截断续写", recovery: "补充答案", summary: "回忆总结" }[entry.purpose ?? "chat"]);
 const number = (value: number | undefined) => value === undefined ? "未返回" : value.toLocaleString();
 const rate = (value: number | undefined) => value === undefined ? "未返回" : `${value.toFixed(1)}%`;
 const labels: { key: keyof InputEstimate; label: string }[] = [
@@ -61,7 +62,7 @@ export function RequestUsage({ entries, onClear }: { entries: RequestLogEntry[];
     </div>
     <div className="k-card">
       {!latest ? <p className="k-hint">发一条消息后，显示每次请求的系统提示词、工具、对话和动态信息，以及上游返回的用量。</p> : <>
-        <p className="text-[13px] font-medium">最近一次请求 · {formatClock(latest.at)}</p>
+        <p className="text-[13px] font-medium">最近一次请求 · {purpose(latest)} · {formatClock(latest.at)}</p>
         <p className="k-hint mt-1 break-all">{latest.upstream || "旧记录"} · {latest.model}{latest.requestIndex ? ` · 本次回复第 ${latest.requestIndex} 次请求` : ""}</p>
         <p className="mt-3 text-[14px] leading-6">上游报告：输入 {number(latest.prompt)} · 输出 {number(latest.completion)}</p>
         <p className="mt-1 text-[12px] text-muted">缓存命中 {number(latest.cached)} tokens · 命中率 {rate(latestRate)}</p>
@@ -85,7 +86,7 @@ export function RequestUsage({ entries, onClear }: { entries: RequestLogEntry[];
       <div className="mt-3 space-y-3">
         {entries.slice(0, 12).map((entry, index) => <details key={`${entry.replyId ?? entry.at}-${entry.requestIndex ?? index}`} className="border-t border-line pt-3">
           <summary className="cursor-pointer text-[12px] leading-5">
-            {formatClock(entry.at)} · 输入 {number(entry.prompt)} · 输出 {number(entry.completion)} · 缓存 {rate(cacheHitRate(entry))}
+            {formatClock(entry.at)} · {purpose(entry)} · 输入 {number(entry.prompt)} · 输出 {number(entry.completion)} · 缓存 {rate(cacheHitRate(entry))}
           </summary>
           <p className="k-hint mt-2 break-all">{entry.upstream || "旧记录"} · {entry.model}</p>
           <Breakdown entry={entry} />

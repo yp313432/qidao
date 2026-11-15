@@ -143,7 +143,7 @@ try {
     const { context, page, errors } = await open(scenario === "empty" ? "?empty" : scenario === "disabled" ? "?no-stickers" : "");
     await send(page, scenario === "cleanup" ? "记下你的情绪，再陪我聊聊。" : "给我发两张开心的表情。" );
     if (scenario === "stickers") {
-      await page.waitForFunction(() => document.querySelectorAll('[data-testid="sticker"]').length === 2);
+      await page.waitForFunction(() => document.querySelectorAll('[data-testid="sticker"]').length === 1);
       assert.equal(await page.getByTestId("busy").textContent(), "busy", "images should arrive before the final text request completes");
     }
     await idle(page, 1);
@@ -154,8 +154,9 @@ try {
       assert.equal(JSON.parse(await page.getByTestId("emotions").textContent()).length, 1, "real emotion action still records state");
     } else if (scenario === "stickers") {
       assert.equal(message.content, "");
-      assert.equal(message.attachments.length, 2);
-      assert.ok(message.attachments.some((a) => a.mime === "image/gif"));
+      assert.equal(message.attachments.length, 1);
+      assert.equal(message.steps.filter((step) => step.kind === "call" && step.call.category === "skipped").length, 1, "the second sticker call is suppressed for this reply");
+      assert.ok(message.attachments.every((attachment) => attachment.mime.startsWith("image/")));
       assert.ok(await page.getByTestId("sticker").evaluateAll((images) => images.every((img) => img.complete && img.naturalWidth > 0)));
       assert.equal(await page.getByTestId("chat").innerText(), "给我发两张开心的表情。" );
     } else {
@@ -354,5 +355,6 @@ try {
   await browser.close();
   await new Promise((resolve) => upstream.close(resolve));
 }
+
 
 

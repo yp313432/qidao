@@ -15,7 +15,7 @@ import {
   type ApiMessage,
   type ChatDelta,
 } from "@/lib/chat-client";
-import { isOwnApi, QUOTA_LIMIT } from "@/lib/models";
+import { isOwnApi, QUOTA_LIMIT, getModel } from "@/lib/models";
 import { ACTION_PERMISSION } from "@/lib/action-meta";
 import { announceAssistantMessage } from "@/lib/announce";
 import {
@@ -40,7 +40,8 @@ import { estimateTokens, shortHash } from "@/lib/tokens";
 import { measureRequest, mergeReportedUsage } from "@/lib/request-accounting";
 import { partsFor } from "@/lib/segment";
 import { createTurnActionRunner, runToolLoop, type ToolRoundRecord, type ToolRoundSend } from "@/lib/tool-loop";
-import { mergeReplyText } from "@/lib/reply-text";
+import { mergeReplyText, canFinishAfterSideEffects } from "@/lib/reply-text";
+import { shouldRecoverThinking } from "@/lib/generation-policy";
 import { buildExternalTools, MAX_TOOLS_PER_REQUEST } from "@/lib/external-tools";
 import { crumb, setPhase } from "@/lib/breadcrumbs";
 import { shouldUseNativeTools } from "@/lib/tool-protocol";
@@ -631,23 +632,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         };
       };
 
-      /**
-       * ⚠️ **卡死看门狗**（2026-10 真机）：用户那次回复从 02:30 一直"正在写回复"卡到 03:15，
-       * 之后异常退出 —— 上游连接断了却没人收尾，界面就一直挂着。
-       * 现在：**90 秒**没有任何新内容 → 主动中断这一轮（界面显示成一次失败，可以重发）。
-       */
-      const STALL_MS = 90_000;
-      let lastBeat = Date.now();
-      const stallTimer = window.setInterval(() => {
-        if (Date.now() - lastBeat > STALL_MS) {
-          window.clearInterval(stallTimer);
-          crumb("chat", "上游 90 秒没有新内容 → 主动中断（免得一直卡在正在写回复）");
-          ac.abort();
-        }
-      }, 10_000);
-
       const onDelta = (d: ChatDelta, replaceContent = false) => {
-        lastBeat = Date.now();
         if (d.error) {
           state.reqError = d.error;
           return;
@@ -703,12 +688,18 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       let requestNumber = 0;
       const requestGroupId = uid("replyrun");
+      let lastRequestMessages: ApiMessage[] = [];
+      let lastRequestBase: ReturnType<typeof buildReq> | undefined;
+      const requestUsage = new Map<number, ChatMessage["usage"]>();
       const recordInput = (
         req: ReturnType<typeof buildReq>,
         messages: readonly ApiMessage[],
         tools: Parameters<ToolRoundSend>[0]["tools"],
+        purpose: "chat" | "tool" | "continuation" | "recovery" = "chat",
       ) => {
-        const system = systemPrompt(req);
+        lastRequestMessages = [...messages];
+        lastRequestBase = req;
+        const system = typeof messages[0]?.content === "string" ? messages[0].content : systemPrompt(req);
         const inputEstimate = measureRequest(messages, tools, {
           perception: perceptionBlock(req), sections: systemPromptSections(req),
         });
@@ -716,7 +707,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         let upstream = "内置上游";
         try { if (req.customBaseUrl) upstream = new URL(req.customBaseUrl).host; } catch { upstream = "自定义上游"; }
         const entry = {
-          at: Date.now(), replyId: requestGroupId, conversationId, requestIndex: id,
+          at: Date.now(), requestId: uid("request"), replyId: requestGroupId, conversationId, requestIndex: id, purpose,
           model: req.upstreamModel || req.model, upstream,
           promptHash: shortHash(system), systemTokens: inputEstimate.system,
           tools: inputEstimate.tools, inputEstimate,
@@ -727,6 +718,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         let latestReported: ChatMessage["usage"];
         return (reported?: ChatMessage["usage"]) => {
           latestReported = mergeReportedUsage(latestReported, reported);
+          requestUsage.set(id, latestReported);
           useApp.getState().logRequest({ ...entry, prompt: latestReported?.prompt, completion: latestReported?.completion, cached: latestReported?.cached });
           crumb("chat", `请求 ${id} · 上游输入 ${reported?.prompt ?? "未返回"} · 缓存命中 ${reported?.cached ?? "未返回"}`);
         };
@@ -775,7 +767,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               ? makeDirectRound(reqActive)
               : makeServerRound(reqActive);
           return async (args) => {
-            const report = recordInput(reqActive, args.messages, args.tools);
+            const report = recordInput(reqActive, args.messages, args.tools, requestNumber ? "tool" : "chat");
             const r = await inner({ ...args, onDelta: (delta) => {
               if (delta.usage) report(delta.usage);
               args.onDelta(delta);
@@ -815,6 +807,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           tools: [...builtinTools, ...extTools],
           signal: ac.signal,
           runActions: runTurnActions,
+          finishAfterSideEffects: true,
           // 思考/工具按事件推进；正文快照包含工具前后所有已说出的内容。
           onDelta: (d) => onDelta({ ...d, content: undefined }),
           onContent: (text, round) => {
@@ -869,6 +862,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         // 收尾、存档和朗读都使用与流式显示相同的完整正文。
         content = result.content;
         reasoningContent = result.reasoningContent;
+        finishReason = result.finishReason ?? finishReason;
         dirty = true;
         flush();
         state.reqError = result.error;
@@ -881,7 +875,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 实测：思考链很长时，经过代理的流式连接容易被中途掐断，
        * 结果是一条**只有思考、没有正文**的空回复（用户报过两次）。
        * 与其让他手动点「重新生成」，不如自己再试一遍 ——
-       * 重试时把上一次的思考和错误文本都丢掉，免得两次内容混在一起。
+       * 已有思考时保留它并交给单次补答，不从头重试整段思考。
        *
        * ⚠️ P2 起判定标准变了：**"只有工具调用、没有正文"不算空**——
        * 按老规矩（必须有正文）判断的话，工具轮会被无限重发（这正是坑 #36）。
@@ -923,7 +917,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
               }, ac.signal);
               report(reported);
       } finally {
-        window.clearInterval(stallTimer);
+        // 每次网络请求的等待计时由 transport 统一清理。
       }
           }
           lastErr = null;
@@ -944,7 +938,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         }
         if (ac.signal.aborted) break;
         // 成功 = 真的拿到了正文 **或** 真的调用了工具（两者有一个就不算失败）
-        if (hadContent || state.usedNative) break;
+        if (hadContent || state.usedNative || thinking.trim()) break;
         if (attempt === 2) break;
         const failure = state.reqError || (lastErr instanceof Error ? lastErr.message : "");
         if (!chatError(failure).retryable) break;
@@ -967,39 +961,24 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 只续一次；失败就当没发生，已经写出来的一个字都不丢。
        */
       if (finishReason === "length" && hadContent && !state.usedNative && !ac.signal.aborted) {
+        const previous = content;
         try {
           const base = buildReq(false);
+          const continuationHistory: ApiMessage[] = [
+            ...base.messages,
+            { role: "assistant", content: previous, ...(thinking ? { reasoning_content: thinking } : {}) },
+            { role: "user", content: "接着上面未完成的地方写，不重复前文，不重新开头，也不解释续写过程。" },
+          ];
+          const req = { ...base, messages: continuationHistory };
+          const report = recordInput(req, assembleMessages(req, continuationHistory) as ApiMessage[], null, "continuation");
           let extra = "";
-          await streamChat(
-            {
-              ...base,
-              messages: [
-                ...base.messages,
-                { role: "assistant", content, ...(thinking ? { reasoning_content: thinking } : {}) } as (typeof base.messages)[number],
-                {
-                  role: "user",
-                  content:
-                    "（接着上面写到一半的地方往下写，不要重复已经说过的内容，不要重新开头，也不要解释。）",
-                } as (typeof base.messages)[number],
-              ],
-            },
-            (d) => {
-              if (d.content) {
-                extra += d.content;
-                schedule();
-              }
-            },
-            ac.signal,
-          );
-          const tail = stripOverlap(content, extra);
-          if (tail.trim()) {
-            content += tail;
-            dirty = true;
-            flush();
-          }
-        } catch {
-          /* 续写失败不影响已经拿到的内容 */
-        }
+          await streamChat(req, (delta) => {
+            if (delta.usage) report(delta.usage);
+            if (delta.content) { extra += delta.content; onDelta({ content: mergeReplyText(previous, extra) }, true); }
+            else if (delta.finishReason) finishReason = delta.finishReason;
+          }, ac.signal);
+          report();
+        } catch { /* 续写失败仍保留已经显示的正文。 */ }
       }
 
       /**
@@ -1011,9 +990,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
         if (tail.trim().length > 0) state.steps.push({ kind: "think", text: tail.trim() });
         state.splitAt = thinking.length;
       }
-      const failure = state.reqError || (lastErr instanceof Error ? lastErr.message : "");
-      const requestError = !ac.signal.aborted && (failure || (!hadContent && !state.usedNative))
-        ? formatChatError(failure, retries) : undefined;
       // 收尾：把最后攒着的那一点写进去，并停掉定时器
       if (flushTimer) {
         window.clearTimeout(flushTimer);
@@ -1022,16 +998,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       dirty = true;
       flush();
 
-      /**
-       * ⭐ **该摘就摘**（P4b：滚动摘要）。
-       *
-       * 放在这一轮写完之后、`finalize` 之前：此时刚发出去的那批消息已经在库里了，
-       * 算出来的 token 最接近"下一轮要发的量"。
-       *
-       * 判定本身是纯函数（`planSummary`）：**只有历史用到额度的 80% 才摘** ——
-       * 所以正常聊天永远不触发，长对话大约每 15~20 轮一次（预算是 12000 时）。
-       * 失败不影响主流程（摘不出来就照旧"整条丢"）。
-       */
+      // 总结沿用用户设置的消息条数阈值，使用独立请求。
       /** 这一轮系统提示词占多少 token（摘要判定要用，两条路都得有） */
       let summarySystemTokens = 0;
       if (native) {
@@ -1087,6 +1054,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const actions = pendingTextActions();
         if (!actions.length) break;
         const results: string[] = [];
+        const outcomes: { ok: boolean; category?: string }[] = [];
+        const executedKinds: string[] = [];
         for (const action of actions) {
           if (ac.signal.aborted) break;
           if (!knownKinds.has(action.kind)) {
@@ -1110,6 +1079,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           alreadyDone.add(`${action.kind}|${stableArgs(rest)}`);
           const [outcome] = await runTurnActions([call], ac.signal, textActionDeadline);
           textActionCount += 1;
+          outcomes.push(outcome); executedKinds.push(action.kind);
           results.push(`${action.kind} ${call.args}: ${outcome.result}`);
           attachStickers();
           setStep(null);
@@ -1129,6 +1099,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           useApp.getState().patchMessage(conversationId, messageId, { steps: [...state.steps] });
         }
         if (!results.length || ac.signal.aborted) break;
+        if (canFinishAfterSideEffects(shownText(content), executedKinds, outcomes)) break;
         const previous = content;
         continuationHistory.push(
           { role: "assistant", content: previous },
@@ -1138,7 +1109,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
         finishReason = undefined;
         try {
           const req = { ...buildReq(false), messages: continuationHistory };
-          const report = recordInput(req, assembleMessages(req, continuationHistory) as ApiMessage[], null);
+          const report = recordInput(req, assembleMessages(req, continuationHistory) as ApiMessage[], null, "continuation");
           let reported: ChatMessage["usage"];
           await streamChat(req, (delta) => {
             if (delta.usage) { reported = mergeReportedUsage(reported, delta.usage); report(reported); }
@@ -1184,6 +1155,51 @@ export function useChatStream(opts: UseChatOpts = {}) {
           "\n\n（他到上限了：这一步的结果还没能回给他，我先停下让你看看 —— " +
           "要继续跟他说一声就行。）";
       }
+
+      if (shouldRecoverThinking({
+        hasText: Boolean(shownText(content).trim()), hasThinking: Boolean(thinking.trim()),
+        aborted: ac.signal.aborted, pendingTools: state.pendingCalls.length > 0,
+        finishReason, error: state.reqError || (lastErr instanceof Error ? lastErr.message : undefined), attempts: 0,
+      })) {
+        const original = lastRequestBase ?? buildReq(native && !rejectedToText);
+        const recoveryMessages: ApiMessage[] = [
+          ...(lastRequestMessages.length ? lastRequestMessages : assembleMessages(original, history) as ApiMessage[]),
+          { role: "assistant", content: "", reasoning_content: reasoningContent || thinking },
+          { role: "user", content: "接着刚才的思考，直接回答我原来的问题。不要重新展开长篇思考，不复述思考过程；只依据已经得到的信息和工具结果作答，不再调用工具或重做动作。" },
+        ];
+        const req = { ...original, model: "haiku" as typeof model,
+          maxTokens: settings.maxTokens && settings.maxTokens > 0 ? settings.maxTokens : getModel(model).maxTokens,
+          messages: recoveryMessages,
+        };
+        const report = recordInput(req, recoveryMessages, null, "recovery");
+        const send = (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() ? makeDirectRound(req) : makeServerRound(req);
+        setPhase("正在补上回答");
+        try {
+          const result = await send({ messages: recoveryMessages, tools: null, signal: ac.signal, onDelta: (delta) => {
+            if (delta.usage) report(delta.usage);
+            if (!delta.error) onDelta(delta);
+          } });
+          report(result.usage);
+          if (result.content.trim()) {
+            content = result.content; hadContent = true; finishReason = result.finishReason;
+            state.reqError = result.error; state.stalled = Boolean(result.stalled); lastErr = null;
+          } else state.reqError = result.error || "上游只返回了思考内容；已尝试补一次答案，仍没有正文。请检查生成额度或上游限制。";
+        } catch (error) {
+          if (!ac.signal.aborted) state.reqError = error instanceof Error ? error.message : "补充回答失败";
+        }
+        const recoveredThinking = thinking.slice(state.splitAt);
+        if (recoveredThinking.trim()) state.steps.push({ kind: "think", text: recoveredThinking.trim() });
+        state.splitAt = thinking.length;
+      }
+      const failure = state.reqError || (lastErr instanceof Error ? lastErr.message : "");
+      const requestError = !ac.signal.aborted && (failure || (!hadContent && !state.usedNative))
+        ? formatChatError(failure || (finishReason === "length" ? "生成额度已用尽，正文未完成。" : ""), retries) : undefined;
+      // 逐次请求的 usage 合计，包含工具续答、截断续写和思考恢复，不重复累加流式快照。
+      const sum = (key: "prompt" | "completion" | "cached" | "total") => {
+        const values = [...requestUsage.values()].map((entry) => entry?.[key]).filter((value): value is number => typeof value === "number");
+        return values.length ? values.reduce((total, value) => total + value, 0) : undefined;
+      };
+      if (requestUsage.size) usage = { prompt: sum("prompt"), completion: sum("completion"), cached: sum("cached"), total: sum("total") };
 
       attachStickers();
       const stickerAtts = useApp.getState().conversations.find((c) => c.id === conversationId)?.messages.find((m) => m.id === messageId)?.attachments?.filter((a) => a.kind === "sticker") ?? [];
@@ -1275,6 +1291,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       try {
         await maybeSummarize({
           conversationId,
+          replyId: requestGroupId,
           history,
           systemTokens: summarySystemTokens || estimateTokens(systemPrompt(buildReq(native))),
           toolTokens: toolTokensUsed,
@@ -1382,17 +1399,4 @@ export function useChatStream(opts: UseChatOpts = {}) {
   return { busy: busy || sending.running || sending.pending > 0, replying: busy || sending.running,
     pendingCount: sending.pending, liveId, step, send, regenerate, stop, aiName };
 }
-
-/**
- * 续写常会把上一句重复一遍：砍掉与旧文本尾部重叠的部分。
- * 只在重叠 ≥ 12 个字符时才算"重复"（短的重叠可能真的是巧合）。
- */
-function stripOverlap(prev: string, next: string): string {
-  const max = Math.min(120, prev.length, next.length);
-  for (let n = max; n >= 12; n -= 1) {
-    if (prev.slice(-n) === next.slice(0, n)) return next.slice(n);
-  }
-  return next;
-}
-
 

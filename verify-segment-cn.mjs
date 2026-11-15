@@ -11,12 +11,12 @@
  * 三条硬纪律（都要断言）：
  *   · 一句话的短回复**不许**被乱切成多条
  *   · **代码块整块不切**（切了排版就散）
- *   · **一个字都不许丢**（超上限并进最后一段）
+ *   · **一个字都不许丢**（不限总条数，不合并尾部）
  *
  * 跑法：node verify-segment-cn.mjs
  * 反向：QIDAO_MUTATE_REVERSE=1 node verify-segment-cn.mjs
  */
-import { splitSegments } from "./src/lib/segment.ts";
+import { splitSegments, partsFor } from "./src/lib/segment.ts";
 
 const REVERSE = process.env.QIDAO_MUTATE_REVERSE === "1";
 let passed = 0;
@@ -33,7 +33,7 @@ check(
   "三句话 + 每条最多 2 句 → 2 条（第一条两句、第二条一句）",
   (() => {
     const r = cn("一。二。三。", { maxParts: 3, maxSentences: 2 });
-    return r.length === 2 && r[0] === "一。二。" && r[1] === "三。";
+    return r.length === 2 && r[0].replace(/\s/g, "") === "一。二。" && r[1] === "三。";
   })(),
 );
 check(
@@ -55,11 +55,11 @@ check(
   })(),
 );
 check(
-  "**一个字都不许丢**：超上限时多出来的并进最后一段",
+  "**一个字都不许丢**：旧条数上限不合并尾部",
   (() => {
     const raw = "一。二。三。四。五。";
     const r = cn(raw, { maxParts: 2, maxSentences: 1 });
-    return r.length === 2 && r.join("").replace(/\s/g, "") === raw.replace(/\s/g, "");
+    return r.length === 5 && r.join("").replace(/\s/g, "") === raw.replace(/\s/g, "");
   })(),
 );
 check(
@@ -80,7 +80,8 @@ check(
   "空行分段也认（他本来就分了段）",
   cn("第一段的话。\n\n第二段的话。", { maxParts: 6, maxSentences: 1 }).length === 2,
 );
-check("关掉分段（只留 1 条）→ 原样返回", cn("一。二。三。", { maxParts: 1 }).length === 1);
+check("旧 maxParts=1 不再限制气泡数", cn("一。二。三。", { maxParts: 1 }).length === 3);
+check("关掉分段 → 不生成气泡拆分提示", partsFor("一。二。三。", { enabled: false }) === undefined);
 
 if (REVERSE) {
   passed = 0;
@@ -100,3 +101,4 @@ if (REVERSE) {
 console.log("");
 console.log(`${failures === 0 ? "✅ 全过" : "❌ 有失败"}：${passed} 绿 / ${failures} 红`);
 process.exit(failures === 0 ? 0 : 1);
+

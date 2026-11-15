@@ -1,26 +1,5 @@
-/**
- * 对话摘要（滚动摘要）—— **什么时候摘、摘哪几条、摘要长什么样**。
- *
- * 用户拍板的需求（原话）：
- *   "按你的来，修正加摘要"
- *   "ai 写，五十八十轮对话总结一次，你举得这个次数可以吗，还是要改，给我建议"
- *   "摘要我也要能看见和编辑，就是屏幕总结完出现一条线，展开就是摘要"
- *
- * ── 为什么需要它 ──────────────────────────────────────────────
- *
- * 现在超预算的处理是**整条丢掉**更早的消息（"忘掉"）。丢掉的后果是
- * 模型**再也想不起来**那部分 —— 而长对话里恰恰是前面那些"我们定过什么、
- * 他喜欢什么、还有什么事没做完"最有价值。
- *
- * ── 频率为什么不按"轮数"定 ────────────────────────────────────
- *
- * 用户提的是"50~80 轮一次"。但实测（`probe-history-trim.mjs`）默认预算下
- * **20~30 轮就已经开始丢**了 —— 按 50~80 轮触发，等于中间几十轮白丢。
- * 所以拍板改成**按空间触发**：历史用到"留给历史那部分的 80%"时摘一次。
- * 轮数是**结果**不是设定：预算 12000 ≈ 每 15~20 轮；预算调到 20000 ≈ 每 25~30 轮。
- *
- * 这个文件**零 import**（纯逻辑，纯 node 可直接跑），
- * 所以判定/切段/提示词这几件事能被 `verify-summary.mjs` 单测。
+/** 对话回顾：按未总结的消息条数触发，保留最近原文，生成带当前心态的自然中文记忆。
+ * 本文件为纯逻辑，不依赖浏览器或 store。
  */
 
 /** 摘要存什么（存在这条对话自己身上，换对话各算各的） */
@@ -37,7 +16,7 @@ export type ConversationSummary = {
   updatedAt: number;
   /** 生成摘要时这一批原文占多少 token（省了多少就看它） */
   sourceTokens: number;
-  /** 第几次摘要（0 = 第一次）；旧摘要配额按它衰减，见 oldSummaryQuota() */
+  /** 第几次摘要（0 = 第一次）；仅记录已总结次数，不决定旧记忆的保留比例 */
   passes?: number;
 };
 
@@ -54,54 +33,15 @@ export type SummaryPlan = {
   upToIndex: number;
 };
 
-/**
- * 触发线：历史用到"留给历史那部分"的百分之多少就摘。
- *
- * 80 是这么定的：留 20% 的余量给"这一轮刚要发的新消息 + 工具回灌"，
- * 免得刚摘完就又爆。别调太低（会频繁摘、白花钱），也别调太高（来不及摘就丢了）。
- */
-/** 摘要正文的上限（字）—— 太长了就失去"压缩"的意义 */
-export const SUMMARY_MAX_CHARS = 280;
+/** 完整回顾的安全长度；超长结果保留旧记忆，原文不会被标成已覆盖。 */
+export const SUMMARY_MAX_CHARS = 1600;
 
-/**
- * 四段固定格式（用户 m09620 定的"结构化摘要"）。
- *
- * 为什么要固定段：一段散文重写几次就会把"未了的事"冲掉；
- * 固定槽位 + 各自字数上限，才能保证"答应过什么、没做完什么"永远有地方放。
- * 四个上限加起来 = SUMMARY_MAX_CHARS。
- */
-export const SUMMARY_SECTIONS: { key: string; title: string; max: number; hint: string }[] = [
-  { key: "state", title: "他现在的状态", max: 70, hint: "在干嘛、心情、身体；只写事实" },
-  { key: "between", title: "你们之间", max: 90, hint: "发生过的事、关系变化、聊过的决定" },
-  { key: "open", title: "未了的事", max: 70, hint: "答应过什么、没做完的、说好要做的（最重要）" },
-  { key: "taboo", title: "雷区与约定", max: 50, hint: "忌讳、称呼、明确说过不喜欢的" },
-];
-
+/** 回顾以自然中文为主，600~1000 字为目标；超长/截断结果不推进原文水位线。 */
 /** 每攒多少条"还没摘过"的消息就摘一次（50 条 ≈ 25 轮） */
 export const SUMMARY_EVERY_MESSAGES = 50;
 
 /** 单次最多摘多少条 —— 攒了很久也不会一口气摘几百条 */
 export const SUMMARY_BATCH_MAX = 50;
-
-/**
- * 旧摘要能占的字数比例（按"第几次摘要"衰减）。
- *
- * 用户 m09621 原话的意思是"越早的内容越可以压"，但压到 40% 就到底
- * （再压就只剩骨架，等于忘掉）。第 2 次先保持 100%：刚摘的内容还很有用，
- * 没必要立刻挤掉。
- */
-export function oldSummaryQuota(passes: number): number {
-  /*
-    ⚠️ 这里原来是 [1, 0.7, 0.5, 0.4]，有个漏洞（用户 m09723 追问"会不会爆"时发现）：
-    第二次摘要时旧内容能占 100%，新摘的 25 轮**一个字都放不下**，等于白摘。
-
-    总字数**恒定 280 字**（不是每段累加，是每次重写成同一段 280 字），
-    所以只要保证"旧 + 新 = 280"就永远不会越滚越大：
-      · 第二次：旧 140（50%）+ 新 140（50%）
-      · 第三次起：旧 112（40%）+ 新 168（60%）—— 40% 是地板，再压就只剩骨架。
-  */
-  return Math.max(0, passes) <= 1 ? 0.5 : 0.4;
-}
 
 /**
  * 决定"现在该不该摘、摘哪几条"。
@@ -139,7 +79,7 @@ export function planSummary(input: {
    * "要发出去的历史"（只有最近 16 条），几乎永远碰不到线；②一旦碰到线，
    * 要摘的却是"上次摘要之后到现在"的全部（用户真机上一次性摘了 434 条）。
    */
-  const keep = Math.max(2, input.keepRecent);
+  const keep = Math.max(0, input.keepRecent);
   const start = Math.max(0, input.summary?.upToIndex ?? 0);
   const end = Math.max(start, input.messages.length - keep);
   const pending = end - start;
@@ -161,65 +101,37 @@ export function planSummary(input: {
   };
 }
 
-/**
- * 给模型的摘要提示词。
- *
- * ⚠️ 这段的核心是**只许压缩、不许发挥**：摘要是"我们聊过什么"的记录，
- * 不是模型的创作。写进"我猜他知道…"这种东西，等于往上下文里**投毒**（假记忆），
- * 比忘掉更糟 —— 忘掉只是记不起来，记错是拿错的当真的用。
- */
-export function buildSummaryPrompt(
-  batch: SummaryMsg[],
-  previous?: ConversationSummary,
-): string {
-  const lines = batch
-    .filter((m) => (m.content ?? "").trim())
-    .map(
-      (m) =>
-        `${m.role === "user" ? "用户" : m.role === "assistant" ? "我" : "（系统/工具）"}：${m.content.trim()}`,
-    )
-    .join("\n");
+export type SummaryMindset = { now?: string; mood?: string; recent?: string };
 
-  /**
-   * 旧摘要的配额：越老的越可以压，但压到 40% 就到底。
-   * 第一次摘（没有旧摘要）时全给新内容。
-   */
-  const passes = Math.max(0, previous?.passes ?? 0);
-  const quota = previous?.text?.trim()
-    ? Math.round(SUMMARY_MAX_CHARS * oldSummaryQuota(passes))
-    : 0;
-  const fresh = SUMMARY_MAX_CHARS - quota;
+/** 与聊天说明书分离，不携带工具清单、实时权限或无关的 App 状态。 */
+export function summarySystemPrompt(aiName = "小克", userName = "yan"): string {
+  return `你是${aiName}，正在回顾你和${userName}的交流。请带着现在的心态，给未来的自己留下一份自然的中文回顾。
+用第一人称写，可以亲近、有感受，保留你在意的细节、对某句话的反应和你们之间的语气。不要填栏目、写档案或用“关系加深”等空泛标签代替具体经历。
+过去发生的事、双方说过的话要对得上原文；此刻回看的感受可以自然表达，但不要编造经历、引语，或把对对方心思的猜测当成她明说过的话。
+重要的约定、未完成的事、明确偏好与忌讳、称呼和日期要自然留下。新对话更新或取消的事按新的记；此前仍然重要的事继续保留，不按记忆年龄分配删减比例。
+通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。只输出回顾正文，不附工具调用或解释写作步骤。`;
+}
 
-  const prev = previous?.text?.trim()
-    ? `\n【已经有的摘要（更早的那些，必须并进新版）】\n${previous.text.trim()}\n
-这份旧摘要最多只能占 ${quota} 字；新的对话占 ${fresh} 字。
-处理规则：
-1. 旧摘要里每一条，先看下面这段新对话有没有"提到它、更新它、推翻它"；
-2. 有的 → **并成一条**（用新的说法，不要重复写两遍）；
-3. 没有的 → 压进 ${quota} 字里（宁可写短，**不许整段删掉**）；
-4. 「未了的事」和「雷区与约定」这两段里的条目**永远不许压缩掉**（除非新对话里明确说这件事做完了/取消了）。
-`
-    : "";
-
-  const sectionLines = SUMMARY_SECTIONS.map(
-    (x) => `· ${x.title}（最多 ${x.max} 字）—— ${x.hint}`,
+export function buildSummaryPrompt(batch: SummaryMsg[], previous?: ConversationSummary, mindset: SummaryMindset = {}): string {
+  const lines = batch.filter((message) => message.content.trim()).map((message) =>
+    `${message.role === "user" ? "yan" : message.role === "assistant" ? "我" : "系统/工具结果"}：${message.content.trim()}`,
   ).join("\n");
-
-  return `把下面的对话压成一份**给未来的自己看**的摘要。${prev}
-【只写四段，每段一行，标题照抄】
-${sectionLines}
-
-【规矩】
-· 只写**事实**：谁做了什么、说了什么、发生了什么。不推测动机、不评价、不抒情。
-· 时间写具体日期（"10 月 20 日"），不写"前几天/上次"。
-· 指代固定：用户 = "她"，你自己 = "我"。不许自创新称呼。
-· 合并重复：同一件事只写一次；新对话里更准确的，用新的。
-· 必须带过来（不许因为"不重要"删掉）：答应过的事、没做完的事、用户明确说过的偏好与忌讳、称呼、重要日期。
-· 四段加起来不超过 ${SUMMARY_MAX_CHARS} 字；某段没内容就写"（无）"，别用别的段去填。
-· 只输出这四段正文，不要写"以下是摘要"之类的开场白。
-
-【新对话原文】
+  const context = [
+    mindset.now ? `现在：${mindset.now}` : "",
+    mindset.mood ? `最近记录的心情：${mindset.mood}` : "",
+    mindset.recent ? `最近的交流语境（帮助你站在现在回看，不属于本次覆盖范围）：\n${mindset.recent}` : "",
+  ].filter(Boolean).join("\n");
+  return `请以现在的心态，回看下面这些交流，留一份给未来自己的回忆。\n${context}
+${previous?.text.trim() ? `此前留下的回顾（仍重要的经历和约定要接住，不机械缩减）：\n${previous.text.trim()}\n` : ""}
+本次需要回顾的原文：
 ${lines}`;
+}
+
+/** 不把截断或超长的回顾当成完整记忆，也不剪掉后半段后推进覆盖水位线。 */
+export function cleanSummaryText(raw: string, truncated = false): string | null {
+  if (truncated) return null;
+  const text = raw.trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").replace(/\n{3,}/g, "\n\n").trim();
+  return text && text.length <= SUMMARY_MAX_CHARS ? text : null;
 }
 
 /**
@@ -236,3 +148,4 @@ export function summaryMessage(summary: ConversationSummary): SummaryMsg {
       `${summary.text.trim()}`,
   };
 }
+

@@ -160,7 +160,7 @@ const defaultSettings: Settings = {
    * （切分只在**真的出现分隔符**或**超过"每条最多几句"**时才发生）。
    */
   segmentReply: true,
-  segmentMaxParts: 6,
+  segmentMaxParts: 0,
   segmentMaxSentences: 1,
   segmentDelayMs: 1200,
   segmentSmartDelay: true,
@@ -996,8 +996,8 @@ export const useApp = create<AppState>()(
         })),
       logRequest: (e) =>
         set((s) => ({
-          requestLog: e.replyId && e.requestIndex !== undefined && s.requestLog.some((old) => old.replyId === e.replyId && old.requestIndex === e.requestIndex)
-            ? s.requestLog.map((old) => old.replyId === e.replyId && old.requestIndex === e.requestIndex ? { ...old, ...e, at: e.at ?? old.at } : old)
+          requestLog: e.requestId && s.requestLog.some((old) => old.requestId === e.requestId)
+            ? s.requestLog.map((old) => old.requestId === e.requestId ? { ...old, ...e, at: e.at ?? old.at } : old)
             : pushRequestLog(s.requestLog, { ...e, at: e.at ?? Date.now() }),
         })),
       clearRequestLog: () => set({ requestLog: [] }),

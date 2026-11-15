@@ -1,3 +1,4 @@
+import { NATIVE_MODEL_READ_TIMEOUT_MS } from "./generation-policy.ts";
 /**
  * 原生 HTTP —— 绕开 WebView 的跨域限制。
  *
@@ -69,7 +70,7 @@ export async function nativeHttp(o: {
   try {
     const http = getNativeHttp();
     if (!http) return null;
-    return await http.request({ ...o, connectTimeout: 20_000, readTimeout: 120_000 });
+    return await http.request({ ...o, connectTimeout: 20_000, readTimeout: NATIVE_MODEL_READ_TIMEOUT_MS });
   } catch {
     return null;
   }
@@ -87,4 +88,5 @@ export function looksLikeNetworkBlock(err: unknown): boolean {
     msg,
   );
 }
+
 

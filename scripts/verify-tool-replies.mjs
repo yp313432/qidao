@@ -16,12 +16,12 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return { shortCircuit: true,
     url: new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href };
   if (specifier.startsWith("./") && context.parentURL?.endsWith("/chat-client.ts")) {
-    return { shortCircuit: true, url: new URL(specifier + ".ts", context.parentURL).href };
+    return { shortCircuit: true, url: new URL(/\.tsx?$/.test(specifier) ? specifier : specifier + ".ts", context.parentURL).href };
   }
   return next(specifier, context);
 } });
 const { runToolLoop, toolResultMessages, createTurnActionRunner } = await import("../src/lib/tool-loop.ts");
-const { makeServerRound } = await import("../src/lib/chat-client.ts");
+const { makeServerRound, makeDirectRound } = await import("../src/lib/chat-client.ts");
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 const tool = { index: 0, id: "verify", name: "emotion_report", args: '{"primaryEmotion":"calm"}' };
@@ -132,10 +132,14 @@ test("failed parameters may be corrected; successful and pending actions keep th
     ? { ...outcome, ok: false, category: "badargs" } : outcome]);
   assert.equal((await run([tool]))[0].category, "badargs");
   assert.equal((await run([tool]))[0].category, "ok");
-  assert.equal((await run([tool]))[0].category, "skipped");
+  const repeated = (await run([tool]))[0];
+  assert.equal(repeated.category, "skipped");
+  assert.equal(repeated.alreadyCompleted, true);
   assert.equal(attempts, 2);
   const pending = createTurnActionRunner(async () => [{ ...outcome, ok: false, category: "pending" }]);
-  assert.equal((await pending([tool, tool]))[1].category, "skipped");
+  const waiting = (await pending([tool, tool]))[1];
+  assert.equal(waiting.category, "skipped");
+  assert.equal(waiting.alreadyCompleted, false);
   let timeouts = 0;
   const running = createTurnActionRunner(async () => {
     timeouts += 1;
@@ -210,3 +214,29 @@ test("server transport accumulates content, thinking, calls and usage from the a
   assert.equal(deltas.filter((d) => d.content).length, 1);
 });
 
+
+
+
+test("direct transport normalizes cumulative snapshots and preserves token-limit end reason", async () => {
+  const first = "这是一段足够长的回答，前面已经说过。";
+  const complete = first + "这里只补充一次。";
+  const frames = [
+    { choices:[{delta:{content:first}}] },
+    { choices:[{delta:{content:complete}}] },
+    { choices:[{delta:{},finish_reason:"length"}] },
+  ];
+  let displayed="";
+  const response=await makeDirectRound({customBaseUrl:"https://fixture.invalid/v1",customApiKey:"fixture",upstreamModel:"fixture",messages:[]}, async()=>new Response(frames.map((frame)=>`data: ${JSON.stringify(frame)}\n\n`).join("")+"data: [DONE]\n\n"))({messages:[],tools:null,onDelta:(delta)=>{displayed+=delta.content||"";}});
+  assert.equal(response.content,complete);assert.equal(displayed,complete);assert.equal(response.finishReason,"length");
+});
+
+test("successful final side effects finish locally, while queries still need their results answered", async()=>{
+  const completed = await replay([{deltas:[{content:"我也想抱抱你。"}],result:{content:"我也想抱抱你。",toolCalls:[tool]}}], {finishAfterSideEffects:true});
+  assert.equal(completed.count,1);assert.equal(completed.result.finishedAfterSideEffects,true);assert.equal(completed.result.rounds.length,1);
+  const query = { ...tool, name:"web_search", args:'{"query":"fixture"}' };
+  const continued = await replay([
+    {deltas:[{content:"查完告诉你。"}],result:{content:"查完告诉你。",toolCalls:[query]}},
+    {deltas:[{content:"这是查询结果。"}],result:{content:"这是查询结果。"}},
+  ],{finishAfterSideEffects:true});
+  assert.equal(continued.count,2);assert.match(continued.result.content,/这是查询结果/);
+});

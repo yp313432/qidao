@@ -1,3 +1,5 @@
+import { withModelIdleTimeout, readModelChunk, ModelIdleTimeoutError } from "./generation-policy.ts";
+import { StreamTextAccumulator } from "./reply-text.ts";
 import { normalizeUsage, mergeReportedUsage, usageOptionsUnsupported } from "./request-accounting";
 import { upstreamError } from "./chat-errors";
 import type { ModelId } from "./models";
@@ -200,6 +202,27 @@ type StreamOutcome = {
   toolsRejected: boolean;
 };
 
+function guardedRound(send: ToolRoundSend): ToolRoundSend {
+  return async (args) => {
+    const content = new StreamTextAccumulator();
+    let thinking = "";
+    let usage: ToolRoundResult["usage"];
+    let finishReason: string | undefined;
+    try {
+      return await withModelIdleTimeout(args.signal, (delta: ChatDelta) => {
+        if (delta.content) content.append(delta.content);
+        if (delta.thinking) thinking += delta.thinking;
+        if (delta.usage) usage = mergeReportedUsage(usage, delta.usage);
+        if (delta.finishReason) finishReason = delta.finishReason;
+        args.onDelta(delta);
+      }, (signal, onDelta) => send({ ...args, signal, onDelta }));
+    } catch (error) {
+      if (args.signal?.aborted || !(error instanceof ModelIdleTimeoutError)) throw error;
+      return { content: content.text, thinking, toolCalls: [], usage, finishReason, error: error.message, stalled: true };
+    }
+  };
+}
+
 /**
  * 直连模式：手机直接跟模型说话，中间不经过任何服务器。
  *
@@ -325,6 +348,7 @@ async function streamDirect(
         onDelta({ meta: { model } });
         const j = (typeof nat.data === "object" ? nat.data : parseJsonSafe(raw)) as {
           choices?: {
+            finish_reason?: string;
             message?: {
               content?: string | null;
               reasoning_content?: string | null;
@@ -340,6 +364,7 @@ async function streamDirect(
           } | null;
         } | null;
         const msg = j?.choices?.[0]?.message;
+        if (j?.choices?.[0]?.finish_reason) onDelta({ finishReason: j.choices[0].finish_reason });
         if (msg?.reasoning_content) onDelta({ thinking: msg.reasoning_content });
         if (msg?.content) onDelta({ content: msg.content });
         if (msg?.tool_calls?.length) onDelta({ toolCalls: msg.tool_calls });
@@ -348,7 +373,7 @@ async function streamDirect(
             usage: normalizeUsage(j.usage),
           });
         }
-        if (!msg?.content && !msg?.tool_calls?.length) {
+        if (!msg?.content && !msg?.tool_calls?.length && !msg?.reasoning_content) {
           onDelta({ error: "上游没返回内容（这条上游可能不支持非流式请求）", done: true });
           return { stalled: false, toolsRejected: false };
         }
@@ -408,6 +433,8 @@ async function readSseStream(
   let finished = false;
   let sawAnyData = false;
 
+  const textStream = new StreamTextAccumulator();
+  const thinkingStream = new StreamTextAccumulator();
   const handle = (payload: string) => {
     if (!payload || payload === "[DONE]") {
       if (!finished) {
@@ -421,6 +448,7 @@ async function readSseStream(
         choices?: {
           /** 结束原因（`stop` / `length` / `tool_calls` …） */
           finish_reason?: string | null;
+          message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null; tool_calls?: WireToolCall[] };
           delta?: {
             content?: string | null;
             reasoning_content?: string | null;
@@ -447,11 +475,11 @@ async function readSseStream(
       }
       const choice = j.choices?.[0];
       if (choice?.finish_reason) onDelta({ finishReason: choice.finish_reason });
-      const d = choice?.delta;
+      const d = choice?.delta ?? choice?.message;
       // 思考链：DeepSeek 用 reasoning_content，个别实现用 reasoning
       const think = d?.reasoning_content ?? d?.reasoning;
-      if (think) onDelta({ thinking: think });
-      if (d?.content) onDelta({ content: d.content });
+      if (think) { const added = thinkingStream.append(think, !choice?.delta); if (added) onDelta({ thinking: added }); }
+      if (d?.content) { const added = textStream.append(d.content, !choice?.delta); if (added) onDelta({ content: added }); }
       // 原生工具调用：**原样透传**分片，拼装只有一处实现（lib/tool-calls）
       if (d?.tool_calls?.length) sawAnyData = true;
       if (d?.tool_calls?.length) onDelta({ toolCalls: d.tool_calls });
@@ -465,53 +493,27 @@ async function readSseStream(
     }
   };
 
-  /**
-   * 看门狗：流式连接**长时间不吐字**绝不能无限等。
-   *
-   * 实测症状：思考链很长时，连接被中途掐断（经过代理/中转时尤其常见），
-   * 界面上就是"卡住"，最后只剩一条空回复。
-   * 这里 45 秒没有新数据就主动断开 —— 已经收到的内容全部保住，
-   * 上层会告诉用户"是断了，不是没话说"。
-   */
-  let lastAt = Date.now();
-  let stalled = false;
-  const stallTimer = window.setInterval(() => {
-    if (Date.now() - lastAt > 45_000) stalled = true;
-  }, 3000);
-  const stall = new Promise<"stall">((resolve) => {
-    const wait = window.setInterval(() => {
-      if (stalled) {
-        window.clearInterval(wait);
-        resolve("stall");
+  const stalled = false;
+  try {
+    while (!finished) {
+      const { done, value } = await readModelChunk(reader, signal);
+      if (done) break;
+      onDelta({}); // 包括心跳在内的真实网络数据都刷新无数据等待时间。
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        sawAnyData = true;
+        handle(trimmed.slice(5).trim());
       }
-    }, 500);
-  });
-
-  while (true) {
-    const next = await Promise.race([reader.read(), stall]);
-    if (next === "stall") {
-      try {
-        await reader.cancel();
-      } catch {
-        /* ignore */
-      }
-      break;
     }
-    const { done, value } = next;
-    if (done) break;
-    lastAt = Date.now();
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      sawAnyData = true;
-      handle(trimmed.slice(5).trim());
-    }
+    if (buf.trim().startsWith("data:")) handle(buf.trim().slice(5).trim());
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  window.clearInterval(stallTimer);
-  if (buf.trim().startsWith("data:")) handle(buf.trim().slice(5).trim());
 
   /**
    * 一整束里连一个 `data:` 行都没有 → 对方把流式请求当成非流式答了。
@@ -530,6 +532,15 @@ async function readSseStream(
   return { stalled, toolsRejected: false };
 }
 
+export async function streamChat(req: ChatRequest, onDelta: (delta: ChatDelta) => void, signal?: AbortSignal): Promise<void> {
+  try {
+    await withModelIdleTimeout(signal, onDelta, (activeSignal, receive) => streamChatUnwatched(req, receive, activeSignal));
+  } catch (error) {
+    if (signal?.aborted || !(error instanceof ModelIdleTimeoutError)) throw error;
+    onDelta({ error: error.message, done: true });
+  }
+}
+
 /* ─────────────────── 工具循环用的一轮（同一条直连路径） ─────────────────── */
 
 /**
@@ -541,17 +552,19 @@ async function readSseStream(
  * @param fetchImpl 测试注入用的假 fetch（默认真 fetch）
  */
 export function makeDirectRound(req: ChatRequest, fetchImpl?: typeof fetch): ToolRoundSend {
-  return async ({ messages, tools, onDelta, signal }): Promise<ToolRoundResult> => {
+  return guardedRound(async ({ messages, tools, onDelta, signal }): Promise<ToolRoundResult> => {
     const acc = createDeltaAccumulator();
     let content = "";
     let thinking = "";
     let usage: ToolRoundResult["usage"];
     let error: string | undefined;
+    let finishReason: string | undefined;
 
     const outcome = await streamDirect(
       { ...req, assembled: messages, assembledMessages: messages, actionTools: tools ?? undefined },
       (d: ChatDelta) => {
         if (d.error) error = d.error;
+        if (d.finishReason) finishReason = d.finishReason;
         if (d.usage) usage = mergeReportedUsage(usage, d.usage);
         if (d.thinking) thinking += d.thinking;
         if (d.content) content += d.content;
@@ -564,6 +577,7 @@ export function makeDirectRound(req: ChatRequest, fetchImpl?: typeof fetch): Too
 
     return {
       content,
+      finishReason,
       thinking,
       toolCalls: acc.calls(),
       usage,
@@ -571,7 +585,7 @@ export function makeDirectRound(req: ChatRequest, fetchImpl?: typeof fetch): Too
       stalled: outcome.stalled,
       toolsRejected: outcome.toolsRejected,
     };
-  };
+  });
 }
 
 /** 构建时就定下来：给 APK 打包时设 VITE_DIRECT_UPSTREAM=1 */
@@ -631,36 +645,43 @@ async function postServerChat(
 async function readServerStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (d: ChatDelta) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
+  const content = new StreamTextAccumulator();
   let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const payload = trimmed.slice(5).trim();
-      if (!payload || payload === "[DONE]") {
-        onDelta({ done: true });
-        continue;
-      }
-      try {
-        const json = JSON.parse(payload) as ChatDelta;
-        onDelta(json);
-      } catch {
-        /* skip malformed chunk */
-      }
+  let ended = false;
+  const handle = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const payload = trimmed.slice(5).trim();
+    if (payload === "[DONE]") { ended = true; return; }
+    if (!payload) return;
+    let delta: ChatDelta;
+    try { delta = JSON.parse(payload) as ChatDelta; } catch { return; }
+    if (delta.content) delta = { ...delta, content: content.append(delta.content) || undefined };
+    if (delta.done) ended = true;
+    onDelta(delta);
+  };
+  try {
+    while (!ended) {
+      const { done, value } = await readModelChunk(reader, signal);
+      if (done) break;
+      onDelta({});
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop() ?? "";
+      for (const line of lines) handle(line);
     }
+    if (buf.trim()) handle(buf);
+    onDelta({ done: true });
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  onDelta({ done: true });
 }
 
-export async function streamChat(
+async function streamChatUnwatched(
   req: ChatRequest,
   onDelta: (d: ChatDelta) => void,
   signal?: AbortSignal,
@@ -682,7 +703,7 @@ export async function streamChat(
     onDelta({ error: "无法读取回复流", done: true });
     return;
   }
-  await readServerStream(res.body, onDelta);
+  await readServerStream(res.body, onDelta, signal);
 }
 
 /* ─────────────────── 工具循环用的一轮（走服务端那一跳） ─────────────────── */
@@ -695,12 +716,13 @@ export async function streamChat(
  * 免得"电脑上"和"手机上"变成两套行为。
  */
 export function makeServerRound(req: ChatRequest): ToolRoundSend {
-  return async ({ messages, tools, onDelta, signal }): Promise<ToolRoundResult> => {
+  return guardedRound(async ({ messages, tools, onDelta, signal }): Promise<ToolRoundResult> => {
     const acc = createDeltaAccumulator();
     let content = "";
     let thinking = "";
     let usage: ToolRoundResult["usage"];
     let error: string | undefined;
+    let finishReason: string | undefined;
 
     const payload: ChatRequest = {
       ...req,
@@ -711,6 +733,7 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
     const outcome: { fail?: { status: number; message: string; toolsUnsupported?: boolean } } = {};
     const receiveDelta = (d: ChatDelta) => {
       if (d.error) error = d.error;
+        if (d.finishReason) finishReason = d.finishReason;
       if (d.usage) usage = mergeReportedUsage(usage, d.usage);
       if (d.thinking) thinking += d.thinking;
       if (d.content) content += d.content;
@@ -747,9 +770,9 @@ export function makeServerRound(req: ChatRequest): ToolRoundSend {
     if (!res.body) {
       return { content, thinking, toolCalls: acc.calls(), usage, error: "无法读取回复流" };
     }
-    await readServerStream(res.body, receiveDelta);
-    return { content, thinking, toolCalls: acc.calls(), usage, error };
-  };
+    await readServerStream(res.body, receiveDelta, signal);
+    return { content, thinking, toolCalls: acc.calls(), usage, error, finishReason };
+  });
 }
 
 export type HistoryOpts = {

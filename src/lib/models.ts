@@ -42,7 +42,7 @@ export type ModelOption = {
  * 真正的模型名**不在这里**：走哪家由用户在「我的 → 自定义上游」里填
  * （或服务端用 QIDAO_UPSTREAM_MODEL 配）。这个文件不该出现任何厂商名。
  *
- * maxTokens 从 1024/2048/3072 上调到 4096/8192/8192：原来太小，
+ * maxTokens 默认为 4096/16384/16384：原来太小，
  * 思考链一长就把额度吃光、正文一个字都写不出来（用户实测"空回复"）。
  */
 export const MODELS: ModelOption[] = [
@@ -64,7 +64,7 @@ export const MODELS: ModelOption[] = [
     // OpenAI 方言的档位名只有 low / medium / high；DeepSeek 那边 medium 实为 high，
     // 但这里发的是通用值，中转网关（OpenAI 兼容层）认 medium。
     wire: { thinking: true, effort: "high" },
-    maxTokens: 8192,
+    maxTokens: 16384,
     mapping: "中",
   },
   {
@@ -74,7 +74,7 @@ export const MODELS: ModelOption[] = [
     effort: "high",
     // max 是 DeepSeek 的顶格档（xhigh / ultra 都会收敛到 max）
     wire: { thinking: true, effort: "max" },
-    maxTokens: 8192,
+    maxTokens: 16384,
     mapping: "深",
   },
 ];
@@ -97,3 +97,4 @@ export function isOwnApi(settings: { customApiKey?: string; customBaseUrl?: stri
   return Boolean((settings.customApiKey ?? "").trim() || (settings.customBaseUrl ?? "").trim());
 }
 export const QUOTA_WINDOW_MS = 5 * 60 * 60 * 1000;
+

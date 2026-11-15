@@ -18,20 +18,22 @@ const boundary = {
     export const streamChat = (...args) => globalThis.__qidaoTurnFixture.text(...args);`,
   "@/lib/prompt": `export const promptToolsFor = () => [];
     export const systemPrompt = () => "test system";
+    export const systemPromptSections = () => [{id:"system",title:"系统",text:"test system"}];
+    export const perceptionBlock = () => "";
     export const assembleMessages = (_, history) => [{role:"system", content:"test system"}, ...history];
     export const actionFeedback = () => "";
     export const pickWorldEntries = () => ({always:[], hit:[]});`,
   "@/lib/awareness": "export const buildContext = () => ({});",
   "@/lib/stickers": "export const DEFAULT_STICKER_GROUP = 'default'; export const stickerGroupList = () => [];",
   "@/lib/branding": "export const resolveAiName = () => '小克';",
-  "@/lib/models": "export const isOwnApi = () => true; export const QUOTA_LIMIT = 1000;",
+  "@/lib/models": "export const isOwnApi = () => true; export const QUOTA_LIMIT = 1000; export const getModel = () => ({maxTokens:16384});",
   "@/lib/announce": "export const announceAssistantMessage = () => {};",
   "@/lib/toast": "export const pushToast = () => {};",
   "@/lib/summarizer": "export const maybeSummarize = async () => {};",
   "@/lib/voice-bubble": `export const buildVoiceAttachment = async () => null;
     export const shouldVoiceReply = () => false; export const sweepVoiceAudio = () => {};`,
   "@/lib/tool-select": "export const selectActionKinds = ({allKinds}) => ({kinds:allKinds,groups:[]});",
-  "@/lib/tokens": "export const estimateTokens = () => 0;",
+  "@/lib/tokens": "export const estimateTokens = () => 0; export const shortHash = () => 'test';",
   "@/lib/breadcrumbs": "export const crumb = () => {}; export const setPhase = () => {};",
   "@/lib/tool-protocol": "export const shouldUseNativeTools = () => true;",
   "@/lib/utils": "export const uid = () => crypto.randomUUID();",
@@ -64,7 +66,8 @@ async function runScenario(protocol, mode = protocol) {
   f.state = {
     settings:{ permissions:{}, mergeSend:false, segmentReply:false, notifications:false },
     model:"test", conversations:[{id:"conv", messages:[message]}],
-    actionLog:[], pendingActions:[], mcp:[], httpTools:[], skills:[],
+    actionLog:[], pendingActions:[], mcp:[], httpTools:[], skills:[], requestLog:[],
+    logRequest:(entry) => { const rows=f.state.requestLog; const index=rows.findIndex((old)=>old.requestId===entry.requestId); if(index<0)rows.unshift(entry);else rows[index]={...rows[index],...entry}; },
     worldBook:[], stickerLib:[], stickerGroups:[],
     enabledTools:() => [],
     takeReplyStickers:() => { const result = stickers; stickers = []; return result; },
@@ -94,7 +97,7 @@ async function runScenario(protocol, mode = protocol) {
     requests.push(messages);
     const i = nativeRound++;
     const content = i === 0 ? first : mode === "mixed" ? second + textBlock("温柔") : i === 1 ? second : last;
-    const toolCalls = i === 0 ? calls("亲近") : i === 1 && mode !== "mixed" ? calls("温柔") : [];
+    const toolCalls = i === 0 ? [...calls("亲近"), ...(mode === "mixed" ? [{index:2,id:"lookup",name:"web_search",args:'{"query":"fixture"}'}] : [])] : i === 1 && mode !== "mixed" ? calls("温柔") : [];
     await emit(onDelta, content, toolCalls);
     return {content, thinking:"想靠近。", toolCalls};
   };
@@ -108,27 +111,85 @@ async function runScenario(protocol, mode = protocol) {
   useChatStream({forceProtocol:protocol});
   // The first useCallback is the production runStream callback; no copied execution logic.
   await f.callbacks[0]("conv", "reply", [{role:"user", content:"你暖和吗？"}]);
-  const expected = first + "\n\n" + second + "\n\n" + last;
+  const expected = mode === "mixed" ? first + "\n\n" + second : first;
   assert.equal(message.content, expected);
-  assert.deepEqual(executed.map((a) => a.kind), ["emotion.report", "sticker.send"]);
+  assert.deepEqual(executed.map((a) => a.kind), ["emotion.report", "sticker.send", ...(mode === "mixed" ? ["web.search"] : [])]);
   assert.equal(message.attachments.length, 1);
-  assert.equal(message.steps.filter((s) => s.kind === "call" && s.call.ok).length, 2);
-  assert.equal(message.steps.filter((s) => s.kind === "call" && s.call.category === "skipped").length, 2);
+  assert.equal(message.steps.filter((s) => s.kind === "call" && s.call.ok).length, mode === "mixed" ? 3 : 2);
+  assert.equal(message.steps.filter((s) => s.kind === "call" && s.call.category === "skipped").length, mode === "mixed" ? 2 : 0);
   assert.match(message.thinking, /想靠近/);
   const visible = snapshots.filter(Boolean);
   const start = visible.findIndex((text) => text.includes(first));
   assert.ok(start >= 0);
   assert.ok(visible.slice(start).every((text) => text.includes(first)), "first paragraph must never disappear");
-  assert.equal(requests.length, 3);
+  assert.equal(requests.length, mode === "mixed" ? 2 : 1);
   return message;
 }
 
-test("native chat preserves successive paragraphs and executes emotion/sticker once", async () => {
+test("native chat finishes after successful emotion/sticker without another generation", async () => {
   await runScenario("native");
 });
-test("text fallback preserves successive paragraphs and executes emotion/sticker once", async () => {
+test("text fallback finishes after successful emotion/sticker without another generation", async () => {
   await runScenario("text");
 });
 test("native tools and text action blocks share the same per-reply limits", async () => {
   await runScenario("native", "mixed");
+});
+
+
+async function thinkingScenario(protocol, options = {}) {
+  const message = { id:"thinking-reply", role:"assistant", content:"" };
+  const requests = [], logs = [];
+  f.callbacks = [];
+  f.state = { settings:{permissions:{},mergeSend:false,segmentReply:false,notifications:false}, model:"test",
+    conversations:[{id:"conv",messages:[message]}], actionLog:[],pendingActions:[],mcp:[],httpTools:[],skills:[],
+    worldBook:[],stickerLib:[],stickerGroups:[],requestLog:logs,
+    enabledTools:()=>[],takeReplyStickers:()=>[],
+    patchMessage:(_c,_m,patch)=>Object.assign(message,patch),
+    finalizeAssistant:(_c,_m,patch)=>Object.assign(message,patch),
+    logRequest:(entry)=>{const i=logs.findIndex((old)=>old.requestId===entry.requestId);if(i<0)logs.unshift(entry);else logs[i]={...logs[i],...entry};},
+    requestAction:()=>{throw Error("answer recovery must not execute actions");},
+  };
+  let api;
+  const generate = async (args) => {
+    requests.push(args);
+    const first = requests.length === 1;
+    if (first || options.failRecovery) {
+      args.onDelta({thinking:"已经想清楚了，需要把答案说出来。"});
+      args.onDelta({finishReason:"length"});
+      if (options.stop) api.stop();
+      const usage={prompt:100,completion:80,cached:50};args.onDelta({usage});
+      return {content:"",thinking:"已经想清楚了，需要把答案说出来。",toolCalls:[],finishReason:"length",usage};
+    }
+    assert.equal(args.tools,null,"recovery does not expose executable tools");
+    assert.ok(args.messages.some((entry)=>entry.role==="assistant"&&entry.reasoning_content),"preserve the thought in its protocol field");
+    assert.match(args.messages.at(-1).content,/不再调用工具/);
+    args.onDelta({content:"我想好了，现在把答案告诉你。"});
+    args.onDelta({finishReason:"stop"});
+    return {content:"我想好了，现在把答案告诉你。",thinking:"",toolCalls:[],finishReason:"stop",usage:{prompt:40,completion:10,cached:20}};
+  };
+  f.native=generate;
+  f.text=async (req,onDelta)=>{await generate({messages:req.messages,onDelta,tools:undefined});};
+  api=useChatStream({forceProtocol:protocol});
+  await f.callbacks[0]("conv",message.id,[{role:"user",content:"想清楚后告诉我。"}]);
+  return {message,requests,logs};
+}
+
+test("thinking-only native result gets one answer-only recovery and preserves all usage", async()=>{
+  const r=await thinkingScenario("native");
+  assert.equal(r.requests.length,2);assert.match(r.message.content,/把答案告诉你/);
+  assert.match(r.message.thinking,/已经想清楚/);assert.equal(r.message.requestError,undefined);
+  assert.equal(r.message.usage.prompt,140);assert.equal(r.message.usage.cached,70);
+  assert.deepEqual(new Set(r.logs.map((entry)=>entry.purpose)),new Set(["chat","recovery"]));
+});
+test("thinking-only text response uses the same one-shot recovery",async()=>{
+  const r=await thinkingScenario("text");assert.equal(r.requests.length,2);assert.match(r.message.content,/把答案告诉你/);
+});
+test("another thinking-only recovery does not loop or silently succeed",async()=>{
+  const r=await thinkingScenario("native",{failRecovery:true});
+  assert.equal(r.requests.length,2);assert.match(r.message.requestError,/已尝试补一次/);
+});
+test("user stop preserves thinking and never starts recovery",async()=>{
+  const r=await thinkingScenario("native",{stop:true});
+  assert.equal(r.requests.length,1);assert.match(r.message.content,/已停止/);assert.match(r.message.thinking,/已经想清楚/);
 });

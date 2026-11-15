@@ -119,6 +119,8 @@ export type RequestLogEntry = {
   /** 这一轮发给上游的工具定义（JSON Schema）约多少 token —— 没走原生工具就是 0 */
   tools?: number;
   /** 一条回复可能请求模型多次；逐次记录，避免合计与单次输入混用。 */
+  requestId?: string;
+  purpose?: "chat" | "tool" | "continuation" | "recovery" | "summary";
   replyId?: string;
   conversationId?: string;
   requestIndex?: number;
@@ -389,8 +391,8 @@ export type Conversation = {
     /** 生成时那批原文的 token —— 跟上面一比就是省了多少 */
     sourceTokens: number;
     /**
-     * 第几次摘要（0 = 第一次）。旧摘要的"保留配额"靠它衰减：
-     * 100% → 70% → 50% → 40% 地板（用户 m09621 拍板）。
+     * 第几次摘要（0 = 第一次）。仅用于记录总结次数，不再按记忆年龄分配删减配额：
+     * 此前重要的经历和约定由自然回顾继续保留。
      */
     passes?: number;
     updatedAt: number;
@@ -719,7 +721,7 @@ export type Settings = {
    */
   chatCrab?: { enabled: boolean; size: 28 | 32 | 36 | 44 | 52; activity: "lively" | "quiet"; speech?: boolean; draggable?: boolean; motion?: "on" | "auto" | "off"; anchor?: { x: number; y: number } };
   segmentReply?: boolean;
-  /** 一次最多几条（1–12），超出的内容并入最后一条 */
+  /** 旧存档兼容字段；气泡不再限制总数，也不把尾部合并。 */
   segmentMaxParts?: number;
   /** **每条最多几句**（1–4）—— 超过就按句末标点再切 */
   segmentMaxSentences?: number;

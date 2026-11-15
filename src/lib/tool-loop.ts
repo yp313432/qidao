@@ -6,7 +6,7 @@ import type { AssembledToolCall } from "@/lib/tool-calls";
 import type { AppAction, ToolCallRecord } from "@/lib/types";
 // 外部工具（MCP / 自配 HTTP）走同一条原生 tools 通道 —— 见 `external-tools.ts` 的文件头
 import { matchExternalTool, type ExternalActionTool } from "@/lib/external-tools";
-import { mergeReplyText } from "@/lib/reply-text";
+import { mergeReplyText, canFinishAfterSideEffects, StreamTextAccumulator } from "@/lib/reply-text";
 
 /**
  * 能塞进 `tools` 数组的东西：内置动作（`ActionTool`）+ 外部工具（`ExternalActionTool`）。
@@ -132,6 +132,8 @@ export type ToolOutcomeCategory =
 
 /** 一次工具调用的执行结果（要回灌给模型、也要显示给用户的那句话） */
 export type ToolCallOutcome = {
+  /** 本次调用被去重，且本回复先前同类动作已有成功回执。 */
+  alreadyCompleted?: boolean;
   /** 回灌给模型的**人话结果**（成功、被拒绝、参数坏了，都在这儿） */
   result: string;
   /** ⭐ 界面上那一行"永远有回话"的结论：`✅ 动作名 · 结果` / `❌ …` / `⚠️ 没有叫 … 的动作` */
@@ -149,6 +151,7 @@ export type ToolRoundRecord = {
 
 /** 单轮请求的返回值（由 transport 提供） */
 export type ToolRoundResult = {
+  finishReason?: string;
   content: string;
   thinking: string;
   toolCalls: AssembledToolCall[];
@@ -189,6 +192,8 @@ export type ToolLoopStop =
   | "unknownAction";
 
 export type RunToolLoopResult = {
+  finishReason?: string;
+  finishedAfterSideEffects?: boolean;
   /** Last assistant round, separate from the aggregate thinking displayed by the UI. */
   reasoningContent?: string;
   /** 各轮可见正文拼起来（工具轮的"我去查一下"也在这儿） */
@@ -253,6 +258,7 @@ export async function runActions(
  */
 export function createTurnActionRunner(execute: typeof runActions = runActions): typeof runActions {
   const used = new Set<string>();
+  const completed = new Set<string>();
   return async (calls, signal, deadline) => {
     const outcomes: ToolCallOutcome[] = [];
     for (const call of calls) {
@@ -262,6 +268,7 @@ export function createTurnActionRunner(execute: typeof runActions = runActions):
         const title = kind === "emotion.report" ? "记录情绪" : "发表情包";
         outcomes.push({
           ok: false, category: "skipped", title,
+          alreadyCompleted: completed.has(kind),
           notice: `⚠️ ${title} · 本次回复已使用，未重复执行`,
           result: `本次回复的「${kind}」已执行或仍在等待结果；每次回复最多一次，本次没有再次执行。请根据已有结果继续回复，不要再调用这个动作。`,
         });
@@ -270,6 +277,7 @@ export function createTurnActionRunner(execute: typeof runActions = runActions):
       // 执行前占位，同批多个调用和并发请求都不能绕过限制。
       if (limited) used.add(kind);
       const [outcome] = await execute([call], signal, deadline);
+      if (limited && outcome?.ok) completed.add(kind);
       if (limited && outcome && ["badargs", "unknown", "denied", "refused"].includes(outcome.category)) used.delete(kind);
       outcomes.push(outcome);
     }
@@ -887,6 +895,7 @@ export async function runToolLoop(input: {
   signal?: AbortSignal;
   maxRounds?: number;
   budgetMs?: number;
+  finishAfterSideEffects?: boolean;
 }): Promise<RunToolLoopResult> {
   const exec = input.runActions ?? createTurnActionRunner();
   const maxRounds = Math.max(1, input.maxRounds ?? TOOL_LOOP_MAX);
@@ -903,6 +912,8 @@ export async function runToolLoop(input: {
   let replyText = "";
   /** 当前这一轮攒的正文 */
   let roundText = "";
+  let finishReason: string | undefined;
+  let finishedAfterSideEffects = false;
   let usage: RunToolLoopResult["usage"];
   let stalled = false;
   let error: string | undefined;
@@ -935,13 +946,15 @@ export async function runToolLoop(input: {
 
   for (let round = 1; round <= maxRounds; round += 1) {
     roundText = "";
+    const roundStream = new StreamTextAccumulator();
     let roundThinking = "";
     const r = await input.send({
       messages: [...input.baseMessages, ...extra],
       tools: input.tools,
       onDelta: (d) => {
         if (d.content) {
-          roundText += d.content;
+          roundStream.append(d.content);
+          roundText = roundStream.text;
         }
         if (d.thinking) { thinking += d.thinking; roundThinking += d.thinking; }
         input.onDelta?.(d);
@@ -966,6 +979,7 @@ export async function runToolLoop(input: {
       };
     }
     reasoningContent = r.thinking || roundThinking;
+    finishReason = r.finishReason;
     if (r.error) error = r.error;
     // 有些传输只在完成时返回整段内容；采用完成结果，同时把最终快照交给界面。
     const completedText = r.content || roundText;
@@ -1013,7 +1027,8 @@ export async function runToolLoop(input: {
       calls: r.toolCalls.map((c, i) => ({
         name: c.name,
         title: outcomes[i]?.title,
-        kind: kindOfToolName(c.name) ?? externalKind(c.name),        args: c.args,
+        kind: kindOfToolName(c.name) ?? externalKind(c.name),
+        args: c.args,
         result: outcomes[i]?.result ?? "",
         notice: outcomes[i]?.notice ?? "",
         category: outcomes[i]?.category ?? "pending",
@@ -1025,6 +1040,10 @@ export async function runToolLoop(input: {
     // ⭐ 关键的一步：结果**立刻**变成 tool 消息，下一轮请求就带着它
     //    （`r.thinking` 一并回传 —— 开了思考模式的上游缺这个字段会 400）
     extra.push(...toolResultMessages(r.toolCalls, outcomes, reasoningContent, completedText));
+    if (input.finishAfterSideEffects && !r.error && canFinishAfterSideEffects(replyText, record.calls.map((call) => call.kind), outcomes)) {
+      finishedAfterSideEffects = true;
+      break;
+    }
 
     /**
      * ⭐ 未知动作的闸门命中：**不再请求模型**，这一轮就收尾。
@@ -1057,6 +1076,8 @@ export async function runToolLoop(input: {
   const hitLimit = stoppedBy !== "done";
   return {
     content: replyText,
+    finishReason,
+    finishedAfterSideEffects,
     thinking,
     reasoningContent,
     pendingCalls,
@@ -1081,5 +1102,6 @@ export async function runToolLoop(input: {
       : undefined,
   };
 }
+
 
 

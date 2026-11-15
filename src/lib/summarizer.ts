@@ -6,35 +6,21 @@ import {
   type ChatDelta,
   type ChatRequest,
 } from "@/lib/chat-client";
-import { assembleMessages } from "@/lib/prompt";
 import { useApp } from "@/lib/store";
 import {
   buildSummaryPrompt,
   planSummary,
-  SUMMARY_MAX_CHARS,
+  summarySystemPrompt,
+  cleanSummaryText,
   type ConversationSummary,
   type SummaryMsg,
 } from "@/lib/summary";
-import { estimateTokens } from "@/lib/tokens";
-import type { ModelId } from "@/lib/models";
-import type { ReplyStyle, Conversation } from "@/lib/types";
+import { estimateTokens, shortHash } from "@/lib/tokens";
+import { measureRequest, mergeReportedUsage } from "@/lib/request-accounting";
+import { uid } from "@/lib/utils";
+import type { Conversation } from "@/lib/types";
 
-/**
- * 对话摘要（滚动摘要）—— **真的去跑**：判定在 `lib/summary.ts`，这里负责发请求和落库。
- *
- * 用户拍板的需求：
- *   "ai 写，五十八十轮对话总结一次，你举得这个次数可以吗，还是要改，给我建议"
- *   → 建议是**不按轮数**、按空间触发（历史用到留给历史那部分的 80%）。
- *     默认预算 12000 时大约每 15~20 轮一次；预算调大频率自然降低。
- *   "摘要我也要能看见和编辑，就是屏幕总结完出现一条线，展开就是摘要"
- *   → 存在 `conversation.summary` 里，界面在对话顶部画一条可展开的线（能看能改）。
- *
- * 两条纪律（改的时候别破坏）：
- *   ① **不占用户的对话额度、也不产生新的对话消息** —— 它是一次后台的小请求：
- *      没有工具、没有历史、没有感知层，只有一段摘要提示词。
- *   ② **失败不能影响主流程** —— 摘不出来就照旧走"整条丢"，绝不能因为摘要失败
- *      让这一轮回复出问题。
- */
+/** 回顾请求独立于聊天说明书；记录用量，失败不影响聊天，不推进原文水位线。 */
 
 /** 库里那条消息之前已经被摘要吸收的位置（"水位线"）。没有摘要时是 0。 */
 function watermark(conv: Conversation): number {
@@ -46,62 +32,58 @@ function sliceMessages(conv: Conversation, endExclusive: number) {
   return conv.messages.slice(watermark(conv), endExclusive);
 }
 
-/**
- * 调模型把一段对话压成摘要。
- *
- * **故意不传** `aiName` / `persona` / `context` / `worldAlways`：
- * 摘要不需要人设，也不需要"此刻在干什么" —— 多传只会让它更容易发挥（写进原文没有的东西），
- * 而往上下文里投毒（假记忆）**比忘掉更糟**。
- */
+/** 总结使用独立指令，只携带本次原文、此前回顾和当前心态语境。 */
 export async function summarizeBatch(opts: {
   prompt: string;
+  conversationId?: string;
+  replyId?: string;
   signal?: AbortSignal;
 }): Promise<string | null> {
   const st = useApp.getState();
   const settings = st.settings;
-  const model: ModelId = st.model;
-  const style: ReplyStyle = settings.replyStyle;
-
+  const system = summarySystemPrompt();
+  const messages: ApiMessage[] = [{ role: "system", content: system }, { role: "user", content: opts.prompt }];
   const req: ChatRequest = {
-    model,
-    messages: [{ role: "user", content: opts.prompt }],
-    style,
-    tools: [],
+    model: "haiku", messages, assembled: messages, assembledMessages: messages,
+    style: settings.replyStyle, tools: [], actionTools: undefined,
     customBaseUrl: settings.customBaseUrl || undefined,
     customApiKey: settings.customApiKey || undefined,
     upstreamModel: settings.upstreamModel || undefined,
-    name: "summary",
-    // 摘要要稳、要短：给它一个明确的上限
-    maxTokens: 700,
-    assembled: assembleMessages(
-      { style, tools: [], name: "summary" },
-      [{ role: "user", content: opts.prompt }],
-    ) as ApiMessage[],
+    effortOn: settings.effortProbeOk === true,
+    maxTokens: 4096,
   };
-
-  let text = "";
-  const onDelta = (d: ChatDelta) => {
-    if (d.content) text += d.content;
+  const replyId = opts.replyId || uid("summaryrun");
+  const requestIndex = Math.max(0, ...st.requestLog.filter((entry) => entry.replyId === replyId).map((entry) => entry.requestIndex ?? 0)) + 1;
+  let upstream = "内置上游";
+  try { if (settings.customBaseUrl) upstream = new URL(settings.customBaseUrl).host; } catch { upstream = "自定义上游"; }
+  const entry = {
+    at: Date.now(), requestId: uid("summaryrequest"), replyId, requestIndex,
+    conversationId: opts.conversationId, purpose: "summary" as const,
+    model: req.upstreamModel || req.model, upstream, promptHash: shortHash(system),
+    systemTokens: estimateTokens(system), tools: 0,
+    inputEstimate: measureRequest(messages, null, { sections: [{ id: "summary", title: "回忆总结指令", text: system }] }),
   };
-
-  const useDirect = Boolean(
-    (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim(),
-  );
-  const send = useDirect ? makeDirectRound(req) : makeServerRound(req);
-  /** 摘要请求**不带 tools**（`tools: null`）—— 它不是"动手"，只是"把这段压一下" */
-  const round = await send({ messages: req.assembled ?? [], tools: null, onDelta, signal: opts.signal });
-  if (round.error && !text) return null;
-
-  const clean = text
-    .replace(/```[\s\S]*?```/g, "") // 它偶尔会包代码块
-    .replace(/^#+\s*/gm, "") // 标题记号
-    /* ⚠️ 只压行内空白：摘要现在是四段（每段一行），压成单空格就把结构吃掉了 */
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    /* 四段各自的上限写在提示词里；这里只兜"整体跑飞"，给标题留点余量 */
-    .slice(0, SUMMARY_MAX_CHARS + 140);
-  return clean || null;
+  st.logRequest(entry);
+  let streamed = "";
+  let usage: ChatDelta["usage"];
+  const receive = (delta: ChatDelta) => {
+    if (delta.content) streamed += delta.content;
+    if (delta.usage) {
+      usage = mergeReportedUsage(usage, delta.usage);
+      useApp.getState().logRequest({ ...entry, prompt: usage?.prompt, completion: usage?.completion, cached: usage?.cached });
+    }
+  };
+  try {
+    const send = settings.customBaseUrl?.trim() && settings.customApiKey?.trim() ? makeDirectRound(req) : makeServerRound(req);
+    const round = await send({ messages, tools: null, onDelta: receive, signal: opts.signal });
+    usage = mergeReportedUsage(usage, round.usage);
+    useApp.getState().logRequest({ ...entry, prompt: usage?.prompt, completion: usage?.completion, cached: usage?.cached });
+    if (round.error || round.stalled || opts.signal?.aborted) return null;
+    return cleanSummaryText(round.content || streamed, round.finishReason === "length");
+  } catch {
+    // 失败不覆盖旧回顾，也不把未总结的原文标成已覆盖。
+    return null;
+  }
 }
 
 /** 把一批消息压成摘要并落库（两个入口共用：自动触发 / 用户点"重新生成"） */
@@ -113,14 +95,24 @@ async function runAndStore(
   upToIndex: number,
   /** 这一批里有多少条是"有内容的"（界面上显示"吸收了 N 条"） */
   coveredAdd: number,
+  replyId?: string,
 ): Promise<string | null> {
   const sourceTokens = batch.reduce((n, m) => n + estimateTokens(m.content), 0);
-  const text = await summarizeBatch({ prompt: buildSummaryPrompt(batch, previous) });
+  const state = useApp.getState();
+  const active = state.conversations.find((conversation) => conversation.id === conversationId);
+  const mood = state.emotionEvents[0];
+  const recent = active?.messages.filter((message) => message.content.trim()).slice(-4)
+    .map((message) => `${message.role === "user" ? "yan" : "我"}：${message.content.trim().slice(0, 240)}`).join("\n");
+  const text = await summarizeBatch({ conversationId, replyId, prompt: buildSummaryPrompt(batch, previous, {
+    now: new Date().toLocaleString("zh-CN", { hour12: false }),
+    mood: mood ? `${mood.primaryEmotion}（${new Date(mood.at).toLocaleString("zh-CN", { hour12: false })}记录）` : undefined,
+    recent,
+  }) });
   if (!text) return null;
   const conv = useApp.getState().conversations.find((c) => c.id === conversationId);
   useApp.getState().patchSummary(conversationId, {
     text,
-    /* 第几次摘要 —— 旧摘要的保留配额按它衰减（用户 m09621） */
+    /* 仅记录总结次数，不再机械压缩旧内容比例。 */
     passes: (previous?.passes ?? 0) + 1,
     upToIndex,
     covered: (conv?.summary?.covered ?? 0) + coveredAdd,
@@ -130,14 +122,10 @@ async function runAndStore(
   return text;
 }
 
-/**
- * 「这一轮写完了，看看要不要摘」—— 给 `use-chat` 每个回合末尾调一次。
- *
- * 判定是纯函数（`planSummary`）：**只有历史用到留给历史那部分的 80% 才摘** ——
- * 正常聊天永远不触发，长对话大约每 15~20 轮一次（预算 12000 时）。
- */
+/** 每轮结束后按未总结消息数判定；最近 keepRecent 条继续保留原文。 */
 export async function maybeSummarize(opts: {
   conversationId: string;
+  replyId?: string;
   /** 这一轮**发出去**的那份历史（顺序 = 发出去的顺序） */
   history: ApiMessage[];
   systemTokens: number;
@@ -170,7 +158,8 @@ export async function maybeSummarize(opts: {
 
   const plan = planSummary({
     messages: batch,
-    summary: conv.summary,
+    // batch 已经过水位线切片；其下标从 0 开始，不能再套一次库内水位线。
+    summary: conv.summary ? { ...conv.summary, upToIndex: 0 } : undefined,
     historyTokens,
     historyRoom: room,
     keepRecent: 0,
@@ -204,7 +193,7 @@ export async function maybeSummarize(opts: {
   }
   if (upTo <= from) return;
 
-  await runAndStore(opts.conversationId, batch.slice(0, take), conv.summary, upTo, take);
+  await runAndStore(opts.conversationId, batch.slice(0, take), conv.summary, upTo, take, opts.replyId);
 }
 
 /** 界面上「重新生成摘要」用：立刻重摘一次（不看触发线） */
@@ -220,8 +209,8 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
 
   /**
    * 手动「重新总结」一次可能面对 400+ 条未摘消息（真机就出现过 434 条）。
-   * 一次性全塞给上游有爆上下文的风险，所以这里按 token 从**最近**往回收：
-   * 超了就只压最近这一段，水位线停在真正压到的那一条，剩下的下次再压。
+   * 一次性全塞给上游有爆上下文的风险，所以这里按 token 从最早未总结的消息依次收取：
+   * 超了就只总结连续的前一段，水位线停在真正压到的那一条，剩下的下次再压。
    */
   const MAX_SRC_TOKENS = 24000;
   let src = batchSrc;
@@ -229,14 +218,13 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
   if (allTokens > MAX_SRC_TOKENS) {
     const kept: typeof batchSrc = [];
     let used = 0;
-    for (let i = batchSrc.length - 1; i >= 0; i -= 1) {
-      const item = batchSrc[i]!;
-      const t = estimateTokens(item.content);
-      if (used + t > MAX_SRC_TOKENS) break;
-      kept.unshift(item);
-      used += t;
+    for (const item of batchSrc) {
+      const tokens = estimateTokens(item.content);
+      if (used + tokens > MAX_SRC_TOKENS) break;
+      kept.push(item); used += tokens;
     }
-    if (kept.length > 0) src = kept;
+    if (!kept.length) return null;
+    src = kept;
   }
 
   const batch: SummaryMsg[] = src.map((m) => ({ role: m.role, content: m.content }));
@@ -251,3 +239,4 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
 }
 
 export { historyForApi };
+

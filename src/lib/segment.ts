@@ -1,7 +1,7 @@
 /** Punctuation-based message segmentation. Markdown structures remain indivisible. */
 export const SEGMENT_SEP = "|||"; // Read old conversations; new prompts never request this marker.
 export const SEGMENT_LIMITS = {
-  maxParts: { min: 1, max: 12, def: 6 },
+  maxParts: { min: 0, max: Number.POSITIVE_INFINITY, def: 0 },
   maxSentences: { min: 1, max: 4, def: 1 },
   delayMs: { min: 400, max: 4000, def: 1200 },
   charDelayMs: { min: 20, max: 120, def: 60 },
@@ -65,7 +65,6 @@ function blocks(raw: string): { text: string; atomic: boolean }[] {
 export function splitSegments(raw: string, opts: { maxParts?: number; maxSentences?: number } = {}): string[] {
   const text = (raw || "").trim();
   if (!text) return [];
-  const maxParts = clamp(opts.maxParts ?? SEGMENT_LIMITS.maxParts.def, 1, 12);
   const per = clamp(opts.maxSentences ?? SEGMENT_LIMITS.maxSentences.def, 1, 12);
   const parts: string[] = [];
   for (const block of blocks(text)) {
@@ -75,10 +74,8 @@ export function splitSegments(raw: string, opts: { maxParts?: number; maxSentenc
       for (let i = 0; i < split.length; i += per) parts.push(split.slice(i, i + per).join(" "));
     }
   }
-  if (maxParts === 1) return [parts.join("\n\n")];
-  return parts.length > maxParts
-    ? [...parts.slice(0, maxParts - 1), parts.slice(maxParts - 1).join("\n\n")]
-    : parts;
+  // maxParts 是旧存档兼容字段，不再把后半段合成一条巨大气泡。
+  return parts;
 }
 export function firstSegment(raw: string): string { return splitSegments(raw)[0] || ""; }
 export function isSegmented(raw: string): boolean { return splitSegments(raw).length > 1; }
@@ -128,3 +125,4 @@ export class BubbleDelivery {
     }
   }
 }
+

@@ -22,9 +22,7 @@ export function ChatDeliverySettings() {
       <p className="k-sect__title mt-4">每条几句</p>
       <KOpts cols={3}>{[1, 2, 3].map((v) => <KOpt key={v} active={(settings.segmentMaxSentences ?? 1) === v}
         onClick={() => patch({ segmentMaxSentences: v })}>{v} 句</KOpt>)}</KOpts>
-      <p className="k-sect__title mt-4">每次最多几条</p>
-      <KOpts cols={3}>{[3, 6, 12].map((v) => <KOpt key={v} active={(settings.segmentMaxParts ?? 6) === v}
-        onClick={() => patch({ segmentMaxParts: v })}>{v} 条</KOpt>)}</KOpts>
+      <p className="k-hint mt-2">按句子自然拆分，不限制气泡总数。</p>
     </>}
     <Row label="合并发送" hint="发送前等待片刻，收齐连续消息再回复"
       checked={settings.mergeSend !== false} onChange={(v) => patch({ mergeSend: v })} />
@@ -47,3 +45,4 @@ export function ChatStickerSettings() {
       onChange={(v) => patch({ stickerRemoveWhite: v })} />
   </Sub>;
 }
+

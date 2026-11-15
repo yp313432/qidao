@@ -139,7 +139,7 @@ export function usageOptionsUnsupported(status: number, detail: string): boolean
 }
 
 /** 缓存比例只用同时返回输入和缓存数字的请求计算，缺失不能算未命中。 */
-export function summarizeUsage(entries: readonly (ReportedUsage & { promptHash?: string; toolsHash?: string; inputEstimate?: InputEstimate; model?: string; upstream?: string })[]) {
+export function summarizeUsage(entries: readonly (ReportedUsage & { promptHash?: string; toolsHash?: string; inputEstimate?: InputEstimate; model?: string; upstream?: string; purpose?: string })[]) {
   let prompt = 0, completion = 0, cached = 0, cacheInput = 0;
   let known = 0, outputKnown = 0, cacheKnown = 0, local = 0, measured = 0, prefixChanges = 0, toolChanges = 0;
   const previous = new Map<string, typeof entries[number]>();
@@ -150,7 +150,7 @@ export function summarizeUsage(entries: readonly (ReportedUsage & { promptHash?:
       cached += entry.cached; cacheInput += entry.prompt; cacheKnown++;
     }
     if (entry.inputEstimate) { local += entry.inputEstimate.total; measured++; }
-    const key = `${entry.upstream ?? ""}|${entry.model ?? ""}`;
+    const key = `${entry.upstream ?? ""}|${entry.model ?? ""}|${entry.purpose === "summary" ? "summary" : "chat"}`;
     const older = previous.get(key);
     if (entry.promptHash && older?.promptHash && entry.promptHash !== older.promptHash) prefixChanges++;
     const hash = entry.inputEstimate?.toolsHash ?? entry.toolsHash;

@@ -1,3 +1,4 @@
+import { StreamTextAccumulator } from "@/lib/reply-text";
 import { normalizeUsage, usageOptionsUnsupported } from "@/lib/request-accounting";
 import { upstreamError } from "@/lib/chat-errors";
 import { createFileRoute } from "@tanstack/react-router";
@@ -75,12 +76,16 @@ type Body = {
 function extractDelta(chunk: unknown): {
   thinking?: string;
   content?: string;
+  finishReason?: string;
+  snapshot?: boolean;
   /** 原生 tools：**原样透传**分片，拼装交给客户端（一处实现见 lib/tool-calls） */
   toolCalls?: unknown[];
   usage?: { prompt?: number; completion?: number; cached?: number; total?: number };
 } {
   const c = chunk as {
     choices?: {
+      finish_reason?: string;
+      message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | { content?: string } | null; tool_calls?: unknown[] };
       delta?: {
         content?: string | null;
         reasoning_content?: string | null;
@@ -102,6 +107,8 @@ function extractDelta(chunk: unknown): {
   const out: {
     thinking?: string;
     content?: string;
+    finishReason?: string;
+    snapshot?: boolean;
     toolCalls?: unknown[];
     usage?: { prompt?: number; completion?: number; cached?: number; total?: number };
   } = {};
@@ -112,7 +119,10 @@ function extractDelta(chunk: unknown): {
     out.usage = normalizeUsage(u);
   }
 
-  const d = c.choices?.[0]?.delta;
+  const choice = c.choices?.[0];
+  if (choice?.finish_reason) out.finishReason = choice.finish_reason;
+  const d = choice?.delta ?? choice?.message;
+  if (!choice?.delta && choice?.message) out.snapshot = true;
   if (d) {
     const thinking =
       (typeof d.reasoning_content === "string" && d.reasoning_content) ||
@@ -221,13 +231,14 @@ export const Route = createFileRoute("/api/chat")({
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify(payload),
+          signal: request.signal,
         });
 
         if ([400, 422].includes(upstream.status) && usageOptionsUnsupported(upstream.status, await upstream.clone().text())) {
           const { stream_options: _usageOptions, ...compatiblePayload } = payload;
           upstream = await fetch(`${base}/chat/completions`, {
             method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify(compatiblePayload),
+            body: JSON.stringify(compatiblePayload), signal: request.signal,
           });
         }
 
@@ -246,6 +257,8 @@ export const Route = createFileRoute("/api/chat")({
         const stream = new ReadableStream({
           async start(controller) {
             let buf = "";
+            const content = new StreamTextAccumulator();
+            const thinking = new StreamTextAccumulator();
             const send = (obj: unknown) => {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
             };
@@ -274,7 +287,9 @@ export const Route = createFileRoute("/api/chat")({
                       continue;
                     }
                     const delta = extractDelta(parsed);
-                    if (delta.thinking || delta.content || delta.usage || delta.toolCalls) send(delta);
+                    if (delta.content) delta.content = content.append(delta.content, delta.snapshot) || undefined;
+                    if (delta.thinking) delta.thinking = thinking.append(delta.thinking, delta.snapshot) || undefined;
+                    if (delta.thinking || delta.content || delta.usage || delta.toolCalls || delta.finishReason) send(delta);
                   } catch {
                     /* skip */
                   }
