@@ -45,7 +45,7 @@ export async function summarizeBatch(opts: {
   const messages: ApiMessage[] = [{ role: "system", content: system }, { role: "user", content: opts.prompt }];
   const req: ChatRequest = {
     model: "haiku", messages, assembled: messages, assembledMessages: messages,
-    style: settings.replyStyle, tools: [], actionTools: undefined,
+    name: settings.displayName, style: settings.replyStyle, tools: [], actionTools: undefined,
     customBaseUrl: settings.customBaseUrl || undefined,
     customApiKey: settings.customApiKey || undefined,
     upstreamModel: settings.upstreamModel || undefined,
