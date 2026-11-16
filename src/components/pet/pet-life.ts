@@ -4,14 +4,28 @@ export type PetAction = 'auto' | 'walk' | 'jump' | 'poke' | 'think' | 'work' | '
 export type LifeOptions = { size: number; quiet: boolean; reduced: boolean; paused: boolean; busy: boolean; working: boolean; draggable: boolean; preview: PetAction; previewKey?: number; anchor?: Point; demo?: boolean; mood?: string; intensity?: number; emotionKey?: string };
 type Hooks = { line: (kind: string) => void; drop?: (point: Point) => void };
 export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTMLElement, composer: HTMLElement | null, options: () => LifeOptions, hooks: Hooks) {
-  let frame = 0, dead = false, last = 0, now = performance.now(), changed = now, next = now + 1000;
+  let frame = 0, dead = false, now = performance.now(), changed = now, next = now + 1000;
   let position: Surface | undefined, from: Point | undefined, target: Surface | undefined;
-  let phase = 'idle', jumping = false, drag: { id: number; x: number; y: number; origin: Point; active: boolean } | undefined;
+  let phase = 'idle', drag: { id: number; x: number; y: number; origin: Point; active: boolean } | undefined;
   let carrying = false;
   let emotionKey: string | undefined, pendingMood: string | undefined, activeMood: string | undefined, nextEmotion = now + 12000;
   let demoPair: ReturnType<typeof previewRoute>; 
   let previousWork = false, preview: PetAction = 'auto', previewKey = -1, lastLine = now;
-  let sceneCache: ReturnType<typeof measureScene> | undefined, measured = -Infinity, measuredSize = 0;
+  let sceneCache: ReturnType<typeof measureScene> | undefined, sceneDirty = true, measuredSize = 0;
+  const invalidateScene = () => { sceneDirty = true; };
+  const resize = new ResizeObserver(invalidateScene);
+  resize.observe(layer); resize.observe(list);
+  if (composer) resize.observe(composer);
+  if (list.firstElementChild) resize.observe(list.firstElementChild);
+  const mutations = new MutationObserver(invalidateScene);
+  mutations.observe(list, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+  list.addEventListener('scroll', invalidateScene, { passive: true });
+  list.addEventListener('load', invalidateScene, true);
+  list.addEventListener('transitionend', invalidateScene);
+  list.addEventListener('animationend', invalidateScene);
+  window.addEventListener('resize', invalidateScene);
+  window.visualViewport?.addEventListener('resize', invalidateScene);
+  window.visualViewport?.addEventListener('scroll', invalidateScene);
   const body = actor.querySelector<SVGGElement>('.crab-body');
   const left = actor.querySelector<SVGElement>('.crab-claw-left'), right = actor.querySelector<SVGElement>('.crab-claw-right');
   const legs = Array.from(actor.querySelectorAll<SVGElement>('.crab-leg'));
@@ -47,20 +61,21 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
   };
   const tick = (time: number) => {
     if (dead || document.hidden) return;
-    now = time; const dt = last ? Math.min(40, time - last) : 0; last = time;
+    now = time;
     const o = options(), w = Math.max(44, o.size + 12), h = Math.max(44, o.size * .75 + 12);
-    layer.dataset.paused = String(o.paused);
+    if (layer.dataset.paused !== String(o.paused)) { layer.dataset.paused = String(o.paused); invalidateScene(); }
     if (o.paused) { frame = requestAnimationFrame(tick); return; }
-    if (!sceneCache || measuredSize !== o.size || now - measured > 140) { measuredSize = o.size; sceneCache = measureScene(layer, list, composer, w, h); measured = now; }
-    const scene = sceneCache;
+    const sceneChanged = !sceneCache || measuredSize !== o.size || sceneDirty;
+    if (sceneChanged) { measuredSize = o.size; sceneCache = measureScene(layer, list, composer, w, h); sceneDirty = false; }
+    const scene = sceneCache!;
     if (o.emotionKey !== emotionKey) { emotionKey = o.emotionKey; pendingMood = o.mood; }
-    actor.dataset.mood = o.mood ?? ''; 
+    if (actor.dataset.mood !== (o.mood ?? '')) actor.dataset.mood = o.mood ?? '';
     if (!position) {
       const anchor = o.anchor;
       position = anchor ? { x: anchor.x * scene.width, y: anchor.y * scene.height } : { ...scene.surfaces[scene.surfaces.length - 1]! };
     }
     // Stand on the same message while it scrolls. Re-routing never resets visibility.
-    if (!target && !drag && position.element?.isConnected) {
+    if (sceneChanged && !target && !drag && position.element?.isConnected) {
       const r = position.element.getBoundingClientRect();
       position.y = r.top - layer.getBoundingClientRect().top - scene.top - h + 4;
     }
@@ -113,7 +128,7 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
       } else {
         const choices = scene.surfaces.filter(p => (o.preview !== 'walk' || Math.abs(p.y-position!.y)<8) && Math.hypot(p.x-position!.x,p.y-position!.y)>25 && Math.hypot(p.x-position!.x,p.y-position!.y)<400 && pathClear(position!,p,scene,w,h,box,Math.abs(p.y-position!.y)>8 || o.preview==='jump'));
         const chosen = choices[Math.floor(Math.random()*choices.length)];
-        if (chosen) { from = { ...position }; target = chosen; position.element = undefined; jumping = Math.abs(chosen.y-position.y)>8 || o.preview==='jump'; set(jumping ? 'crouch' : 'walk'); }
+        if (chosen) { from = { ...position }; target = chosen; position.element = undefined; const jumping = Math.abs(chosen.y-position.y)>8 || o.preview==='jump'; set(jumping ? 'crouch' : 'walk'); }
       }
       next = now + (o.quiet ? 6500 : 2300) + Math.random() * 1600;
     }
@@ -160,8 +175,15 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     }
   };
   const click = () => { if (suppressClick) { suppressClick = false; return; } poke(); };
-  const resume = () => { cancelAnimationFrame(frame); last = 0; if (!document.hidden) frame = requestAnimationFrame(tick); };
+  const resume = () => { cancelAnimationFrame(frame); invalidateScene(); if (!document.hidden) frame = requestAnimationFrame(tick); };
   actor.addEventListener('pointerdown', down); actor.addEventListener('pointermove', move); actor.addEventListener('pointerup', up); actor.addEventListener('pointercancel', up); actor.addEventListener('click', click);
   document.addEventListener('visibilitychange', resume); frame = requestAnimationFrame(tick);
-  return { poke, dispose() { dead = true; cancelAnimationFrame(frame); actor.removeEventListener('pointerdown',down); actor.removeEventListener('pointermove',move); actor.removeEventListener('pointerup',up); actor.removeEventListener('pointercancel',up); actor.removeEventListener('click',click); document.removeEventListener('visibilitychange',resume); } };
+  return { poke, dispose() {
+    dead = true; cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect();
+    list.removeEventListener('scroll', invalidateScene); list.removeEventListener('load', invalidateScene, true);
+    list.removeEventListener('transitionend', invalidateScene); list.removeEventListener('animationend', invalidateScene);
+    window.removeEventListener('resize', invalidateScene);
+    window.visualViewport?.removeEventListener('resize', invalidateScene); window.visualViewport?.removeEventListener('scroll', invalidateScene);
+    actor.removeEventListener('pointerdown',down); actor.removeEventListener('pointermove',move); actor.removeEventListener('pointerup',up); actor.removeEventListener('pointercancel',up); actor.removeEventListener('click',click); document.removeEventListener('visibilitychange',resume);
+  } };
 }

@@ -30,11 +30,13 @@ export function useStickToBottom(
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    let frame = 0;
     const stick = () => {
-      if (!stickBottom.current) return;
+      if (!stickBottom.current || frame) return;
       // 下一帧再滚：键盘收放时 WebView 的高度是异步变的，同帧读到的还是旧值
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (stickBottom.current) el.scrollTop = el.scrollHeight;
       });
     };
     stick();
@@ -47,6 +49,7 @@ export function useStickToBottom(
       attributeFilter: ["data-keyboard"],
     });
     return () => {
+      cancelAnimationFrame(frame);
       vv?.removeEventListener("resize", stick);
       window.removeEventListener("resize", stick);
       mo.disconnect();

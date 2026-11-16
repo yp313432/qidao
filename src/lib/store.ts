@@ -14,6 +14,26 @@ import { createQidaoPersistStorage } from "@/lib/idb-storage";
  */
 const THINKING_KEEP = 40;
 
+// Store 更新采用不可变对象；未变化的会话不必在每次吐字/切页时重新遍历历史。
+const savedConversationCache = new WeakMap<Conversation, Conversation>();
+const savedListCache = new WeakMap<Conversation[], Conversation[]>();
+function conversationsForStorage(conversations: Conversation[]): Conversation[] {
+  const cached = savedListCache.get(conversations);
+  if (cached) return cached;
+  const saved = conversations.filter((c) => !c.incognito).map((c) => {
+    const previous = savedConversationCache.get(c);
+    if (previous) return previous;
+    const next = { ...c, messages: c.messages.map((m, i) =>
+      i >= c.messages.length - THINKING_KEEP || (!m.thinking && !m.reasoningContent)
+        ? m : { ...m, thinking: "", reasoningContent: undefined },
+    ) };
+    savedConversationCache.set(c, next);
+    return next;
+  });
+  savedListCache.set(conversations, saved);
+  return saved;
+}
+
 /**
  * 申请「持久化存储」。
  *
@@ -2014,16 +2034,7 @@ export const useApp = create<AppState>()(
         // 为什么必须做：用户实测 localStorage 已占 8.66MB（上限通常 5~10MB），
         // 而里面**思考链占最多**（一条思考经常一两千字），老思考又没人会回去看。
         // 不清的话随时会写满 —— 而且 localStorage 写满是**静默失败**，很危险。
-        conversations: s.conversations
-          .filter((c) => !c.incognito)
-          .map((c) => ({
-            ...c,
-            messages: c.messages.map((m, i) =>
-              i >= c.messages.length - THINKING_KEEP || (!m.thinking && !m.reasoningContent)
-                ? m
-                : { ...m, thinking: "", reasoningContent: undefined },
-            ),
-          })),
+        conversations: conversationsForStorage(s.conversations),
         activeId: s.conversations.find((c) => c.id === s.activeId && !c.incognito)?.id ?? null,
         model: s.model,
         mcp: s.mcp,
@@ -2223,7 +2234,8 @@ export function applyAppearance(settings: Settings) {
 if (typeof window !== "undefined") {
   let lastMirror = 0;
   let pending: ReturnType<typeof setTimeout> | null = null;
-  useApp.subscribe(() => {
+  useApp.subscribe((state, previous) => {
+    if (state.settings === previous.settings) return;
     const now = Date.now();
     const run = () => {
       lastMirror = Date.now();
@@ -2236,6 +2248,7 @@ if (typeof window !== "undefined") {
       void import("@/lib/data/safety").then((m) => m.mirrorSettings(latest));
     };
     if (now - lastMirror > 1500) {
+      if (pending) { clearTimeout(pending); pending = null; }
       run();
       return;
     }

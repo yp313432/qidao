@@ -13,10 +13,12 @@ export function measureScene(layer: HTMLElement, list: HTMLElement, composer: HT
     (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight));
   const width = Math.max(0, Math.min(box.right, view.right) - left);
   const height = Math.max(h, bottom - top);
-  const obstacles = Array.from(list.querySelectorAll('.k-bubble')).map(el => el.getBoundingClientRect());
+  const bubbles = Array.from(list.querySelectorAll('.k-bubble'))
+    .map(element => ({ element, rect: element.getBoundingClientRect() }));
+  const obstacles = bubbles.map(({ rect }) => rect);
   const surfaces: Surface[] = [];
-  for (const element of list.querySelectorAll('.k-bubble')) {
-    const r = element.getBoundingClientRect(), y = r.top - top - h + 4;
+  for (const { element, rect: r } of bubbles) {
+    const y = r.top - top - h + 4;
     if (r.width < w || y < 6 || y + h > height) continue;
     for (const x of [r.left - left + 4, r.right - left - w - 4]) {
       const p = { x: clamp(x, 4, width - w - 4), y, element };
