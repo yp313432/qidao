@@ -84,7 +84,7 @@ export type ConversationRecord = {
   createdAt: number;
   updatedAt: number;
   /** 摘要（更早的对话压成一份，见 lib/summarizer） */
-  summary?: string;
+  summary?: string | NonNullable<import("@/lib/types").Conversation["summary"]>;
   /** 隐藏对话（"偷偷聊"）不入库 */
   incognito?: boolean;
   /** 消息条数（列表页不用数消息） */

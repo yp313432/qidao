@@ -354,7 +354,9 @@ export function planMigration(
        * 没有才用消息最大时间兜底。
        */
       updatedAt: pickUpdatedAt(c, Math.max(0, ...times)),
-      ...(Object.prototype.hasOwnProperty.call(c, "summary") ? { summary: String(c.summary ?? "") } : {}),
+      ...(Object.prototype.hasOwnProperty.call(c, "summary") ? { summary: c.summary && typeof c.summary === "object"
+        ? c.summary as NonNullable<ConversationRecord["summary"]>
+        : String(c.summary ?? "") } : {}),
       msgCount: convMsgs.length,
       ...(times.length > 0 ? { lastAt: Math.max(...times) } : {}),
       /**

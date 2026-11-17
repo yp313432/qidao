@@ -83,7 +83,8 @@ export function planSummary(input: {
   const start = Math.max(0, input.summary?.upToIndex ?? 0);
   const end = Math.max(start, input.messages.length - keep);
   const pending = end - start;
-  if (pending < every) return none;
+  const nearBudget = input.historyRoom > 0 && input.historyTokens >= input.historyRoom * 0.8;
+  if (pending < (nearBudget ? minBatch : every)) return none;
 
   /** 一次最多摘 SUMMARY_BATCH_MAX 条，剩下的留给下次 */
   const take = Math.min(pending, SUMMARY_BATCH_MAX);
@@ -96,7 +97,7 @@ export function planSummary(input: {
   return {
     should: true,
     batch,
-    prompt: buildSummaryPrompt(batch, input.summary),
+    prompt: buildSummaryPrompt(batch),
     upToIndex,
   };
 }

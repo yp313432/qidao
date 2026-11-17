@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
 import { SkillManager } from "@/components/tools/skill-manager";
-import { SummaryList } from "@/components/tools/summary-list";
 import { ToolCard } from "@/components/tools/tool-card";
 import { KButton, KChip, KEmpty, KHead } from "@/components/ui-kit";
 import { useApp } from "@/lib/store";
@@ -16,7 +15,6 @@ const TABS = [
   { id: "http", label: "HTTP" },
   { id: "mcp", label: "MCP" },
   { id: "skills", label: "Skills" },
-  { id: "summary", label: "摘要" },
   /**
    * **文档**（2026-11 用户 m07602）："工具区的表情包做好之后也可以删了，把文档换过去吧"。
    *
@@ -94,14 +92,6 @@ export function ToolsView() {
 
         {tab === "mcp" && <McpServers />}
         {tab === "skills" && <SkillManager />}
-
-        {/*
-          ── 摘要（2026-11）──────────────────────────────────────
-          用户原话："这个摘要总结完在哪，没看到啊" → 然后："你把摘要后的直接写到工具区的
-          那个文档里面……" 后来 m07602 又改成："把文档换过去吧" ——
-          文档拿回一个**自己的标签**（就是原来表情那格），不再折叠在摘要下面。
-        */}
-        {tab === "summary" && <SummaryList />}
 
         {tab === "docs" && (
           <div className="k-list">

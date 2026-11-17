@@ -52,6 +52,7 @@ export type { CustomPlugin };
 /* ─────────────────── 内置插件（写在代码里的三个） ─────────────────── */
 
 export const BUILTIN_PLUGINS: PluginEntry[] = [
+  { id: "plugin_summaries", name: "摘要库", hint: "沿时间回看对话摘要", kind: "native", slug: "summaries" },
   {
     id: "plugin_shigan",
     name: "时感",

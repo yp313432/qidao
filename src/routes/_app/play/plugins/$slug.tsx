@@ -1,3 +1,4 @@
+import { SummaryList } from "@/components/tools/summary-list";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { PluginFrame } from "@/components/play/plugin-frame";
 import { useEffect } from "react";
@@ -31,6 +32,7 @@ function CustomPluginView() {
   }, [plugin, navigate]);
 
   if (!plugin) return null;
+  if (slug === "summaries") return <SummaryList />;
   if (!plugin.url) throw notFound();
   if (plugin.enabled === false) return <p className="k-note">这个插件已关闭，请回插件列表启用。</p>;
   if (plugin.openMode === "browser") return <div className="k-page k-list">

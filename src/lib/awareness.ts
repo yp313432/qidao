@@ -345,7 +345,7 @@ export function buildAwarenessItems(): AwarenessItem[] {
 }
 
 /** 发给服务端的完整上下文。 */
-export function buildContext(): ChatContext {
+export function buildContext(includeMemory = true): ChatContext {
   const st = useApp.getState();
   const p = usePlayer.getState();
   const t = p.tracks.find((x) => x.id === p.currentId);
@@ -384,6 +384,6 @@ export function buildContext(): ChatContext {
     granted: actionable
       .filter((id) => modeOf(id) === "allow")
       .map((id) => permissionDef(id)?.title ?? id),
-    aware: buildAwarenessItems().map((i) => `${i.title}：${i.text}`),
+    aware: buildAwarenessItems().filter((i) => includeMemory || i.id !== "memory").map((i) => `${i.title}：${i.text}`),
   };
 }

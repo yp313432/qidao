@@ -186,6 +186,7 @@ export type ChatMessage = {
   createdAt: number;
   model?: ModelId;
   savedToDocs?: boolean;
+  summarySources?: string[];
   /** 用户对这条回复的反馈 */
   feedback?: "up" | "down";
   /** 这条消息带的图片 / 文件 / 表情 */
@@ -382,7 +383,9 @@ export type Conversation = {
    *
    * 界面上：对话顶部一条可展开的线，**能看、能改**（用户明确要求能编辑）。
    */
+  summaryArchive?: NonNullable<Conversation["summary"]>[];
   summary?: {
+    fromIndex?: number;
     text: string;
     /** 已经摘到第几条（不含）—— 之前那些消息都在摘要里了 */
     upToIndex: number;

@@ -103,22 +103,24 @@ async function runAndStore(
   const mood = state.emotionEvents[0];
   const recent = active?.messages.filter((message) => message.content.trim()).slice(-4)
     .map((message) => `${message.role === "user" ? "yan" : "我"}：${message.content.trim().slice(0, 240)}`).join("\n");
-  const text = await summarizeBatch({ conversationId, replyId, prompt: buildSummaryPrompt(batch, previous, {
+  const text = await summarizeBatch({ conversationId, replyId, prompt: buildSummaryPrompt(batch, undefined, {
     now: new Date().toLocaleString("zh-CN", { hour12: false }),
     mood: mood ? `${mood.primaryEmotion}（${new Date(mood.at).toLocaleString("zh-CN", { hour12: false })}记录）` : undefined,
     recent,
   }) });
   if (!text) return null;
   const conv = useApp.getState().conversations.find((c) => c.id === conversationId);
+  if (!conv || conv.incognito || conv.summary !== previous || upToIndex > conv.messages.length) return null;
   useApp.getState().patchSummary(conversationId, {
+    fromIndex: previous?.upToIndex ?? 0,
     text,
     /* 仅记录总结次数，不再机械压缩旧内容比例。 */
     passes: (previous?.passes ?? 0) + 1,
     upToIndex,
-    covered: (conv?.summary?.covered ?? 0) + coveredAdd,
+    covered: coveredAdd,
     tokens: estimateTokens(text),
-    sourceTokens: (conv?.summary?.sourceTokens ?? 0) + sourceTokens,
-  });
+    sourceTokens,
+  }, true);
   return text;
 }
 
@@ -132,7 +134,7 @@ export async function maybeSummarize(opts: {
   toolTokens: number;
 }): Promise<void> {
   const conv = useApp.getState().conversations.find((c) => c.id === opts.conversationId);
-  if (!conv) return;
+  if (!conv || conv.incognito) return;
   const settings = useApp.getState().settings;
   const budget = settings.contextBudget || 12000;
   const room = Math.max(0, budget - opts.systemTokens - opts.toolTokens);
@@ -149,62 +151,38 @@ export async function maybeSummarize(opts: {
    */
   const keep = Math.max(2, settings.keepRecent);
   const from = watermark(conv);
-  const end = Math.max(from, conv.messages.length - keep);
-  const batchSrc = sliceMessages(conv, end).filter((m) => m.content.trim());
-  const batch: SummaryMsg[] = batchSrc.map((m) => ({ role: m.role, content: m.content }));
+  const messages: SummaryMsg[] = conv.messages.map((m) => ({ role: m.role, content: m.content }));
 
   /** 用户关掉「自动折叠」就别再自动摘了（他手动点"重新总结"仍然可以） */
   if (settings.autoCompact === false) return;
 
   const plan = planSummary({
-    messages: batch,
-    // batch 已经过水位线切片；其下标从 0 开始，不能再套一次库内水位线。
-    summary: conv.summary ? { ...conv.summary, upToIndex: 0 } : undefined,
+    messages,
+    summary: conv.summary,
     historyTokens,
     historyRoom: room,
-    keepRecent: 0,
+    keepRecent: keep,
     /* 触发改成"没摘过的攒够多少条"（用户 m09621："25 轮摘一次"） */
     everyMessages: settings.summaryEvery || 50,
     minBatch: 6,
   });
   if (!plan.should) return;
 
-  /**
-   * ⚠️ 水位线要用**库里的下标**换回来（用户 m09729 让补漏时发现的两个坑）：
-   *
-   *   · `plan.upToIndex` 是相对"传进去的 batch 数组"算的，而 `batch` 已经
-   *     过滤掉空消息了 —— 直接拿它当库内下标会**跳过头**：被跳过的那几十条
-   *     既没进摘要、又永远排在"已覆盖"之前 → 对模型来说就是凭空丢了。
-   *   · 单次最多摘 SUMMARY_BATCH_MAX 条；剩下的留到下次，水位线也必须停在
-   *     这次真正摘到的那一条，不能直接推到 `end`。
-   *
-   * 做法：从水位线往后数"有内容的"消息，数到这次摘的条数为止，记下最后一条的
-   * 库内下标 +1。
-   */
-  const take = plan.batch.length;
-  let seen = 0;
-  let upTo = from;
-  for (let i = from; i < end; i += 1) {
-    const m = conv.messages[i];
-    if (!m || !m.content.trim()) continue;
-    seen += 1;
-    upTo = i + 1;
-    if (seen >= take) break;
-  }
-  if (upTo <= from) return;
-
-  await runAndStore(opts.conversationId, batch.slice(0, take), conv.summary, upTo, take, opts.replyId);
+  const batch = plan.batch.filter((message) => message.content.trim());
+  if (plan.upToIndex <= from) return;
+  await runAndStore(opts.conversationId, batch, conv.summary, plan.upToIndex, batch.length, opts.replyId);
 }
 
 /** 界面上「重新生成摘要」用：立刻重摘一次（不看触发线） */
 export async function summarizeNow(conversationId: string): Promise<string | null> {
   const st = useApp.getState();
   const conv = st.conversations.find((c) => c.id === conversationId);
-  if (!conv) return null;
-  const keep = Math.max(2, st.settings.keepRecent);
-  const from = watermark(conv);
-  const end = Math.max(from, conv.messages.length - keep);
-  const batchSrc = sliceMessages(conv, end).filter((m) => m.content.trim());
+  if (!conv || conv.incognito) return null;
+  const lastMessage = conv.messages.at(-1);
+  const batchEnd = lastMessage?.role === "assistant" && !lastMessage.content.trim()
+    ? conv.messages.length - 1
+    : conv.messages.length;
+  const batchSrc = sliceMessages(conv, batchEnd).filter((m) => m.content.trim());
   if (batchSrc.length === 0) return null;
 
   /**
@@ -230,7 +208,7 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
   const batch: SummaryMsg[] = src.map((m) => ({ role: m.role, content: m.content }));
   /* 水位线：这一批最后一条在**库里的下标 +1**（batchSrc 已过滤空消息，不能直接拿长度当下标） */
   const last = src[src.length - 1];
-  let upTo = end;
+  let upTo = batchEnd;
   if (last) {
     const idx = conv.messages.lastIndexOf(last);
     if (idx >= 0) upTo = idx + 1;

@@ -1,7 +1,7 @@
 import { ChatCrab } from "@/components/chat/chat-crab";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -1483,6 +1483,13 @@ export function ChatView() {
                             而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
                             现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
+                            {m.summarySources?.map((source, index) => (
+                              <Link key={source} to="/play/plugins/$slug"
+                                params={{ slug: "summaries" }} hash={source}
+                                className="mr-2 text-xs text-subtle underline">
+                                摘要来源{m.summarySources!.length > 1 ? ` ${index + 1}` : ""}
+                              </Link>
+                            ))}
                             {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
                               <p className="chat-meta mt-1 px-1 text-[10px]">
                                 {m.usage.prompt

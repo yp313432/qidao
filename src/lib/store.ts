@@ -702,7 +702,7 @@ export type AppState = {
    */
   dropMessage: (conversationId: string, messageId: string) => void;
   /** 写入/更新这条对话的「更早的对话摘要」（用户也能手改，所以是 patch 语义） */
-  patchSummary: (conversationId: string, patch: Partial<NonNullable<Conversation["summary"]>>) => void;
+  patchSummary: (conversationId: string, patch: Partial<NonNullable<Conversation["summary"]>>, archivePrevious?: boolean) => void;
   /** 丢掉摘要（回到"整条丢"的老行为）—— 摘错了他可以一键撤 */
   clearSummary: (conversationId: string) => void;
   bumpQuota: () => boolean;
@@ -1610,7 +1610,7 @@ export const useApp = create<AppState>()(
                 },
           ),
         })),
-      patchSummary: (conversationId, patch) =>
+      patchSummary: (conversationId, patch, archivePrevious) =>
         set((s) => ({
           conversations: s.conversations.map((c) =>
             c.id !== conversationId
@@ -1618,6 +1618,9 @@ export const useApp = create<AppState>()(
               : {
                   ...c,
                   updatedAt: Date.now(),
+                  summaryArchive: archivePrevious && c.summary?.text
+                    ? [...(c.summaryArchive ?? []), c.summary]
+                    : c.summaryArchive,
                   summary: {
                     text: "",
                     upToIndex: 0,

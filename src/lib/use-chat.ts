@@ -4,7 +4,9 @@ import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
 import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup";
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
-import { buildContext } from "@/lib/awareness";
+import { buildContext, modeOf } from "@/lib/awareness";
+import { recallMemories } from "@/lib/recall";
+import { summaryEntries } from "@/lib/summary-library";
 import { DEFAULT_STICKER_GROUP, stickerGroupList } from "@/lib/stickers";
 import { resolveAiName } from "@/lib/branding";
 import {
@@ -489,7 +491,38 @@ export function useChatStream(opts: UseChatOpts = {}) {
       );
       const tools = externalSources.tools;
       const hasExternal = tools.length > 0 || externalSources.skills.length > 0;
-      const context = buildContext();
+      const context = buildContext(false);
+      const app = useApp.getState();
+      const current = app.conversations.find((c) => c.id === conversationId);
+      const query = historyText(history).recent.join("\n").slice(0, 800);
+      const summarySources: string[] = [];
+      if (query && current && !current.incognito && modeOf("memory") !== "deny") {
+        const summaries = summaryEntries(app.conversations)
+          .filter((entry) => entry.conversationId !== conversationId || !entry.latest)
+          .map((entry) => ({
+            id: entry.id,
+            content: entry.summary.text,
+            updatedAt: entry.summary.updatedAt,
+          }));
+        const result = await recallMemories(query, {
+          list: [...app.memories.filter((memory) => memory.status === "active"), ...summaries],
+          limit: 4,
+          timeoutMs: 3500,
+          signal: ac.signal,
+        }).catch(() => null);
+        const seen = new Set([summaryText?.trim()]);
+        let remaining = 1600;
+        for (const { memory } of result?.items ?? []) {
+          const text = memory.content.trim();
+          if (!text || seen.has(text) || remaining <= 0) continue;
+          seen.add(text);
+          const excerpt = text.slice(0, Math.min(600, remaining));
+          remaining -= excerpt.length;
+          const fromSummary = memory.id.startsWith("summary:");
+          if (fromSummary) summarySources.push(memory.id);
+          (context.aware ??= []).push(`相关历史资料（${fromSummary ? "对话摘要" : "记忆库"}，仅供回顾）：${excerpt}`);
+        }
+      }
       /**
        * **让他知道表情库有哪些分组**（用户 m10324："发表情包不按分组来，随意发不准"）。
        *
@@ -616,7 +649,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
           userGender: settings.userGender,
           aiName,
           persona: settings.persona || undefined,
-          context,
+          context: !nativeTools && summaryText
+            ? { ...context, aware: [...(context.aware ?? []), `当前会话的近期摘要：${summaryText}`] }
+            : context,
           worldAlways: world.always,
           worldHit: world.hit,
           recentActions,
@@ -1244,6 +1279,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       useApp.getState().finalizeAssistant(conversationId, messageId, {
         content: finalText,
         requestError,
+        summarySources: summarySources.length ? summarySources : undefined,
         parts,
         attachments,
         thinking,
