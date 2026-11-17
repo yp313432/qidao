@@ -97,8 +97,6 @@ export function Splash() {
     const q = <E extends Element>(sel: string) => host.querySelector<E>(sel);
     const inkStrokes = Array.from(host.querySelectorAll<SVGPathElement>("[data-ink='ink']"));
     const roseStrokes = Array.from(host.querySelectorAll<SVGPathElement>("[data-ink='rose']"));
-    const disp = q<SVGFEDisplacementMapElement>("#k-splash-disp");
-    const blur = q<SVGFEGaussianBlurElement>("#k-splash-blur");
     const inkLayer = q<SVGGElement>("#k-splash-inklayer");
     const roseLayer = q<SVGGElement>("#k-splash-roselayer");
     const dustLayer = dustRef.current;
@@ -163,6 +161,7 @@ export function Splash() {
     let presented = false;
     host.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
     let dustAt = -1;
+    let faded = false;
     let raf = 0;
     let finished = false;
     const t0 = performance.now();
@@ -185,16 +184,13 @@ export function Splash() {
       }
       const t = (now - t0) / 1000;
 
-      /* 散开：笔画被湍流揉碎、轻微模糊、整体退场 */
-      const p = Math.min(1, Math.max(0, (t - fadeAt) / T.dissolve));
-      const ease = p * p;
-      disp?.setAttribute("scale", (52 * ease).toFixed(1));
-      blur?.setAttribute("stdDeviation", (2.8 * ease).toFixed(2));
-      inkLayer?.setAttribute("opacity", Math.pow(1 - p, 1.5).toFixed(3));
-      roseLayer?.setAttribute(
-        "opacity",
-        Math.max(0, (Math.pow(1 - p, 1.5) - 0.1) / 0.9).toFixed(3),
-      );
+      if (t >= fadeAt && !faded) {
+        const p = Math.min(1, (t - fadeAt) / T.dissolve);
+        faded = p === 1;
+        const opacity = Math.pow(1 - p, 1.5);
+        inkLayer?.setAttribute("opacity", opacity.toFixed(3));
+        roseLayer?.setAttribute("opacity", Math.max(0, (opacity - 0.1) / 0.9).toFixed(3));
+      }
 
       if (t >= fadeAt && dustAt < 0) {
         dustAt = fadeAt + 0.16;
@@ -222,7 +218,8 @@ export function Splash() {
         const prog = Math.min(1, Math.max(0, (t - wordTimes[i]) / T.wordDur));
         const easeOut = 1 - Math.pow(1 - prog, 3);
         const width = (word.x1 - word.x0 + 14) * easeOut;
-        wordRects[i].setAttribute("width", width.toFixed(1));
+        const nextWidth = width.toFixed(1);
+        if (wordRects[i].getAttribute("width") !== nextWidth) wordRects[i].setAttribute("width", nextWidth);
       }
 
       if (t < endAt) raf = requestAnimationFrame(frame);
@@ -257,31 +254,6 @@ export function Splash() {
             散开用的滤镜。区域留 6% 余量 —— 位移会把笔画甩到轮廓盒外面，
             不留边就会被切成直边。
           */}
-          <filter
-            id="k-splash-dissolve"
-            x="-6%"
-            y="-6%"
-            width="112%"
-            height="112%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.01 0.014"
-              numOctaves={2}
-              seed={9}
-              result="n"
-            />
-            <feDisplacementMap
-              id="k-splash-disp"
-              in="SourceGraphic"
-              in2="n"
-              scale={0}
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-            <feGaussianBlur id="k-splash-blur" stdDeviation={0} />
-          </filter>
 
           {/*
             两个遮罩：里面放"能一笔画出来"的中线笔画，笔画画到哪儿，外面的
@@ -330,7 +302,7 @@ export function Splash() {
           ))}
         </defs>
 
-        <g id="k-splash-inklayer" filter="url(#k-splash-dissolve)">
+        <g id="k-splash-inklayer">
           <path
             mask="url(#k-splash-mask-ink)"
             fill="currentColor"
@@ -338,7 +310,7 @@ export function Splash() {
             d={ART_BLACK_D}
           />
         </g>
-        <g id="k-splash-roselayer" className="k-splash__rose" filter="url(#k-splash-dissolve)">
+        <g id="k-splash-roselayer" className="k-splash__rose">
           <path
             mask="url(#k-splash-mask-rose)"
             fill="currentColor"

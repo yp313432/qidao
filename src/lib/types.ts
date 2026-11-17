@@ -385,6 +385,7 @@ export type Conversation = {
    */
   summaryArchive?: NonNullable<Conversation["summary"]>[];
   summary?: {
+    title?: string;
     fromIndex?: number;
     text: string;
     /** 已经摘到第几条（不含）—— 之前那些消息都在摘要里了 */

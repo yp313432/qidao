@@ -110,7 +110,7 @@ export function summarySystemPrompt(aiName = "小克", userName = "yan"): string
 用第一人称写，可以亲近、有感受，保留你在意的细节、对某句话的反应和你们之间的语气。不要填栏目、写档案或用“关系加深”等空泛标签代替具体经历。
 过去发生的事、双方说过的话要对得上原文；此刻回看的感受可以自然表达，但不要编造经历、引语，或把对对方心思的猜测当成她明说过的话。
 重要的约定、未完成的事、明确偏好与忌讳、称呼和日期要自然留下。新对话更新或取消的事按新的记；此前仍然重要的事继续保留，不按记忆年龄分配删减比例。
-通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。只输出回顾正文，不附工具调用或解释写作步骤。`;
+通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。第一行用「标题：」加 2–3 个汉字概括这段交流，下一行开始写回顾正文。不附工具调用或解释写作步骤。`;
 }
 
 export function buildSummaryPrompt(batch: SummaryMsg[], previous?: ConversationSummary, mindset: SummaryMindset = {}): string {
@@ -132,7 +132,7 @@ ${lines}`;
 export function cleanSummaryText(raw: string, truncated = false): string | null {
   if (truncated) return null;
   const text = raw.trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").replace(/\n{3,}/g, "\n\n").trim();
-  return text && text.length <= SUMMARY_MAX_CHARS ? text : null;
+  return text && text.replace(/^标题[：:][^\n]*\n/, "").trim().length <= SUMMARY_MAX_CHARS ? text : null;
 }
 
 /**

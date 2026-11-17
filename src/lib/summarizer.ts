@@ -103,16 +103,21 @@ async function runAndStore(
   const mood = state.emotionEvents[0];
   const recent = active?.messages.filter((message) => message.content.trim()).slice(-4)
     .map((message) => `${message.role === "user" ? "yan" : "我"}：${message.content.trim().slice(0, 240)}`).join("\n");
-  const text = await summarizeBatch({ conversationId, replyId, prompt: buildSummaryPrompt(batch, undefined, {
+  const output = await summarizeBatch({ conversationId, replyId, prompt: buildSummaryPrompt(batch, undefined, {
     now: new Date().toLocaleString("zh-CN", { hour12: false }),
     mood: mood ? `${mood.primaryEmotion}（${new Date(mood.at).toLocaleString("zh-CN", { hour12: false })}记录）` : undefined,
     recent,
   }) });
+  if (!output) return null;
+  const heading = /^标题[：:]\s*([^\n]+)\n/.exec(output);
+  const title = heading?.[1].trim().match(/\p{Script=Han}{2,3}/u)?.[0];
+  const text = output.slice(heading?.[0].length ?? 0).trim();
   if (!text) return null;
   const conv = useApp.getState().conversations.find((c) => c.id === conversationId);
   if (!conv || conv.incognito || conv.summary !== previous || upToIndex > conv.messages.length) return null;
   useApp.getState().patchSummary(conversationId, {
     fromIndex: previous?.upToIndex ?? 0,
+    title: title ?? "随手记",
     text,
     /* 仅记录总结次数，不再机械压缩旧内容比例。 */
     passes: (previous?.passes ?? 0) + 1,

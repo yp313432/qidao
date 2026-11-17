@@ -125,16 +125,24 @@ export function installKeyboardInset(): () => void {
     }
   };
 
+  let frame = 0;
+  const scheduleSync = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      sync();
+    });
+  };
   sync();
-  vv?.addEventListener("resize", sync);
-  vv?.addEventListener("scroll", sync);
+  vv?.addEventListener("resize", scheduleSync);
+  vv?.addEventListener("scroll", scheduleSync);
   // 有些 WebView 只在 window 上发 resize（可视视口那条事件不来）
-  window.addEventListener("resize", sync);
+  window.addEventListener("resize", scheduleSync);
   /**
    * 原生是"往 `<html>` 上写 CSS 变量"的方式推键盘高度 —— 盯住那次 style 变化，
    * 这样 data-keyboard 才会跟着翻转（网页自己算不出来的时候全靠它）。
    */
-  const mo = new MutationObserver(sync);
+  const mo = new MutationObserver(scheduleSync);
   mo.observe(root, { attributes: true, attributeFilter: ["style"] });
 
   /**
@@ -157,9 +165,13 @@ export function installKeyboardInset(): () => void {
     if (!t) return;
     const tag = t.tagName;
     if (tag !== "INPUT" && tag !== "TEXTAREA") return;
+    scheduleSync();
+    for (const timer of timers.splice(0)) window.clearTimeout(timer);
     pullNative();
   };
   const onBlur = () => {
+    scheduleSync();
+    for (const timer of timers.splice(0)) window.clearTimeout(timer);
     /* 收起键盘时原生会推一次 0；这里再拉一次，防那次也丢 */
     timers.push(window.setTimeout(() => void pullInsets(), 260));
   };
@@ -167,10 +179,11 @@ export function installKeyboardInset(): () => void {
   document.addEventListener("focusout", onBlur);
 
   return () => {
+    cancelAnimationFrame(frame);
     mo.disconnect();
-    vv?.removeEventListener("resize", sync);
-    vv?.removeEventListener("scroll", sync);
-    window.removeEventListener("resize", sync);
+    vv?.removeEventListener("resize", scheduleSync);
+    vv?.removeEventListener("scroll", scheduleSync);
+    window.removeEventListener("resize", scheduleSync);
     document.removeEventListener("focusin", onFocus);
     document.removeEventListener("focusout", onBlur);
     for (const t of timers) window.clearTimeout(t);

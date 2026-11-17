@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Bug, Flower2, Music, NotebookPen, Orbit, Plus, Puzzle, Wrench, X } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
 import { useLiquidShell } from "@/liquid/lib/drawer-state";
@@ -18,7 +18,7 @@ import { useApp } from "@/lib/store";
  * m08387"功能里面点开要真的点进去…重命名删除就在对话列表后面三个点，点开出现一个弹层"）：
  *   · 会话列表 / 新建 / 切换走 store
  *   · ⋯ 弹层里的 重命名 / 置顶 / 删除 调 `renameChat` / `pinChat` / `deleteChat`
- *   · 六个功能块真跳转（抽屉先关，再跳）
+ *   · 六个功能块走路由链接，目标页接管后抽屉随聊天页卸载
  */
 
 const ENTRIES = [
@@ -51,7 +51,6 @@ function stampOf(ts: number) {
 
 export function LiquidDrawer() {
   const { open, setOpen, setSettings } = useLiquidShell();
-  const nav = useNavigate();
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
   const setActive = useApp((s) => s.setActive);
@@ -66,12 +65,6 @@ export function LiquidDrawer() {
       setRenameFor(null);
     }
   }, [open]);
-
-  /** 抽屉里的跳转：先把抽屉收掉再走，免得返回时还停在打开态 */
-  function go(to: string) {
-    setOpen(false);
-    void nav({ to });
-  }
 
   return (
     <>
@@ -167,15 +160,10 @@ export function LiquidDrawer() {
           <p className="lq-block__cap">功能</p>
           <div className="lq-tiles">
             {ENTRIES.map((entry) => (
-              <button
-                key={entry.label}
-                type="button"
-                className="lq-tile"
-                onClick={() => go(entry.to)}
-              >
+              <Link key={entry.label} to={entry.to} preload="intent" preloadDelay={0} className="lq-tile">
                 <entry.icon />
                 <span>{entry.label}</span>
-              </button>
+              </Link>
             ))}
             <button type="button" className="lq-tile" data-todo="true">
               <Bug />

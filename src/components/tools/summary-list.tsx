@@ -1,44 +1,64 @@
-import { useState } from "react";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
+import { Search, Sparkles, X } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { KButton, KEmpty } from "@/components/ui-kit";
 import { summarizeNow } from "@/lib/summarizer";
 import { summaryEntries } from "@/lib/summary-library";
 import { useApp } from "@/lib/store";
-import { materialOf } from "@/lib/material";
+import { chatFontPx } from "@/lib/ux";
+import "./summary-list.css";
+
+const dateFormat = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
 
 export function SummaryList() {
   const conversations = useApp((state) => state.conversations);
   const activeId = useApp((state) => state.activeId);
-  const liquid = useApp((state) => materialOf(state.settings) === "liquid");
-  const surface = liquid ? "lq-glass" : "border border-line bg-elevated";
-  const navigate = useNavigate();
+  const fontSize = useApp((state) => chatFontPx(state.settings.chatFontSize));
+  const source = useRouterState({ select: (state) => state.location.hash });
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const source = useRouterState({ select: (state) => state.location.hash });
-  const [selected, setSelected] = useState<string | null>(null);
-  const entries = summaryEntries(conversations);
+  const [selection, setSelection] = useState<{ source: string; id: string }>();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const entries = useMemo(() => summaryEntries(conversations), [conversations]);
   const needle = query.trim().toLowerCase();
   const visible = entries.filter(({ title, summary }) =>
-    (title + "\n" + summary.text).toLowerCase().includes(needle),
+    [title, summary.title, summary.text].join("\n").toLowerCase().includes(needle),
   );
+  const selectedId = selection?.source === source ? selection.id : source;
+  const selected = entries.find((entry) => entry.id === selectedId);
   const active = conversations.find((conversation) => conversation.id === activeId);
+
+  useEffect(() => {
+    if (!dialog.current) return;
+    if (!selectedId || !dialog.current.querySelector("[data-summary-body]")) {
+      dialog.current.close();
+      return;
+    }
+    if (!dialog.current.open) dialog.current.showModal();
+    dialog.current.querySelector("[data-summary-body]")?.scrollTo(0, 0);
+  }, [selectedId, selected?.id]);
+
+  function close() {
+    dialog.current?.close();
+    setSelection({ source, id: "" });
+  }
 
   async function summarize() {
     if (!active || busy) return;
     setBusy(true);
     setNotice("");
     try {
-      const text = await summarizeNow(active.id);
-      if (!text) {
+      if (!(await summarizeNow(active.id))) {
         setNotice("当前会话没有可保存的新摘要。");
         return;
       }
       setQuery("");
       const newest = summaryEntries(useApp.getState().conversations)
         .find((entry) => entry.conversationId === active.id && entry.latest);
-      setSelected(newest?.id ?? "");
+      setSelection({ source, id: newest?.id ?? "" });
       setNotice("摘要已保存。");
     } catch {
       setNotice("摘要生成失败，可以重试。");
@@ -48,50 +68,60 @@ export function SummaryList() {
   }
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
+    <section className="summary-library flex min-h-0 flex-1 flex-col overflow-y-auto" style={{ fontSize }}>
       <PageHeader title="摘要库" />
-      <div className="space-y-4 px-4">
-        <KButton onClick={() => void navigate({ to: "/play/plugins" })}>返回插件</KButton>
-        <label className="block">
-          <span className="sr-only">搜索摘要</span>
-          <input className={`w-full rounded-xl px-4 py-3 ${surface}`}
-            value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索摘要" />
-        </label>
-        <KButton disabled={busy || !active || active.incognito} onClick={() => void summarize()}>
-          {busy ? "正在写摘要…" : "让 AI 写摘要"}
-        </KButton>
-        {notice && <p role="status" className="text-sm text-subtle">{notice}</p>}
-        {!visible.length && <KEmpty title={needle ? "没有匹配的摘要" : "还没有摘要"} />}
-        <ol className="mx-auto max-w-xl">
-          {visible.map(({ id, title, summary }, index) => {
-            const left = index % 2 === 0;
-            const open = (selected ?? source) === id;
-            return (
-              <li key={id} id={id} className="relative pb-10">
-                {index < visible.length - 1 && (
-                  <div aria-hidden="true"
-                    className={`pointer-events-none absolute inset-y-4 left-5 right-5 rounded-[48%] border-line ${left ? "border-l-2 border-b-2" : "border-r-2 border-b-2"}`} />
-                )}
-                <button type="button" aria-expanded={open}
-                  onClick={() => setSelected(open ? "" : id)}
-                  className={`relative block w-[85%] rounded-2xl px-4 py-3 text-left ${surface} ${left ? "" : "ml-auto"}`}>
-                  <time className="block text-xs text-subtle" dateTime={new Date(summary.updatedAt).toISOString()}>
-                    {new Date(summary.updatedAt).toLocaleString("zh-CN")}
-                  </time>
-                  <span className="block font-serif">{title || "未命名会话"}</span>
-                  <span className="mt-1 block text-sm text-subtle">{summary.text.slice(0, 68)}</span>
-                </button>
-                {open && <div className={`relative mt-2 whitespace-pre-wrap rounded-2xl p-4 ${surface}`}>
-                  <p className="mb-2 text-xs text-subtle">
-                    对话消息 {(summary.fromIndex ?? 0) + 1}–{summary.upToIndex}
-                  </p>
-                  {summary.text}
-                </div>}
-              </li>
-            );
-          })}
+      <div className="summary-library__content">
+        <div className="summary-library__actions">
+          <label>
+            <Search size={16} aria-hidden="true" />
+            <input type="search" aria-label="搜索摘要" value={query}
+              onChange={(event) => setQuery(event.target.value)} placeholder="搜索摘要" />
+          </label>
+          <button type="button" disabled={busy || !active || active.incognito} onClick={() => void summarize()}>
+            <Sparkles size={16} aria-hidden="true" />
+            {busy ? "正在写摘要…" : "让 AI 写摘要"}
+          </button>
+        </div>
+        {notice && <p role="status">{notice}</p>}
+        {!visible.length && <p className="summary-library__empty">{needle ? "没有匹配的摘要" : "还没有摘要"}</p>}
+        <ol className="summary-library__trail">
+          {visible.map(({ id, summary }, index) => (
+            <li key={id} id={id} data-side={index % 2 ? "right" : "left"}>
+              {index < visible.length - 1 && (
+                <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <path d={index % 2
+                    ? "M 78 0 C 78 52, 22 48, 22 100"
+                    : "M 22 0 C 22 52, 78 48, 78 100"} />
+                </svg>
+              )}
+              <button type="button" aria-haspopup="dialog" data-lit={id === selectedId}
+                onClick={() => setSelection({ source, id })}>
+                <i aria-hidden="true" />
+                <span>
+                  <strong>{summary.title || "旧摘要"}</strong>
+                  <time>{dateFormat.format(summary.updatedAt)}</time>
+                </span>
+              </button>
+            </li>
+          ))}
         </ol>
       </div>
+      <dialog ref={dialog} className="summary-library__dialog" aria-labelledby="summary-reading-title"
+        onCancel={(event) => { event.preventDefault(); close(); }}
+        onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+        {selected && (
+          <div className="summary-library__reading">
+            <header>
+              <div>
+                <h2 id="summary-reading-title">{selected.summary.title || "旧摘要"}</h2>
+                <time>{dateFormat.format(selected.summary.updatedAt)}</time>
+              </div>
+              <button type="button" aria-label="关闭摘要" onClick={close}><X size={22} /></button>
+            </header>
+            <div data-summary-body tabIndex={0}>{selected.summary.text}</div>
+          </div>
+        )}
+      </dialog>
     </section>
   );
 }

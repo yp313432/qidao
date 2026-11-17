@@ -54,7 +54,6 @@
       color-mix(in oklab, var(--aster-accent) 16%, transparent),
       transparent 74%
     );
-  animation: lq-drift-a 26s ease-in-out infinite alternate;
 }
 
 .lq-canvas::after {
@@ -69,7 +68,6 @@
       color-mix(in oklab, var(--aster-ink) 10%, transparent),
       transparent 78%
     );
-  animation: lq-drift-b 34s ease-in-out infinite alternate;
 }
 
 @keyframes lq-drift-a {
@@ -185,9 +183,9 @@
   transform-origin: 0 50%;
   background: transparent;
   transition:
-    transform 0.52s var(--lq-ease),
-    border-radius 0.52s var(--lq-ease),
-    box-shadow 0.52s var(--lq-ease);
+    transform 0.28s var(--lq-ease),
+    border-radius 0.28s var(--lq-ease),
+    box-shadow 0.28s var(--lq-ease);
 }
 
 .lq-stage[data-open="true"] .lq-page {
@@ -209,7 +207,7 @@
     rgba(46, 34, 22, 0.12) 32%,
     transparent 66%
   );
-  transition: opacity 0.52s var(--lq-ease);
+  transition: opacity 0.28s var(--lq-ease);
 }
 
 .lq-stage[data-open="true"] .lq-fold {
@@ -229,7 +227,7 @@
   padding: calc(env(safe-area-inset-top, 0px) + 22px) 13px
     calc(env(safe-area-inset-bottom, 0px) + 14px);
   transform: translateX(-104%);
-  transition: transform 0.52s var(--lq-drawer-ease);
+  transition: transform 0.28s var(--lq-drawer-ease);
   /* 整块抽屉是玻璃：比对话页更白、更厚，因为它是"压在最上面那层" */
   background:
     linear-gradient(168deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.22) 46%),
@@ -253,7 +251,7 @@
   background: none;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.52s var(--lq-ease);
+  transition: opacity 0.28s var(--lq-ease);
 }
 
 .lq-stage[data-open="true"] .lq-scrim {
@@ -642,7 +640,7 @@
   padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
     calc(env(safe-area-inset-bottom, 0px) + 16px);
   transform: translateX(100%);
-  transition: transform 0.44s var(--lq-drawer-ease);
+  transition: transform 0.28s var(--lq-drawer-ease);
   /* 设置是**另一层页面**，不是叠在对话上的浮层（用户 m08214）：
      底要是实的，底下的对话页在它打开时整个让位，否则两层糊在一起。 */
   background: linear-gradient(
