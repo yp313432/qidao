@@ -19,7 +19,7 @@ export function SplashSettings() {
       <p className="k-row__title">全局动效</p>
       <KOpts cols={3}>{([['on','始终开启'],['auto','跟随系统'],['off','关闭']] as const).map(([value, label]) =>
         <KOpt key={value} active={motion === value} aria-pressed={motion === value} onClick={() => useApp.getState().patchSettings({ motion: value })}>{label}</KOpt>)}</KOpts>
-      <p className="k-row__meta">与栖岛其他动画共用同一个开关。</p>
+      <p className="k-row__meta">与 Yisle 其他动画共用同一个开关。</p>
       <KButton disabled={!allowed} onClick={() => { if (requestSplashPreview(motion)) setMessage('本次重播不影响自动开屏的一小时间隔。'); }}>重播开屏动画</KButton>
       {!allowed && <p className="k-row__meta">{motion === 'off' ? '全局动效已关闭。' : '当前跟随系统的减少动态设置。'} 开启动效后可以预览。</p>}
       {message && <p className="k-row__meta" role="status">{message}</p>}

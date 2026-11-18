@@ -54,7 +54,7 @@ export function ToolsView() {
           our small days
         </p>
         <p className="mt-2 px-2 text-center text-[12px] leading-5 text-muted">
-          在栖岛上，过我们的小日子。
+          在 Yisle 上，过我们的小日子。
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3">

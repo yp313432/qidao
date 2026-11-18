@@ -249,7 +249,7 @@ export async function collectEnv(): Promise<EnvItem[]> {
         label: "通知使用权",
         status: diag.notifGranted ? "ok" : "no",
         detail: diag.notifGranted
-          ? `系统名单里有栖岛（${clipText(String(diag.listenerItem ?? ""), 60)}）；系统一共回调过我们 ${callbacks} 次${
+          ? `系统名单里有 Yisle（${clipText(String(diag.listenerItem ?? ""), 60)}）；系统一共回调过我们 ${callbacks} 次${
               callbacks === 0
                 ? "（0 次 = 勾在那儿、但服务没被绑定 —— 这跟「这阵子没通知」是两件事，把这条告诉我）"
                 : `，最后一次是 ${lastAgo <= 0 ? "刚刚" : `${lastAgo} 分钟前`}`
@@ -257,7 +257,7 @@ export async function collectEnv(): Promise<EnvItem[]> {
           : `**不在**系统那份名单里。名单原文：${clipText(diag.listenersRaw)}`,
         fix: diag.notifGranted
           ? undefined
-          : "它管的是「他看一眼我最近收到了什么通知」。自己走：设置 → 应用 → 特殊应用权限 → 通知使用权 → 栖岛；找不到就点下面的按钮。",
+          : "它管的是「他看一眼我最近收到了什么通知」。自己走：设置 → 应用 → 特殊应用权限 → 通知使用权 → Yisle；找不到就点下面的按钮。",
         action: diag.notifGranted
           ? undefined
           : { label: "去开「通知使用权」", kind: "notifications" as const },
@@ -271,7 +271,7 @@ export async function collectEnv(): Promise<EnvItem[]> {
         }；前台这次给出：${clipText(String(diag.foregroundPkg ?? ""), 40)}`,
         fix: diag.usageGranted
           ? undefined
-          : "自己走：设置 → 应用 → 特殊应用权限 → 使用情况访问 → 栖岛；找不到就点下面的按钮。",
+          : "自己走：设置 → 应用 → 特殊应用权限 → 使用情况访问 → Yisle；找不到就点下面的按钮。",
         action: diag.usageGranted ? undefined : { label: "去开「使用情况访问」", kind: "foreground" as const },
       });
     }
@@ -354,7 +354,7 @@ export async function collectEnv(): Promise<EnvItem[]> {
     label: "当前外壳",
     status: "ok",
     detail: IS_APP
-      ? "安卓独立应用（栖岛 App）"
+      ? "安卓独立应用（Yisle App）"
       : standalone
         ? "以独立应用方式打开（已安装 / 已封装）"
         : /Android|iPhone|iPad/i.test(ua)

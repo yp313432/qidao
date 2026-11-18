@@ -97,7 +97,7 @@ export function McpServers() {
           at: Date.now(),
           // 保留 needsAuth：万一人从浏览器空手回来，还能再点一次「去授权」
           needsAuth: true,
-          message: "已经跳到浏览器等你授权了。\n授权完回到栖岛，这里会自动变成「拿到 N 个工具」。",
+          message: "已经跳到浏览器等你授权了。\n授权完回到 Yisle，这里会自动变成「拿到 N 个工具」。",
         },
       });
       await openAuthorizeUrl(plan.url);

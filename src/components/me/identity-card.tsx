@@ -65,7 +65,7 @@ export function IdentityCard({
   refs,
   avatarSize,
   nameWidth,
-  mark = "EX LIBRIS · 栖岛",
+  mark = "EX LIBRIS · Yisle",
   avatar,
   name,
   gender,

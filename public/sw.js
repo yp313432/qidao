@@ -15,7 +15,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let data = { title: "栖岛", body: "你有一条新消息", url: "/" };
+  let data = { title: "Yisle", body: "你有一条新消息", url: "/" };
   try {
     if (event.data) data = Object.assign(data, event.data.json());
   } catch (e) {

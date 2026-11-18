@@ -61,7 +61,7 @@ export function ProfilePage() {
       </div>
 
       <div className="px-5 py-8 text-center text-[12px] text-subtle">
-        栖岛 · 思考链保存在这台设备 · {BUILD_TAG}
+        Yisle · 思考链保存在这台设备 · {BUILD_TAG}
       </div>
     </div>
   );

@@ -115,7 +115,7 @@ export function PluginHub() {
 
         <p className="mt-4 px-1 text-[11px] leading-4 text-subtle">
           普通网站默认独立打开，不要求网站允许嵌入。嵌入模式适合明确支持它的小应用。
-          网页入口不会自动获得读取聊天或操作栖岛的权限；社区 MCP 和 Skills 在工具页管理。
+          网页入口不会自动获得读取聊天或操作 Yisle 的权限；社区 MCP 和 Skills 在工具页管理。
         </p>
       </div>
     </div>

@@ -128,10 +128,10 @@ export function ReminderDaemon() {
           st.patchReminder(r.id, { snoozeUntil: undefined });
           st.fireReminder(r.id);
           if (isAlarm) {
-            void localNotify("栖岛 · 闹钟", r.text);
+            void localNotify("Yisle · 闹钟", r.text);
             st.setRinging({ id: r.id, text: r.text, time: r.time });
           } else {
-            void localNotify("栖岛 · 提醒", r.text);
+            void localNotify("Yisle · 提醒", r.text);
           }
           continue;
         }
@@ -152,7 +152,7 @@ export function ReminderDaemon() {
           if (isAlarm) st.patchReminder(r.id, { done: true });
           else st.removeReminder(r.id);
         }
-        void localNotify(isAlarm ? "栖岛 · 闹钟" : "栖岛 · 提醒", r.text);
+        void localNotify(isAlarm ? "Yisle · 闹钟" : "Yisle · 提醒", r.text);
         if (isAlarm) st.setRinging({ id: r.id, text: r.text, time: r.time });
       }
     };

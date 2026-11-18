@@ -36,7 +36,7 @@ function CustomPluginView() {
   if (!plugin.url) throw notFound();
   if (plugin.enabled === false) return <p className="k-note">这个插件已关闭，请回插件列表启用。</p>;
   if (plugin.openMode === "browser") return <div className="k-page k-list">
-    <h1>{plugin.name}</h1><p>这个网页将独立打开，看完可直接返回栖岛。</p>
+    <h1>{plugin.name}</h1><p>这个网页将独立打开，看完可直接返回 Yisle。</p>
     <KButton onClick={() => void openPluginWeb(plugin.url!).catch((error: unknown) => pushToast((error as Error).message))}>打开网页</KButton>
     <KButton onClick={() => void navigate({ to: "/play/plugins" })}>返回插件列表</KButton>
   </div>;

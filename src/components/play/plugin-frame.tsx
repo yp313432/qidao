@@ -411,7 +411,7 @@ export function PluginFrame({
               <p className="text-[12px] font-medium text-white">这个页面没能嵌进来</p>
               <p className="mt-1 text-[11px] leading-4 text-white/80">
                 {local
-                  ? "本地那份副本没被打进这个构建（或者地址填错了）—— 现在是栖岛自己的页面被兜底接住了。"
+                  ? "本地那份副本没被打进这个构建（或者地址填错了）—— 现在是 Yisle 自己的页面被兜底接住了。"
                   : "最常见的原因：对方网站**不允许被别的页面嵌进来**（这是网站自己的设置，我们改不了）。"}
                 {hint ? ` ${hint}` : ""}
               </p>
@@ -448,7 +448,7 @@ export function PluginFrame({
 
       {opened && (
         <p className="pointer-events-none absolute inset-x-3 bottom-3 rounded-full bg-black/55 px-3.5 py-2 text-center text-[11px] text-white/90 backdrop-blur-sm">
-          已经从浏览器打开了 —— 看完切回栖岛就行。
+          已经从浏览器打开了 —— 看完切回 Yisle 就行。
         </p>
       )}
     </div>

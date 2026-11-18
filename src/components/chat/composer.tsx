@@ -1302,7 +1302,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                       {settings.upstreamModels.length === 0 ? (
                         <div className="px-2 py-2.5">
                           <p className="text-[12px] leading-5 text-muted">
-                            还没配模型 —— 要先告诉栖岛用哪家、用哪个模型。
+                            还没配模型 —— 要先告诉 Yisle 用哪家、用哪个模型。
                           </p>
                           <button
                             type="button"

@@ -240,7 +240,7 @@ export function Splash() {
 
   return (
     <div key={run.id} className={phase === "out" ? "k-splash k-splash--out" : "k-splash"} ref={hostRef}
-      role="dialog" aria-modal="true" aria-label="栖岛开屏动画" data-reason={run.reason}
+      role="dialog" aria-modal="true" aria-label="Yisle 开屏动画" data-reason={run.reason}
       onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); skip(); } if (e.key === 'Tab') { e.preventDefault(); e.currentTarget.querySelector('button')?.focus(); } }}>
       <button type="button" className="k-splash__skip" onClick={skip} aria-label="跳过开屏动画">跳过</button>
       <svg

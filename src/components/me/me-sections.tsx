@@ -376,7 +376,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       return;
     }
     setSw(await registerServiceWorker());
-    const ok = await localNotify("栖岛", "这是一条测试通知 —— 收到了就说明本地通知这条链路通了。");
+    const ok = await localNotify("Yisle", "这是一条测试通知 —— 收到了就说明本地通知这条链路通了。");
     flash(ok ? "已发出，看一下通知栏" : "发不出去（可能被系统或浏览器限制）");
   }
 
@@ -879,7 +879,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
       <Section title="工具调用（原生 tools）">
         <p className="mb-2 text-[12px] leading-5 text-muted">
-          栖岛用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
+          Yisle 用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
           吞掉、变成一坨普通文字，有的直接报错（还有的只跟流式一起给）。点一下测出来，再决定怎么接。
           <br />
           用的就是上面那三格（地址 / 密钥 / 模型名），密钥只在本机这次请求里用。

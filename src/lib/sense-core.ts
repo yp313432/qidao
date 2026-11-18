@@ -71,12 +71,12 @@ export type SenseOutcome = { ok: boolean; summary: string; [key: string]: unknow
  * 所以这份文案只有一处（`sense-core`），别在接线层再抄一份。
  */
 export const SENSE_SETTINGS_FIX: Record<string, string> = {
-  notifications: "去「设置 → 应用 → 特殊应用权限 → 通知使用权」给栖岛打开",
-  foreground: "去「设置 → 应用 → 特殊应用权限 → 使用情况访问」给栖岛打开",
+  notifications: "去「设置 → 应用 → 特殊应用权限 → 通知使用权」给 Yisle 打开",
+  foreground: "去「设置 → 应用 → 特殊应用权限 → 使用情况访问」给 Yisle 打开",
 };
 
 /** 兜底：真是权限问题但接线层没给路径时，也得指向"设置"（别让他去别处找）。 */
-export const SENSE_PERMISSION_FALLBACK_FIX = "去系统设置里给栖岛打开这一项";
+export const SENSE_PERMISSION_FALLBACK_FIX = "去系统设置里给 Yisle 打开这一项";
 
 /** 定位/天气的**开关**关着时指的路（跟权限不是一回事，别混）。 */
 export const SENSE_PLACE_SWITCH_FIX = "去「我的 → 系统 → 天气与定位」把那个开关打开";
@@ -378,7 +378,7 @@ export function senseForeground(r: Reading<ForegroundFacts>): SenseOutcome {
     app: v.app,
     package: v.package,
     ...(v.self ? { self: true } : {}),
-    summary: v.self ? "你现在就在栖岛里（也就是说，你正对着我说话）" : `你现在在用「${v.app}」`,
+    summary: v.self ? "你现在就在 Yisle 里（也就是说，你正对着我说话）" : `你现在在用「${v.app}」`,
   };
 }
 

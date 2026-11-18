@@ -33,7 +33,7 @@ export type UpstreamProbeResult = {
 
 /** 固定文本：中英混排 + 数字 + emoji，不同分词器数出来的 token 数差得明显 */
 const FINGERPRINT_TEXT = `请只回复一个字符：好。
-下面这段文字用来测分词：栖岛是一个把长期记忆、情绪和星空放在一起的小应用。它在 2026 年 11 月 1 日凌晨改过一版界面，包含中文标点、英文单词 memory / emotion / universe、数字 42 和 3.14159，以及 emoji 🌙 与 ✨。请不要改写、不要解释，只需确认收到。`;
+下面这段文字用来测分词：Yisle 是一个把长期记忆、情绪和星空放在一起的小应用。它在 2026 年 11 月 1 日凌晨改过一版界面，包含中文标点、英文单词 memory / emotion / universe、数字 42 和 3.14159，以及 emoji 🌙 与 ✨。请不要改写、不要解释，只需确认收到。`;
 
 type Base = { base: string; key: string; model: string };
 
@@ -242,8 +242,8 @@ export async function probeUpstreamModel(input: Base): Promise<UpstreamProbeResu
       detail:
         r.status === 200
           ? called
-            ? "会回 tool_calls —— 栖岛能走原生通道，工具 token 也会算进用量"
-            : "带了工具也没回 tool_calls —— 栖岛会退到「保底协议」，工具用量不计"
+            ? "会回 tool_calls —— Yisle 能走原生通道，工具 token 也会算进用量"
+            : "带了工具也没回 tool_calls —— Yisle 会退到「保底协议」，工具用量不计"
           : `HTTP ${r.status}`,
     });
     if (r.status === 200 && !called) verdict.push("⚠️ 上游不认原生 tools：会用保底协议执行动作");
