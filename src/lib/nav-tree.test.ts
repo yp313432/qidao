@@ -106,9 +106,9 @@ describe("parentOf：「我的」这一支（用户 m00624 真机返回到一半
     assert.equal(parentOf("/permissions"), "/core");
     assert.equal(parentOf("/worldbook"), "/core");
     assert.equal(parentOf("/memories"), "/core");
-    assert.equal(parentOf("/memory"), "/usage");
-    assert.equal(parentOf("/alarms"), "/system");
-    assert.equal(parentOf("/tasks"), "/system");
+    assert.equal(parentOf("/memory"), "/about");
+    assert.equal(parentOf("/alarms"), "/about");
+    assert.equal(parentOf("/tasks"), "/about");
     assert.equal(parentOf("/env"), "/about");
   });
 });
@@ -158,7 +158,7 @@ describe("hasBackButton / backLabelOf", () => {
     assert.equal(backLabelOf("/tools"), "返回对话");
     assert.equal(backLabelOf("/play/space/diary"), "返回动态空间");
     assert.equal(backLabelOf("/play/games/gobang"), "返回小游戏");
-    assert.equal(backLabelOf("/memory"), "返回模型与用量");
+    assert.equal(backLabelOf("/memory"), "返回关于与高级");
   });
 
   it("设置里点进去的页念作「返回设置」（两种主题同一句）", () => {
@@ -180,7 +180,7 @@ describe("systemBackTarget", () => {
 
   it("其余页跟页内返回钮同一个目标（一条链，不跳级）", () => {
     assert.equal(systemBackTarget("/play/garden/qi"), "/play/garden");
-    assert.equal(systemBackTarget("/memory"), "/usage");
+    assert.equal(systemBackTarget("/memory"), "/about");
     assert.equal(systemBackTarget("/pet"), "/");
     assert.equal(systemBackTarget("/tools/mcp"), "/tools");
   });

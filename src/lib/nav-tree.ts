@@ -120,9 +120,18 @@ export const PARENT_OF: Record<string, string> = {
   "/permissions": "/core",
   "/worldbook": "/core",
   "/memories": "/core",
-  "/memory": "/usage",
-  "/alarms": "/system",
-  "/tasks": "/system",
+  /*
+    2026-11-18（S6 普查发现）：`/memory` 原来挂在 `/usage` 名下，但 `/usage`
+    早就不是页面了 —— `src/routes/_app/usage.tsx` 只剩一句
+    `throw redirect({ to: "/about", replace: true })`（用量并进了「关于与高级」）。
+    于是「上下文与内存」那颗返回钮写着「返回模型与用量」、点了却先落回 `/about`，
+    等于层级表指着一个门槛 —— 一次返回跳两级。现在直接挂在 `/about` 下，
+    跟它的真实入口（「关于与高级」里的「预算 · 缓存 · 存储」卡片）对齐。
+  */
+  "/memory": "/about",
+  // 同理：/system 也是 redirect 到 /about 的存根（系统并进了「关于与高级」）
+  "/alarms": "/about",
+  "/tasks": "/about",
   // 「开发与纠错」这一组搬进了 /about（原来指向 /system，退出时会先落回已下线的「系统」页 —— 用户 m04469 第 4 条）
   "/env": "/about",
 };
