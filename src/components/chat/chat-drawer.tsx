@@ -29,8 +29,13 @@ import { cn } from "@/lib/utils";
  *
  * 为什么单独成文件：chat-view.tsx 已经 2250 行，样式守卫的「最大部件」棘轮
  * 只许它变小 —— 这轮往里加功能必须先把它拆小。**这不是重写**：抽屉里的
- * 每一段逻辑、每一句文案、每一个按钮都还是原来那一份，只是搬了个家；
- * 纯色渲染路径一字节没动（`liquid` 为 false 时看到的还是旧抽屉）。
+ * 每一段逻辑、每一句文案、每一个按钮都还是原来那一份，只是搬了个家。
+ *
+ * 2026-11-18（S4，用户 m00516 拍板"照搬"）：**两种主题只剩一套内容** ——
+ * 标题行「对话」+ 会话列表（⋯ 里改名/置顶/删除）+ 小标题「功能」+ 八条功能
+ * + 底栏（头像→设置、圆形＋新建）。原来纯色独占的那套（顶部大「新对话」按钮、
+ * 底部「桌宠 · 动作与设置」按钮）已并入这套，功能入口不再随主题变化。
+ * 纯色保留的只有装饰位：顶部 DrawerSky、底部 DrawerCosmos。
  *
  * 这轮（用户 13 条里的 3/4/8/9/10/11）：
  *   · 3 条 —— 螃蟹桌宠从抽屉底部挪到对话页（所以这里 `!liquid` 才画 DrawerCosmos）；
@@ -140,22 +145,6 @@ export function ChatDrawer({
           </button>
         </div>
 
-        {/* 第 8 条：液态下「新对话」从顶部挪到底栏右侧（和头像相对），
-            纯色保持原来这颗 —— 用户没让动纯色。 */}
-        {!liquid && (
-          <button
-            type="button"
-            className="relative z-10 mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
-            onClick={() => {
-              useApp.getState().newChat();
-              onClose();
-            }}
-          >
-            <Plus className="size-4" />
-            新对话
-          </button>
-        )}
-
         <ul
           className={cn(
             "relative z-10 min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1",
@@ -220,71 +209,83 @@ export function ChatDrawer({
         </ul>
 
         {/*
-          下：小宇宙（带星环的行星 + 小卫星 + 碎钻粒子），跟上面的星月呼应。
+          纯色专属装饰：底部小宇宙（带星环的行星 + 小卫星 + 碎钻粒子）。
           · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
             但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
-            所以让装饰接管它
-          · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
-          · 第 3 条：液态下螃蟹已挪到对话页，这里只留纯色。
+            所以让装饰接管它（用户："下面……不要有线，看着割裂"）
+          · 液态不画：大面积渐变 + 粒子在安卓 WebView 上容易掉合成层（m01354）。
+          · 2026-11-18 起底栏（头像 + 新建）两主题都有，小宇宙只当装饰垫在它上面。
         */}
         {!liquid && <DrawerCosmos />}
 
         {/*
-          第 9 条：液态下半区 —— 功能八条**直接排在列表界面里**（用户："不要新套一层"）。
-          第 4 条：底栏左边头像 → 设置页（图一 /me）；
-          第 8 条：底栏右边「+ 新建对话」，与头像相对。
+          下半区两主题**同一套内容**（用户 m00516："照搬"）：
+          · 功能八条直接排在列表界面里（用户："不要新套一层"），顺序固定；
+          · 底栏左边头像 → 设置页；右边「+ 新建对话」，与头像相对。
+          差别只在材质类：液态 lq-*，纯色走普通 Tailwind（下面这份兜底类）。
         */}
-        {!liquid && <button type="button" className="k-btn mx-3 mb-3" onClick={() => { void navigate({ to: "/pet" as never }); onClose(); }}>桌宠 · 动作与设置</button>}
-        {liquid && (
-          <>
-            {/* m02943 第 4 条②：功能八条上面也加一个小字分组标题「功能」，
-                跟上面「对话」一组同一个模子（小字 + 淡色 + 字距）。 */}
-            <p className="lq-group-head lq-group-head--func">功能</p>
-            <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
-              {
-              drawerFuncs.map(({ label, Icon, go }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="lq-func__row"
-                  onClick={() => {
-                    if (!go) return;
-                    go();
-                    onClose();
-                  }}
-                >
-                  <Icon className="lq-func__ico" strokeWidth={1.6} />
-                  <span>{label}</span>
-                </button>
-              ))
+        <p
+          className={cn(
+            liquid
+              ? "lq-group-head lq-group-head--func"
+              : "relative z-10 shrink-0 px-4 pt-1 pb-0.5 text-[11px] tracking-[0.22em] text-muted",
+          )}
+        >
+          功能
+        </p>
+        <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
+          {drawerFuncs.map(({ label, Icon, go }) => (
+            <button
+              key={label}
+              type="button"
+              className={
+                liquid
+                  ? "lq-func__row"
+                  : "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm"
               }
-            </nav>
-            <div className="lq-sheet-foot relative z-10 flex shrink-0 items-center justify-between gap-2 px-3">
-              <button
-                type="button"
-                className="lq-me min-w-0"
-                onClick={() => {
-                  void navigate({ to: "/me" });
-                  onClose();
-                }}
-              >
-                <Avatar role="user" size={42} />
-                <span className="min-w-0 truncate text-left text-sm">{settings.displayName}</span>
-              </button>
-              <button
-                type="button"
-                aria-label="新建对话"
-                className="lq-new flex size-11 shrink-0 items-center justify-center rounded-full"
-                onClick={() => {
-                  useApp.getState().newChat();
-                  onClose();
-                }}
-              >
-                <Plus className="size-5" />
-              </button>
-            </div>
-          </>
-        )}
+              onClick={() => {
+                if (!go) return;
+                go();
+                onClose();
+              }}
+            >
+              <Icon className={liquid ? "lq-func__ico" : "size-4 shrink-0 text-muted"} strokeWidth={1.6} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div
+          className={cn(
+            "relative z-10 flex shrink-0 items-center justify-between gap-2 px-3",
+            liquid ? "lq-sheet-foot" : "pt-1 pb-3",
+          )}
+        >
+          <button
+            type="button"
+            className={liquid ? "lq-me min-w-0" : "flex min-w-0 items-center gap-2 px-1 py-1 text-left"}
+            onClick={() => {
+              void navigate({ to: "/me" });
+              onClose();
+            }}
+          >
+            <Avatar role="user" size={42} />
+            <span className="min-w-0 truncate text-left text-sm">{settings.displayName}</span>
+          </button>
+          <button
+            type="button"
+            aria-label="新建对话"
+            className={cn(
+              "flex size-11 shrink-0 items-center justify-center rounded-full",
+              liquid ? "lq-new" : "bg-chip text-fg",
+            )}
+            onClick={() => {
+              useApp.getState().newChat();
+              onClose();
+            }}
+          >
+            <Plus className="size-5" />
+          </button>
+        </div>
       </aside>
     </div>,
     document.body,
