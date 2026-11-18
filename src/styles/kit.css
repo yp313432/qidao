@@ -1593,3 +1593,10 @@ html[data-keyboard="up"] .lq-skin .lq-composer {
   }
 }
 
+
+/* 纸面上的淡墨虚线：纯色下 --aster-line 是 transparent，
+   需要"看得见的分割线"时用它（对话页摘要线，2026-11-18 用户 m00771） */
+.k-hairline {
+  height: 0;
+  border-top: 1px dashed var(--k-line-soft);
+}

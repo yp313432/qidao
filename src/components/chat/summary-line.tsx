@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { isSolid } from "@/lib/material";
 import { summarizeNow } from "@/lib/summarizer";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,12 @@ import { cn } from "@/lib/utils";
  */
 export function SummaryLine({ conversationId }: { conversationId: string }) {
   const conv = useApp((s) => s.conversations.find((c) => c.id === conversationId));
+  /**
+   * 纯色下 `--aster-line` 被刻意设成 transparent（纸世界不用那条线），
+   * 所以这道分割线在纯色里会整条消失、只剩 11px 淡字 —— 看起来就像"没有摘要线"。
+   * 纯色改成纸面淡墨虚线（kit.css 的 `.k-hairline`），液态保持原来那条白线不动。
+   */
+  const solid = useApp((s) => isSolid(s.settings));
   const summary = conv?.summary;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -62,7 +69,7 @@ export function SummaryLine({ conversationId }: { conversationId: string }) {
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-1 py-1 text-[11px] text-subtle"
       >
-        <span className="h-px flex-1 bg-line" />
+        <span className={cn("flex-1", solid ? "k-hairline" : "h-px bg-line")} />
         <span className="flex shrink-0 items-center gap-1">
           <ChevronRight
             className={cn("size-3 transition-transform", open && "rotate-90")}
@@ -71,7 +78,7 @@ export function SummaryLine({ conversationId }: { conversationId: string }) {
           />
           更早的对话 · 摘要 {summary.covered} 条
         </span>
-        <span className="h-px flex-1 bg-line" />
+        <span className={cn("flex-1", solid ? "k-hairline" : "h-px bg-line")} />
       </button>
 
       {open && (

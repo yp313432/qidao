@@ -89,7 +89,7 @@ export function SummaryList() {
             <li key={id} id={id} data-side={index % 2 ? "right" : "left"}>
               {index < visible.length - 1 && (
                 <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <path d={index % 2
+                  <path pathLength={1} d={index % 2
                     ? "M 78 0 C 78 52, 22 48, 22 100"
                     : "M 22 0 C 22 52, 78 48, 78 100"} />
                 </svg>

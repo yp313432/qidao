@@ -430,6 +430,9 @@ export function systemPromptSections(input: PromptInput): PromptSection[] {
   }
   if (!input.discoverExternal) add("skills", "技能目录", skillCatalog(input.skills));
   add("style", "回复风格", STYLE[input.style] ?? STYLE.default);
+  /* 用户 m01264/m01282：AI 也能引用她说过的原话 —— 就教这一句，渲染走同一套（lib/quote 校验防编造） */
+  add("quote", "引用她的原话",
+    `想回溯${ta}说过的原话时，在回答最开头写一行『> 引用：原话』——原话必须一字不差摘自${ta}之前发的消息（不超过 60 字），一条回复最多一处；只有${ta}这句话是这一轮的重点时才用，不要每句都引。引用行后面换行、正常写回答。`);
   if (input.segmentEnabled) add("segment", "分段规则", segmentRule());
   if (input.persona?.trim()) add("persona", "补充设定", `【补充设定】\n${input.persona.trim()}`);
   const visible = visibleExternalSources(input.tools, input.skills ?? [], input.permissions);

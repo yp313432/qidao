@@ -77,7 +77,7 @@ export function useMessageWindow<T extends Msg>(
   );
 
   const list = useCallback(
-    (render: (msg: T, index: number) => ReactNode): ReactNode[] => {
+    (render: (msg: T, index: number) => ReactNode, lead?: ReactNode): ReactNode[] => {
       const out: ReactNode[] = [];
       if (start > 0) {
         out.push(
@@ -92,11 +92,14 @@ export function useMessageWindow<T extends Msg>(
           </li>,
         );
       }
+      /* lead：列表最前面那一条额外的行（对话页用它挂"摘要线"，
+         摘要覆盖的消息还没载入时线不能跟着消失） */
+      if (lead !== undefined && lead !== null) out.push(lead);
       for (let i = start; i < total; i += 1) out.push(render(messages[i]!, i));
       return out;
     },
     [loadEarlier, messages, start, total],
   );
 
-  return { list, reveal, hasEarlier: start > 0 };
+  return { list, reveal, start, hasEarlier: start > 0 };
 }

@@ -1,27 +1,18 @@
-import { useEffect, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
-import { requestDrawer } from "@/lib/drawer-request";
-import { registerPageHeader } from "@/lib/header-registry";
-import { materialOf } from "@/lib/material";
-import { backLabelOf, parentOf } from "@/lib/nav-tree";
-import { useApp } from "@/lib/store";
+import type { ReactNode } from "react";
+import { PageHeader } from "@/components/shared/page-header";
 
 /**
- * 玩乐区各页统一的顶部：返回 + 标题 +（可选）右边一个动作。
+ * 玩乐区各页统一的顶部 —— **现在只是 `PageHeader` 的一层薄壳**（2026-11-18 合并）。
  *
- * 跟 `PageHeader` 是**同一个规格**（size-11 按钮 / size-6 图标 / strokeWidth 1.6 /
- * font-serif text-lg），只是默认字体职责不同（玩乐区顶上没有 safe-area 之外的区别）。
+ * 用户 m00771："纯色下工具页点进去，你看返回键和其他二级页面是不是不统一……
+ * 纯色照搬液态的就行了。" 排查发现全 App 的「返回 + 标题」还有**两个**实现：
+ * `PageHeader`（inset-top-50）与这个 `PlayHeader`（inset-top-60 + 自绘 flex），
+ * 除了 2px 的顶部内边距、几乎逐行相同 —— 于是工具页对齐了 `PageHeader` 之后，
+ * 玩乐区反而成了唯一一套「多 2px」的页头。
  *
- * ── 返回目标同样从层级表读 ─────────────────────────────────────
- * 用户："所有的返回都要是返回上一级"。
- * 所以这里**不再写死 `backTo = "/play"`** ——
- * 那个默认值正是 `/play/gobang` 退回玩乐首页（而不是小日子）的原因。
- * 现在不传 backTo 就自动按 nav-tree 算：/play/gobang → /play/tools。
- *
- * ── 液态下的箭头（用户 m03354 / m03470）─────────────────────────
- * 跟 `PageHeader` 一样：这里自己画那颗裸箭头，不再指望 app-shell 在页面外面
- * 绝对定位补一颗 —— 那种做法标题一滚走就跟箭头叠在一起，而且各页对不齐。
+ * 合并方式：这里直接转给 `PageHeader`，返回目标仍走 nav-tree（不传就是上一级），
+ * 液态/纯色两套规范都在 PageHeader 里，玩乐区各页一行都不用改。
+ * 保留这个文件名是因为 13 个玩乐区页面都 import 它；以后新页面直接用 `PageHeader`。
  */
 export function PlayHeader({
   title,
@@ -35,33 +26,5 @@ export function PlayHeader({
   backTo?: string;
   backLabel?: string;
 }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  const target = backTo ?? parentOf(pathname) ?? "/";
-  const label = backLabel ?? backLabelOf(pathname);
-
-  // 告诉 app-shell：这一页自己有页头，别再补兜底箭头
-  useEffect(() => registerPageHeader(), []);
-
-  return (
-    <header className={liquid ? "lq-head px-4" : "inset-top-60 flex items-center gap-1 px-2 pb-1"}>
-      <div className={liquid ? "flex items-center gap-3" : "contents"}>
-        <Link
-          to={target as never}
-          aria-label={label}
-          className={
-            liquid ? "lq-back lq-back--inline" : "flex size-11 items-center justify-center"
-          }
-          onClick={() => {
-            // 用户 m03470：退回对话页时把侧边栏一起拉开（2026-11-18 起两种主题都一样）
-            if (target === "/") requestDrawer();
-          }}
-        >
-          <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-medium">{title}</h1>
-        {extra}
-      </div>
-    </header>
-  );
+  return <PageHeader title={title} right={extra} to={backTo} backLabel={backLabel} />;
 }

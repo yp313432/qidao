@@ -1951,6 +1951,15 @@ html.lq-skin[data-keyboard="up"] .pb-composer {
   margin-bottom: 0;
 }
 
+/* 键盘弹起时，卡片底边到键盘顶的留白和纯色一模一样（用户 m01165：
+   “纯色模式下键盘拉起和输入框之间的缝隙很小，液态模式下缝隙很大，跟纯色看齐”）。
+   实测差 6px：液态卡片自己带 `calc(env(safe-area) + 12px)` 下外边距，
+   纯色那边是 `.pb-composer` 的 4px + 外壳的 2px。这里把它收到 6px 对齐，
+   横向外边距（12px）不动，卡片宽度不变。 */
+.lq-skin .lq-composer-dock .lq-composer {
+  margin-bottom: 6px;
+}
+
 html.lq-skin[data-keyboard="up"] .lq-composer-dock {
   bottom: max(var(--q-ime-bottom-native, 0px), var(--q-ime-bottom-web, 0px));
   padding-bottom: 0;

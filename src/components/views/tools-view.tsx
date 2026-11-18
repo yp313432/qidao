@@ -5,7 +5,8 @@ import { HttpTools } from "@/components/tools/http-tools";
 import { McpServers } from "@/components/tools/mcp-servers";
 import { SkillManager } from "@/components/tools/skill-manager";
 import { ToolCard } from "@/components/tools/tool-card";
-import { KButton, KChip, KEmpty, KHead } from "@/components/ui-kit";
+import { PageHeader } from "@/components/shared/page-header";
+import { KButton, KChip, KEmpty } from "@/components/ui-kit";
 import { useApp } from "@/lib/store";
 import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
 import { formatDay } from "@/lib/utils";
@@ -69,9 +70,12 @@ export function ToolsView() {
   }
 
   return (
-    <div className="k-page min-h-0 flex flex-1 flex-col">
-      {/* 用户 m04650："工具上面有一个功能区，这三个灰色的小字删掉吧，没有用" */}
-      <KHead title="工具" />
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* 用户 m00771：纯色下工具页的返回键/标题要和其它二级页统一 → 用同一个 PageHeader
+          （两套材质各按自己的规范画）。注意页头必须放在 `.k-page` 外面：
+          k-page 自带 16px 横向内边距，套在里面会比别的二级页多缩进 16px。 */}
+      <PageHeader title="工具" />
+      <div className="k-page min-h-0 flex flex-1 flex-col">
 
       <div className="k-tabs">
         {TABS.map((t) => (
@@ -137,6 +141,7 @@ export function ToolsView() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
