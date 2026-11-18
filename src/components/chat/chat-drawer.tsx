@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createPortal } from "react-dom";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   BookOpen,
   Bug,
@@ -63,6 +63,7 @@ export function ChatDrawer({
   setRowMenu: (id: string | null) => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
   const settings = useApp((s) => s.settings);
@@ -72,6 +73,32 @@ export function ChatDrawer({
 
   // 安卓返回键：抽屉开着时先关抽屉，别去退页（见 lib/dismiss-stack.ts）
   useDismissable(open, onClose);
+
+  /*
+    打开抽屉就预加载这八条入口的页面 chunk（业内做法：可见即预取）。
+
+    为什么必须手动做：router 配了 defaultPreload: "intent"，但它只对 <Link> 生效，
+    抽屉里这八条都是 <button> —— 以前第一次点进二级页要先下载那个页的 JS，
+    这段时间界面一动不动，就是用户说的"等两三秒才进去"。
+
+    延后 90ms：先让抽屉自己的开合动画起步，别和它抢主线程。
+    preloadRoute 有缓存（defaultPreloadStaleTime 30s），重复打开抽屉不会重复下载。
+  */
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      // 逐条写全字面量：路径写错在 tsc 阶段就报，不会被字符串吞掉
+      void router.preloadRoute({ to: "/tools" });
+      void router.preloadRoute({ to: "/play/space" });
+      void router.preloadRoute({ to: "/play/tools" });
+      void router.preloadRoute({ to: "/play/listen" });
+      void router.preloadRoute({ to: "/play/learn" });
+      void router.preloadRoute({ to: "/play/garden" });
+      void router.preloadRoute({ to: "/play/plugins" });
+      void router.preloadRoute({ to: "/me" });
+    }, 90);
+    return () => window.clearTimeout(timer);
+  }, [open, router]);
 
   /*
     第 9 条：侧边栏下半的**功能八条**（用户定的顺序：工具／动态／岁序／音乐／学习／花园／插件／桌宠）。
@@ -251,8 +278,13 @@ export function ChatDrawer({
               }
               onClick={() => {
                 if (!go) return;
-                go();
+                /*
+                  先关抽屉、再导航（2026-11 性能排查）：
+                  抽屉那一层 backdrop-blur 先退场，切页转场里就少一层要重拍的模糊；
+                  也不会出现"抽屉还盖着目标页"的那一帧。
+                */
                 onClose();
+                go();
               }}
             >
               <Icon className={liquid ? "lq-func__ico" : "k-drawer-row__ico"} strokeWidth={1.6} />
@@ -270,8 +302,9 @@ export function ChatDrawer({
             type="button"
             className={liquid ? "lq-me min-w-0" : "flex min-w-0 items-center gap-2 px-1 py-1 text-left"}
             onClick={() => {
-              void navigate({ to: "/me" });
+              // 同上：先关抽屉再导航
               onClose();
+              void navigate({ to: "/me" });
             }}
           >
             <Avatar role="user" size={42} />
