@@ -36,6 +36,16 @@ import { isSolid, materialOf } from "@/lib/material";
 
 const TABS = MAIN_TABS;
 
+/**
+ * 底部导航开关（2026-11-18 起 = false）。
+ *
+ * 液态从来没有底导（导航全在抽屉里），S5 起纯色也照搬同一套，
+ * 于是这条导航在两主题下都不该再出现。代码先留着当回退版本：
+ * 真机验证过、用户点头之后（S7）再连 TABS / NAV_LATIN / NavEtch /
+ * nav-stamp / paper-tab 一起删。
+ */
+const LEGACY_BOTTOM_NAV = false;
+
 /** 纸世界 Step5：三枚票图的拉丁小注（概念稿 TABS 第二列，塞 label 行）。`/play` 那张随玩乐区删了。 */
 const NAV_LATIN: Record<string, string> = {
   "/": "PARLA",
@@ -372,7 +382,16 @@ export function AppShell() {
       >
         <Outlet />
       </div>
-      {!hideNav && !liquidWorld && (
+      {/*
+        2026-11-18（S5）：**底部导航正式退役**。用户 m00516 定的是
+        "两个模式的层级逻辑一样"，液态本来就没有底导（导航全在抽屉里），
+        纯色也不再单独留一条。
+
+        原话（任务书 3.2）："原底部导航暂时保留在可回退版本中，验证完成后再清理。"
+        所以这里是**开关关掉**、代码原样留着 —— 不是删。等 S7 真机验证过、
+        用户点头，再删这段和 TABS/NAV_LATIN/NavEtch/nav-stamp/paper-tab 这一套。
+      */}
+      {!hideNav && LEGACY_BOTTOM_NAV && !liquidWorld && (
         /**
          * 底部导航：**全宽 + 贴着屏幕下边缘**的一层薄玻璃。
          *
