@@ -39,7 +39,6 @@ import { Route as ApiReadRouteImport } from './routes/api/read'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiWakeRouteImport } from './routes/api/wake'
 import { Route as DesignKitRouteImport } from './routes/design.kit'
-import { Route as DesignLiquidRouteImport } from './routes/design.liquid'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
@@ -227,11 +226,6 @@ const ApiWakeRoute = ApiWakeRouteImport.update({
 const DesignKitRoute = DesignKitRouteImport.update({
   id: '/design/kit',
   path: '/design/kit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DesignLiquidRoute = DesignLiquidRouteImport.update({
-  id: '/design/liquid',
-  path: '/design/liquid',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
@@ -460,7 +454,6 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/design/kit': typeof DesignKitRoute
-  '/design/liquid': typeof DesignLiquidRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/play/add': typeof AppPlayAddRoute
   '/play/days': typeof AppPlayDaysRoute
@@ -530,7 +523,6 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/design/kit': typeof DesignKitRoute
-  '/design/liquid': typeof DesignLiquidRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof AppIndexRoute
   '/play/add': typeof AppPlayAddRoute
@@ -603,7 +595,6 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/api/wake': typeof ApiWakeRoute
   '/design/kit': typeof DesignKitRoute
-  '/design/liquid': typeof DesignLiquidRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/play/add': typeof AppPlayAddRoute
@@ -677,7 +668,6 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/design/kit'
-    | '/design/liquid'
     | '/oauth/callback'
     | '/play/add'
     | '/play/days'
@@ -747,7 +737,6 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/design/kit'
-    | '/design/liquid'
     | '/oauth/callback'
     | '/'
     | '/play/add'
@@ -819,7 +808,6 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/wake'
     | '/design/kit'
-    | '/design/liquid'
     | '/oauth/callback'
     | '/_app/'
     | '/_app/play/add'
@@ -872,7 +860,6 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   ApiWakeRoute: typeof ApiWakeRoute
   DesignKitRoute: typeof DesignKitRoute
-  DesignLiquidRoute: typeof DesignLiquidRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushSubscribeRoute: typeof ApiPushSubscribeRoute
@@ -1089,13 +1076,6 @@ declare module '@tanstack/react-router' {
       path: '/design/kit'
       fullPath: '/design/kit'
       preLoaderRoute: typeof DesignKitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/design/liquid': {
-      id: '/design/liquid'
-      path: '/design/liquid'
-      fullPath: '/design/liquid'
-      preLoaderRoute: typeof DesignLiquidRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/callback': {
@@ -1513,7 +1493,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   ApiWakeRoute: ApiWakeRoute,
   DesignKitRoute: DesignKitRoute,
-  DesignLiquidRoute: DesignLiquidRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushSubscribeRoute: ApiPushSubscribeRoute,
