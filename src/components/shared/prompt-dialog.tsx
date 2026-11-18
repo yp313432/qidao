@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
+import { useDismissable } from "@/lib/dismiss-stack";
 
 export type PromptDialogProps = {
   open: boolean;
@@ -50,6 +51,9 @@ export function PromptDialog({
   const solidPaper = useApp((s) => isSolid(s.settings));
   /** 液态弹层：白膜 + 磨砂（模糊靠下面那个 backdrop-blur-xl，见 glass.css 第 12 条） */
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
+  // 安卓返回键：弹层开着时先关弹层（等于点了「取消」，不提交内容）
+  useDismissable(open, onCancel);
 
   // 每次打开都重新填一遍原文（这是"不重新打"的关键）
   useEffect(() => {

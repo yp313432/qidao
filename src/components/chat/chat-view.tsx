@@ -376,6 +376,7 @@ import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
 import { consumeDrawerRequest } from "@/lib/drawer-request";
+import { useDismissable } from "@/lib/dismiss-stack";
 
 /**
  * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
@@ -633,6 +634,9 @@ export function ChatView() {
   const [query, setQuery] = useState("");
   const [hitIndex, setHitIndex] = useState(0);
   const [flashId, setFlashId] = useState<string | null>(null);
+
+  // 安卓返回键：搜索条开着时先收搜索条（Esc 之外的另一条路，见 lib/dismiss-stack.ts）
+  useDismissable(findOpen, () => setFindOpen(false));
 
   /**
    * **引用**（用户："长按引用就可以"）。

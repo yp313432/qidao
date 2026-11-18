@@ -9,6 +9,7 @@ import { runAction } from "@/lib/actions";
 import { runGuarded } from "@/lib/gate-run";
 import { useApp } from "@/lib/store";
 import { materialOf } from "@/lib/material";
+import { useDismissable } from "@/lib/dismiss-stack";
 import { cn } from "@/lib/utils";
 
 /**
@@ -81,6 +82,15 @@ export function ActionGate() {
   /* 第 12 条：液态下弹层套 lq-dialog（更厚白膜 + 透镜边 + 更深遮罩），模糊交给 backdrop-blur。
      hook 必须写在下面那几处提前 return 之前，所以放这里。 */
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
+  /*
+    安卓返回键：确认卡开着时先收这张卡，**等于「拒绝」**——
+    跟点空白处同一个安全默认（不会误批，也不会把动作挂死）。
+  */
+  const cardOpen = Boolean(current) && (critical || mode === "ask");
+  useDismissable(cardOpen, () => {
+    if (current) useApp.getState().resolveAction(current.id, false, false, "你拒绝了这次请求");
+  });
 
   if (!current) return null;
   // 所有工具的执行进度都归消息的思考链；这里仅负责权限确认。

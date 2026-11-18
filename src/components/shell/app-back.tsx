@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { systemBackTarget } from "@/lib/nav-tree";
+import { dismissTop } from "@/lib/dismiss-stack";
 
 /**
  * 安卓的**系统返回**：返回键 + 侧边滑动手势。
@@ -20,8 +21,9 @@ import { systemBackTarget } from "@/lib/nav-tree";
  *
  * 网页版不挂这个监听：浏览器里"历史返回"本来就是对的。
  *
- * ⚠️ 还没做的（如实说）：如果有**弹层/底部抽屉**开着，App 的规矩是先关弹层。
- *    那需要一个全局的"弹层栈"，现在没有 —— 这也是这个文件将来该长的地方。
+ * 2026-11-18 补上另一半（任务书 3.3 第 5 条）：开着的**弹层先关**，
+ * 没有弹层才退页 —— 栈在 `lib/dismiss-stack.ts`，抽屉/弹窗/思考链/动作确认卡
+ * 打开时各自压一层进去。以前这里是"不管开没开都直接退页"。
  */
 export function AppBack() {
   const navigate = useNavigate();
@@ -38,6 +40,12 @@ export function AppBack() {
     let remove: (() => void) | null = null;
 
     async function goBack() {
+      /*
+        1) 先关最上面那一层：抽屉、弹窗、思考链、动作确认卡……
+           （任务书 3.3 第 5 条，用户 m00516 拍板：弹层关闭行为单独处理）
+           没人接这一下 = 没有弹层，才轮到退页。
+      */
+      if (dismissTop()) return;
       const target = systemBackTarget(pathRef.current);
       if (target !== "exit") {
         // replace：App 的返回不往历史里再压一层（不然栈会越走越深）

@@ -19,6 +19,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
 import { DrawerCosmos, DrawerSky } from "@/components/chat/drawer-decor";
+import { useDismissable } from "@/lib/dismiss-stack";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,9 @@ export function ChatDrawer({
 
   const liquid = materialOf(settings) === "liquid";
   const solidPaper = isSolid(settings);
+
+  // 安卓返回键：抽屉开着时先关抽屉，别去退页（见 lib/dismiss-stack.ts）
+  useDismissable(open, onClose);
 
   /*
     第 9 条：侧边栏下半的**功能八条**（用户定的顺序：工具／动态／岁序／音乐／学习／花园／插件／桌宠）。

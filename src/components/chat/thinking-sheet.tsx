@@ -6,6 +6,7 @@ import { useApp } from "@/lib/store";
 import type { ChatStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
+import { useDismissable } from "@/lib/dismiss-stack";
 import { WebToolResult } from "@/components/chat/web-tool-result";
 
 /**
@@ -68,6 +69,9 @@ export function ThinkingSheet({
   const solidPaper = useApp((s) => isSolid(s.settings));
   /** 液态思考链弹层：白膜 + 磨砂（第 12 条） */
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
+  // 安卓返回键：思考链开着时先收这一层（见 lib/dismiss-stack.ts）
+  useDismissable(open, onClose);
 
   // Esc 关闭（桌面端顺手）
   useEffect(() => {
