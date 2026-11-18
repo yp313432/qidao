@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
-import { DrawerCosmos, DrawerSky } from "@/components/chat/drawer-decor";
+import { DrawerSky } from "@/components/chat/drawer-decor";
 import { useDismissable } from "@/lib/dismiss-stack";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
@@ -209,14 +209,12 @@ export function ChatDrawer({
         </ul>
 
         {/*
-          纯色专属装饰：底部小宇宙（带星环的行星 + 小卫星 + 碎钻粒子）。
-          · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
-            但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
-            所以让装饰接管它（用户："下面……不要有线，看着割裂"）
-          · 液态不画：大面积渐变 + 粒子在安卓 WebView 上容易掉合成层（m01354）。
-          · 2026-11-18 起底栏（头像 + 新建）两主题都有，小宇宙只当装饰垫在它上面。
+          2026-11-18（用户 m01345）：底部「小宇宙」整块撤掉。
+          · 它里面画的是那只 126px 的抽屉像素蟹 —— 桌宠早就搬到对话页了
+            （`ChatCrab`，尺寸跟设置里的 36/44/52 走），抽屉里再放一只就是
+            「纯色有、液态没有」的双份 + 尺寸也对不上，违反两主题一致。
+          · 保留的只有顶部星野 `DrawerSky`（纯装饰，不占结构）。
         */}
-        {!liquid && <DrawerCosmos />}
 
         {/*
           下半区两主题**同一套内容**（用户 m00516："照搬"）：
