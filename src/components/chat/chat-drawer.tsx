@@ -150,7 +150,7 @@ export function ChatDrawer({
 
         <ul
           className={cn(
-            "relative z-10 min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1",
+            "relative z-10 min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pt-1",
             /* 第 9 条：到分界处渐隐（mask 在 liquid/styles/glass.css）。 */
             liquid && "lq-conv-list",
           )}
@@ -177,7 +177,9 @@ export function ChatDrawer({
                     // 底：透明，只留间距 —— 一整列都画框会让人分不清"哪条是现在这条"
                     // （用户 m04469 第 1 条：当前会话反而没框、没选中的有框，反了）。
                     // 选中态才给底色 + 边框；边框常驻但透明，避免切会话时行高跳一下。
-                    "flex items-center gap-0.5 rounded-2xl border border-transparent py-1 pr-0.5 pl-3.5",
+                    // 2026-11-18（m01778）：高度/圆角改由 .k-drawer-conv 给 ——
+                    // 跟功能条同一个模子（46 / 13），两主题一致。
+                    "k-drawer-conv flex items-center gap-0.5 border border-transparent pr-0.5 pl-3.5",
                     c.id === activeId && "border-line bg-chip",
                     /* 第 10 条：液态下这一列也走图一的玻璃参数（纯色下这个类没样式）。 */
                     liquid && "lq-conv",
@@ -229,12 +231,14 @@ export function ChatDrawer({
           className={cn(
             liquid
               ? "lq-group-head lq-group-head--func"
-              : "relative z-10 shrink-0 px-4 pt-1 pb-0.5 text-[11px] tracking-[0.22em] text-muted",
+              : /* 2026-11-18（m01778）：不再用 11px / 0.22em 那套紧凑参数，
+                   跟液态的 .lq-group-head--func 对齐（12px / 0.14em / 55% 灰）。 */
+                "k-drawer-head",
           )}
         >
           功能
         </p>
-        <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
+        <nav aria-label="功能" className={cn("relative z-10 shrink-0", liquid ? "px-3 pt-1" : "k-drawer-nav")}>
           {drawerFuncs.map(({ label, Icon, go }) => (
             <button
               key={label}
@@ -242,7 +246,8 @@ export function ChatDrawer({
               className={
                 liquid
                   ? "lq-func__row"
-                  : "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm"
+                  : /* 46 高 / 13 圆角 / 8 间距 / 14 内边距 / 18 图标 —— 与液态同模 */
+                    "k-drawer-row"
               }
               onClick={() => {
                 if (!go) return;
@@ -250,7 +255,7 @@ export function ChatDrawer({
                 onClose();
               }}
             >
-              <Icon className={liquid ? "lq-func__ico" : "size-4 shrink-0 text-muted"} strokeWidth={1.6} />
+              <Icon className={liquid ? "lq-func__ico" : "k-drawer-row__ico"} strokeWidth={1.6} />
               <span>{label}</span>
             </button>
           ))}
@@ -258,7 +263,7 @@ export function ChatDrawer({
         <div
           className={cn(
             "relative z-10 flex shrink-0 items-center justify-between gap-2 px-3",
-            liquid ? "lq-sheet-foot" : "pt-1 pb-3",
+            liquid ? "lq-sheet-foot" : "k-drawer-foot",
           )}
         >
           <button

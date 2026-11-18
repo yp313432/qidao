@@ -1449,3 +1449,94 @@ html:not([data-keyboard="up"]) .shell-ime-pad {
   .chat-crab-actor .crab-shell, .chat-crab-actor .crab-leg { animation: none; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   抽屉条目（纯色侧）—— 与液态的 .lq-func__row / .lq-conv 逐像素对齐
+
+   2026-11-18（用户 m01778 拍板"统一"）：把两种主题的侧边栏截图叠在一起比，
+   发现纯色这边条目矮 6px、条间没有缝、字号也小一号 —— 八条一共少 108px，
+   上面那块会话区于是被撑高，"功能"整组从屏高 38% 掉到 51%。
+   用户的原话：「各组件尺寸大小位置你照搬就好了」「如果是那就统一」。
+
+   所以：几何全部来自 tokens 的 --k-drawer-*，与液态写死的那组数一模一样；
+   这里只有纸的材质（纸面底 + 发丝线 + 软纸影，纯色在 modes/solid.css 覆盖）。
+   液态那边不经过这些类（它走 .lq-*），所以改这里不会动到已经定稿的玻璃。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 功能八条那一段：自己滚、最高 62%，保证底栏永远够得着 */
+.k-drawer-nav {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: var(--k-drawer-nav-max);
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--k-drawer-nav-pad);
+}
+
+/* 一条功能：46 高 / 13 圆角 / 左图标 18 + 文字 14，与液态同模 */
+.k-drawer-row {
+  display: flex;
+  width: 100%;
+  height: var(--k-drawer-row-h);
+  flex: none;
+  align-items: center;
+  gap: var(--k-drawer-row-gap-x);
+  padding: 0 var(--k-drawer-row-pad-x);
+  border: var(--k-border-w) solid var(--k-drawer-row-line);
+  border-radius: var(--k-drawer-row-radius);
+  background: var(--k-drawer-row-bg);
+  box-shadow: var(--k-drawer-row-shadow);
+  color: var(--k-fg);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-drawer-row-fs);
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    translate var(--k-d-1) var(--k-e-out),
+    box-shadow var(--k-d-1) var(--k-e-out);
+}
+
+.k-drawer-row + .k-drawer-row {
+  margin-top: var(--k-drawer-row-gap);
+}
+
+.k-drawer-row:active {
+  translate: 0 var(--k-press-shift);
+  box-shadow: var(--k-card-shadow-press);
+}
+
+.k-drawer-row__ico {
+  width: var(--k-drawer-ico);
+  height: var(--k-drawer-ico);
+  flex: none;
+  opacity: 0.8;
+}
+
+/* 「功能」这行小字：与液态 12px / 0.14em / 55% 灰对齐 */
+.k-drawer-head {
+  position: relative;
+  z-index: 10;
+  flex: none;
+  padding: var(--k-drawer-head-pad);
+  color: var(--k-fg);
+  font-family: var(--k-font-label);
+  font-size: var(--k-drawer-head-fs);
+  line-height: 1.2;
+  letter-spacing: var(--k-drawer-head-track);
+  opacity: 0.55;
+}
+
+/* 会话条目：跟功能条一个模子（液态 m01859 的原话："他俩是一样吗"） */
+.k-drawer-conv {
+  height: var(--k-drawer-row-h);
+  border-radius: var(--k-drawer-row-radius);
+}
+
+/* 底栏：上 6、下 10 + 安全区（与液态 .lq-sheet-foot 同值） */
+.k-drawer-foot {
+  padding-top: var(--k-drawer-foot-pad-t);
+  padding-bottom: calc(var(--k-drawer-foot-pad-b) + var(--k-safe-b));
+}
+
