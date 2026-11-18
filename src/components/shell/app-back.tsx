@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { systemBackTarget } from "@/lib/nav-tree";
-import { materialOf } from "@/lib/material";
-import { useApp } from "@/lib/store";
 
 /**
  * 安卓的**系统返回**：返回键 + 侧边滑动手势。
@@ -28,21 +26,19 @@ import { useApp } from "@/lib/store";
 export function AppBack() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  /** 液态下"上一级"要重算（那边没有底部导航，工具/玩乐/我的都回对话页） */
-  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  /** 事件回调里要读**此刻**的路径，用 ref 免得闭包读到旧的 */
+  /**
+   * 层级表两种主题共用一张（2026-11-18），所以这里不再按材质分叉；
+   * 事件回调里要读**此刻**的路径，用 ref 免得闭包读到旧的。
+   */
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
-  /** 同上：事件回调里读此刻的材质，别读闭包里的旧值 */
-  const liquidRef = useRef(liquid);
-  liquidRef.current = liquid;
 
   useEffect(() => {
     let disposed = false;
     let remove: (() => void) | null = null;
 
     async function goBack() {
-      const target = systemBackTarget(pathRef.current, liquidRef.current);
+      const target = systemBackTarget(pathRef.current);
       if (target !== "exit") {
         // replace：App 的返回不往历史里再压一层（不然栈会越走越深）
         navigate({ to: target, replace: true });

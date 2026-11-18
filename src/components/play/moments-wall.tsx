@@ -224,8 +224,8 @@ export function MomentsWall() {
         {/* 返回 + 标题固定在最上层（不跟封面一起缩放） */}
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1 px-2 inset-top-50 pb-1">
           <Link
-            to={(parentOf(pathname, liquid) ?? "/") as never}
-            aria-label={backLabelOf(pathname, liquid)}
+            to={(parentOf(pathname) ?? "/") as never}
+            aria-label={backLabelOf(pathname)}
             className="pointer-events-auto flex size-11 shrink-0 items-center justify-center"
             style={{ color: onLight ? "var(--aster-fg)" : "#fff", filter: onLight ? "none" : "drop-shadow(0 1px 3px rgba(0,0,0,.5))" }}
           >

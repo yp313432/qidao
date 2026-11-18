@@ -1,5 +1,5 @@
 /**
- * 「我的」那五个板块的**父级表**。
+ * 唯一的页面层级表 —— 「这一页的上一级是谁」**只在这里定义一次**。
  *
  * ── 为什么要有这个文件 ──────────────────────────────────────────
  *
@@ -9,174 +9,106 @@
  *
  * 之前的做法：**每个页面自己手写返回目标**（`<PageHeader to="/me" />`）。
  * 后果：页面被挪到更深一层时，返回钮不会跟着变 —— 于是
- * `/memory`（在「模型与用量」里面）一直退回一级首页「我的」，
- * 而不是退回上一级「模型与用量」。
+ * `/memory`（在「模型与用量」里面）一直退回一级首页「我的」。
  *
- * 这就是"同样都是组件，这个组件一套代码写法，换一个组件又是另一套"的典型：
- * **返回逻辑散在 20 个文件里，没有任何一处能回答"这个页面的上一级是谁"**。
+ * ── 2026-11-18：两种主题合表（用户 m00516）────────────────────
  *
- * 现在改法：层级关系**只在这一个文件里定义**，所有返回钮从它读。
- * 于是"不写"就等于"正确"，不会再有人手写错目标。
- * 再配一个 `verify-hierarchy.mjs` 遍历所有页面自动对账。
+ * 原话："这两个模式的层级逻辑是一样的。" —— 之前这个文件里有**两张表**：
+ * 液态一张（`LQ_CHILD` / `LQ_ME_CHILD`），纯色一张（`TERTIARY_PARENT`），
+ * 于是同一个页面在两个主题下返回目标不一样（`/tools` 在纯色下"没有上一级"、
+ * 在液态下回对话页），这是"换主题行为就变"的根源。现在只有一张。
  *
- * ── 结构 ────────────────────────────────────────────────────
- *   /me（一级）
- *     ├ /core     → AI 概览
- *     ├ /space    → 我的空间
- *     ├ /usage    → 模型与用量
- *     ├ /data     → 数据
- *     └ /system   → 系统
+ *   一级  `/`                     对话页（侧边栏、抽屉、设置屏都挂在它身上）
+ *   二级  `/tools` `/play/space` `/play/tools` `/play/listen` `/play/learn`
+ *         `/play/garden` `/play/plugins` `/play/games` `/pet` `/me`
+ *         —— 从侧边栏 / 抽屉 / 头像推进来的列表页，上一级都是对话页
+ *   三级  列表里再点进去的页（编辑器、三间房、房间、播放页、具体插件、
+ *         「我的」五个板块与设置八项）
+ *   四级  `/permissions` `/worldbook` `/memories`（← `/core`）、
+ *         `/memory`（← `/usage`）、`/alarms` `/tasks`（← `/system`）、
+ *         `/env`（← `/about`）、`/play/garden/cesta`（← 池塘）、
+ *         `/play/garden/tarot`（← 棋桌）
  *
- *   三级页（挂在某个二级下面）
- *     /core    ├ /permissions /worldbook /memories
- *     /usage   ├ /memory
- *     /system  ├ /alarms /tasks /env
- *     /play/tools ├ /play/days /play/todo /play/tools/alarms /play/tools/tasks
- *     /play/games ├ /play/games/gobang /play/games/truth
- *     /play/space ├ /play/space/moments（朋友圈） /play/space/diary /play/space/letters
- *     /play/listen ├ /play/add
- *     /tools   ├ /tools/http /tools/mcp /tools/docs（三个编辑器页）
+ * 规矩（用户 m09110）：**返回永远只退一级**，不许从三级一步跳回一级；
+ * 用户 m00516 又确认了一遍："返回是按真实父级回退，不是全部回到聊天页，咱们就一级一级的退。"
  */
 
-/** 「我的」的五个二级板块（它们的上一级都是一级首页 /me） */
-export const ME_SECTIONS = ["/core", "/space", "/usage", "/data", "/system"] as const;
+/** 去掉查询串与末尾斜杠：`/memory/?a=1` → `/memory` */
+function normalize(path: string): string {
+  return path.split("?")[0]!.replace(/\/+$/, "") || "/";
+}
 
 /**
- * 三级页 → 它的**上一级**。
+ * 三级、四级页 → 它的**上一级**（显式写死的那部分）。
  *
- * 只列三级页。二级页（ME_SECTIONS 和 /play/* 那些房间）不用列 ——
- * 它们的上一级是根（/me 或 /play），由 `parentOf` 兜底推出来。
+ * 二级页也列在这里（上一级都是 `/`）—— 不是必须有，是为了让这张表能一眼读全：
+ * 想看"从侧边栏能进哪些地方"，看 `SECOND_LEVEL` 那一段就够了。
  */
-export const TERTIARY_PARENT: Record<string, string> = {
-  // 「AI 概览」下面三项
-  //（2026-11 删掉了 /inner「他的状态」那一页：情绪早搬去「星屿」了，
-  //  留着就是个空壳入口 —— 用户："直接把他的状态这一项直接给删掉就行了，
-  //  然后那个三级页面也不用留了"）
-  "/permissions": "/core",
-  "/worldbook": "/core",
-  "/memories": "/core",
+export const PARENT_OF: Record<string, string> = {
+  // ── 二级：从侧边栏 / 抽屉 / 头像推进来的列表页，返回对话页 ──────────
+  "/tools": "/",
+  "/play/space": "/",
+  "/play/tools": "/",
+  "/play/listen": "/",
+  "/play/learn": "/",
+  "/play/garden": "/",
+  "/play/plugins": "/",
+  "/play/games": "/",
+  "/pet": "/",
+  // 语音对话页：从对话页顶栏那颗麦克风进去的（v22 仍是），所以上一级是对话页
+  "/voice": "/",
+  "/me": "/",
 
-  // 「模型与用量」下面一项
-  "/memory": "/usage",
+  // ── 三级：工具区的三个编辑器 ────────────────────────────────
+  "/tools/mcp": "/tools",
+  "/tools/http": "/tools",
+  "/tools/docs": "/tools",
 
-  // 「关于与高级」下面一项（结构 B 之后「开发与纠错」这一组搬进了 /about；
-  //  原来这里指向 /system，从环境自检退出会先落回那张已下线的「系统」页，
-  //  看起来就像转场里夹了一层别的页面 —— 用户 m04469 第 4 条）
-  "/env": "/about",
+  // ── 三级：动态空间目录底下的三间房 ──────────────────────────
+  "/play/space/moments": "/play/space",
+  "/play/space/diary": "/play/space",
+  "/play/space/letters": "/play/space",
 
   /*
-    玩乐区 —— 两级子分区：
-      /play/tools  小日子  →  days / todo / alarms / tasks
-      /play/games  小游戏  →  gobang / truth
-    以后往小游戏里加新游戏，**只要在这里补一行**，
-    返回钮和 verify-hierarchy 就都跟着对了。
+    三级：小日子（`/play/tools`）底下的房间。
+    入口在 `tools-view.tsx`，但父级是「小日子」—— 从哪儿进去就回哪儿。
   */
   "/play/days": "/play/tools",
   "/play/todo": "/play/tools",
   "/play/tools/alarms": "/play/tools",
   "/play/tools/tasks": "/play/tools",
+
+  // ── 三级：音乐列表底下的播放页与「加歌」 ────────────────────
+  "/play/player": "/play/listen",
+  "/play/add": "/play/listen",
+
+  // ── 三级：小游戏 ────────────────────────────────────────
   "/play/games/gobang": "/play/games",
   "/play/games/truth": "/play/games",
 
   /*
-    花园（2026-11）：`/play/garden` 是玩乐下面的二级整屏页；
-    `棋桌` 是它里面的三级页 —— 返回该回花园，不是回玩乐。
+    三级：花园里的房间。
+    池塘里的「竹篮」是 花园 → 池塘 → 竹篮，所以竹篮的上一级是池塘；
+    棋桌的「塔罗」是 花园 → 棋桌 → 塔罗，所以塔罗的上一级是棋桌。
   */
   "/play/garden/qi": "/play/garden",
-  /*
-    池塘 / 竹篮 / 踪迹（2026-11）：都是花园里面的房间，上一级回花园。
-    池塘里的「竹篮」入口是花园 → 池塘 → 竹篮，所以竹篮的上一级是池塘
-    （用户从池塘点进去，返回该回池塘，不是跳回花园）。
-  */
   "/play/garden/stagno": "/play/garden",
   "/play/garden/cesta": "/play/garden/stagno",
   "/play/garden/vestigia": "/play/garden",
   "/play/garden/fiori": "/play/garden",
-  /*
-    棋桌的转盘（2026-11）：花园 → 棋桌（转盘）→ 具体某一盘。
-    塔罗挂在转盘下面，返回该回转盘，不是直接跳回花园。
-  */
   "/play/garden/tavolo": "/play/garden",
   "/play/garden/tarot": "/play/garden/tavolo",
 
-  // 音乐列表下面一项
-  "/play/add": "/play/listen",
-
   /*
-    动态空间（2026-10 拆成"朋友圈 / 日记 / 信"三个二级页，用户定的
-    "动态/日记/信 做成插件二级页"）—— 三页的上一级都是**动态空间目录**。
-    新增一个子页只要在这里补一行，返回钮和 verify-hierarchy 就都跟着对了。
+    三级：「我的」这一屏**里面**的东西（用户 m00624 真机：
+      "你的返回层级没做吧，我一点返回直接全回到对话页了，而不是上一级"）。
+    五个板块 + 设置八项，上一级都是 `/me`。
   */
-  "/play/space/moments": "/play/space",
-  "/play/space/diary": "/play/space",
-  "/play/space/letters": "/play/space",
-
-  /*
-    插件区（2026-10 新增，用户要求的"一个插件类别"）：
-      /play/plugins        插件目录      → 上一级是对话页（2026-11-18 删掉 `/play` 之后）
-      /play/plugins/*      具体某个插件   → 上一级是插件目录
-    新增一个插件**不用动这里**（都落在 /play/plugins/ 前缀下），
-    只有"插件目录自己是谁的下级"要写一行。
-  */
-  "/play/plugins": "/",
-};
-
-/**
- * 液态世界的层级（用户 m09048 定死的三层）：
- *
- *   一级 = 对话页 `/`（抽屉和设置层都挂在它身上，头像点进去就是设置）
- *   二级 = 侧边栏那六个功能点进去的**列表**
- *          `/tools` `/play/space` `/play/days` `/play/garden` `/play/plugins` `/play/listen`
- *          —— 外加设置那一屏的八项列表
- *   三级 = 列表里再点进去的页（编辑器 / 朋友圈 / 日记 / 信 / 播放页 / 具体插件…）
- *
- * 规矩（用户 m09110）：**返回永远只退一级**，不许从三级一步跳回一级。
- * 所以除了这张表里的父子关系，没有别的捷径 —— 三级 → 二级 → 一级。
- */
-const LQ_CHILD: Record<string, string> = {
-  // 动态空间目录底下的三间房
-  "/play/space/moments": "/play/space",
-  "/play/space/diary": "/play/space",
-  "/play/space/letters": "/play/space",
-
-  // 音乐列表底下的播放页与「加歌」
-  "/play/player": "/play/listen",
-  "/play/add": "/play/listen",
-
-  // 花园里的房间（池塘里的竹篮退池塘、转盘的塔罗退转盘）
-  "/play/garden/qi": "/play/garden",
-  "/play/garden/stagno": "/play/garden",
-  "/play/garden/cesta": "/play/garden/stagno",
-  "/play/garden/fiori": "/play/garden",
-  "/play/garden/vestigia": "/play/garden",
-  "/play/garden/tavolo": "/play/garden",
-  "/play/garden/tarot": "/play/garden/tavolo",
-};
-
-/**
- * 液态下「我的 / 设置」那一屏**里面**的层级（用户 m00624 真机反馈：
- *   "你的返回层级没做吧，我一点返回直接全回到对话页了，而不是上一级"）。
- *
- * 之前液态把所有非一级页都兜底成 `/`，于是 `/profile`（账号与资料）返回时
- * 直接跳回对话页 —— 可它是从「我的」这一屏点进去的，上一级明明是「我的」。
- *
- * 现在的层级（和 b1 里 m09048 定的三层一致，只是把「我的」这一支写全）：
- *   一级 `/`（对话页）
- *     └ 二级 `/me`（抽屉头像 → 我的 / 设置整屏）
- *          ├ 三级 `/core` `/usage` `/data` `/system` `/space`  + 设置八项
- *          └ 四级 `/permissions` `/worldbook` `/memories` `/memory` `/alarms` `/tasks` `/env`
- *
- * 只列液态这张表，纯色那张（`TERTIARY_PARENT`）一个字节没动。
- */
-const LQ_ME_CHILD: Record<string, string> = {
-  // 二级：「我的」这一屏自己的五个板块
   "/core": "/me",
   "/space": "/me",
   "/usage": "/me",
   "/data": "/me",
   "/system": "/me",
-
-  // 二级：设置那一屏的八项（`/space` 两边同名，指向都是 `/me`）
   "/profile": "/me",
   "/chat-settings": "/me",
   "/notify": "/me",
@@ -184,22 +116,22 @@ const LQ_ME_CHILD: Record<string, string> = {
   "/privacy": "/me",
   "/about": "/me",
 
-  // 三级：再往里一层，退回它所属的那一项
+  // ── 四级：板块 / 设置项再往里一层 ──────────────────────────
   "/permissions": "/core",
   "/worldbook": "/core",
   "/memories": "/core",
   "/memory": "/usage",
   "/alarms": "/system",
   "/tasks": "/system",
+  // 「开发与纠错」这一组搬进了 /about（原来指向 /system，退出时会先落回已下线的「系统」页 —— 用户 m04469 第 4 条）
   "/env": "/about",
 };
 
 /**
- * 设置那一屏的**二级八项**点进去的页 = 三级（用户 m09048 定的）。
- * 它们的上一级不是对话页本身，而是"对话页 + 设置层打开"那一状态
- * （`settingsMemory` 负责把层重新打开），所以标签念作「返回设置」。
+ * 设置那一屏的**八项**点进去的页。
+ * 它们的上一级是「我的」整屏，但用户是在设置里点进去的，所以标签念作「返回设置」。
  */
-const LQ_SETTINGS_CHILDREN = [
+const SETTINGS_CHILDREN = [
   "/profile",
   "/space",
   "/chat-settings",
@@ -210,97 +142,40 @@ const LQ_SETTINGS_CHILDREN = [
 ] as const;
 
 /**
- * 工具区的编辑器页 —— 它们的上一级是「工具」（`/tools` 那个 tab 首页）。
+ * 成组的前缀规则 —— 省得为每个成员写一行。
  *
- * 为什么单独列出来：`/tools/http` 这种路径走不到下面任何一条兜底规则
- * （不是三级页表里的、不是顶级 tab、也不以 `/play/` 开头），会被兜底成
- * `/me` —— 从「工具」进去、返回却跳到「我的」，就是用户最烦的那种错。
+ * 只放"这一族都会长出新成员"的：加一个新插件 / 新编辑器 / 新房间，
+ * 不用回来改这个文件。
  */
-const TOOLS_SUBPAGE_PREFIX = "/tools/";
+const PREFIX_PARENT: ReadonlyArray<readonly [string, string]> = [
+  ["/play/plugins/", "/play/plugins"],
+  ["/play/games/", "/play/games"],
+  ["/play/tools/", "/play/tools"],
+  ["/play/garden/", "/play/garden"],
+  ["/tools/", "/tools"],
+];
 
 /** 顶级 tab（它们没有返回钮 —— 它们就是"首页"）。`/play` 已随玩乐区删掉（2026-11-18） */
 export const ROOT_PATHS = ["/", "/tools", "/me"] as const;
 
 /**
- * 这个页面的**上一级**在哪。
+ * 这个页面的**上一级**在哪。返回 null 表示"这是首页，不该有返回钮"。
  *
- * 规则（按优先级）：
- *   1. 三级页 → 查 TERTIARY_PARENT
- *   2. 玩乐区二级页（/play/xxx）→ /play
- *   3. 其余二级页 → /me（「我的」里的板块）
- *
- * `liquid` = 液态世界（用户 m08548："没有底部导航栏了，所以你记得做好适配，
- * 还有返回键啥的"）：那边**只有对话页 `/` 是首页**，工具/玩乐/我的三个 tab
- * 都是被抽屉推进来的，所以它们的返回目标改成 `/`，而不是"没有上一级"。
- *
- * 返回 null 表示"这是首页，不该有返回钮"。
+ * 查找顺序：显式表 → 前缀族 → 兜底对话页。
+ * 兜底是 `/` 而不是 `/me`：一级只有对话页，任何没登记的页退到首页最不吓人。
  */
-export function parentOf(path: string, liquid = false): string | null {
-  // 去掉查询串/末尾斜杠，别让 "/memory/" 这种写法漏掉
-  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+export function parentOf(path: string): string | null {
+  const p = normalize(path);
+  if (p === "/") return null;
 
-  /*
-    0) 液态世界按 m09048 定的三层往回退：一级 `/`（对话页 / 抽屉 / 设置层）
-       ← 二级（六个功能的列表）← 三级（列表里点进去的页）。
-       **一次只退一级**，三级不许一步跳回一级（用户 m09110）。
-       用户 m08765 真机：设置里点进「AI 概览」再返回，落在「我的」整页；
-       侧边栏点「空间」再退出，落在玩乐首页 —— 都是按纯色那张层级表往回走的结果，
-       所以这里单独给了液态一张表（`LQ_CHILD`）。
-  */
-  if (liquid) {
-    if (p === "/") return null;
-    /*
-      例外只有一条：动态空间这张**二级目录**（`/play/space`）底下的三级页，
-      退回来应该落在这张目录上，而不是一步跳回对话页。
-      用户 m08921："动态点进去、日记点进去、信点进去保持不变，那个叫三级。"
-      —— 三级页本身维持原样，只是层级要接对。
-    */
-    const meChild = LQ_ME_CHILD[p];
-    if (meChild) return meChild;
-    const child = LQ_CHILD[p];
-    if (child) return child;
-    // 小游戏：具体某一盘 → 小游戏列表
-    if (p.startsWith("/play/games/")) return "/play/games";
-    // 小日子里的房间（纯色那套页面，液态下也可能点到）→ 小日子目录
-    if (p.startsWith("/play/tools/")) return "/play/tools";
-    // 具体某个插件 / 插件编辑器 → 插件目录
-    if (p.startsWith("/play/plugins/")) return "/play/plugins";
-    // MCP / HTTP / 文档的编辑器 → 工具列表
-    if (p.startsWith("/tools/")) return "/tools";
-    // 花园里没单独列的房间 → 花园
-    if (p.startsWith("/play/garden/")) return "/play/garden";
-    // 二级列表页本身（以及纯色遗留的子页）→ 对话页
-    return "/";
-  }
-
-  if (p === "/pet") return "/";
-
-  // 1) 三级页
-  const explicit = TERTIARY_PARENT[p];
+  const explicit = PARENT_OF[p];
   if (explicit) return explicit;
 
-  // 2) 顶级 tab：纯色下它就是首页（没有上一级）；液态下除了对话页都回对话页
-  if ((ROOT_PATHS as readonly string[]).includes(p)) {
-    if (!liquid || p === "/") return null;
-    return "/";
+  for (const [prefix, parent] of PREFIX_PARENT) {
+    if (p.startsWith(prefix)) return parent;
   }
 
-  // 3) 玩乐区里剩下的房间 → 2026-11-18 起没有 `/play` 首页了，一律退回对话页
-  if (p.startsWith("/play/")) {
-    /*
-      插件下面还有一层：`/play/plugins/xxx` 的上一级是插件目录（不是对话页）——
-      用户从「插件」点进某个插件，返回当然该回「插件」。
-      （`/play/plugins` 自己已经在 TERTIARY_PARENT 里写了 → `/`。）
-    */
-    if (p.startsWith("/play/plugins/")) return "/play/plugins";
-    return "/";
-  }
-
-  // 4) 工具区的编辑器 → 回工具首页
-  if (p.startsWith(TOOLS_SUBPAGE_PREFIX)) return "/tools";
-
-  // 5) 其余都是「我的」的板块 → 回我的
-  return "/me";
+  return "/";
 }
 
 /**
@@ -319,20 +194,19 @@ export function parentOf(path: string, liquid = false): string | null {
  *
  * 网页版**不用**它（浏览器里"历史返回"才是对的），只有原生壳会调。
  */
-export function systemBackTarget(path: string, liquid = false): string | "exit" {
-  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+export function systemBackTarget(path: string): string | "exit" {
+  const p = normalize(path);
 
   /*
     顶级页分两种，这是**真 App 的规矩**（用户 2026-10 明确要求）：
       · `/`（对话首页）→ **退出 App**（"对话页面我侧滑屏幕才会退出 app"）
-      · 其它三个 tab（工具/玩乐/我的）→ **先回对话首页**，不退出
-        （安卓 App 一贯做法：在非首页 tab 按返回，回到起始 tab）
+      · 其它 tab（工具/我的）→ **先回对话首页**，不退出
     只有真的站在首页了，返回才是"退出"。
   */
   if (p === "/") return "exit";
   if ((ROOT_PATHS as readonly string[]).includes(p)) return "/";
 
-  return parentOf(p, liquid) ?? "exit";
+  return parentOf(p) ?? "exit";
 }
 
 /**
@@ -365,26 +239,26 @@ const KEEPS_NAV = ["/play/plugins"] as const;
 
 /** 这个页面该不该隐藏底部导航。 */
 export function hidesNav(path: string): boolean {
-  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
+  const p = normalize(path);
   if ((KEEPS_NAV as readonly string[]).includes(p)) return false;
   return p === "/pet" || FULL_BLEED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 /**
  * 这个页面该不该显示返回钮。
- * 顶级 tab 不显示（用户从底部导航直接到它们，没有"上一级"）。
+ * 顶级 tab 不显示（它们是"首页"，没有上一级）。
  */
-export function hasBackButton(path: string, liquid = false): boolean {
-  return parentOf(path, liquid) !== null;
+export function hasBackButton(path: string): boolean {
+  return parentOf(path) !== null;
 }
 
 /** 给返回钮一个说人话的标签（无障碍 + 长按提示用） */
-export function backLabelOf(path: string, liquid = false): string {
-  const p = path.split("?")[0]!.replace(/\/+$/, "") || "/";
-  const parent = parentOf(p, liquid);
+export function backLabelOf(path: string): string {
+  const p = normalize(path);
+  const parent = parentOf(p);
   if (!parent) return "返回";
-  // 设置的三级页退回的是"对话页 + 设置层"，说成「返回设置」才不误导
-  if (liquid && (LQ_SETTINGS_CHILDREN as readonly string[]).includes(p)) return "返回设置";
+  // 设置里点进去的页，退回的是「我的 / 设置」那一屏，说成「返回设置」才不误导
+  if ((SETTINGS_CHILDREN as readonly string[]).includes(p)) return "返回设置";
   const names: Record<string, string> = {
     "/": "返回对话",
     "/me": "返回我的",
@@ -406,6 +280,7 @@ export function backLabelOf(path: string, liquid = false): string {
     "/play/listen": "返回音乐",
     "/play/space": "返回动态空间",
     "/play/plugins": "返回插件",
+    "/play/learn": "返回学习",
     "/tools": "返回工具",
   };
   return names[parent] ?? "返回上一级";

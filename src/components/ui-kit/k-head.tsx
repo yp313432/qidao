@@ -43,8 +43,8 @@ export function KHead({
 }) {
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const target = parentOf(pathname, liquid) ?? (liquid ? "/" : "/me");
-  const label = backLabelOf(pathname, liquid);
+  const target = parentOf(pathname) ?? "/";
+  const label = backLabelOf(pathname);
 
   // 有页头就不让 app-shell 再补那颗兜底箭头（否则一页两颗）
   useEffect(() => (liquid ? registerPageHeader() : undefined), [liquid]);

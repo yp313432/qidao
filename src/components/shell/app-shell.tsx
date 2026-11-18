@@ -125,7 +125,7 @@ export function AppShell() {
     // 花园是整屏场景页（浅粉背景 + 自己那颗深色箭头），不归页头体系管：
     // 这里若再补一颗白箭头，在浅粉底上看不见（用户 m03393"花园返回键没了"的真因）。
     !pathname.startsWith("/play/garden") &&
-    parentOf(pathname, true) !== null;
+    parentOf(pathname) !== null;
 
   /**
    * **这一页自己画了页头吗**（用户 m03470 要的"全站返回键统一"）。
@@ -364,7 +364,7 @@ export function AppShell() {
       <ChatNoticeBanner />
       {/* 液态没有底部导航：三张落地页（工具/玩乐/我的）自己不带返回钮，
           这里给一个"回对话"的浮动钮，跟系统返回键同一条层级表（用户 m08548） */}
-      {lqBackPage && !headerPresent ? <LiquidBack to={parentOf(pathname, true) ?? "/"} /> : null}
+      {lqBackPage && !headerPresent ? <LiquidBack to={parentOf(pathname) ?? "/"} /> : null}
       <div
         key={pathname}
         ref={routeLayerRef}

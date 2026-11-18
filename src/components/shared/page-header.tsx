@@ -64,11 +64,11 @@ export function PageHeader({
   /** 标题下面那行小字。标题跟着页面滚，所以这里也不吸顶。 */
   description?: string;
 }) {
-  // 当前路径 —— 用来查"我的上一级是谁"
+  // 当前路径 —— 用来查"我的上一级是谁"（层级表两种主题共用一张，见 lib/nav-tree.ts）
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  const target = to ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/me");
-  const label = backLabel ?? backLabelOf(pathname, liquid);
+  const target = to ?? parentOf(pathname) ?? "/";
+  const label = backLabel ?? backLabelOf(pathname);
 
   /**
    * 告诉 app-shell："这一页自己有页头，别再补那颗兜底箭头"。
@@ -87,6 +87,7 @@ export function PageHeader({
           用户 m03470："二级返回一级是到侧边栏的，因为我是在侧边栏点开他们后续的，
           不应该返回到对话页，不然我每次都要再展开侧边栏。"
           → 退回对话页（`/`）时顺手把抽屉拉开（见 lib/drawer-request）。
+          → 2026-11-18 起两种主题都这么走：纯色也用同一套侧边栏（用户 m00516「照搬」）。
         */}
         <Link
           to={target as never}
@@ -95,7 +96,7 @@ export function PageHeader({
             liquid ? "lq-back lq-back--inline" : "flex size-11 shrink-0 items-center justify-center"
           }
           onClick={() => {
-            if (liquid && target === "/") requestDrawer();
+            if (target === "/") requestDrawer();
           }}
         >
           <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />

@@ -37,8 +37,8 @@ export function PlayHeader({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  const target = backTo ?? parentOf(pathname, liquid) ?? "/";
-  const label = backLabel ?? backLabelOf(pathname, liquid);
+  const target = backTo ?? parentOf(pathname) ?? "/";
+  const label = backLabel ?? backLabelOf(pathname);
 
   // 告诉 app-shell：这一页自己有页头，别再补兜底箭头
   useEffect(() => registerPageHeader(), []);
@@ -53,8 +53,8 @@ export function PlayHeader({
             liquid ? "lq-back lq-back--inline" : "flex size-11 items-center justify-center"
           }
           onClick={() => {
-            // 用户 m03470：退回对话页时把侧边栏一起拉开
-            if (liquid && target === "/") requestDrawer();
+            // 用户 m03470：退回对话页时把侧边栏一起拉开（2026-11-18 起两种主题都一样）
+            if (target === "/") requestDrawer();
           }}
         >
           <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
