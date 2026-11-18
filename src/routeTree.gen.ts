@@ -16,12 +16,12 @@ import { Route as AppChatSettingsRouteImport } from './routes/_app/chat-settings
 import { Route as AppCoreRouteImport } from './routes/_app/core'
 import { Route as AppDataRouteImport } from './routes/_app/data'
 import { Route as AppEnvRouteImport } from './routes/_app/env'
-import { Route as AppPetRouteImport } from './routes/_app/pet'
 import { Route as AppMeRouteImport } from './routes/_app/me'
 import { Route as AppMemoriesRouteImport } from './routes/_app/memories'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
 import { Route as AppNotifyRouteImport } from './routes/_app/notify'
 import { Route as AppPermissionsRouteImport } from './routes/_app/permissions'
+import { Route as AppPetRouteImport } from './routes/_app/pet'
 import { Route as AppPlayRouteImport } from './routes/_app/play'
 import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
@@ -41,7 +41,6 @@ import { Route as ApiWakeRouteImport } from './routes/api/wake'
 import { Route as DesignKitRouteImport } from './routes/design.kit'
 import { Route as DesignLiquidRouteImport } from './routes/design.liquid'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
-import { Route as AppPlayIndexRouteImport } from './routes/_app/play.index'
 import { Route as AppPlayAddRouteImport } from './routes/_app/play.add'
 import { Route as AppPlayDaysRouteImport } from './routes/_app/play.days'
 import { Route as AppPlayLearnRouteImport } from './routes/_app/play.learn'
@@ -115,11 +114,6 @@ const AppEnvRoute = AppEnvRouteImport.update({
   path: '/env',
   getParentRoute: () => AppRoute,
 } as any)
-const AppPetRoute = AppPetRouteImport.update({
-  id: '/pet',
-  path: '/pet',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppMeRoute = AppMeRouteImport.update({
   id: '/me',
   path: '/me',
@@ -143,6 +137,11 @@ const AppNotifyRoute = AppNotifyRouteImport.update({
 const AppPermissionsRoute = AppPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPetRoute = AppPetRouteImport.update({
+  id: '/pet',
+  path: '/pet',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPlayRoute = AppPlayRouteImport.update({
@@ -239,11 +238,6 @@ const OauthCallbackRoute = OauthCallbackRouteImport.update({
   id: '/oauth/callback',
   path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AppPlayIndexRoute = AppPlayIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppPlayRoute,
 } as any)
 const AppPlayAddRoute = AppPlayAddRouteImport.update({
   id: '/add',
@@ -443,12 +437,12 @@ export interface FileRoutesByFullPath {
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
-  '/pet': typeof AppPetRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
   '/notify': typeof AppNotifyRoute
   '/permissions': typeof AppPermissionsRoute
+  '/pet': typeof AppPetRoute
   '/play': typeof AppPlayRouteWithChildren
   '/privacy': typeof AppPrivacyRoute
   '/profile': typeof AppProfileRoute
@@ -481,7 +475,6 @@ export interface FileRoutesByFullPath {
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/design/preview/chat': typeof DesignPreviewChatRoute
-  '/play/': typeof AppPlayIndexRoute
   '/tools/': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
@@ -514,12 +507,13 @@ export interface FileRoutesByTo {
   '/core': typeof AppCoreRoute
   '/data': typeof AppDataRoute
   '/env': typeof AppEnvRoute
-  '/pet': typeof AppPetRoute
   '/me': typeof AppMeRoute
   '/memories': typeof AppMemoriesRoute
   '/memory': typeof AppMemoryRoute
   '/notify': typeof AppNotifyRoute
   '/permissions': typeof AppPermissionsRoute
+  '/pet': typeof AppPetRoute
+  '/play': typeof AppPlayRouteWithChildren
   '/privacy': typeof AppPrivacyRoute
   '/profile': typeof AppProfileRoute
   '/space': typeof AppSpaceRoute
@@ -552,7 +546,6 @@ export interface FileRoutesByTo {
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/design/preview/chat': typeof DesignPreviewChatRoute
-  '/play': typeof AppPlayIndexRoute
   '/tools': typeof AppToolsIndexRoute
   '/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/play/games/truth': typeof AppPlayGamesTruthRoute
@@ -587,12 +580,12 @@ export interface FileRoutesById {
   '/_app/core': typeof AppCoreRoute
   '/_app/data': typeof AppDataRoute
   '/_app/env': typeof AppEnvRoute
-  '/_app/pet': typeof AppPetRoute
   '/_app/me': typeof AppMeRoute
   '/_app/memories': typeof AppMemoriesRoute
   '/_app/memory': typeof AppMemoryRoute
   '/_app/notify': typeof AppNotifyRoute
   '/_app/permissions': typeof AppPermissionsRoute
+  '/_app/pet': typeof AppPetRoute
   '/_app/play': typeof AppPlayRouteWithChildren
   '/_app/privacy': typeof AppPrivacyRoute
   '/_app/profile': typeof AppProfileRoute
@@ -626,7 +619,6 @@ export interface FileRoutesById {
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/subscribe': typeof ApiPushSubscribeRoute
   '/design/preview/chat': typeof DesignPreviewChatRoute
-  '/_app/play/': typeof AppPlayIndexRoute
   '/_app/tools/': typeof AppToolsIndexRoute
   '/_app/play/games/gobang': typeof AppPlayGamesGobangRoute
   '/_app/play/games/truth': typeof AppPlayGamesTruthRoute
@@ -662,12 +654,12 @@ export interface FileRouteTypes {
     | '/core'
     | '/data'
     | '/env'
-    | '/pet'
     | '/me'
     | '/memories'
     | '/memory'
     | '/notify'
     | '/permissions'
+    | '/pet'
     | '/play'
     | '/privacy'
     | '/profile'
@@ -700,7 +692,6 @@ export interface FileRouteTypes {
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/design/preview/chat'
-    | '/play/'
     | '/tools/'
     | '/play/games/gobang'
     | '/play/games/truth'
@@ -733,12 +724,13 @@ export interface FileRouteTypes {
     | '/core'
     | '/data'
     | '/env'
-    | '/pet'
     | '/me'
     | '/memories'
     | '/memory'
     | '/notify'
     | '/permissions'
+    | '/pet'
+    | '/play'
     | '/privacy'
     | '/profile'
     | '/space'
@@ -771,7 +763,6 @@ export interface FileRouteTypes {
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/design/preview/chat'
-    | '/play'
     | '/tools'
     | '/play/games/gobang'
     | '/play/games/truth'
@@ -805,12 +796,12 @@ export interface FileRouteTypes {
     | '/_app/core'
     | '/_app/data'
     | '/_app/env'
-    | '/_app/pet'
     | '/_app/me'
     | '/_app/memories'
     | '/_app/memory'
     | '/_app/notify'
     | '/_app/permissions'
+    | '/_app/pet'
     | '/_app/play'
     | '/_app/privacy'
     | '/_app/profile'
@@ -844,7 +835,6 @@ export interface FileRouteTypes {
     | '/api/push/key'
     | '/api/push/subscribe'
     | '/design/preview/chat'
-    | '/_app/play/'
     | '/_app/tools/'
     | '/_app/play/games/gobang'
     | '/_app/play/games/truth'
@@ -940,13 +930,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEnvRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/pet': {
-      id: '/_app/pet'
-      path: '/pet'
-      fullPath: '/pet'
-      preLoaderRoute: typeof AppPetRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/me': {
       id: '/_app/me'
       path: '/me'
@@ -980,6 +963,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof AppPermissionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/pet': {
+      id: '/_app/pet'
+      path: '/pet'
+      fullPath: '/pet'
+      preLoaderRoute: typeof AppPetRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/play': {
@@ -1114,13 +1104,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/oauth/callback'
       preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_app/play/': {
-      id: '/_app/play/'
-      path: '/'
-      fullPath: '/play/'
-      preLoaderRoute: typeof AppPlayIndexRouteImport
-      parentRoute: typeof AppPlayRoute
     }
     '/_app/play/add': {
       id: '/_app/play/add'
@@ -1399,7 +1382,6 @@ interface AppPlayRouteChildren {
   AppPlayPlayerRoute: typeof AppPlayPlayerRoute
   AppPlayShiganRoute: typeof AppPlayShiganRoute
   AppPlayTodoRoute: typeof AppPlayTodoRoute
-  AppPlayIndexRoute: typeof AppPlayIndexRoute
   AppPlayGamesGobangRoute: typeof AppPlayGamesGobangRoute
   AppPlayGamesTruthRoute: typeof AppPlayGamesTruthRoute
   AppPlayGardenCestaRoute: typeof AppPlayGardenCestaRoute
@@ -1434,7 +1416,6 @@ const AppPlayRouteChildren: AppPlayRouteChildren = {
   AppPlayPlayerRoute: AppPlayPlayerRoute,
   AppPlayShiganRoute: AppPlayShiganRoute,
   AppPlayTodoRoute: AppPlayTodoRoute,
-  AppPlayIndexRoute: AppPlayIndexRoute,
   AppPlayGamesGobangRoute: AppPlayGamesGobangRoute,
   AppPlayGamesTruthRoute: AppPlayGamesTruthRoute,
   AppPlayGardenCestaRoute: AppPlayGardenCestaRoute,
@@ -1470,12 +1451,12 @@ interface AppRouteChildren {
   AppCoreRoute: typeof AppCoreRoute
   AppDataRoute: typeof AppDataRoute
   AppEnvRoute: typeof AppEnvRoute
-  AppPetRoute: typeof AppPetRoute
   AppMeRoute: typeof AppMeRoute
   AppMemoriesRoute: typeof AppMemoriesRoute
   AppMemoryRoute: typeof AppMemoryRoute
   AppNotifyRoute: typeof AppNotifyRoute
   AppPermissionsRoute: typeof AppPermissionsRoute
+  AppPetRoute: typeof AppPetRoute
   AppPlayRoute: typeof AppPlayRouteWithChildren
   AppPrivacyRoute: typeof AppPrivacyRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -1498,12 +1479,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppCoreRoute: AppCoreRoute,
   AppDataRoute: AppDataRoute,
   AppEnvRoute: AppEnvRoute,
-  AppPetRoute: AppPetRoute,
   AppMeRoute: AppMeRoute,
   AppMemoriesRoute: AppMemoriesRoute,
   AppMemoryRoute: AppMemoryRoute,
   AppNotifyRoute: AppNotifyRoute,
   AppPermissionsRoute: AppPermissionsRoute,
+  AppPetRoute: AppPetRoute,
   AppPlayRoute: AppPlayRouteWithChildren,
   AppPrivacyRoute: AppPrivacyRoute,
   AppProfileRoute: AppProfileRoute,

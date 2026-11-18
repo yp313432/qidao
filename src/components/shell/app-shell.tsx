@@ -36,11 +36,10 @@ import { isSolid, materialOf } from "@/lib/material";
 
 const TABS = MAIN_TABS;
 
-/** 纸世界 Step5：四枚票图的拉丁小注（概念稿 TABS 第二列，塞 label 行）。 */
+/** 纸世界 Step5：三枚票图的拉丁小注（概念稿 TABS 第二列，塞 label 行）。`/play` 那张随玩乐区删了。 */
 const NAV_LATIN: Record<string, string> = {
   "/": "PARLA",
   "/tools": "STRUMENTI",
-  "/play": "SVAGO",
   "/me": "IO",
 };
 

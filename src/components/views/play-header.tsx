@@ -37,7 +37,7 @@ export function PlayHeader({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  const target = backTo ?? parentOf(pathname, liquid) ?? (liquid ? "/" : "/play");
+  const target = backTo ?? parentOf(pathname, liquid) ?? "/";
   const label = backLabel ?? backLabelOf(pathname, liquid);
 
   // 告诉 app-shell：这一页自己有页头，别再补兜底箭头

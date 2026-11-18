@@ -31,7 +31,6 @@ const num = (v: unknown, fallback = 0): number => {
 /** 页面路径 → 人话（找不到就照原样，别硬编） */
 const PAGES: Record<string, string> = {
   "/": "对话",
-  "/play": "玩乐",
   "/play/garden": "花园",
   "/play/garden/fiori": "花圃",
   "/play/garden/stagno": "池塘",

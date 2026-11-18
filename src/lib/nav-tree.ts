@@ -113,12 +113,12 @@ export const TERTIARY_PARENT: Record<string, string> = {
 
   /*
     插件区（2026-10 新增，用户要求的"一个插件类别"）：
-      /play/plugins        插件目录      → 上一级是玩乐首页
+      /play/plugins        插件目录      → 上一级是对话页（2026-11-18 删掉 `/play` 之后）
       /play/plugins/*      具体某个插件   → 上一级是插件目录
     新增一个插件**不用动这里**（都落在 /play/plugins/ 前缀下），
     只有"插件目录自己是谁的下级"要写一行。
   */
-  "/play/plugins": "/play",
+  "/play/plugins": "/",
 };
 
 /**
@@ -218,8 +218,8 @@ const LQ_SETTINGS_CHILDREN = [
  */
 const TOOLS_SUBPAGE_PREFIX = "/tools/";
 
-/** 顶级 tab（它们没有返回钮 —— 它们就是"首页"） */
-export const ROOT_PATHS = ["/", "/tools", "/play", "/me"] as const;
+/** 顶级 tab（它们没有返回钮 —— 它们就是"首页"）。`/play` 已随玩乐区删掉（2026-11-18） */
+export const ROOT_PATHS = ["/", "/tools", "/me"] as const;
 
 /**
  * 这个页面的**上一级**在哪。
@@ -285,15 +285,15 @@ export function parentOf(path: string, liquid = false): string | null {
     return "/";
   }
 
-  // 3) 玩乐区的房间 → 回玩乐首页
+  // 3) 玩乐区里剩下的房间 → 2026-11-18 起没有 `/play` 首页了，一律退回对话页
   if (p.startsWith("/play/")) {
     /*
-      插件下面还有一层：`/play/plugins/xxx` 的上一级是插件目录（不是玩乐首页）——
+      插件下面还有一层：`/play/plugins/xxx` 的上一级是插件目录（不是对话页）——
       用户从「插件」点进某个插件，返回当然该回「插件」。
-      （`/play/plugins` 自己已经在 TERTIARY_PARENT 里写了 → /play。）
+      （`/play/plugins` 自己已经在 TERTIARY_PARENT 里写了 → `/`。）
     */
     if (p.startsWith("/play/plugins/")) return "/play/plugins";
-    return "/play";
+    return "/";
   }
 
   // 4) 工具区的编辑器 → 回工具首页
@@ -388,7 +388,6 @@ export function backLabelOf(path: string, liquid = false): string {
   const names: Record<string, string> = {
     "/": "返回对话",
     "/me": "返回我的",
-    "/play": "返回玩乐",
     "/core": "返回 AI 概览",
     "/space": "返回外观",
     "/usage": "返回模型与用量",

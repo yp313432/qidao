@@ -17,15 +17,16 @@ import assert from "node:assert/strict";
 import { backLabelOf, hasBackButton, parentOf, systemBackTarget } from "./nav-tree.ts";
 
 describe("parentOf：纯色（有底部导航）", () => {
-  it("四个顶级页都没有上一级", () => {
-    for (const p of ["/", "/tools", "/play", "/me"]) {
+  it("三个顶级页都没有上一级（`/play` 已随玩乐区删掉）", () => {
+    for (const p of ["/", "/tools", "/me"]) {
       assert.equal(parentOf(p), null);
     }
   });
 
   it("二级页回到它所属的顶级页", () => {
     assert.equal(parentOf("/memory"), "/usage");
-    assert.equal(parentOf("/play/space"), "/play");
+    // 2026-11-18：`/play` 首页删掉后，玩乐下的房间一律退回对话页
+    assert.equal(parentOf("/play/space"), "/");
   });
 
   it("三级页按 TERTIARY_PARENT 走", () => {
