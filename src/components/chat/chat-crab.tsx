@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { CrabPixels, groupOfEvent } from './drawer-crab';
+import { CrabPixels, groupOfEvent } from '@/components/pet/crab-pixels';
 import { createPetLife, type LifeOptions, type PetAction } from '@/components/pet/pet-life';
 import { motionReduced } from '@/components/pet/pet-scene';
 import { petLine } from '@/components/pet/pet-lines';

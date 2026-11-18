@@ -18,6 +18,7 @@ import { prettySize } from "@/lib/attachments";
 import { setChatPageActive } from "@/lib/chat-presence";
 import { splitSegments, stripInvisible } from "@/lib/segment";
 import { cleanAssistantMarkup } from "@/lib/assistant-cleanup";
+import { EmptyChat } from "@/components/chat/empty-chat";
 import { Avatar } from "@/components/shared/avatar";
 
 /**
@@ -966,14 +967,11 @@ export function ChatView() {
       )}
 
       {empty ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-          <Avatar role="ai" size={48} />
-          <h1 className="mt-6 font-serif text-[1.85rem] font-medium tracking-tight text-fg">
-            {/* 问候语按「现在是几点」算 —— 服务端和客户端算出来可能不同
-                （部署到 UTC 服务器时必然不同），所以挂载后再显示。 */}
-            {hydrated ? greetingFor(settings.displayName) : "\u00A0"}
-          </h1>
-          {conv?.incognito && <p className="mt-2 text-sm text-muted">临时对话不会写入本地记录</p>}
+        /* 空态也铺滚动区（m01541）：螃蟹要舞台，否则 ChatCrab 不显示；开场见 empty-chat。 */
+        <div className="relative min-h-0 flex-1">
+          <div ref={scroller} className="h-full overflow-y-auto">
+            <EmptyChat greeting={hydrated ? greetingFor(settings.displayName) : "\u00A0"} incognito={Boolean(conv?.incognito)} />
+          </div>
         </div>
       ) : (
         /**
