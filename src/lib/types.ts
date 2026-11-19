@@ -1,4 +1,5 @@
 import type { ModelId } from "./models";
+import type { SummaryBlock } from "./summary";
 
 export type ChatRole = "user" | "assistant";
 
@@ -388,6 +389,8 @@ export type Conversation = {
     title?: string;
     fromIndex?: number;
     text: string;
+    /** 拆成一件一件的小事（2026-11 起；旧摘要没有，检索时按句临时拆） */
+    blocks?: SummaryBlock[];
     /** 已经摘到第几条（不含）—— 之前那些消息都在摘要里了 */
     upToIndex: number;
     /** 一共吸收了多少条 */
@@ -533,6 +536,13 @@ export type Settings = {
   togetherSince: string;
   showThinking: boolean;
   saveThinking: boolean;
+  /**
+   * 引用（我引他 / 他引我）总开关，默认开（2026-11 用户要求「已经有功能要有开关」）。
+   *
+   * 关掉 = 长按菜单里没有「引用这一句」，提示词里也不教他引用；
+   * 已经存进历史的老消息照常显示（不删数据）。
+   */
+  quoteEnabled?: boolean;
   notifications: boolean;
   /**
    * 定位。默认**关**。
@@ -584,6 +594,11 @@ export type Settings = {
    * 关掉 = 不排、也不弹那些到点通知。默认开（`!== false`）。
    */
   autonomyEnabled?: boolean;
+  /**
+   * **回响**（默认开）：你发动态、评论他、点赞他之后，过几分钟他按心情回一条。
+   * 关掉 = 不排新的，并把还没跑的回响撤掉；「他自己的日子」总开关关掉时它本来也不排。
+   */
+  echoEnabled?: boolean;
   /** 日记提醒时间，形如 "21:00" */
   reminderTime: string;
   /** 上下文预算（估算 token 数） */
@@ -594,6 +609,23 @@ export type Settings = {
   autoCompact: boolean;
   /** 每攒多少条没摘过的消息就摘一次（用户 m09621："25 轮摘一次"，50 条） */
   summaryEvery: number;
+  /**
+   * 对话时要不要翻旧记忆/旧摘要（默认开）。
+   *
+   * 用户 m00490："记得加上开关，我可以控制"。关掉之后这一轮完全不检索：
+   * 旧记忆、旧摘要都不带；当前会话的近期摘要仍照旧接上下文（不然会断片）。
+   */
+  recallEnabled?: boolean;
+  /**
+   * 每次最多带回多少 token 的旧回忆（400/800/1200/1600，默认 800）。
+   * 按真实估算累计，超了就从相关度最低的块开始丢。
+   */
+  recallBudget?: number;
+  /**
+   * 二次检索（默认开）：第一轮命中的块里有没讲清的专名/指代时，再查一次旧摘要。
+   * 只跳一跳，第二次最多 2 块，仍然受上面的总预算限制。
+   */
+  recallHop?: boolean;
   /** 用到预算的百分之多少开始折叠 */
   compactAt: number;
   /** 思考档案保留天数，0 = 永久保留 */

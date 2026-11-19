@@ -177,8 +177,8 @@ export function MemoryLibrary() {
             <div className="h-full rounded-full bg-accent/70" style={{ width: `${avg}%` }} />
           </div>
           <p className="mt-2 text-[11px] leading-4 text-subtle">
-            他每轮对话只会看到<span className="text-fg">和当前话题相关</span>的那几条 ——
-            不是全塞给他。
+            聊天时，他会按当前话题从记忆和旧摘要里挑<span className="text-fg">几条相关的小事</span>；
+            写日记、自己活动时才会整段翻看记忆。想彻底关掉，去权限页把「长期记忆」设成禁止。
           </p>
         </div>
       </section>

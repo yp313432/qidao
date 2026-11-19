@@ -1,4 +1,4 @@
-﻿/* 摘要库：淡紫 + 暖白金（方案 B / 深色主题自动落到方案 C 的同色相版本）。
+/* 摘要库：淡紫 + 暖白金（方案 B / 深色主题自动落到方案 C 的同色相版本）。
    这里是全仓唯一允许写色值字面量的组件级 CSS；所有颜色就近定义成变量，两套主题只换变量。 */
 .summary-library {
   --sl-bg:
@@ -9,7 +9,7 @@
     linear-gradient(160deg, #f6f0e6, #ede6f6 52%, #e5dcf0);
   --sl-fg: #2f2939;
   --sl-title: #3b3350;
-  --sl-time: #6f6985;
+  --sl-time: #5e5873;
   --sl-line: #b98f55;
   --sl-node: #d6c29a;
   --sl-node-glow: rgb(200 164 106 / .45);
@@ -89,18 +89,38 @@
   border-radius: 1.3rem; font-size: inherit; overflow: hidden;
 }
 .summary-library__dialog[open] { animation: summary-reveal 200ms ease-out both; }
+.summary-library__dialog:focus { outline: none; }
 .summary-library__dialog::backdrop { background: var(--sl-backdrop); }
-.summary-library__reading { display: flex; flex-direction: column; max-height: 77dvh; padding: 1em; }
+.summary-library__reading { display: flex; flex-direction: column; max-height: calc(78dvh - 2em); padding: 1em; }
 .summary-library__reading header {
   display: flex; justify-content: space-between; gap: 1em; align-items: flex-start;
   padding-bottom: .65em; border-bottom: 1px solid var(--sl-dialog-line);
 }
 .summary-library__reading h2 { color: var(--sl-title); font-size: 1.45em; }
 .summary-library__reading header button { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+/* 打开时浏览器会把焦点给关闭键，默认那圈方框太像调试框；只在键盘操作时留圆角焦点环 */
+.summary-library__reading header button:focus { outline: none; }
+.summary-library__reading header button:focus-visible { outline: 2px solid var(--sl-line); outline-offset: 2px; border-radius: .6rem; }
 .summary-library__reading [data-summary-body] {
-  min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: .8em;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .8em 0 1.4em;
   white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75;
+  /* 滚到底时最后一行不贴着圆角边 */
+  scroll-padding-block: .5em;
 }
+/* 摘要块：一件一件的小事；从"摘要来源"点进来时高亮命中的那块 */
+.summary-library__blocks-title { margin: 0 0 .5em; color: var(--sl-time); font-size: .8em; letter-spacing: .08em; }
+.summary-library__blocks { list-style: none; display: grid; gap: .5em; margin: 0 0 1.4em; padding: 0; }
+.summary-library__blocks li {
+  display: grid; gap: .25em; padding: .55em .7em;
+  border-left: 2px solid var(--sl-dialog-line); border-radius: .4rem; line-height: 1.6;
+}
+.summary-library__blocks li[data-active="true"] {
+  border-left-color: var(--sl-line);
+  background: color-mix(in srgb, var(--sl-line) 12%, transparent);
+}
+.summary-library__block-meta { display: flex; gap: .5em; align-items: baseline; color: var(--sl-time); font-size: .78em; }
+.summary-library__block-meta em { font-style: normal; }
+.summary-library__full { margin: 0; }
 @keyframes summary-draw { from { stroke-dashoffset: 1; } }
 @keyframes summary-node-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
 @keyframes summary-reveal { from { opacity: 0; transform: scale(.98); } }

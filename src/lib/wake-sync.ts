@@ -85,13 +85,12 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
          * 后台醒来时按这几个键决定要不要"自己写点什么"。纪律照旧：
          *   · 上游不全 → 上面那行 `cfg_enabled` 已经是 `"0"`，后台**一律不动**；
          *   · 开关关掉 → 这里推 `"0"`；
-         *   · **这一批只开日记**（`cfg_action_free`/`cfg_action_echo` 先关着），
-         *     后面放开只是把这两个键改成 `"1"`，不用改结构。
+         *   · 日记看 `diaryReminders`，自由活动与回响各自有开关（2026-11 补）。
          */
         [WAKE_KEYS.autonomyOn]: (s.autonomyEnabled !== false && (s.wakeEnabled ?? true)) ? "1" : "0",
         [WAKE_KEYS.actionDiary]: (s.diaryReminders !== false) ? "1" : "0",
         [WAKE_KEYS.actionFree]: "1",
-        [WAKE_KEYS.actionEcho]: "1",
+        [WAKE_KEYS.actionEcho]: (s.echoEnabled !== false) ? "1" : "0",
         /**
          * 2026-10-21 批1+2：自由活动现在是"**一段生活**"（一帧最多 2 步、一段最多 4 步），
          * 所以一天只给 1 次太少了 —— 他一天只有一段"自己的时间"。

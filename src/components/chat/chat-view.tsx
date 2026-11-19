@@ -1549,6 +1549,7 @@ export function ChatView() {
                                 data-contrast=""
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                {settings.quoteEnabled !== false && (
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
@@ -1561,6 +1562,7 @@ export function ChatView() {
                                 >
                                   引用这一句
                                 </button>
+                                )}
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
@@ -2235,5 +2237,3 @@ function VoiceBubble({
     </div>
   );
 }
-
-

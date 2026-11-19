@@ -1086,6 +1086,15 @@ export function MeSections({ tab }: { tab: MeTab }) {
             </KOpts>
           </Sub>
 
+          {/* 引用：她引他 / 他引她，一个总开关（用户 m00490 的补开关） */}
+          <Sub title="引用">
+            <Row
+              label="引用消息"
+              checked={settings.quoteEnabled !== false}
+              onChange={(v) => patch({ quoteEnabled: v })}
+            />
+          </Sub>
+
           {/* 分句、逐条发送节奏、合并等待和正文清理。 */}
           <ChatDeliverySettings />
 
@@ -1437,6 +1446,13 @@ export function MeSections({ tab }: { tab: MeTab }) {
               onChange={(v) => patch({ autonomyEnabled: v })}
             />
 
+            <Row
+              label="回响"
+              hint="你发动态、评论他或点赞之后，他过一会儿回你一条。"
+              checked={settings.echoEnabled !== false}
+              onChange={(v) => patch({ echoEnabled: v })}
+            />
+
             <p className="k-row__title">他的活跃度（一天自己动几次）</p>
             <KOpts cols={3}>
               {WAKE_LEVELS.map((lv) => (
@@ -1593,11 +1609,18 @@ export function MeSections({ tab }: { tab: MeTab }) {
       order: 2,
       body: (
         <>
-          <Sub title="朗读回复">
+          <Sub title="回复方式">
             <Row
               label="朗读回复"
               checked={settings.voiceReplies}
               onChange={(v) => patch({ voiceReplies: v })}
+            />
+            {/* 用语音气泡回（用户 m00296：点开=他可以发；你发语音或直接让他发一条时才会用） */}
+            <Row
+              label="用语音气泡回复"
+              hint="你发语音、或直接让他「发条语音」时，他才用语音回；关掉就只发文字。"
+              checked={settings.voiceBubbleReply !== "off"}
+              onChange={(v) => patch({ voiceBubbleReply: v ? "whenVoice" : "off" })}
             />
           </Sub>
 

@@ -31,6 +31,8 @@ export function announceAssistantMessage(input: {
   if (!body) return;
 
   const settings = useApp.getState().settings;
+  /* 通知总开关关掉 → 连 App 内横幅也不弹（用户 m00281：总开关得管得住） */
+  if (!settings.notifications) return;
   pushChatNotice({
     name: resolveAiName(settings.aiName),
     avatar: settings.aiAvatar || "",

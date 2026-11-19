@@ -1,0 +1,96 @@
+/**
+ * 摘要块 → 可检索小记忆。
+ *
+ * 钉死的是 id 契约：检索结果靠 `block:<会话>:<水位>:<下标>` 找回来，
+ * 摘要库又靠 `summaryIdOfBlock()` 从它反查整份摘要。改格式而不改这两个
+ * 函数，表现是"摘要来源点进去打不开"——不报错，但很难查。
+ */
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import type { Conversation } from "@/lib/types";
+import {
+  blockIndexOf,
+  blockToRecallable,
+  summaryBlockRefs,
+  summaryIdOfBlock,
+} from "./summary-blocks.ts";
+
+function fakeConversation(): Conversation {
+  return {
+    id: "c1",
+    title: "论文",
+    incognito: false,
+    messages: [],
+    summary: {
+      text: "这段时间她一直在赶论文。",
+      upToIndex: 50,
+      updatedAt: 1000,
+      blocks: [
+        { text: "论文第三章数据要重跑，改到凌晨两点", tags: ["论文", "疲惫"], at: "11-18" },
+        { text: "导师要求下周一交初稿" },
+      ],
+    },
+    summaryArchive: [
+      { text: "更早的摘要。她也提过论文。", upToIndex: 20, updatedAt: 500 },
+    ],
+  } as unknown as Conversation;
+}
+
+describe("summaryBlockRefs", () => {
+  it("当前摘要用 blocks，旧摘要按句临时拆，按时间新→旧", () => {
+    const refs = summaryBlockRefs([fakeConversation()]);
+    assert.equal(refs.length, 3);
+    assert.equal(refs[0].id, "block:c1:50:0");
+    assert.equal(refs[0].summaryId, "summary:c1:50");
+    assert.equal(refs[0].latest, true);
+    assert.equal(refs[0].conversationTitle, "论文");
+    assert.equal(refs[1].id, "block:c1:50:1");
+    /* 旧摘要懒拆：没有 blocks 字段也照样能检索 */
+    assert.equal(refs[2].latest, false);
+    assert.ok(refs[2].text.includes("更早的摘要"));
+  });
+
+  it("隐身对话不参与", () => {
+    const conv = { ...fakeConversation(), incognito: true };
+    assert.equal(summaryBlockRefs([conv]).length, 0);
+  });
+
+  it("没有摘要的对话给空数组", () => {
+    const conv = { id: "c2", title: "", incognito: false, messages: [] } as unknown as Conversation;
+    assert.deepEqual(summaryBlockRefs([conv]), []);
+  });
+});
+
+describe("blockToRecallable", () => {
+  it("日期并进正文和标签，kind 标成 summary", () => {
+    const [ref] = summaryBlockRefs([fakeConversation()]);
+    const memory = blockToRecallable(ref);
+    assert.equal(memory.id, "block:c1:50:0");
+    assert.equal(memory.content, "11-18 论文第三章数据要重跑，改到凌晨两点");
+    assert.deepEqual(memory.tags, ["11-18", "论文", "疲惫"]);
+    assert.equal(memory.kind, "summary");
+    assert.equal(memory.updatedAt, 1000);
+  });
+
+  it("没有日期时用摘要更新时间补一个 M-D", () => {
+    const conv = fakeConversation();
+    conv.summary!.blocks = [{ text: "导师要求下周一交初稿" }];
+    conv.summary!.updatedAt = new Date(2026, 10, 19, 10, 0, 0).getTime();
+    const [ref] = summaryBlockRefs([conv]);
+    assert.match(blockToRecallable(ref).content, /^11-19 /);
+  });
+});
+
+describe("id 反查", () => {
+  it("块 id 能反查到摘要 id 和块下标", () => {
+    assert.equal(summaryIdOfBlock("block:c1:50:3"), "summary:c1:50");
+    assert.equal(blockIndexOf("block:c1:50:3"), 3);
+  });
+
+  it("别的 id 不误判", () => {
+    assert.equal(summaryIdOfBlock("summary:c1:50"), null);
+    assert.equal(summaryIdOfBlock("c1"), null);
+    assert.equal(blockIndexOf("summary:c1:50"), -1);
+    assert.equal(blockIndexOf("block:c1:50:x"), -1);
+  });
+});

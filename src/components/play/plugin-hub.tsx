@@ -3,6 +3,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Pencil, Plus, Puzzle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { KSwitch } from "@/components/ui-kit";
 import { catalogOf } from "@/lib/plugins";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function PluginHub() {
   // 点进具体某个插件（三级）维持原样 —— 用户 m08921/m08995。
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const customs = useApp((s) => s.settings.customPlugins);
+  const patchPlugin = useApp((s) => s.patchPlugin);
   const plugins = catalogOf(customs);
 
   return (
@@ -69,8 +71,19 @@ export function PluginHub() {
                       {off ? "已关掉" : p.hint}
                     </span>
                   </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  {/* 自己加的插件右边已经有开关和「改」，不再放箭头，免得三个热区挤在一起 */}
+                  {!p.custom && (
+                    <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  )}
                 </Link>
+
+                {p.custom && (
+                  <KSwitch
+                    checked={p.enabled !== false}
+                    onChange={(enabled) => patchPlugin(p.id, { enabled })}
+                    label={`${p.name} 启用`}
+                  />
+                )}
 
                 {/*
                   自己加的插件给一个「改」的入口 —— 用户 m00624："插件没有删除或移除功能"。
@@ -83,7 +96,7 @@ export function PluginHub() {
                     to="/play/plugins/edit"
                     search={{ id: p.id }}
                     aria-label={`改 ${p.name}`}
-                    className="mr-2 flex size-9 shrink-0 items-center justify-center rounded-full text-muted active:bg-chip"
+                    className="mr-2 ml-2 flex size-9 shrink-0 items-center justify-center rounded-full text-muted active:bg-chip"
                   >
                     <Pencil className="size-4" strokeWidth={1.8} aria-hidden="true" />
                   </Link>

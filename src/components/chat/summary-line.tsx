@@ -96,7 +96,7 @@ export function SummaryLine({ conversationId }: { conversationId: string }) {
                 <button
                   type="button"
                   onClick={() => {
-                    useApp.getState().patchSummary(conversationId, { text: draft.trim() });
+                    useApp.getState().patchSummary(conversationId, { text: draft.trim(), blocks: undefined });
                     setEditing(false);
                   }}
                   className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-medium text-ink-fg"

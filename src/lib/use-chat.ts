@@ -5,8 +5,8 @@ import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
 import { buildContext, modeOf } from "@/lib/awareness";
-import { recallMemories } from "@/lib/recall";
-import { summaryEntries } from "@/lib/summary-library";
+import { recallMemories, type RecallableMemory } from "@/lib/recall";
+import { blockToRecallable, summaryBlockRefs } from "@/lib/summary-blocks";
 import { DEFAULT_STICKER_GROUP, stickerGroupList } from "@/lib/stickers";
 import { resolveAiName } from "@/lib/branding";
 import {
@@ -496,31 +496,84 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const current = app.conversations.find((c) => c.id === conversationId);
       const query = historyText(history).recent.join("\n").slice(0, 800);
       const summarySources: string[] = [];
-      if (query && current && !current.incognito && modeOf("memory") !== "deny") {
-        const summaries = summaryEntries(app.conversations)
-          .filter((entry) => entry.conversationId !== conversationId || !entry.latest)
-          .map((entry) => ({
-            id: entry.id,
-            content: entry.summary.text,
-            updatedAt: entry.summary.updatedAt,
-          }));
-        const result = await recallMemories(query, {
-          list: [...app.memories.filter((memory) => memory.status === "active"), ...summaries],
+      /**
+       * **旧记忆/旧摘要按块检索**（2026-11 记忆细化，用户 m00490 授权）。
+       *
+       * 以前把"整篇摘要"当候选、再把前 600 字塞进上下文 —— 用户的原话是
+       * "万一后面有很重要的信息呢"。现在摘要先由模型写成整段（保留情绪和语气），
+       * 小块由本地按句切；检索命中的是那一块，只把那块（≤160 tokens）带回来；
+       * 整段摘要只用于当前会话的近期上下文（别的地方会把 `latest` 排除掉）。
+       *
+       * 预算按 `recallBudget`（400/800/1200/1600 token）实算，超了就不再放；
+       * 二次检索最多补 2 块，仍受同一个预算和 6 块总上限约束。
+       */
+      if (query && current && !current.incognito && modeOf("memory") !== "deny" && settings.recallEnabled !== false) {
+        const budget = Math.min(1600, Math.max(400, settings.recallBudget ?? 800));
+        /** 单块也按 token 卡（不是字数）：160 tokens ≈ 160 个汉字 */
+        const PER_BLOCK_TOKENS = 160;
+        const blockList = summaryBlockRefs(app.conversations)
+          .filter((ref) => !(ref.conversationId === conversationId && ref.latest))
+          .map(blockToRecallable);
+        const first = await recallMemories(query, {
+          list: [...app.memories.filter((memory) => memory.status === "active"), ...blockList],
           limit: 4,
           timeoutMs: 3500,
           signal: ac.signal,
         }).catch(() => null);
-        const seen = new Set([summaryText?.trim()]);
-        let remaining = 1600;
-        for (const { memory } of result?.items ?? []) {
+        const seen = new Set<string>([summaryText?.trim() ?? ""]);
+        let remaining = budget;
+        let picked = 0;
+        const take = (memory: RecallableMemory): boolean => {
           const text = memory.content.trim();
-          if (!text || seen.has(text) || remaining <= 0) continue;
+          if (!text || picked >= 6 || remaining <= 0) return false;
+          let excerpt = text;
+          /* 上限按 token 算；只有某条被写得太长时才往回收，正常小块原样带 */
+          while (estimateTokens(excerpt) > PER_BLOCK_TOKENS && excerpt.length > 60) {
+            excerpt = excerpt.slice(0, Math.floor(excerpt.length * 0.9)).trimEnd();
+          }
+          if (seen.has(text) || seen.has(excerpt)) return false;
+          const cost = estimateTokens(excerpt);
+          if (cost > remaining) return false;
           seen.add(text);
-          const excerpt = text.slice(0, Math.min(600, remaining));
-          remaining -= excerpt.length;
-          const fromSummary = memory.id.startsWith("summary:");
+          seen.add(excerpt);
+          remaining -= cost;
+          picked += 1;
+          const fromSummary = memory.id.startsWith("block:") || memory.id.startsWith("summary:");
           if (fromSummary) summarySources.push(memory.id);
           (context.aware ??= []).push(`相关历史资料（${fromSummary ? "对话摘要" : "记忆库"}，仅供回顾）：${excerpt}`);
+          return true;
+        };
+        for (const item of first?.items ?? []) take(item.memory);
+
+        /* 二次检索：块里出现没讲清的专名/引号说法时，再查一次旧摘要（只跳一跳） */
+        if (settings.recallHop !== false && picked > 0) {
+          const terms: string[] = [];
+          const dateLike = (text: string) => /^\d{1,2}[-/月.]\d{1,2}$/.test(text) || /^(今天|昨天|前天)$/.test(text);
+          for (const item of first?.items ?? []) {
+            if (!item.memory.id.startsWith("block:")) continue;
+            for (const tag of item.memory.tags ?? []) {
+              const term = tag.trim();
+              if (term.length < 2 || term.length > 12 || dateLike(term) || query.includes(term) || terms.includes(term)) continue;
+              terms.push(term);
+            }
+            for (const quoted of item.memory.content.match(/[「『“]([^」』”]{2,12})[」』”]/g) ?? []) {
+              const term = quoted.slice(1, -1).trim();
+              if (term.length >= 2 && !query.includes(term) && !terms.includes(term)) terms.push(term);
+            }
+          }
+          if (terms.length > 0) {
+            const hopQuery = `${terms.slice(0, 2).join(" ")} ${query.slice(0, 160)}`;
+            const second = await recallMemories(hopQuery, {
+              list: blockList,
+              limit: 2,
+              timeoutMs: 2500,
+              signal: ac.signal,
+            }).catch(() => null);
+            /* 第二次是"补充说明"：精排没跑成/一条没挑中就当没发生，绝不再扩散 */
+            if (second && (second.semantic === "ok" || second.semantic === "cached")) {
+              for (const item of second.items) take(item.memory);
+            }
+          }
         }
       }
       /**
@@ -634,6 +687,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           style: settings.replyStyle,
           /** 分段回复：只传开关（分几条、每条几句由模型自己判断） */
           segmentEnabled: settings.segmentReply !== false,
+          quoteEnabled: settings.quoteEnabled !== false,
           tools,
           customBaseUrl: settings.customBaseUrl || undefined,
           customApiKey: settings.customApiKey || undefined,
