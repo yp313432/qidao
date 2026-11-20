@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, Languages, LoaderCircle, X } from "lucide-react";
 import { callSentence } from "@/lib/call-sentence";
 import { resolveAiName } from "@/lib/branding";
 import { useApp } from "@/lib/store";
@@ -202,9 +202,9 @@ export function ThinkingSheet({
           "relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]",
           /* 纸世界 Step3 补：实底纸+墨顶线+纸影+衬线 */
           solidPaper && "paper-sheet",
-          liquid && "lq-dialog lq-dialog--sheet lq-dialog--reading backdrop-blur-xl",
+          liquid && "lq-dialog lq-dialog--sheet backdrop-blur-2xl",
         )}
-        data-contrast
+        data-contrast={liquid ? undefined : true}
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : "transform 0.26s cubic-bezier(0.22, 0.8, 0.25, 1)",
@@ -222,7 +222,7 @@ export function ThinkingSheet({
         >
           <span className="h-1 w-10 rounded-full bg-line" />
         </div>
-        <div className="flex items-center justify-between px-4 pt-1.5 pb-2">
+        <div className="flex shrink-0 items-center gap-1 px-4 pt-1.5 pb-2">
           <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
             {live
               ? activeStep || "正在思考…"
@@ -233,31 +233,46 @@ export function ThinkingSheet({
                   .filter(Boolean)
                   .join(" · ")}
           </span>
+          {source && (
+            <button
+              type="button"
+              aria-label="思考内容中文翻译"
+              aria-pressed={Boolean(translated)}
+              title={translated ? "显示原文" : "译成中文"}
+              disabled={pending}
+              onClick={() => {
+                if (translated) setView("original");
+                else void showTranslation();
+              }}
+              className="k-hit shrink-0 rounded-full text-fg focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+            >
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full",
+                  translated && "bg-fg/10",
+                )}
+              >
+                {pending ? (
+                  <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
+                ) : (
+                  <Languages aria-hidden="true" className="size-4" />
+                )}
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="flex size-8 items-center justify-center rounded-full bg-chip-flat text-muted"
+            className="k-hit shrink-0 rounded-full text-fg focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            <X className="size-4" />
+            <span className="flex size-8 items-center justify-center rounded-full bg-chip-flat">
+              <X aria-hidden="true" className="size-4" />
+            </span>
           </button>
         </div>
-        {source && (
-          <div className="shrink-0 px-4 pb-3">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="思考内容语言">
-              <button type="button" className="k-opt" aria-pressed={!translated}
-                data-active={!translated} onClick={() => setView("original")}>
-                原文
-              </button>
-              <button type="button" className="k-opt" aria-pressed={Boolean(translated)}
-                data-active={Boolean(translated)} disabled={pending} onClick={() => void showTranslation()}>
-                {pending ? "正在翻译…" : currentTranslation ? "中文译文" : "译成中文"}
-              </button>
-            </div>
-            {pending && <p className="sr-only" role="status">正在用当前模型翻译</p>}
-            {error && <p className="mt-2 text-sm" role="alert">{error}</p>}
-          </div>
-        )}
+        {source && pending && <p className="sr-only" role="status">正在用当前模型翻译</p>}
+        {source && error && <p className="px-4 pb-2 text-sm" role="alert">{error}</p>}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(var(--aster-nav-h)+1.5rem)]">
           {steps && steps.length > 0 ? (
             <StepList steps={steps} live={live} activeStep={activeStep} translations={translated} />
