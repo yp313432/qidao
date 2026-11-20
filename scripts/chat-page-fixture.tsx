@@ -2,6 +2,7 @@
 import { createRoot } from "react-dom/client";
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { AppShell } from "../src/components/shell/app-shell";
+import { BackgroundLayer } from "../src/components/shell/background-layer";
 import { ChatView } from "../src/components/chat/chat-view";
 import { MePage } from "../src/components/me/me-page";
 import { ToolsView } from "../src/components/views/tools-view";
@@ -76,7 +77,9 @@ function setupThinkingPreview(textTone: "dark" | "light") {
 }
 if (thinkingPreview) setupThinkingPreview("dark");
 
-const root = createRootRoute({ component: AppShell });
+const root = createRootRoute({
+  component: thinkingPreview ? () => <><BackgroundLayer /><AppShell /></> : AppShell,
+});
 const chat = createRoute({ getParentRoute: () => root, path: "/", component: ChatView });
 const settings = createRoute({ getParentRoute: () => root, path: "/chat-settings", component: () =>
   <MePage tab="chat" title="对话" subtitle="思考过程、标点分句、发送节奏、连发与表情包" /> });

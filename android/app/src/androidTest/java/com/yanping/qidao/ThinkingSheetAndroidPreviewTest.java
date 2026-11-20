@@ -3,6 +3,7 @@ package com.yanping.qidao;
 import android.app.Instrumentation;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
+import android.webkit.WebView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -65,7 +66,15 @@ public class ThinkingSheetAndroidPreviewTest {
 
   private void screenshot(String filename) throws Exception {
     until("production fonts loaded", "document.fonts.status === 'loaded'");
-    SystemClock.sleep(550);
+    CountDownLatch drawn = new CountDownLatch(1);
+    scenario.onActivity(activity -> activity.getBridge().getWebView().postVisualStateCallback(
+      SystemClock.uptimeMillis(), new WebView.VisualStateCallback() {
+        @Override public void onComplete(long requestId) {
+          drawn.countDown();
+        }
+      }));
+    assertTrue("WebView did not finish drawing the sheet", drawn.await(15, TimeUnit.SECONDS));
+    SystemClock.sleep(1250);
     Bitmap shot = instrumentation.getUiAutomation().takeScreenshot();
     assertNotNull("Android screen capture failed", shot);
     try (FileOutputStream output = new FileOutputStream(
@@ -82,6 +91,7 @@ public class ThinkingSheetAndroidPreviewTest {
       scenario.onActivity(activity -> activity.getBridge().getWebView()
         .loadUrl("https://localhost/scripts/chat-page-fixture.html?thinkingPreview"));
       until("Android production chat preview", "window.qidaoFixture && window.Capacitor?.isNativePlatform?.() && document.documentElement.dataset.material === 'liquid' && document.body?.innerText?.includes('你想从哪儿说')");
+      until("wallpaper loaded", "document.querySelector('.background-canvas img')?.naturalWidth > 0");
       System.out.println("QIDAO_THINKING_APP_READY");
       openThinkingSheet();
       System.out.println("QIDAO_THINKING_DIALOG_READY");
