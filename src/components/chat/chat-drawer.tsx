@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
-import { DrawerSky } from "@/components/chat/drawer-decor";
 import { useDismissable } from "@/lib/dismiss-stack";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
@@ -35,7 +34,6 @@ import { cn } from "@/lib/utils";
  * 标题行「对话」+ 会话列表（⋯ 里改名/置顶/删除）+ 小标题「功能」+ 八条功能
  * + 底栏（头像→设置、圆形＋新建）。原来纯色独占的那套（顶部大「新对话」按钮、
  * 底部「桌宠 · 动作与设置」按钮）已并入这套，功能入口不再随主题变化。
- * 纯色保留的只有一处装饰：顶部 DrawerSky（星野）。底部的 DrawerCosmos 已在 S8 撤掉 ——
  *
  * 这轮（用户 13 条里的 3/4/8/9/10/11）：
 
@@ -149,21 +147,10 @@ export function ChatDrawer({
               "lq-sheet-scope lq-sheet backdrop-blur-2xl"
             : cn(
                 "glass-panel",
-                /* 纸世界 Step3 补：纯色材质下抽屉换纸壳（用户 m00405 点名）。
-                   星野装饰 DrawerSky 保留 —— 低对比丝线星点在纸底上不抢，先返图看效果。 */
                 solidPaper && "paper-drawer",
               ),
         )}
       >
-        {/* 上：整片星野铺在抽屉顶部（标题和按钮浮在它上面）。
-            用户："上面那个从顶部开始，不是从我画的框开始"
-
-            第 11 条（2026-11 实机）：**液态下不画这片星野**。
-            用户 m01354 反馈"一会看得到、一会看不到、碎片" —— 抽屉里再压一层
-            大面积的装饰图（星野是整块渐变 + 粒子），安卓 WebView 的合成层更容易掉。
-            先让面板干净（纸底 + 标题 + 列表 + 功能 + 底栏），星星等稳定了再加回来。 */}
-        {!liquid && <DrawerSky />}
-
         <div className="relative z-10 flex items-center justify-between px-4 pb-3">
           {/* m02943 第 4 条①：「对话」两个字改成**小字分组标题**（不再是 text-lg 的大字），
               下面才是对话列表。纯色那一侧保持原样（用户没让动纯色）。 */}
@@ -239,14 +226,6 @@ export function ChatDrawer({
               </li>
             ))}
         </ul>
-
-        {/*
-          2026-11-18（用户 m01345）：底部「小宇宙」整块撤掉。
-          · 它里面画的是那只 126px 的抽屉像素蟹 —— 桌宠早就搬到对话页了
-            （`ChatCrab`，尺寸跟设置里的 36/44/52 走），抽屉里再放一只就是
-            「纯色有、液态没有」的双份 + 尺寸也对不上，违反两主题一致。
-          · 保留的只有顶部星野 `DrawerSky`（纯装饰，不占结构）。
-        */}
 
         {/*
           下半区两主题**同一套内容**（用户 m00516："照搬"）：

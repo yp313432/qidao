@@ -10,6 +10,7 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/kit.css";
+@import "./styles/chat-decor.css";
 @import "./styles/splash.css";
 @import "./styles/modes/solid.css";
 @import "./styles/modes/liquid.css";
@@ -499,32 +500,6 @@
   pointer-events: none;
 }
 
-/* 顶栏水彩花枝（m01956）：斜横着搭在右角，画在按钮下面但枝头露出来。
-   素材 public/decor/cherry-branch.webp，按文件名替换即可；
-   z:-1 + pointer-events:none —— 盖不着、点不到。 */
-[data-material="solid"] .mast-deco {
-  position: absolute;
-  z-index: -1;
-  right: -24px;
-  top: -14px;
-  width: 290px;
-  height: 180px;
-  pointer-events: none;
-}
-/* png 本体是 45° 的斜枝，rotate(+40deg) 把它放平成向左斜的横枝；
-   multiply 让水彩纸底融进纸面，不被按钮的纸底割开。 */
-[data-material="solid"] .mast-flower {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: right top;
-  transform: rotate(40deg);
-  transform-origin: 86% 14%;
-  mix-blend-mode: multiply;
-  opacity: 0.95;
-  filter: saturate(1.3) contrast(1.04) drop-shadow(0 1px 2px rgba(28, 25, 23, 0.2));
-}
-
 /* ── 纸世界 Step3 补：弹层与思考链的纸卡壳 ──────────────────────
    2026-11-02 用户点名：「长按气泡弹层和思考链，也做成适配的」。
    纸卡 = 实底纸（无 blur）+ 墨线边 + 浮签同款轻影 + 衬线字；
@@ -595,10 +570,9 @@
        → 复用上面的 .paper-card（specificity (0,2,0) 压过 .glass-menu/.aster-pop）；
      · 记忆库详情 / 归档 → 复用 .paper-sheet（底部抽纸）。 */
 
-/* 对话列表抽屉：玻璃面板 → 纸抽屉（星野装饰 DrawerSky 保留，低对比不抢） */
+/* 对话列表抽屉：纯色纸壳。 */
 [data-material="solid"] .paper-drawer {
-  background: var(--aster-bg);
-  background-image: none;
+  background: var(--chat-drawer-background, var(--aster-bg));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow:
@@ -5127,7 +5101,7 @@ html.q-paused * {
    用户 2026-11-01："纯色模式底部导航栏变实，但是上面导航栏没有，还是虚的。"
    顶栏本来靠透明让背景图透出来；纯色模式下整套都该是"纸"，这里补上。 */
 [data-material="solid"] .chat-topbar {
-  background-color: var(--aster-bg);
+  background-color: var(--chat-topbar-background, var(--aster-bg));
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
