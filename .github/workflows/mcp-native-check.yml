@@ -82,14 +82,14 @@ jobs:
       - name: 安卓模拟器中的原生握手与 AI 实际执行
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 35
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          ram-size: 1536M
-          heap-size: 256M
+          ram-size: 3072M
+          heap-size: 384M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -feature -Vulkan
+          emulator-options: -no-window -gpu swangle -no-snapshot -noaudio -no-boot-anim -camera-back none -feature -Vulkan
           script: bash scripts/verify-android-mcp.sh
       - name: 设备与服务日志
         if: always()
