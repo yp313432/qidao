@@ -1,0 +1,166 @@
+/* 纯色二级目录共用纸面和手写寄语，各自保留插画与入口结构。 */
+.paper-directory {
+  position: relative;
+  isolation: isolate;
+  --directory-paper: color-mix(in oklab, var(--aster-bg) 25%, oklch(97% 0.019 68));
+  --directory-card: color-mix(in oklab, white 37%, var(--directory-paper));
+  --directory-line: color-mix(in oklab, var(--directory-paper) 63%, oklch(70% 0.066 75));
+  --directory-ink: color-mix(in oklab, var(--aster-ink) 63%, oklch(55% 0.079 68));
+  --directory-shadow: 0 4px 14px color-mix(in oklab, var(--directory-ink) 9%, transparent);
+  background: var(--directory-paper);
+}
+
+.paper-directory .directory-caption {
+  font: 400 clamp(21px, 6vw, 27px)/1.15 "Great Vibes", var(--font-script);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--directory-ink);
+}
+
+.space-directory .directory-caption {
+  line-height: 15px;
+}
+
+.space-directory::before,
+.space-directory::after,
+.year-directory::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.space-directory::before {
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  inline-size: min(28%, 8rem);
+  block-size: 6rem;
+  background-image: url("/decor/space-postmark.webp");
+  background-position: right top;
+}
+
+.space-directory::after {
+  inset-block-end: 0;
+  inset-inline: 0;
+  block-size: min(47%, 27rem);
+  background-image: url("/decor/space-letter.webp");
+  background-position: right bottom;
+}
+
+.space-directory .pp-entry {
+  border-radius: 9px;
+  border-color: var(--directory-line);
+  background: var(--directory-card);
+  box-shadow: var(--directory-shadow);
+}
+
+.space-directory .pp-entry .text-subtle {
+  color: var(--aster-muted);
+}
+
+.year-entries {
+  display: grid;
+  gap: 11px;
+  margin-block-start: clamp(38px, 6vh, 52px);
+}
+
+.year-rows,
+.year-link--primary {
+  border: 1px solid var(--directory-line);
+  border-radius: 11px;
+  background: var(--directory-card);
+  box-shadow: var(--directory-shadow);
+}
+
+.year-rows {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+}
+
+.year-rows > li + li {
+  border-block-start: 1px solid var(--directory-line);
+}
+
+.year-link {
+  display: grid;
+  grid-template-columns: 2rem auto minmax(0, 1fr) 1rem;
+  gap: 9px;
+  align-items: center;
+  min-block-size: 48px;
+  padding: 7px 2px;
+  text-decoration: none;
+  color: var(--directory-ink);
+}
+
+.year-link:focus-visible {
+  outline: 2px solid var(--aster-accent);
+  outline-offset: 2px;
+}
+
+.year-link--primary {
+  position: relative;
+  z-index: 0;
+  grid-template-columns: 2.5rem auto minmax(0, 1fr) 1rem;
+  min-block-size: 90px;
+  padding: 11px 14px;
+}
+
+.year-link--primary::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: -41px -3px;
+  inset-inline-end: -1px;
+  inline-size: min(59%, 16rem);
+  background: url("/decor/year-calendar.webp") right bottom / contain no-repeat;
+  mask-image: linear-gradient(to bottom, black 35%, transparent 100%);
+  pointer-events: none;
+}
+
+.year-link__icon {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--directory-line);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--directory-card) 86%, var(--directory-line));
+}
+
+.year-link__title {
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.year-link--primary .year-link__title {
+  font-size: 17px;
+}
+
+.year-link__status {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: end;
+  font-size: 12px;
+  color: var(--aster-muted);
+}
+
+.year-directory::after {
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inline-size: min(74%, 22rem);
+  block-size: min(30%, 15rem);
+  background-image: url("/decor/year-watch.webp");
+  background-position: right bottom;
+}
+
+@media (max-height: 580px) {
+  .space-directory::after,
+  .year-directory::after {
+    display: none;
+  }
+}
