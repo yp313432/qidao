@@ -65,7 +65,9 @@ export function createPetLife(layer: HTMLElement, actor: HTMLElement, list: HTML
     const o = options(), w = Math.max(44, o.size + 12), h = Math.max(44, o.size * .75 + 12);
     if (layer.dataset.paused !== String(o.paused)) { layer.dataset.paused = String(o.paused); invalidateScene(); }
     if (o.paused) { frame = requestAnimationFrame(tick); return; }
-    const sceneChanged = !sceneCache || measuredSize !== o.size || sceneDirty;
+    // A preview tap may arrive after the page's entrance transform has settled.
+    const previewChanged = o.demo && (o.preview !== preview || (o.previewKey ?? 0) !== previewKey);
+    const sceneChanged = !sceneCache || measuredSize !== o.size || sceneDirty || previewChanged;
     if (sceneChanged) { measuredSize = o.size; sceneCache = measureScene(layer, list, composer, w, h); sceneDirty = false; }
     const scene = sceneCache!;
     if (o.emotionKey !== emotionKey) { emotionKey = o.emotionKey; pendingMood = o.mood; }

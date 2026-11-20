@@ -15,6 +15,7 @@ import { PlayHeader } from "@/components/views/play-header";
 import { resolveAiName } from "@/lib/branding";
 import { DICTIONARY, READINGS, WORDS } from "@/lib/learn-data";
 import { useApp } from "@/lib/store";
+import { isSolid } from "@/lib/material";
 import { speakTextAsync, warmUpVoices } from "@/lib/tts";
 import { useActivity } from "@/lib/use-activity";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ type TabId = (typeof TABS)[number]["id"];
 export function LearnView() {
   useActivity("在学英语");
   const [tab, setTab] = useState<TabId>("words");
+  const solid = useApp((s) => isSolid(s.settings));
   // 他请求「打开某篇阅读」时用：tab 要切过去，具体哪一篇交给 ReadingTab
   const [readingJump, setReadingJump] = useState<{ index: number; at: number } | null>(null);
 
@@ -42,7 +44,7 @@ export function LearnView() {
   }, [openPanel]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className={cn("flex min-h-0 flex-1 flex-col", solid && "paper-directory learn-paper")}>
       <PlayHeader title="英语学习" />
       <div className="px-4">
         <div className="pp-seg grid grid-cols-3 gap-1 rounded-full bg-chip p-1">
@@ -155,7 +157,7 @@ function WordsTab() {
 
           {!flipped ? (
             <div className="mt-6">
-              <h2 className="text-3xl font-medium tracking-tight">{card.word}</h2>
+              <h2 className="learn-word text-3xl font-medium tracking-tight">{card.word}</h2>
               <p className="mt-1 text-sm text-muted">{card.phonetic}</p>
               <p className="mt-1 text-[13px] text-subtle">{card.pos}</p>
               <p className="mt-6 text-[13px] text-subtle">轻点卡片查看释义</p>

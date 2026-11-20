@@ -20,20 +20,20 @@
 .pet-actor[data-phase="think"] .pet-status::before { content: '···'; }
 .pet-actor[data-phase="rest"] .pet-status::before { content: 'z Z'; }
 .pet-actor:has(.pet-speech) .pet-status { visibility: hidden; }
-.pet-page { height: 100%; min-height: 0; overflow-y: auto; color: var(--aster-fg); }
-.pet-page-body { padding: var(--k-s-4) var(--k-page-x) var(--k-s-8); max-width: 680px; margin: auto; }
-.pet-preview { max-width: 400px; margin-inline: auto; position: relative; height: 380px; border: 1px solid var(--aster-line); border-radius: var(--k-s-5); background: var(--aster-bg); overflow: hidden; }
+.pet-page { display: flex; flex: 1; flex-direction: column; min-height: 0; color: var(--aster-fg); }
+.pet-page-body { display: flex; flex: 1; flex-direction: column; gap: var(--k-s-4); width: 100%; min-height: 0; max-width: 680px; margin-inline: auto; padding: var(--k-s-2) var(--k-page-x) 0; }
+.pet-preview { flex: none; position: relative; height: 180px; border: 1px solid var(--aster-line); border-radius: var(--k-s-5); background: var(--aster-bg); overflow: hidden; }
+.pet-preview[data-expanded="true"] { height: clamp(180px, 48dvh, 380px); }
 .pet-preview-messages { position: relative; height: 100%; overflow: hidden; }
-.pet-preview .pet-example { position: absolute; left: 14px; top: 96px; width: clamp(130px, 48%, 210px); max-width: none; min-height: 44px; padding: var(--k-s-3) var(--k-s-4); font-size: var(--k-t-3); border-radius: var(--k-s-4); border: 1px solid var(--aster-line); background: var(--aster-surface); }
-.pet-preview .pet-example:nth-child(2) { left: auto; right: 14px; top: 206px; }
-.pet-preview .pet-example:nth-child(3) { top: 316px; }
-.pet-hint { font-size: var(--k-t-2); color: var(--aster-muted); line-height: var(--k-lh-2); margin: var(--k-s-4) 0; }
-.pet-tabs { display: flex; gap: var(--k-s-3); margin: var(--k-s-5) 0; }
+.pet-preview .pet-example { position: absolute; left: 11px; top: 4%; width: max-content; max-width: 48%; padding: var(--k-s-2) var(--k-s-3); font-size: var(--k-t-2); border-radius: var(--k-s-4); border: 1px solid var(--aster-line); background: var(--aster-surface); }
+.pet-preview .pet-example:nth-child(2) { left: auto; right: 9%; top: auto; bottom: 12%; }
+.pet-preview .pet-example:nth-child(3) { top: auto; bottom: 6%; }
+.pet-preview-size { position: absolute; z-index: 21; inset: 0 0 auto auto; display: grid; place-items: center; width: var(--k-tap); height: var(--k-tap); border: 0; background: transparent; color: var(--aster-fg); }
+.pet-controls { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 2px 2px max(var(--k-s-6), var(--k-safe-b)); }
+.pet-tabs { display: flex; flex-shrink: 0; gap: var(--k-s-2); }
 .pet-tabs button { flex: 1; min-height: var(--k-tap); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: inherit; font-size: var(--k-t-3); }
-.pet-tabs [aria-selected="true"], .pet-action-grid [aria-pressed="true"] { border-color: var(--aster-accent); background: transparent; }
 .pet-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--k-s-3); }
-.pet-action-grid button { display: flex; flex-direction: column; gap: var(--k-s-2); text-align: left; padding: var(--k-s-4); min-height: var(--k-tap); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: inherit; font-size: var(--k-t-3); }
-.pet-action-grid small { color: var(--aster-muted); font-size: var(--k-t-2); line-height: var(--k-lh-2); }
+.pet-action-grid button { display: grid; place-items: center; padding: var(--k-s-2); min-height: var(--k-tap); border: 1px solid var(--aster-line); border-radius: var(--k-s-4); background: var(--aster-surface); color: inherit; font-size: var(--k-t-3); text-align: center; }
 .pet-settings { display: flex; flex-direction: column; gap: var(--k-s-3); }
 .pet-setting-row { display: flex; align-items: center; justify-content: space-between; gap: var(--k-s-4); min-height: var(--k-tap); font-size: var(--k-t-3); border-bottom: 1px solid var(--aster-line); }
 .pet-page .pet-tabs button, .pet-page .pet-action-grid button { position: relative; background: transparent; }

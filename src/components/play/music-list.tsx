@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Disc3, Headphones, Link2, Plus, Trash2 } from "lucide-react";
 import { PlayHeader } from "@/components/views/play-header";
 import { kindLabel } from "@/lib/music-embed";
-import { materialOf } from "@/lib/material";
+import { isSolid } from "@/lib/material";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,8 @@ export function MusicListView() {
   const embeds = useApp((s) => s.musicEmbeds);
   const currentEmbedId = useApp((s) => s.currentEmbedId);
   // 液态：音乐列表是**二级列表**（一级「音乐」点进来），条目换成玻璃片
-  const liquid = materialOf(useApp((s) => s.settings)) === "liquid";
+  const solid = useApp((s) => isSolid(s.settings));
+  const liquid = !solid;
   const navigate = useNavigate();
 
   function openLocal(id: string) {
@@ -40,7 +41,14 @@ export function MusicListView() {
   const empty = tracks.length === 0 && embeds.length === 0;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className={cn("flex min-h-0 flex-1 flex-col", solid && "paper-directory music-paper")}>
+      {solid && (
+        <div className="music-paper-art" aria-hidden="true">
+          <div className="music-paper-turntable" data-playing={playing && !currentEmbedId ? "true" : undefined}>
+            <span className="music-paper-record" />
+          </div>
+        </div>
+      )}
       <PlayHeader
         title="音乐"
         extra={
@@ -56,7 +64,7 @@ export function MusicListView() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-above-nav">
         {empty && (
-          <div className="mt-6 rounded-3xl border border-line bg-surface px-6 py-12 text-center">
+          <div className="music-list-empty mt-6 rounded-3xl border border-line bg-surface px-6 py-12 text-center">
             <Headphones className="mx-auto size-8 text-muted" strokeWidth={1.5} />
             <p className="mt-4 text-[15px] font-medium">还没有音乐</p>
             <p className="mt-2 text-[13px] leading-6 text-muted">
@@ -79,7 +87,7 @@ export function MusicListView() {
                   <li key={t.id}>
                     <div
                       className={cn(
-                        "flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
+                        "music-list-row flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
                         liquid ? "lq-glass" : active ? "glass-active" : "bg-surface",
                       )}
                     >
@@ -151,7 +159,7 @@ export function MusicListView() {
                   <li key={e.id}>
                     <div
                       className={cn(
-                        "flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
+                        "music-list-row flex items-center gap-1 overflow-hidden rounded-3xl border border-line pr-1 transition-colors",
                         liquid ? "lq-glass" : active ? "glass-active" : "bg-surface",
                       )}
                     >

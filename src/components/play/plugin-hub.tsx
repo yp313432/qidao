@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Pencil, Plus, Puzzle } from "lucide-react";
+import { ChevronRight, Clock, Layers, Orbit, Pencil, Plus, Puzzle, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KSwitch } from "@/components/ui-kit";
 import { catalogOf } from "@/lib/plugins";
@@ -24,6 +24,13 @@ import { pushToast } from "@/lib/toast";
  * 这一页**不隐藏底部导航**（它是玩乐的子页，还在 App 的框架里），
  * 点进**具体某个插件**才整页铺满（跟时感一样，见 `pluginBySlug` 那条路由）。
  */
+const PAPER_PLUGIN_ICONS = {
+  plugin_summaries: Layers,
+  plugin_shigan: Clock,
+  plugin_memory: Sparkles,
+  plugin_emotion: Orbit,
+} satisfies Record<string, typeof Puzzle>;
+
 export function PluginHub() {
   const solidPaper = useApp((s) => isSolid(s.settings));
   // 液态：这是**二级列表**（一级「插件」点进来的目录），卡片换成玻璃片；
@@ -34,20 +41,23 @@ export function PluginHub() {
   const plugins = catalogOf(customs);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav">
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto pb-above-nav", solidPaper && "paper-directory plugin-paper")}>
       <PageHeader title="插件" description="网页应用与内置扩展" />
 
       <div className="px-4">
-        <ul className="space-y-2.5">
+        <ul className={solidPaper ? "plugin-paper-list" : "space-y-2.5"}>
           {plugins.map((p) => {
             const off = p.enabled === false;
+            const Icon = solidPaper && !p.custom && Object.hasOwn(PAPER_PLUGIN_ICONS, p.id)
+              ? PAPER_PLUGIN_ICONS[p.id as keyof typeof PAPER_PLUGIN_ICONS]
+              : Puzzle;
             return (
               <li
                 key={p.id}
                 className={cn(
                   "flex items-center",
                   liquid ? "lq-glass" : "rounded-3xl border border-line bg-elevated",
-                  solidPaper && "pp-entry",
+                  solidPaper && "plugin-paper-row",
                   off && "opacity-45",
                 )}
               >
@@ -63,7 +73,7 @@ export function PluginHub() {
                   className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
-                    <Puzzle className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />
+                    <Icon className="size-[1.15rem] text-accent" strokeWidth={1.7} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-serif text-[15px]">{p.name}</span>
@@ -113,7 +123,7 @@ export function PluginHub() {
         <Link
           to="/play/plugins/edit"
           search={{}}
-          className={cn("mt-3 flex items-center gap-3 rounded-3xl border border-dashed border-line px-4 py-3.5 text-muted", solidPaper && "pp-entry pp-entry-add")}
+          className={cn("mt-3 flex items-center gap-3 rounded-3xl border border-dashed border-line px-4 py-3.5 text-muted", solidPaper && "plugin-paper-add")}
         >
           <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-line bg-chip">
             <Plus className="size-[1.15rem]" strokeWidth={1.7} aria-hidden="true" />

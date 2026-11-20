@@ -1,0 +1,197 @@
+/* 各页的纸面样式只由该页的纯色分支启用。 */
+.learn-paper::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset: auto 0 0 auto;
+  inline-size: min(78%, 27rem);
+  block-size: min(31%, 15rem);
+  background: url("/decor/learn-quill.webp") right bottom / contain no-repeat;
+}
+
+.paper-directory.learn-paper .pp-seg .pp-seg-btn,
+.paper-directory.learn-paper .pp-note {
+  border: 1px solid var(--directory-line);
+  border-radius: 9px;
+  background: var(--directory-card);
+  box-shadow: var(--directory-shadow);
+}
+
+.paper-directory.learn-paper .pp-seg .pp-seg-btn.pp-seg-on {
+  border-color: var(--directory-line);
+  background: color-mix(in oklab, var(--directory-card) 85%, var(--aster-accent));
+}
+
+.learn-paper .learn-word {
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  letter-spacing: 0;
+}
+
+.learn-paper [aria-label="下一个"] {
+  background-color: oklch(42% 0.045 84);
+}
+
+.music-paper-art {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: url("/decor/music-score.webp") right 23% / min(100%, 34rem) auto no-repeat;
+}
+
+.music-paper-turntable {
+  position: absolute;
+  inset: auto auto 0 0;
+  inline-size: min(76%, 46dvh, 22rem);
+  aspect-ratio: 1;
+  background: url("/decor/music-turntable.webp") center / 100% 100% no-repeat;
+}
+
+.music-paper-record {
+  position: absolute;
+  inset: 31.354% auto auto 30.104%;
+  inline-size: 31.875%;
+  aspect-ratio: 1;
+  background: url("/decor/music-record.webp") center / contain no-repeat;
+  animation: music-paper-spin 24s linear infinite paused;
+}
+
+.music-paper-turntable[data-playing="true"] .music-paper-record {
+  animation-play-state: running;
+}
+
+@keyframes music-paper-spin {
+  to { transform: rotate(1turn); }
+}
+
+.music-paper .music-list-row,
+.music-paper .music-list-empty {
+  border-color: var(--directory-line);
+  background: var(--directory-card);
+  box-shadow: var(--directory-shadow);
+}
+
+.music-paper .music-list-row.glass-active {
+  border-color: var(--aster-accent);
+}
+
+.plugin-paper::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 7px auto auto;
+  inline-size: min(46%, 14rem);
+  block-size: 6rem;
+  background: url("/decor/plugin-prism.webp") right center / contain no-repeat;
+  pointer-events: none;
+}
+
+.plugin-paper-list {
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--directory-line);
+  border-radius: 11px;
+  background: var(--directory-card);
+  list-style: none;
+}
+
+.plugin-paper-list::before,
+.plugin-paper-list::after {
+  content: "";
+  position: absolute;
+  inset: -36px 1px auto auto;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.plugin-paper-list::before {
+  width: 54px;
+  height: 308px;
+  background: color-mix(in oklab, var(--aster-accent) 45%, transparent);
+  clip-path: path("M 20 0 C 35 5 48 14 51 36 C 54 98 35 118 35 173 C 35 223 52 233 48 273 C 47 289 41 301 37 308 L 36 308 C 40 301 46 289 47 273 C 51 233 34 223 34 173 C 34 118 53 98 50 36 C 47 14 34 5 19 0 Z");
+}
+
+.plugin-paper-list::after {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: oklch(85% 0.12 80);
+  box-shadow: 0 0 5px oklch(88% 0.1 82);
+  offset-path: path("M -29 0 C -14 5 -1 14 2 36 C 5 98 -14 118 -14 173 C -14 223 3 233 -1 273 C -2 289 -8 301 -12 308");
+  animation: plugin-paper-light 1.1s ease-out both;
+}
+
+@keyframes plugin-paper-light {
+  0% { offset-distance: 0%; opacity: 0; }
+  18% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+.plugin-paper .plugin-paper-row {
+  min-block-size: 68px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.plugin-paper .plugin-paper-row + .plugin-paper-row {
+  border-block-start: 1px solid var(--directory-line);
+}
+
+.plugin-paper-row > a:first-child {
+  padding-inline-end: 29px;
+}
+
+.plugin-paper-row:has([role="switch"]) > a:first-child {
+  padding-inline-end: 4px;
+}
+
+.plugin-paper .plugin-paper-add {
+  border-color: var(--directory-line);
+  border-radius: 11px;
+  background: var(--directory-card);
+}
+
+.plugin-paper .text-subtle {
+  color: var(--aster-muted);
+}
+
+.pet-page-paper .pet-preview,
+.pet-page-paper.pet-page .pet-tabs button,
+.pet-page-paper.pet-page .pet-action-grid button {
+  border-color: var(--directory-line);
+  background: var(--directory-card);
+}
+
+.pet-page-paper.pet-page .pet-tabs [aria-selected="true"],
+.pet-page-paper.pet-page .pet-action-grid [aria-pressed="true"] {
+  border-color: var(--aster-accent);
+  background: color-mix(in oklab, var(--directory-card) 81%, var(--aster-accent));
+  box-shadow: none;
+}
+
+html[data-motion="off"] .music-paper-record,
+html[data-motion="off"] .plugin-paper-list::after {
+  animation: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-paper-record,
+  .plugin-paper-list::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@media (max-height: 545px) {
+  .learn-paper::after {
+    display: none;
+  }
+}
