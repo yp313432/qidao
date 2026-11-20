@@ -11,7 +11,6 @@ import java.io.FileOutputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import org.json.JSONObject;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -40,70 +39,6 @@ public class ThinkingSheetAndroidPreviewTest {
       SystemClock.sleep(120);
     }
     fail(label + " timed out. " + evaluate("String(window.qidaoPreviewSeed) + ' | ' + document.body?.innerText?.slice(-3000)"));
-  }
-
-  private void seed(String textTone) throws Exception {
-    evaluate("""
-      (async (textTone) => {
-        window.qidaoPreviewSeed = 'writing';
-        try {
-          const now = Date.now();
-          const id = 'android-preview';
-          const message = (suffix, role, content, elapsed) => ({
-            id: id + '-' + suffix, role, content, createdAt: now - elapsed, thinking: '', thinkingDurationMs: 0,
-          });
-          const thoughts = [
-            'Give her room to talk, and let her choose what to share.',
-            'Keep the reply short and warm. There is no rush to find a solution.',
-          ];
-          const assistant = {
-            ...message('4', 'assistant', '我在。你想从哪儿说，我们就从哪儿说。', 5000),
-            thinking: thoughts.join(' '),
-            thinkingDurationMs: 15000,
-            steps: [
-              {kind: 'think', text: thoughts[0]},
-              {kind: 'call', call: {kind: 'memory.add', name: 'memory_add', ok: true,
-                args: JSON.stringify({text: '她累的时候想有人陪着'}), result: '她累的时候想有人陪着'}},
-              {kind: 'think', text: thoughts[1]},
-            ],
-          };
-          const resource = performance.getEntriesByType('resource')
-            .find(entry => new URL(entry.name).pathname.split('/').at(-1).startsWith('store-') &&
-              !new URL(entry.name).pathname.split('/').at(-1).startsWith('store-ready-'));
-          if (!resource) throw new Error('The production store chunk did not load');
-          const appModule = await import(resource.name);
-          const store = Object.values(appModule).find(value =>
-            typeof value?.getState === 'function' && typeof value.getState().patchSettings === 'function');
-          if (!store) throw new Error('The production chat store export is unavailable');
-          const state = {
-            activeId: id,
-            conversations: [{id, title: '傍晚的对话', pinned: false, incognito: false,
-              createdAt: now - 90000, updatedAt: now, messages: [
-                message('1', 'user', '今天有点累，想说说话。', 85000),
-                message('2', 'assistant', '想说就慢慢说，我听着。', 65000),
-                message('3', 'user', '好像有很多话，不知道该从哪里说起。', 45000),
-                assistant,
-              ]}],
-            settings: {
-              material: 'liquid', textTone, showThinking: true, motion: 'off',
-              aiName: '星芒', displayName: 'yan', notifications: false,
-              wakeEnabled: false, autonomyEnabled: false, voiceReplies: false,
-              chatCrab: {enabled: false, size: 32, activity: 'quiet'},
-              background: {image: '/memory-universe/nebula.jpg', blur: 0, dim: 0.12, opacity: 1},
-              customBaseUrl: 'http://127.0.0.1:4661/v1', customApiKey: 'android-preview', upstreamModel: 'android-preview',
-            },
-          };
-          store.setState(previous => ({...state, settings: {...previous.settings, ...state.settings}}));
-          window.qidaoPreviewSeed = 'saved';
-        } catch (error) {
-          window.qidaoPreviewSeed = String(error);
-        }
-      })
-      """.strip() + "(" + JSONObject.quote(textTone) + ")");
-    until("test conversation loaded into the running app", "window.qidaoPreviewSeed === 'saved'");
-    System.out.println("QIDAO_THINKING_TEST_DATA_READY " + textTone);
-    until("production chat with sample conversation",
-      "window.Capacitor?.isNativePlatform?.() && document.documentElement.dataset.material === 'liquid' && document.body?.innerText?.includes('你想从哪儿说') && !document.querySelector('.boot-veil')");
   }
 
   private void openThinkingSheet() throws Exception {
@@ -144,10 +79,10 @@ public class ThinkingSheetAndroidPreviewTest {
   @Test public void captureProductionThinkingSheet() throws Exception {
     scenario = ActivityScenario.launch(MainActivity.class);
     try {
-      until("Capacitor WebView and app boot", "location.hostname === 'localhost' && window.Capacitor?.isNativePlatform?.() && !document.querySelector('.boot-veil') && document.body?.innerText.length > 0");
-      SystemClock.sleep(1500);
+      scenario.onActivity(activity -> activity.getBridge().getWebView()
+        .loadUrl("https://localhost/scripts/chat-page-fixture.html?thinkingPreview"));
+      until("Android production chat preview", "window.qidaoFixture && window.Capacitor?.isNativePlatform?.() && document.documentElement.dataset.material === 'liquid' && document.body?.innerText?.includes('你想从哪儿说')");
       System.out.println("QIDAO_THINKING_APP_READY");
-      seed("dark");
       openThinkingSheet();
       System.out.println("QIDAO_THINKING_DIALOG_READY");
       screenshot("thinking-original.png");
@@ -161,7 +96,8 @@ public class ThinkingSheetAndroidPreviewTest {
 
       evaluate("document.querySelector('.lq-dialog--sheet button[aria-label=关闭]').click()");
       until("thinking sheet closed", "!document.querySelector('.lq-dialog--sheet.backdrop-blur-2xl')");
-      seed("light");
+      evaluate("window.qidaoFixture.setThinkingPreviewTone('light')");
+      until("light text settings applied", "window.qidaoFixture.read().settings.textTone === 'light'");
       openThinkingSheet();
       screenshot("thinking-light-text.png");
       System.out.println("QIDAO_THINKING_PASS actual Android app, white glass with both text tones, translation and return to original");
