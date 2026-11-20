@@ -1,0 +1,96 @@
+/* 纯色工具页：四个标签共用星盘，装饰独立于滚动和控件。 */
+.tools-paper {
+  position: relative;
+  isolation: isolate;
+  --tools-paper-bg: color-mix(in oklab, var(--aster-bg) 25%, oklch(97% 0.019 68));
+  --tools-paper-card: color-mix(in oklab, white 36%, var(--tools-paper-bg));
+  --tools-paper-line: color-mix(in oklab, var(--tools-paper-bg) 57%, oklch(69% 0.065 76));
+  --tools-paper-surface-muted: color-mix(in oklab, var(--tools-paper-bg) 88%, oklch(80% 0.068 75));
+  background: var(--tools-paper-bg);
+}
+
+.tools-paper__decoration {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tools-paper__astrolabe {
+  position: absolute;
+  inset-block-start: clamp(34px, 5.1vh, 48px);
+  inset-inline-end: 2px;
+}
+
+.tools-paper__dial,
+.tools-paper__ring {
+  position: absolute;
+  inset: 0 auto auto 0;
+  max-inline-size: none;
+  block-size: auto;
+  translate: -50% -50%;
+}
+
+.tools-paper__dial {
+  inline-size: clamp(274px, 92vw, 376px);
+}
+
+.tools-paper__ring {
+  inline-size: clamp(110px, 35.6vw, 154px);
+  animation: tools-astrolabe-turn 32s linear infinite;
+}
+
+@keyframes tools-astrolabe-turn {
+  to { transform: rotate(-1turn); }
+}
+
+html[data-motion="off"] .tools-paper__ring {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="on"]) .tools-paper__ring {
+    animation: none;
+  }
+}
+
+.tools-paper .k-tab {
+  --k-tab-on-bg: var(--tools-paper-surface-muted);
+  --k-tab-mark-h: 1px;
+  --k-tab-mark: oklch(66% 0.095 74);
+  border-color: var(--tools-paper-line);
+  background: var(--tools-paper-card);
+  color: var(--k-fg);
+}
+
+.tools-paper .k-tab[data-active="true"] {
+  border-color: var(--tools-paper-line);
+  background: var(--k-tab-on-bg);
+  box-shadow: inset 0 calc(-1 * var(--k-tab-mark-h)) 0 var(--k-tab-mark);
+}
+
+.tools-paper .k-card {
+  --k-surface: var(--tools-paper-card);
+  --k-line: var(--tools-paper-line);
+}
+
+.tools-paper .k-card .k-chip {
+  --k-chip-bg: var(--tools-paper-surface-muted);
+}
+
+.tools-paper .k-switch {
+  --k-ctl-on-bg: oklch(42% 0.045 93);
+}
+
+/* 随第三张工具卡走，展开上方卡片时也始终落在同一条卡片间隙。 */
+.tools-paper .k-list > :nth-child(3 of .k-card:has(> .k-card__head))::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * (var(--k-s-4) + var(--k-border-w)));
+  inset-inline-end: 7%;
+  inline-size: min(48%, 214px);
+  block-size: var(--k-s-4);
+  background: url("/decor/tools-moon-phases.webp") right center / contain no-repeat;
+  pointer-events: none;
+}

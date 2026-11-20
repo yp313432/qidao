@@ -7,9 +7,10 @@ import { SkillManager } from "@/components/tools/skill-manager";
 import { ToolCard } from "@/components/tools/tool-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { KButton, KChip, KEmpty } from "@/components/ui-kit";
+import { isSolid } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { recallUiState, rememberUiState, useScrollMemory } from "@/lib/ux";
-import { formatDay } from "@/lib/utils";
+import { cn, formatDay } from "@/lib/utils";
 
 // 原来的「思考」标签已经去掉：思考链不再归档（回复时当场就能看到）
 const TABS = [
@@ -62,6 +63,7 @@ export function ToolsView() {
 
   const scrollRef = useScrollMemory("tools");
   const docs = useApp((s) => s.docs);
+  const solid = useApp((s) => isSolid(s.settings));
   const [openDoc, setOpenDoc] = useState<string | null>(null);
 
   function pick(next: TabId) {
@@ -70,7 +72,15 @@ export function ToolsView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className={cn("flex min-h-0 flex-1 flex-col", solid && "tools-paper")}>
+      {solid && (
+        <div className="tools-paper__decoration" aria-hidden="true">
+          <div className="tools-paper__astrolabe">
+            <img className="tools-paper__dial" src="/decor/tools-astrolabe.webp" alt="" />
+            <img className="tools-paper__ring" src="/decor/tools-astrolabe-ring.webp" alt="" />
+          </div>
+        </div>
+      )}
       {/* 用户 m00771：纯色下工具页的返回键/标题要和其它二级页统一 → 用同一个 PageHeader
           （两套材质各按自己的规范画）。注意页头必须放在 `.k-page` 外面：
           k-page 自带 16px 横向内边距，套在里面会比别的二级页多缩进 16px。 */}

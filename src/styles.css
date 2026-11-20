@@ -11,6 +11,7 @@
 @import "./styles/base.css";
 @import "./styles/kit.css";
 @import "./styles/chat-decor.css";
+@import "./styles/tools-paper.css";
 @import "./styles/splash.css";
 @import "./styles/modes/solid.css";
 @import "./styles/modes/liquid.css";
