@@ -8,6 +8,7 @@ service_log=/tmp/thinking-translation.log
 capture_result() {
   status=$?
   trap - EXIT
+  if [[ -n "${live_log_pid:-}" ]]; then kill "$live_log_pid" 2>/dev/null || true; fi
   if [[ -n "${translation_server:-}" ]]; then kill "$translation_server" 2>/dev/null || true; fi
   mkdir -p "$capture_dir"
   for name in thinking-original.png thinking-translated.png thinking-light-text.png; do
@@ -20,11 +21,12 @@ capture_result() {
   if [[ -s "$capture_dir/thinking-original.png" ]]; then cp "$capture_dir/thinking-original.png" /tmp/native-mcp.png; fi
   if [[ -f "$service_log" ]]; then cp "$service_log" "$capture_dir/translation-endpoint.log"; fi
   timeout 10s adb logcat -d > /tmp/native-logcat.txt 2>&1 || true
+  (sudo dmesg -T | tail -160) > "$capture_dir/runner-kernel.txt" 2>&1 || true
   exit "$status"
 }
 trap capture_result EXIT
 
-adb shell wm size 432x936
+adb shell wm size 480x800
 adb shell wm density 160
 adb shell settings put system font_scale 1.0
 adb reverse tcp:4661 tcp:4661
@@ -79,6 +81,8 @@ done
 curl -fsS http://127.0.0.1:4661/health >/dev/null
 
 adb logcat -c
+adb logcat -v time > /tmp/native-logcat-live.txt 2>&1 &
+live_log_pid=$!
 mkdir -p "$capture_dir"
 adb shell am instrument -w -r \
   -e class com.yanping.qidao.ThinkingSheetAndroidPreviewTest \

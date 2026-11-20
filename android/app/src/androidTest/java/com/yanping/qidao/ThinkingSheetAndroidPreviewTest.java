@@ -39,7 +39,7 @@ public class ThinkingSheetAndroidPreviewTest {
       if ("true".equals(evaluate("Boolean(" + predicate + ")"))) return;
       SystemClock.sleep(120);
     }
-    fail(label + " timed out. " + evaluate("String(window.qidaoPreviewSeed) + ' | ' + document.body.innerText.slice(-3000)"));
+    fail(label + " timed out. " + evaluate("String(window.qidaoPreviewSeed) + ' | ' + document.body?.innerText?.slice(-3000)"));
   }
 
   private void seed(String textTone) throws Exception {
@@ -67,7 +67,15 @@ public class ThinkingSheetAndroidPreviewTest {
               {kind: 'think', text: thoughts[1]},
             ],
           };
-          const snapshot = JSON.stringify({version: 1, state: {
+          const resource = performance.getEntriesByType('resource')
+            .find(entry => new URL(entry.name).pathname.split('/').at(-1).startsWith('store-') &&
+              !new URL(entry.name).pathname.split('/').at(-1).startsWith('store-ready-'));
+          if (!resource) throw new Error('The production store chunk did not load');
+          const appModule = await import(resource.name);
+          const store = Object.values(appModule).find(value =>
+            typeof value?.getState === 'function' && typeof value.getState().patchSettings === 'function');
+          if (!store) throw new Error('The production chat store export is unavailable');
+          const state = {
             activeId: id,
             conversations: [{id, title: '傍晚的对话', pinned: false, incognito: false,
               createdAt: now - 90000, updatedAt: now, messages: [
@@ -84,29 +92,18 @@ public class ThinkingSheetAndroidPreviewTest {
               background: {image: '/memory-universe/nebula.jpg', blur: 0, dim: 0.12, opacity: 1},
               customBaseUrl: 'http://127.0.0.1:4661/v1', customApiKey: 'android-preview', upstreamModel: 'android-preview',
             },
-          }});
-          await new Promise((resolve, reject) => {
-            const open = indexedDB.open('qidao-store', 1);
-            open.onupgradeneeded = () => open.result.createObjectStore('kv');
-            open.onerror = () => reject(open.error);
-            open.onsuccess = () => {
-              const database = open.result;
-              const tx = database.transaction('kv', 'readwrite');
-              tx.objectStore('kv').put(snapshot, 'aster-app');
-              tx.oncomplete = () => { database.close(); resolve(); };
-              tx.onabort = () => { database.close(); reject(tx.error); };
-            };
-          });
+          };
+          store.setState(previous => ({...state, settings: {...previous.settings, ...state.settings}}));
           window.qidaoPreviewSeed = 'saved';
         } catch (error) {
           window.qidaoPreviewSeed = String(error);
         }
       })
       """.strip() + "(" + JSONObject.quote(textTone) + ")");
-    until("test conversation persisted", "window.qidaoPreviewSeed === 'saved'");
-    scenario.onActivity(activity -> activity.getBridge().getWebView().reload());
+    until("test conversation loaded into the running app", "window.qidaoPreviewSeed === 'saved'");
+    System.out.println("QIDAO_THINKING_TEST_DATA_READY " + textTone);
     until("production chat with sample conversation",
-      "window.Capacitor?.isNativePlatform?.() && document.documentElement.dataset.material === 'liquid' && document.body.innerText.includes('你想从哪儿说') && !document.querySelector('.boot-veil')");
+      "window.Capacitor?.isNativePlatform?.() && document.documentElement.dataset.material === 'liquid' && document.body?.innerText?.includes('你想从哪儿说') && !document.querySelector('.boot-veil')");
   }
 
   private void openThinkingSheet() throws Exception {
@@ -147,19 +144,23 @@ public class ThinkingSheetAndroidPreviewTest {
   @Test public void captureProductionThinkingSheet() throws Exception {
     scenario = ActivityScenario.launch(MainActivity.class);
     try {
-      until("Capacitor WebView and app boot", "location.hostname === 'localhost' && window.Capacitor?.isNativePlatform?.() && !document.querySelector('.boot-veil') && document.body.innerText.length > 0");
+      until("Capacitor WebView and app boot", "location.hostname === 'localhost' && window.Capacitor?.isNativePlatform?.() && !document.querySelector('.boot-veil') && document.body?.innerText.length > 0");
       SystemClock.sleep(1500);
+      System.out.println("QIDAO_THINKING_APP_READY");
       seed("dark");
       openThinkingSheet();
+      System.out.println("QIDAO_THINKING_DIALOG_READY");
       screenshot("thinking-original.png");
 
       String translate = "document.querySelector('.lq-dialog--sheet button[aria-label=\"思考内容中文翻译\"]')";
       evaluate(translate + ".click()");
-      until("translated sample visible", translate + ".getAttribute('aria-pressed') === 'true' && document.body.innerText.includes('给她留出说话的空间')");
+      until("translated sample visible", translate + ".getAttribute('aria-pressed') === 'true' && document.body?.innerText?.includes('给她留出说话的空间')");
       screenshot("thinking-translated.png");
       evaluate(translate + ".click()");
-      until("original restored", translate + ".getAttribute('aria-pressed') === 'false' && document.body.innerText.includes('Give her room to talk')");
+      until("original restored", translate + ".getAttribute('aria-pressed') === 'false' && document.body?.innerText?.includes('Give her room to talk')");
 
+      evaluate("document.querySelector('.lq-dialog--sheet button[aria-label=\"关闭\"]').click()");
+      until("thinking sheet closed", "!document.querySelector('.lq-dialog--sheet.backdrop-blur-2xl')");
       seed("light");
       openThinkingSheet();
       screenshot("thinking-light-text.png");
