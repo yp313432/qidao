@@ -766,6 +766,8 @@ export type Settings = {
   mergeSendDelayMs?: number;
   replyWhileBusy?: boolean;
   aiStickers?: boolean;
+  /** 是否记录 AI 上报的新情绪，旧存档默认开启。 */
+  emotionReporting?: boolean;
   assistantAutoClean?: boolean;
   /**
    * ── 主动说话（2026-11 用户要的"他自己察觉到、自己开口"）──────────

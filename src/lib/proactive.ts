@@ -96,6 +96,7 @@ export function proactiveSystem(extra?: Partial<PromptInput>): string {
   const input: PromptInput = {
     style: s.replyStyle,
     segmentEnabled: s.segmentReply !== false,
+    emotionReporting: s.emotionReporting,
     tools: promptToolsFor(st.mcp ?? [], st.httpTools ?? []),
     nativeTools: false,
     userGender: s.userGender ?? "",

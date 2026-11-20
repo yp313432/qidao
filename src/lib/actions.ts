@@ -728,6 +728,7 @@ const stamp = (t: number): string =>
      * 已整条删掉 —— 用户原话："就是那 11 个就不用了。"
      */
     case "emotion.report": {
+      if (useApp.getState().settings.emotionReporting === false) return "记录情绪失败：对话设置已关闭情绪上报。";
       const result = buildEmotionReport({
         primaryEmotion: action.primaryEmotion,
         secondaryEmotions: action.secondaryEmotions,

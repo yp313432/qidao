@@ -624,7 +624,10 @@ function extractAction(text) {
     try {
       var v = JSON.parse(tries[j]);
       if (Object.prototype.toString.call(v) === "[object Array]") v = v[0];
-      if (v && typeof v.kind === "string" && allow[v.kind]) return v;
+      if (v && typeof v.kind === "string" && allow[v.kind]) {
+        if (v.kind === "emotion.report" && cfg("cfg_emotion_reporting") === "0") continue;
+        return v;
+      }
     } catch (e) {
       /* 试下一个 */
     }
@@ -1080,7 +1083,10 @@ addEventListener("qidaoWake", function (resolve, reject) {
         lines.push("做完了、或者觉得这段就到这里，就回 {}。");
         lines.push("能用的动作：garden.walk{place}、garden.fish.cast{spot}、garden.fish.reel{}、");
         lines.push("garden.flower.plant{species}、garden.flower.water{species}、garden.flower.pick{species}（species 取 rosa/giglio/ortensia/margherita/lavanda/glicine）");
-        lines.push("diary.add{body}、moment.post{text}、letter.write{title,body}、emotion.report{primaryEmotion,group,intensity,confidence}");
+        lines.push("diary.add{body}、moment.post{text}、letter.write{title,body}");
+        if (cfg("cfg_emotion_reporting") !== "0") {
+          lines.push("emotion.report{primaryEmotion,group,intensity,confidence}");
+        }
         return lines.join("\n");
       }
 

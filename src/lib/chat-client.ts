@@ -93,6 +93,7 @@ export type ChatRequest = {
    * 2026-11：条数/句数不再由旋钮定，交给模型自己按语气判断；设置页只留段间延迟。
    */
   segmentEnabled?: boolean;
+  emotionReporting?: boolean;
   tools: PromptTool[];
   /**
    * **原生 `tools`（function calling）** —— 61 个内部动作的定义，见 `action-schema.ts`。

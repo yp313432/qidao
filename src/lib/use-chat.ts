@@ -660,7 +660,11 @@ export function useChatStream(opts: UseChatOpts = {}) {
       if (tools.some((source) => source.kind === "mcp") || externalSources.skills.length) selectedKinds.add("tool.call");
       else selectedKinds.delete("tool.call");
       if (tools.some((source) => source.kind === "http")) selectedKinds.add("http.call"); else selectedKinds.delete("http.call");
-      const kindsSent = ACTION_SCHEMA.map((a) => a.kind).filter((kind) => selectedKinds.has(kind) && (settings.aiStickers !== false || kind !== "sticker.send"));
+      const kindsSent = ACTION_SCHEMA.map((action) => action.kind).filter((kind) =>
+        selectedKinds.has(kind) &&
+        (settings.aiStickers !== false || kind !== "sticker.send") &&
+        (settings.emotionReporting !== false || kind !== "emotion.report"),
+      );
       /** 这一轮是不是"只发了一部分"（要给模型那份兜底说明，免得他以为做不到） */
       const selective = kindsSent.length < ACTION_SCHEMA.length;
       if (native) {
@@ -688,6 +692,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           /** 分段回复：只传开关（分几条、每条几句由模型自己判断） */
           segmentEnabled: settings.segmentReply !== false,
           quoteEnabled: settings.quoteEnabled !== false,
+          emotionReporting: settings.emotionReporting,
           tools,
           customBaseUrl: settings.customBaseUrl || undefined,
           customApiKey: settings.customApiKey || undefined,

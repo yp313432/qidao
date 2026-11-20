@@ -345,6 +345,15 @@ final class WakeEngine {
         /* 该给动作却没给 → 不算数，下一轮再说（不弹通知） */
         return new Outcome("他说了话但没给动作，跳过", false, false);
       }
+      if ("0".equals(WakePrefs.str(ctx, WakePrefs.EMOTION_REPORTING))) {
+        try {
+          if ("emotion.report".equals(new JSONObject(action).optString("kind"))) {
+            return new Outcome("情绪上报已关闭，跳过", false, false);
+          }
+        } catch (org.json.JSONException ignored) {
+          /* 兼容旧格式，前台执行时仍会检查设置。 */
+        }
+      }
       text = action;
     } else {
       String body = stripFences(reply);

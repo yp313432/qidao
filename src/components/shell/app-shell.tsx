@@ -53,6 +53,14 @@ const NAV_LATIN: Record<string, string> = {
   "/me": "IO",
 };
 
+// 普通子页共用暖纸底。朋友圈、花园、记忆库与各插件详情保留自己的画面。
+const PAPER_SUBPAGES = new Set([
+  "/me", "/core", "/profile", "/space", "/chat-settings", "/notify",
+  "/voice-settings", "/privacy", "/about", "/permissions", "/worldbook", "/data", "/env",
+  "/play/space/diary", "/play/space/letters",
+  "/play/days", "/play/todo", "/play/tools/alarms", "/play/tools/tasks",
+]);
+
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   /**
@@ -378,7 +386,10 @@ export function AppShell() {
       <div
         key={pathname}
         ref={routeLayerRef}
-        className="view-enter flex min-h-0 flex-1 flex-col overflow-hidden"
+        className={cn(
+          "view-enter flex min-h-0 flex-1 flex-col overflow-hidden",
+          solidPaper && PAPER_SUBPAGES.has(pathname.replace(/\/$/, "")) && "paper-directory paper-subpage",
+        )}
       >
         <Outlet />
       </div>

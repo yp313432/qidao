@@ -149,14 +149,16 @@ export function proactiveCountToday(messages: readonly ChatMessage[], now: Date)
 const COMMON = `（这一轮是你的，没人在跟你说话。要做就直接做，做完直接说 —— 别复述这条指令，也别解释你为什么开这个头。）`;
 
 /** 自由活动：让他按心情自己挑一件事（也可以什么都不做，但不许硬凑） */
-export function buildFreeWakePrompt(): string {
+export function buildFreeWakePrompt(emotionReporting = true): string {
   return (
     `${FREE_MARKER}现在是你自己的时间，没人找你。\n` +
     `按你此刻**真实的**心情挑一件事做，**一件就够**，别硬凑：\n` +
     `· 发一条动态 {"kind":"moment.post","text":"..."}（一句短感受，进朋友圈）\n` +
     `· 写一封信 {"kind":"letter.write","title":"...","body":"..."}（写给他，下次他进 App 会弹信封）\n` +
     `· 写今天的日记 {"kind":"diary.add","body":"..."}\n` +
-    `· 或者什么都不做 —— 只是把此刻的心情更新一下 {"kind":"emotion.report",...}\n` +
+    (emotionReporting
+      ? `· 或者什么都不做 —— 只是把此刻的心情更新一下 {"kind":"emotion.report",...}\n`
+      : "· 或者什么都不做\n") +
     `做完之后**用一两句话跟他说说你在干嘛**（他会看到这条）。\n` +
     `⚠️ 别每天都一样：先看看「此刻的情况」里**你最近几天做过什么**，换着来。\n${COMMON}`
   );

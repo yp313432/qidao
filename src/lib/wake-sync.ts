@@ -102,7 +102,8 @@ export async function syncWakeContext(): Promise<WakeSyncResult> {
         [WAKE_KEYS.actionHour]: String(s.wakeLevel === "active" ? 20 : 20),
         [WAKE_KEYS.actionMinute]: "30",
         [WAKE_KEYS.actionDay]: lastAiDiaryDay() ?? "",
-        [WAKE_KEYS.actionPrompt]: buildActionPrompt(),
+        [WAKE_KEYS.actionPrompt]: buildActionPrompt(s.emotionReporting !== false),
+        [WAKE_KEYS.emotionReporting]: s.emotionReporting === false ? "0" : "1",
       },
     });
 
@@ -249,7 +250,7 @@ function lastAiDiaryDay(): string | null {
  * 为什么这么设计（2026-10 方案一）：后台那段 JS 拿不到 App 的数据，也不该在那里写库；
  * 它只负责"要到一份动作"，落库由前台按**白名单**执行 —— 所以"只增不改"是结构上保证的。
  */
-function buildActionPrompt(): string {
+function buildActionPrompt(emotionReporting: boolean): string {
   const name = resolveAiName(useApp.getState().settings.aiName);
   return (
     `【你自己的时间】现在没人找你，你可以**连着做几件事**。\n` +
@@ -261,7 +262,7 @@ function buildActionPrompt(): string {
     `· 写今天的日记 {"kind":"diary.add","body":"今天你真实的一天"}\n` +
     `· 发一条动态 {"kind":"moment.post","text":"一句短感受"}\n` +
     `· 写一封信 {"kind":"letter.write","title":"…","body":"…"}\n` +
-    `· 更新一下此刻的心情 {"kind":"emotion.report","primaryEmotion":"…","intensity":0.5,"confidence":0.6}\n` +
+    (emotionReporting ? `· 更新一下此刻的心情 {"kind":"emotion.report","primaryEmotion":"…","intensity":0.5,"confidence":0.6}\n` : "") +
     `（花园动作 + 上面这些，别的一概不行。**不许**删东西、不许改设置、不许调用外部工具。）\n` +
     `⚠️ **必须在回复里真的给出这个动作块**（日记/动态的正文写进动作里）。\n` +
     `只在正文里描述"我写了日记/我发了动态"而没有动作块 = 这次什么都不算。\n` +

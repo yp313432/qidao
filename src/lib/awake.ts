@@ -262,6 +262,7 @@ async function decide(now: number, found: Clue[]): Promise<{ text: string; actio
       messages: [...history, { role: "user", content: guidance }],
       style: settings.replyStyle,
       segmentEnabled: settings.segmentReply !== false,
+      emotionReporting: settings.emotionReporting,
       tools: [],
       customBaseUrl: settings.customBaseUrl || undefined,
       customApiKey: settings.customApiKey || undefined,

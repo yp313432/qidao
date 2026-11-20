@@ -1,3 +1,4 @@
+import { isSolid } from "@/lib/material";
 import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -307,6 +308,8 @@ export function MeHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const paper = isSolid(settings);
+
   return (
     <div
       ref={scrollRef}
@@ -371,7 +374,7 @@ export function MeHub() {
       >
         <div
           ref={headRef}
-          className="absolute inset-x-0 top-0 overflow-hidden"
+          className={`absolute inset-x-0 top-0 overflow-hidden${paper ? " settings-envelope" : ""}`}
           style={{ height: HEAD_H }}
         >
           {/*
@@ -384,6 +387,7 @@ export function MeHub() {
             refs={{ card: cardRef, bar: barRef, avatar: avRef, name: nameRef, copy: fadeRef }}
             avatarSize={AV0}
             nameWidth={NAME_W}
+            mark={paper ? "Ex Libris · Yisle" : undefined}
             avatar={
               <FileButton
                 ariaLabel="更换我的头像"

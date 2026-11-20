@@ -109,6 +109,7 @@ export const WAKE_KEYS = {
   actionMinute: "cfg_action_minute",
   actionDay: "cfg_action_day",
   actionPrompt: "cfg_action_prompt",
+  emotionReporting: "cfg_emotion_reporting",
   /** 自由活动：一天最多几次 + 每次醒来的命中概率（用户要的"不定时"） */
   actionFreeMax: "cfg_action_free_max",
   actionFreePct: "cfg_action_free_pct",

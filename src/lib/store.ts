@@ -192,6 +192,7 @@ const defaultSettings: Settings = {
   segmentPacing: true,
   replyWhileBusy: true,
   aiStickers: true,
+  emotionReporting: true,
   segmentCharDelayMs: 60,
   mergeSend: true,
   mergeSendDelayMs: 1200,

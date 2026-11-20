@@ -9,7 +9,7 @@ import { runAction } from "@/lib/actions";
 import { actionFeedback, pickWorldEntries, promptToolsFor } from "@/lib/prompt";
 import { partsFor, stripInvisible } from "@/lib/segment";
 import { stripActions } from "@/lib/use-chat";
-import { echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf, COOLDOWN_MS, DAILY_PROACTIVE_CAP, msSinceLastMessage, proactiveCountToday } from "@/lib/wake-schedule";
+import { buildFreeWakePrompt, echoCapOf, freeCountOf, isDiaryWake, isEchoWake, isFreeWake, isStaleOneOff, isSystemWake, levelOf, COOLDOWN_MS, DAILY_PROACTIVE_CAP, msSinceLastMessage, proactiveCountToday } from "@/lib/wake-schedule";
 import { buildProactiveInstruction, readSilent } from "@/lib/wake-prompt";
 import { useApp } from "@/lib/store";
 import { syncTaskNotifications } from "@/lib/task-notify";
@@ -293,7 +293,7 @@ export function TaskDaemon() {
              * 这里拼成一行给提示词用（`buildProactiveInstruction` 的 `actions` 是 string）。
              */
             actions: recentActions.join("；"),
-            intent: due.prompt,
+            intent: isFreeWake(due) ? buildFreeWakePrompt(settings.emotionReporting !== false) : due.prompt,
             /** 他自己排的三类（自由活动/日记/回响）里写着动作写法，不能截断 */
             intentKeepFull: isSystemWake(due),
             displayName: settings.displayName,
@@ -330,6 +330,7 @@ export function TaskDaemon() {
             style: settings.replyStyle,
             /** 分段规矩也要给到 —— 不然他不知道可以分几条说，用户 m02156 报过"不能分段回复" */
             segmentEnabled: settings.segmentReply !== false,
+            emotionReporting: settings.emotionReporting,
             /*
               定时任务也要拿到工具清单 —— 不然提示词里会写"暂时没有外部工具"，
               那是假话（用户可能明明配了 MCP / HTTP），模型就会说"你没配工具"。

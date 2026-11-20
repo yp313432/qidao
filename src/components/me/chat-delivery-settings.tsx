@@ -30,6 +30,8 @@ export function ChatDeliverySettings() {
       active={(settings.mergeSendDelayMs ?? 1200) === v} onClick={() => patch({ mergeSendDelayMs: v })}>{v / 1000} 秒</KOpt>)}</KOpts>}
     <Row label="回复时允许补充消息" hint="保持输入可用；补充合并排队，当前回复结束后自动处理"
       checked={settings.replyWhileBusy !== false} onChange={(v) => patch({ replyWhileBusy: v })} />
+    <Row label="情绪上报" hint="开启时允许 AI 将情绪记入星屿，关闭后保留已有记录"
+      checked={settings.emotionReporting !== false} onChange={(v) => patch({ emotionReporting: v })} />
     <Row label="自动清理内部标记" hint="隐藏情绪参数和表情占位文字，保留正常对话"
       checked={settings.assistantAutoClean !== false} onChange={(v) => patch({ assistantAutoClean: v })} />
   </Sub>;

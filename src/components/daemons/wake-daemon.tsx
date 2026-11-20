@@ -51,6 +51,7 @@ export function WakeDaemon() {
   const policy = useApp(
     (s) => `${s.settings.wakeEnabled ?? true}:${s.settings.wakeQuietStart}:${s.settings.wakeQuietEnd}`,
   );
+  const emotionReporting = useApp((s) => s.hydrated ? s.settings.emotionReporting !== false : null);
   const upstream = useApp((s) => `${s.settings.customBaseUrl}|${s.settings.upstreamModel}`);
 
   /**
@@ -149,6 +150,11 @@ export function WakeDaemon() {
     sessionStorage.setItem("qidao-wake-sync-at", String(Date.now()));
     void syncWakeContext();
   }, [messagesKey, policy, upstream]);
+
+  // 涉及已关闭的动作能力，切换时立即同步，不等聊天的节流窗口。
+  useEffect(() => {
+    if (emotionReporting !== null) void syncWakeContext();
+  }, [emotionReporting]);
 
   /** ③ 切到后台的那一刻：**强制**同步（安卓就是在这一刻排上后台任务的） */
   useEffect(() => {

@@ -9,6 +9,7 @@ export type ManualInput = {
   aiName: string;
   userGender?: "" | "女" | "男";
   nativeTools?: boolean;
+  emotionReporting?: boolean;
 };
 
 // 用户确认的固定正文；实时权限由 prompt.ts 放到消息末尾。
@@ -29,11 +30,10 @@ const MAP = `【Yisle 里有什么】
 我的 /me：AI 概览 /core；我的空间 /space；用量 /usage；权限 /permissions；数据 /data；系统 /system；环境自检 /env。`;
 const ABILITY = `【使用能力】
 能力以本轮工具、当前平台和实际结果为准，不要凭旧印象断言做不到。遇到合适的需要，可以主动使用已获准的能力；确实无法完成时，如实说明原因和可行的下一步。`;
-const EMOTION = `【情绪与表情】
-情绪通过 emotion.report 上报，参数按本轮工具说明填写，不在正文输出参数。一次用户消息对应的整次回复最多上报一次，工具执行后的继续回复也算同一次。
-需要发送图片表情时使用 sticker.send，整次回复最多发送一次，不用“[表情包]”等文字占位。用户关闭主动发表情时，不主动发送。
-附带情绪或表情动作前，先把本轮想说的话说完整；动作成功后客户端可能直接收尾。
+const EMOTION = `情绪通过 emotion.report 上报，参数按本轮工具说明填写，不在正文输出参数。一次用户消息对应的整次回复最多上报一次，工具执行后的继续回复也算同一次。
 已上报的情绪会保存，并显示在星屿中；「此刻的情况」可能包含最近的情绪记录。读取时注意记录时间，不把过去的记录自动当成此刻的新情绪。`;
+const STICKER = `需要发送图片表情时使用 sticker.send，整次回复最多发送一次，不用“[表情包]”等文字占位。用户关闭主动发表情时，不主动发送。
+附带情绪或表情动作前，先把本轮想说的话说完整；动作成功后客户端可能直接收尾。`;
 const SENSE = `【主动感知】
 优先使用「此刻的情况」中已有的信息；需要补充或确认时，按需调用感知工具，不必每轮重复查询。
 依据实际结果回答，区分未授权和读取失败，不把缓存信息说成刚刚查到。是否需要系统授权，以具体工具和返回结果为准。`;
@@ -65,13 +65,15 @@ web.search：query 为搜索词。
 web.fetch：url 为实际要读取的 http/https 链接。`;
 
 export function manualSections(input: ManualInput): PromptSection[] {
+  const reporting = input.emotionReporting !== false;
+  const emotion = reporting ? EMOTION : "用户已关闭情绪上报。不要调用情绪上报工具或输出上报参数，正常对话即可。";
   return [
     { id: "background", title: "固定背景", text: BACKGROUND },
     { id: "understanding", title: "明确了解", text: UNDERSTANDING },
     { id: "rules", title: "系统指令", text: RULES },
     { id: "map", title: "页面地图", text: MAP },
     { id: "ability", title: "能力使用", text: ABILITY },
-    { id: "emotion", title: "情绪与表情", text: EMOTION + (input.nativeTools ? "" : "\n" + EMOTION_USAGE) },
+    { id: "emotion", title: "情绪与表情", text: [`【情绪与表情】\n${emotion}`, STICKER, reporting && !input.nativeTools ? EMOTION_USAGE : ""].filter(Boolean).join("\n") },
     { id: "sense", title: "主动感知", text: SENSE + (input.nativeTools ? "" : "\n" + SENSE_COMPAT) },
     { id: "web", title: "联网与来源", text: WEB + (input.nativeTools ? "" : "\n" + WEB_COMPAT) },
     { id: "boundary", title: "能力边界", text: BOUNDARY },

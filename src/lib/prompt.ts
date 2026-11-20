@@ -91,6 +91,7 @@ export type PromptInput = {
    * 设置页只留一个「段间延迟」（那是客户端行为，跟提示词无关）。
    */
   segmentEnabled?: boolean;
+  emotionReporting?: boolean;
   /** 要不要教他「可以引用她的原话」（用户 m00490 的补开关；关掉就不写这条规则） */
   quoteEnabled?: boolean;
   tools: PromptTool[];
@@ -235,7 +236,7 @@ const NATIVE_ACTIONS = (ta: string) => `【操作 App】
 朋友圈用 moment.comment / moment.like；id 从「此刻的情况」取，省略即最新一条。只给${ta}发的动态点赞，每条最多评论 3 次。`;
 
 /** 老协议（正文里的动作块）：完整清单 + 规矩。降级和"没探测过"都走这一份。 */
-const ABILITIES = (ta: string) => `【你能直接操作这个 App】
+const ABILITIES = (ta: string, emotionReporting: boolean) => `【你能直接操作这个 App】
 除了说话，你还能真的动手。方式：在回复末尾单独放一个代码块，语言标记写 qidao，里面是 JSON：
 
 \`\`\`qidao
@@ -272,9 +273,8 @@ const ABILITIES = (ta: string) => `【你能直接操作这个 App】
   只给${ta}发的动态点赞；每条动态最多评论 3 条。
 · 日子 {"kind":"date.add","title":"...","at":"2026-10-01","yearly":true}；{"kind":"date.remove","query":"..."}
 · 待办 {"kind":"todo.add","text":"..."}、{"kind":"todo.done","query":"..."}、{"kind":"todo.remove","query":"..."}
-· 情绪 {"kind":"emotion.report","primaryEmotion":"被看穿的心慌","group":"flutter","intensity":0.4,"confidence":0.6,"suggestedMode":"daily"}
-  规则见【情绪（10 组 · 自由词）· 兼容调用】：主情绪自由写 1~5 个字，group 必填（10 组挑一个）。
-· 记忆 {"kind":"memory.add","note":"...","tags":["累","休息","不想动"]}
+${emotionReporting ? `· 情绪 {"kind":"emotion.report","primaryEmotion":"被看穿的心慌","group":"flutter","intensity":0.4,"confidence":0.6,"suggestedMode":"daily"}
+  规则见【情绪（10 组 · 自由词）· 兼容调用】：主情绪自由写 1~5 个字，group 必填（10 组挑一个）。\n` : ""}· 记忆 {"kind":"memory.add","note":"...","tags":["累","休息","不想动"]}
   tags 要给 3~5 个${ta}以后可能用的说法（比如"喜欢躺平"就写 累/好累/休息/不想动/低能量），别堆同义重复。
   改 {"kind":"memory.update","query":"...","note":"新的说法","tags":["累"]}；删 {"kind":"memory.remove","query":"..."}
 · 提醒 {"kind":"reminder.add","text":"...","time":"21:00"}；用户说「设闹钟」「叫我起床」时带 "ring":true。只响一次时带本地日期 "date":"YYYY-MM-DD"，每天响则省略 date。
@@ -416,6 +416,7 @@ function externalNativeLine(tools: PromptTool[]): string {
 
 /** 正文及用量拆分共用同一组章节，避免统计另一份过期的提示词。 */
 export function systemPromptSections(input: PromptInput): PromptSection[] {
+  const emotionReporting = input.emotionReporting !== false;
   const ta = pronounOf(input.userGender);
   const sections = manualSections({
     titles: PERMISSIONS.map((p) => ({ id: p.id, title: p.title })),
@@ -423,6 +424,7 @@ export function systemPromptSections(input: PromptInput): PromptSection[] {
     aiName: input.aiName?.trim() || "小克",
     userGender: input.userGender,
     nativeTools: input.nativeTools,
+    emotionReporting,
   });
   const add = (id: string, title: string, text: string) => {
     if (text.trim()) sections.push({ id, title, text: text.trim() });
@@ -441,9 +443,12 @@ export function systemPromptSections(input: PromptInput): PromptSection[] {
   add("external", "外部工具说明", input.discoverExternal
     ? externalDiscoveryPrompt(visible.tools, visible.skills, Boolean(input.nativeTools))
     : input.nativeExternal ? externalNativeLine(input.tools) : toolCatalog(input.tools, ta));
-  add("actions", input.nativeTools ? "原生工具规则" : "兼容动作说明", input.nativeTools ? NATIVE_ACTIONS(ta) : ABILITIES(ta));
+  add("actions", input.nativeTools ? "原生工具规则" : "兼容动作说明", input.nativeTools ? NATIVE_ACTIONS(ta) : ABILITIES(ta, emotionReporting));
   if (input.nativeTools && input.selectiveTools) {
-    add("fallback", "按需工具兼容说明", `${FALLBACK_RULE}\n${renderToolNameList(ACTION_SCHEMA.map((action) => action.kind))}`);
+    const available = ACTION_SCHEMA
+      .filter((action) => emotionReporting || action.kind !== "emotion.report")
+      .map((action) => action.kind);
+    add("fallback", "按需工具兼容说明", `${FALLBACK_RULE}\n${renderToolNameList(available)}`);
   }
   return sections;
 }

@@ -39,6 +39,7 @@ final class WakePrefs {
   static final String ACTION_MINUTE = "cfg_action_minute";
   static final String ACTION_DAY = "cfg_action_day";
   static final String ACTION_PROMPT = "cfg_action_prompt";
+  static final String EMOTION_REPORTING = "cfg_emotion_reporting";
 
   /* ── 原生自己记的（网页只读不写）── */
   static final String NEXT_AT_MS = "cfg_wake_next_ms";

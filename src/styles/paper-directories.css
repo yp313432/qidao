@@ -164,3 +164,35 @@
     display: none;
   }
 }
+
+/* 设置及常用子页共用暖纸，沿用各自的标题、滚动与控件。 */
+.paper-subpage {
+  --aster-surface: color-mix(in oklab, white 42%, var(--directory-paper));
+  --aster-line: var(--directory-line);
+  --k-surface: var(--aster-surface);
+  --k-line: var(--directory-line);
+  --k-line-soft: color-mix(in oklab, var(--directory-paper) 40%, var(--directory-line));
+  --k-card-shadow: var(--directory-shadow);
+  --k-idbar-line: var(--directory-line);
+  background-image:
+    radial-gradient(ellipse at top right, color-mix(in oklab, var(--directory-line) 25%, transparent), transparent 62%),
+    linear-gradient(155deg, color-mix(in oklab, white 38%, var(--directory-paper)), var(--directory-paper) 60%);
+}
+
+.settings-envelope .k-idcard {
+  border-color: transparent;
+  background: url("/decor/settings-envelope.webp") center / 100% 100% no-repeat;
+  box-shadow: none;
+}
+
+.settings-envelope .k-idcard::after {
+  content: none;
+}
+
+.settings-envelope .k-idcard__mark {
+  font: 400 clamp(15px, 4.6vw, 23px)/1.2 "Great Vibes", var(--font-script);
+  letter-spacing: 0;
+  text-transform: none;
+  inset-inline-end: 8%;
+  color: var(--directory-ink);
+}

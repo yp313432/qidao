@@ -145,6 +145,10 @@ export function buildAwarenessItems(): AwarenessItem[] {
    */
   if (canRead("read_emotion")) {
     const list = st.emotionEvents ?? [];
+    const reporting = st.settings.emotionReporting !== false;
+    const title = reporting
+      ? "你自己的情绪（你每轮报的那一笔，也画在星屿那个灵体上）"
+      : "星屿里的历史情绪（上报已关闭）";
     const ago = (at: number) => {
       const min = Math.max(0, Math.round((Date.now() - at) / 60_000));
       if (min < 1) return "刚刚";
@@ -164,17 +168,20 @@ export function buildAwarenessItems(): AwarenessItem[] {
         .join(" → ");
       out.push({
         id: "read_emotion",
-        title: "你自己的情绪（你每轮报的那一笔，也画在星屿那个灵体上）",
+        title,
         text:
           `最新：${head}。` +
           (trail ? ` 之前的轨迹：${trail}。` : "") +
-          ` 共记了 ${list.length} 笔 —— 用户问"你现在什么心情"就照这里答，别说你看不到。`,
+          ` 共记了 ${list.length} 笔。` +
+          (reporting ? ' 用户问"你现在什么心情"就照这里答，别说你看不到。' : " 这是历史记录。"),
       });
     } else {
       out.push({
         id: "read_emotion",
-        title: "你自己的情绪（你每轮报的那一笔，也画在星屿那个灵体上）",
-        text: "（还没有上报过 —— 每轮回复的最后用 emotion.report 报一笔，就会出现在这里）",
+        title,
+        text: reporting
+          ? "（还没有上报过 —— 每轮回复的最后用 emotion.report 报一笔，就会出现在这里）"
+          : "（没有历史情绪记录）",
       });
     }
   }
