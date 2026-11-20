@@ -73,8 +73,8 @@ done
 curl -fsS http://127.0.0.1:4661/health >/dev/null
 
 adb logcat -c
-(
-  cd android
-  ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2 \
-    -Pandroid.testInstrumentationRunnerArguments.class=com.yanping.qidao.ThinkingSheetAndroidPreviewTest
-)
+mkdir -p "$capture_dir"
+adb shell am instrument -w -r \
+  -e class com.yanping.qidao.ThinkingSheetAndroidPreviewTest \
+  "$app.test/androidx.test.runner.AndroidJUnitRunner" | tee "$capture_dir/instrumentation.txt"
+grep -Fq 'OK (1 test)' "$capture_dir/instrumentation.txt"
