@@ -140,7 +140,7 @@ async function locateOnce(): Promise<PlaceResult> {
        */
       const raw = e instanceof Error ? e.message : String(e ?? "");
       const hint = /denied|permission/i.test(raw)
-        ? "权限被拒了：去「设置 → 应用 → 栖岛 → 权限」把位置改成「允许」"
+        ? "权限被拒了：去「设置 → 应用 → Yisle → 权限」把位置改成「允许」"
         : /disabled|location.*off|settings/i.test(raw)
           ? "手机的定位服务没开：从屏幕顶端下拉，把「位置信息」打开"
           : "可能是室内信号不好；去窗边或户外再试一次，或者先打开地图 App 定个位再来";

@@ -30,8 +30,8 @@ export function MessageActions({
   const copy = () => { if (onCopy) onCopy(); else setCopyOpen(true); };
 
   async function speakTextOut() {
-    // 走 lib/tts 的异步入口：App 里会落到安卓系统朗读引擎上
-    await speakTextAsync(content.slice(0, 400), { lang: "zh-CN", rate: 1.02 });
+    // 走 lib/tts 的异步入口；语速/音调/音色不在这里写死，交给设置里的「语音」页（用户 m00281）
+    await speakTextAsync(content.slice(0, 400));
   }
 
   async function share() {

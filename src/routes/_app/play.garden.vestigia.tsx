@@ -35,7 +35,7 @@ const EN_LINES = [
   "He keeps the small hours, so you do not have to.",
 ];
 
-const SIG = "栖岛 · 花园里的每一天";
+const SIG = "Yisle · 花园里的每一天";
 
 export function VestigiaView() {
   useActivity("在看踪迹");

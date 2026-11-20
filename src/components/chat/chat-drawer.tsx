@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createPortal } from "react-dom";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   BookOpen,
   Bug,
@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
-import { DrawerCosmos, DrawerSky } from "@/components/chat/drawer-decor";
+import { DrawerSky } from "@/components/chat/drawer-decor";
+import { useDismissable } from "@/lib/dismiss-stack";
 import { isSolid, materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -28,11 +29,19 @@ import { cn } from "@/lib/utils";
  *
  * 为什么单独成文件：chat-view.tsx 已经 2250 行，样式守卫的「最大部件」棘轮
  * 只许它变小 —— 这轮往里加功能必须先把它拆小。**这不是重写**：抽屉里的
- * 每一段逻辑、每一句文案、每一个按钮都还是原来那一份，只是搬了个家；
- * 纯色渲染路径一字节没动（`liquid` 为 false 时看到的还是旧抽屉）。
+ * 每一段逻辑、每一句文案、每一个按钮都还是原来那一份，只是搬了个家。
+ *
+ * 2026-11-18（S4，用户 m00516 拍板"照搬"）：**两种主题只剩一套内容** ——
+ * 标题行「对话」+ 会话列表（⋯ 里改名/置顶/删除）+ 小标题「功能」+ 八条功能
+ * + 底栏（头像→设置、圆形＋新建）。原来纯色独占的那套（顶部大「新对话」按钮、
+ * 底部「桌宠 · 动作与设置」按钮）已并入这套，功能入口不再随主题变化。
+ * 纯色保留的只有一处装饰：顶部 DrawerSky（星野）。底部的 DrawerCosmos 已在 S8 撤掉 ——
  *
  * 这轮（用户 13 条里的 3/4/8/9/10/11）：
- *   · 3 条 —— 螃蟹桌宠从抽屉底部挪到对话页（所以这里 `!liquid` 才画 DrawerCosmos）；
+
+ * 2026-11-18（S9，用户 m01541）：桌宠只留对话页那只，抽屉里不再画任何螃蟹。
+ * 下面几条是 S4 当天的记录，留着供追溯：
+ *   · 3 条 —— 螃蟹桌宠从对话页管（抽屉不再画）；
  *   · 4 条 —— 底栏左边头像，点进设置页（图一）；
  *   · 8 条 —— 底栏右边「+ 新建对话」，与头像相对；顶部那颗「新对话」液态下删掉；
  *   · 9 条 —— 分界以下的功能八条直接排在这张列表界面里（不另套一层），细长玻璃条；
@@ -54,12 +63,42 @@ export function ChatDrawer({
   setRowMenu: (id: string | null) => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const conversations = useApp((s) => s.conversations);
   const activeId = useApp((s) => s.activeId);
   const settings = useApp((s) => s.settings);
 
   const liquid = materialOf(settings) === "liquid";
   const solidPaper = isSolid(settings);
+
+  // 安卓返回键：抽屉开着时先关抽屉，别去退页（见 lib/dismiss-stack.ts）
+  useDismissable(open, onClose);
+
+  /*
+    打开抽屉就预加载这八条入口的页面 chunk（业内做法：可见即预取）。
+
+    为什么必须手动做：router 配了 defaultPreload: "intent"，但它只对 <Link> 生效，
+    抽屉里这八条都是 <button> —— 以前第一次点进二级页要先下载那个页的 JS，
+    这段时间界面一动不动，就是用户说的"等两三秒才进去"。
+
+    延后 90ms：先让抽屉自己的开合动画起步，别和它抢主线程。
+    preloadRoute 有缓存（defaultPreloadStaleTime 30s），重复打开抽屉不会重复下载。
+  */
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      // 逐条写全字面量：路径写错在 tsc 阶段就报，不会被字符串吞掉
+      void router.preloadRoute({ to: "/tools" });
+      void router.preloadRoute({ to: "/play/space" });
+      void router.preloadRoute({ to: "/play/tools" });
+      void router.preloadRoute({ to: "/play/listen" });
+      void router.preloadRoute({ to: "/play/learn" });
+      void router.preloadRoute({ to: "/play/garden" });
+      void router.preloadRoute({ to: "/play/plugins" });
+      void router.preloadRoute({ to: "/me" });
+    }, 90);
+    return () => window.clearTimeout(timer);
+  }, [open, router]);
 
   /*
     第 9 条：侧边栏下半的**功能八条**（用户定的顺序：工具／动态／岁序／音乐／学习／花园／插件／桌宠）。
@@ -136,25 +175,9 @@ export function ChatDrawer({
           </button>
         </div>
 
-        {/* 第 8 条：液态下「新对话」从顶部挪到底栏右侧（和头像相对），
-            纯色保持原来这颗 —— 用户没让动纯色。 */}
-        {!liquid && (
-          <button
-            type="button"
-            className="relative z-10 mx-4 mb-1 flex items-center gap-2 rounded-full bg-chip px-4 py-3 text-sm font-medium"
-            onClick={() => {
-              useApp.getState().newChat();
-              onClose();
-            }}
-          >
-            <Plus className="size-4" />
-            新对话
-          </button>
-        )}
-
         <ul
           className={cn(
-            "relative z-10 min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pt-1",
+            "relative z-10 min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pt-1",
             /* 第 9 条：到分界处渐隐（mask 在 liquid/styles/glass.css）。 */
             liquid && "lq-conv-list",
           )}
@@ -181,7 +204,9 @@ export function ChatDrawer({
                     // 底：透明，只留间距 —— 一整列都画框会让人分不清"哪条是现在这条"
                     // （用户 m04469 第 1 条：当前会话反而没框、没选中的有框，反了）。
                     // 选中态才给底色 + 边框；边框常驻但透明，避免切会话时行高跳一下。
-                    "flex items-center gap-0.5 rounded-2xl border border-transparent py-1 pr-0.5 pl-3.5",
+                    // 2026-11-18（m01778）：高度/圆角改由 .k-drawer-conv 给 ——
+                    // 跟功能条同一个模子（46 / 13），两主题一致。
+                    "k-drawer-conv flex items-center gap-0.5 border border-transparent pr-0.5 pl-3.5",
                     c.id === activeId && "border-line bg-chip",
                     /* 第 10 条：液态下这一列也走图一的玻璃参数（纯色下这个类没样式）。 */
                     liquid && "lq-conv",
@@ -216,71 +241,90 @@ export function ChatDrawer({
         </ul>
 
         {/*
-          下：小宇宙（带星环的行星 + 小卫星 + 碎钻粒子），跟上面的星月呼应。
-          · 这里原来是给底部导航让位的留白（h-[4.5rem]）——
-            但抽屉一打开导航就收走了，那段留白只是空着，显得像"大方块"，
-            所以让装饰接管它
-          · 用户："下面……不要有线，看着割裂" → 去掉那条分隔线
-          · 第 3 条：液态下螃蟹已挪到对话页，这里只留纯色。
+          2026-11-18（用户 m01345）：底部「小宇宙」整块撤掉。
+          · 它里面画的是那只 126px 的抽屉像素蟹 —— 桌宠早就搬到对话页了
+            （`ChatCrab`，尺寸跟设置里的 36/44/52 走），抽屉里再放一只就是
+            「纯色有、液态没有」的双份 + 尺寸也对不上，违反两主题一致。
+          · 保留的只有顶部星野 `DrawerSky`（纯装饰，不占结构）。
         */}
-        {!liquid && <DrawerCosmos />}
 
         {/*
-          第 9 条：液态下半区 —— 功能八条**直接排在列表界面里**（用户："不要新套一层"）。
-          第 4 条：底栏左边头像 → 设置页（图一 /me）；
-          第 8 条：底栏右边「+ 新建对话」，与头像相对。
+          下半区两主题**同一套内容**（用户 m00516："照搬"）：
+          · 功能八条直接排在列表界面里（用户："不要新套一层"），顺序固定；
+          · 底栏左边头像 → 设置页；右边「+ 新建对话」，与头像相对。
+          差别只在材质类：液态 lq-*，纯色走普通 Tailwind（下面这份兜底类）。
         */}
-        {!liquid && <button type="button" className="k-btn mx-3 mb-3" onClick={() => { void navigate({ to: "/pet" as never }); onClose(); }}>桌宠 · 动作与设置</button>}
-        {liquid && (
-          <>
-            {/* m02943 第 4 条②：功能八条上面也加一个小字分组标题「功能」，
-                跟上面「对话」一组同一个模子（小字 + 淡色 + 字距）。 */}
-            <p className="lq-group-head lq-group-head--func">功能</p>
-            <nav aria-label="功能" className="relative z-10 shrink-0 px-3 pt-1">
-              {
-              drawerFuncs.map(({ label, Icon, go }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="lq-func__row"
-                  onClick={() => {
-                    if (!go) return;
-                    go();
-                    onClose();
-                  }}
-                >
-                  <Icon className="lq-func__ico" strokeWidth={1.6} />
-                  <span>{label}</span>
-                </button>
-              ))
+        <p
+          className={cn(
+            liquid
+              ? "lq-group-head lq-group-head--func"
+              : /* 2026-11-18（m01778）：不再用 11px / 0.22em 那套紧凑参数，
+                   跟液态的 .lq-group-head--func 对齐（12px / 0.14em / 55% 灰）。 */
+                "k-drawer-head",
+          )}
+        >
+          功能
+        </p>
+        <nav aria-label="功能" className={cn("relative z-10 shrink-0", liquid ? "px-3 pt-1" : "k-drawer-nav")}>
+          {drawerFuncs.map(({ label, Icon, go }) => (
+            <button
+              key={label}
+              type="button"
+              className={
+                liquid
+                  ? "lq-func__row"
+                  : /* 46 高 / 13 圆角 / 8 间距 / 14 内边距 / 18 图标 —— 与液态同模 */
+                    "k-drawer-row"
               }
-            </nav>
-            <div className="lq-sheet-foot relative z-10 flex shrink-0 items-center justify-between gap-2 px-3">
-              <button
-                type="button"
-                className="lq-me min-w-0"
-                onClick={() => {
-                  void navigate({ to: "/me" });
-                  onClose();
-                }}
-              >
-                <Avatar role="user" size={42} />
-                <span className="min-w-0 truncate text-left text-sm">{settings.displayName}</span>
-              </button>
-              <button
-                type="button"
-                aria-label="新建对话"
-                className="lq-new flex size-11 shrink-0 items-center justify-center rounded-full"
-                onClick={() => {
-                  useApp.getState().newChat();
-                  onClose();
-                }}
-              >
-                <Plus className="size-5" />
-              </button>
-            </div>
-          </>
-        )}
+              onClick={() => {
+                if (!go) return;
+                /*
+                  先关抽屉、再导航（2026-11 性能排查）：
+                  抽屉那一层 backdrop-blur 先退场，切页转场里就少一层要重拍的模糊；
+                  也不会出现"抽屉还盖着目标页"的那一帧。
+                */
+                onClose();
+                go();
+              }}
+            >
+              <Icon className={liquid ? "lq-func__ico" : "k-drawer-row__ico"} strokeWidth={1.6} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div
+          className={cn(
+            "relative z-10 flex shrink-0 items-center justify-between gap-2 px-3",
+            liquid ? "lq-sheet-foot" : "k-drawer-foot",
+          )}
+        >
+          <button
+            type="button"
+            className={liquid ? "lq-me min-w-0" : "flex min-w-0 items-center gap-2 px-1 py-1 text-left"}
+            onClick={() => {
+              // 同上：先关抽屉再导航
+              onClose();
+              void navigate({ to: "/me" });
+            }}
+          >
+            <Avatar role="user" size={42} />
+            <span className="min-w-0 truncate text-left text-sm">{settings.displayName}</span>
+          </button>
+          <button
+            type="button"
+            aria-label="新建对话"
+            className={cn(
+              "flex size-11 shrink-0 items-center justify-center rounded-full",
+              liquid ? "lq-new" : "bg-chip text-fg",
+            )}
+            onClick={() => {
+              useApp.getState().newChat();
+              onClose();
+            }}
+          >
+            <Plus className="size-5" />
+          </button>
+        </div>
       </aside>
     </div>,
     document.body,

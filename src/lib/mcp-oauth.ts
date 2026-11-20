@@ -274,7 +274,7 @@ export async function registerClient(as: AsMetadata, redirect: string): Promise<
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      client_name: "栖岛 Qidao",
+      client_name: "Yisle Qidao",
       redirect_uris: [redirect],
       // native = 允许自定义 scheme / loopback 回调（FastMCP 的默认值）
       application_type: "native",

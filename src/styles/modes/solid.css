@@ -101,4 +101,16 @@
   --k-bubble-tape-ai: color-mix(in oklab, var(--aster-accent) 30%, transparent);
   --k-bubble-tape-me: color-mix(in oklab, var(--aster-ink) 16%, transparent);
   --k-bubble-tape-shadow: color-mix(in oklab, var(--aster-ink) 10%, transparent);
+
+  /*
+    抽屉条目：材质走纸 —— 亮一档的纸面（--aster-elevated）+ 纸卡描边（--k-line，和 k-card 同一支笔）+ 两层软纸影。
+    几何不在这里（在 tokens 的 --k-drawer-row-*），所以两种主题的条目
+    高矮、间距、圆角、图标大小永远一致，只有这层"纸"和液态那层"玻璃"不同。
+    影子比大卡片轻一档：八条叠在一起排，用大卡片的 24px 远影会糊成一团。
+  */
+  --k-drawer-row-bg: var(--aster-elevated);
+  --k-drawer-row-line: var(--k-line);
+  --k-drawer-row-shadow:
+    0 1px 2px color-mix(in oklab, var(--aster-ink) 8%, transparent),
+    0 6px 14px color-mix(in oklab, var(--aster-ink) 5%, transparent);
 }

@@ -93,7 +93,7 @@ export async function syncTaskNotifications(tasks: ScheduledTask[]): Promise<num
       const [h, m] = t.time.split(":").map(Number);
       const done = await scheduleNative({
         id: w.id,
-        title: "栖岛",
+        title: "Yisle",
         body,
         daily: { hour: h!, minute: m! },
         sound: true,
@@ -102,7 +102,7 @@ export async function syncTaskNotifications(tasks: ScheduledTask[]): Promise<num
     } else if (t.at) {
       const done = await scheduleNative({
         id: w.id,
-        title: "栖岛",
+        title: "Yisle",
         body,
         at: new Date(t.at),
         sound: true,

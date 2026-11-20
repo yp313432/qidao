@@ -64,7 +64,7 @@ export function McpConfigImport() {
       <pre className="k-long">pkg install nodejs -y</pre>
       <p>③ 先进入下载目录，再启动桥接，两条命令分别回车：</p>
       <pre className="k-long">{'cd ~/storage/downloads\nnode qidao-mcp-bridge.mjs qidao-mcp.json'}</pre>
-      <p>看到“桥接已启动”后回栖岛点测试连接，再说“检查 Termux 环境并帮我配置 MCP”。任务启动后 AI 要查询状态，直到拿到输出和退出码。保持 Termux 运行；修改配置后需重新导出并重启桥接。终端任务不支持交互输入，请使用无需交互的安装命令。</p>
+      <p>看到“桥接已启动”后回 Yisle 点测试连接，再说“检查 Termux 环境并帮我配置 MCP”。任务启动后 AI 要查询状态，直到拿到输出和退出码。保持 Termux 运行；修改配置后需重新导出并重启桥接。终端任务不支持交互输入，请使用无需交互的安装命令。</p>
     </div></details>}
   </div>;
 }

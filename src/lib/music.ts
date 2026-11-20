@@ -8,10 +8,10 @@ export type Track = {
 };
 
 export const TRACKS: Track[] = [
-  { id: "mist", title: "晨雾", artist: "栖岛电台", minutes: "2:40", seed: [196, 247, 294, 392], tempo: 0.42 },
-  { id: "paper", title: "纸窗", artist: "栖岛电台", minutes: "3:05", seed: [220, 261, 329, 392], tempo: 0.5 },
-  { id: "night", title: "夜航", artist: "栖岛电台", minutes: "2:55", seed: [174, 220, 261, 349], tempo: 0.36 },
-  { id: "grove", title: "林间", artist: "栖岛电台", minutes: "2:20", seed: [246, 293, 369, 440], tempo: 0.58 },
+  { id: "mist", title: "晨雾", artist: "Yisle 电台", minutes: "2:40", seed: [196, 247, 294, 392], tempo: 0.42 },
+  { id: "paper", title: "纸窗", artist: "Yisle 电台", minutes: "3:05", seed: [220, 261, 329, 392], tempo: 0.5 },
+  { id: "night", title: "夜航", artist: "Yisle 电台", minutes: "2:55", seed: [174, 220, 261, 349], tempo: 0.36 },
+  { id: "grove", title: "林间", artist: "Yisle 电台", minutes: "2:20", seed: [246, 293, 369, 440], tempo: 0.58 },
 ];
 
 export class PadPlayer {

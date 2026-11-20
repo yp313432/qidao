@@ -85,7 +85,7 @@ export function PlayerHost() {
       if (current && typeof MediaMetadata !== "undefined") {
         ms.metadata = new MediaMetadata({
           title: current.name,
-          artist: "栖岛 · 本地音乐库",
+          artist: "Yisle · 本地音乐库",
           album: "本地",
         });
       }

@@ -109,6 +109,8 @@ const defaultSettings: Settings = {
   bgPaper: 12,
   showThinking: true,
   saveThinking: true,
+  quoteEnabled: true,
+  echoEnabled: true,
   notifications: true,
   geoEnabled: false,
   quotaAlerts: true,
@@ -126,6 +128,10 @@ const defaultSettings: Settings = {
   keepRecent: 16,
   autoCompact: true,
   summaryEvery: 50,
+  /* 旧记忆/旧摘要的检索（2026-11 记忆细化）：开关 + 每次最多带回多少 token */
+  recallEnabled: true,
+  recallBudget: 800,
+  recallHop: true,
   compactAt: 80,
   thinkingKeepDays: 0,
   voiceLang: "zh-CN",
@@ -858,9 +864,9 @@ export const useApp = create<AppState>()(
       docs: [
         {
           id: "doc_welcome",
-          title: "栖岛使用备忘",
+          title: "Yisle 使用备忘",
           content:
-            "底部四个分区：对话、工具、玩乐、我的。思考链会随每条回复永久保存在本地；可在工具区的思考档案里回看。",
+            "左上角展开侧边栏：对话历史，以及工具、动态、岁序、音乐、学习、花园、插件、桌宠。思考链会随每条回复永久保存在本地；可在工具区的思考档案里回看。",
           source: "manual",
           createdAt: SEED_AT - 86400000,
         },

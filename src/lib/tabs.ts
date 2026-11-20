@@ -1,7 +1,11 @@
-import { MessageCircle, Puzzle, Sparkles, UserRound } from "lucide-react";
+import { MessageCircle, Puzzle, UserRound } from "lucide-react";
 
 /**
- * 主导航的四个入口 —— **全 App 唯一一份定义**。
+ * 主导航的三个入口 —— **全 App 唯一一份定义**。
+ *
+ * ⚠️ 2026-11-18：`/play`（玩乐）已从这份表里删掉（用户定：液态世界根本没有
+ * 「玩乐区」这一层，纯色也就不该有；功能全在对话抽屉里）。删的是**导航格**，
+ * 不是功能 —— `/play/space` `/play/garden` 这些页面都还在，只是不再有 `/play` 首页。
  *
  * 用户的要求："上面留对话列表，下面显示导航栏"。
  *
@@ -16,7 +20,6 @@ import { MessageCircle, Puzzle, Sparkles, UserRound } from "lucide-react";
 export const MAIN_TABS = [
   { to: "/", label: "对话", icon: MessageCircle },
   { to: "/tools", label: "工具", icon: Puzzle },
-  { to: "/play", label: "玩乐", icon: Sparkles },
   { to: "/me", label: "我的", icon: UserRound },
 ] as const;
 

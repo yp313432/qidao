@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { computeContext, computeStorage, prettyBytes, type StorageUsage } from "@/lib/context";
 import { summarizeNow } from "@/lib/summarizer";
 import { StorageModeCard } from "@/components/shared/storage-mode-card";
+import { Row, SliderRow } from "@/components/me/me-widgets";
 import { KSwitch } from "@/components/ui-kit";
 import { backupAt, readFailedThisSession, recoveredFromBackup } from "@/lib/idb-storage";
 import { useApp } from "@/lib/store";
@@ -72,19 +73,21 @@ export function MemoryView() {
 
       {/* 预算 */}
       <section className="mt-2">
-        <h2 className="k-sect__title mb-2">下一次请求的上下文预估</h2>
         <div className="k-card">
           {!ctx ? (
             <p className="text-[12px] text-subtle">读取中…</p>
           ) : (
             <>
-              <div className="flex items-baseline justify-between">
-                <p className="text-[15px] font-medium">
-                  约 {ctx.total} / {ctx.budget} tokens
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="k-row__body">
+                  <p className="k-row__title">下一次请求的上下文预估</p>
+                  <p className="k-row__meta">
+                    约 {ctx.total} / {ctx.budget} tokens
+                  </p>
+                </div>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px]",
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
                     ctx.ratio >= 0.9
                       ? "bg-warn/20 text-warn"
                       : ctx.ratio >= 0.7
@@ -119,21 +122,35 @@ export function MemoryView() {
                 />
               </div>
 
-              <ul className="mt-3 space-y-1 text-[11px] leading-4 text-muted">
-                <li>
-                  <span className="text-accent">■</span> 系统提示词 · 约 {ctx.systemTokens} tokens
-                  {ctx.systemTokens === 0 && "（发送后按实际正文估算）"}
+              <ul className="mt-3 divide-y divide-line border-t border-line">
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                    <span className="k-row__title">系统提示词</span>
+                  </span>
+                  <span className="shrink-0 text-[12px] text-muted">约 {ctx.systemTokens} tokens</span>
                 </li>
-                <li>
-                  <span className="text-ok/70">■</span> 工具定义 · 约 {ctx.toolTokens} tokens
-                  <span className="text-subtle">（参考最近一次实际发送的工具定义）</span>
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full bg-ok/70" aria-hidden="true" />
+                    <span className="k-row__title">工具定义</span>
+                  </span>
+                  <span className="shrink-0 text-[12px] text-muted">约 {ctx.toolTokens} tokens</span>
                 </li>
-                <li>
-                  <span className="text-fg/60">■</span> 对话历史 · 约 {ctx.historyTokens} tokens（
-                  {ctx.messages} 条参与）
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full bg-fg/60" aria-hidden="true" />
+                    <span className="k-row__title">对话历史</span>
+                    <span className="k-row__meta">（{ctx.messages} 条参与）</span>
+                  </span>
+                  <span className="shrink-0 text-[12px] text-muted">约 {ctx.historyTokens} tokens</span>
                 </li>
-                <li>
-                  <span className="text-warn">■</span> 附件图片 · 约 {ctx.attachmentTokens} tokens
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full bg-warn" aria-hidden="true" />
+                    <span className="k-row__title">附件图片</span>
+                  </span>
+                  <span className="shrink-0 text-[12px] text-muted">约 {ctx.attachmentTokens} tokens</span>
                 </li>
               </ul>
 
@@ -174,9 +191,12 @@ export function MemoryView() {
       </section>
 
       {/* 设置 */}
-      <section className="mt-5 px-4">
-        <h2 className="k-sect__title mb-2">保留策略</h2>
+      <section className="mt-5">
         <div className="k-card divide-y divide-line">
+          <div className="pb-1">
+            <p className="k-row__title">保留策略</p>
+            <p className="k-row__meta">决定每一轮带多少旧内容、多久把更早的消息压成摘要</p>
+          </div>
           <Stepper
             label="每次请求的输入预算"
             hint="含系统提示词、工具和聊天历史。请按模型窗口选档，给回复留出空间。"
@@ -210,14 +230,47 @@ export function MemoryView() {
             onNext={() => patch({ summaryEvery: step(SUMMARY_EVERY_STEPS, settings.summaryEvery ?? 50, 1) })}
           />
         </div>
+      </section>
+
+      {/* 回忆 */}
+      <section className="mt-5">
+        <div className="k-card divide-y divide-line">
+          <div className="pb-1">
+            <p className="k-row__title">回忆</p>
+            <p className="k-row__meta">聊天时从旧记忆与旧摘要里挑相关的小块带回来，不整段塞</p>
+          </div>
+          {/* 旧记忆/旧摘要的检索（2026-11 记忆细化）：只把命中那一小块带回来 */}
+          <Row
+            label="对话时参考记忆与摘要"
+            hint="关掉后不翻旧记忆、旧摘要；当前对话最近一段摘要仍会接上，不然会断片。"
+            checked={settings.recallEnabled !== false}
+            onChange={(value) => patch({ recallEnabled: value })}
+          />
+          <SliderRow
+            label="回忆量"
+            value={settings.recallBudget ?? 800}
+            min={400}
+            max={1600}
+            step={400}
+            unit=" tokens"
+            disabled={settings.recallEnabled === false}
+            onChange={(value) => patch({ recallBudget: value })}
+          />
+          <Row
+            label="二次检索"
+            hint="遇到「之前那个模板」这类没讲清的说法时，会多查一次旧摘要。关掉可减少无关回忆。"
+            checked={settings.recallHop !== false}
+            onChange={(value) => patch({ recallHop: value })}
+          />
+        </div>
 
         {/*
           手动摘一次的入口：自动触发是"用到 80% 才摘"，如果他嫌晚
           （或者想立刻把前面的对话压掉），这里能现在就摘。
         */}
         <div className="k-card mt-3">
-          <p className="text-[13px] font-medium">更早的对话（摘要）</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted">
+          <p className="k-row__title">更早的对话（摘要）</p>
+          <p className="k-row__meta mt-0.5">
             {ctx?.hasSummary
               ? `已经有一份摘要（约 ${ctx.summaryTokens} tokens）—— 原文不再发出，省了约 ${ctx.summarySaved} tokens。`
               : `开启自动折叠后，每攒够约 ${settings.summaryEvery ?? 50} 条未摘要的消息，就会把较早的内容整理成摘要。原文仍保存在聊天里。`}
@@ -292,48 +345,53 @@ export function MemoryView() {
       <StorageModeCard />
 
       {/* 本地存储 */}
-      <section className="mt-5 px-4">
-        <h2 className="k-sect__title mb-2">网页数据占用</h2>
+      <section className="mt-5">
         <div className="k-card">
           {!store ? (
             <p className="text-[12px] text-subtle">统计中…</p>
           ) : (
             <>
-              <div className="flex items-baseline justify-between">
-                <p className="text-[15px] font-medium">
+              <div className="flex items-start justify-between gap-3">
+                <div className="k-row__body">
+                  <p className="k-row__title">网页数据占用</p>
+                  <p className="k-row__meta">
+                    {store.quotaBytes
+                      ? `浏览器给的额度 ${prettyBytes(store.quotaBytes)}`
+                      : "本机浏览器存储"}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[15px] font-medium">
                   {prettyBytes(store.localBytes + store.musicBytes)}
-                </p>
-                {store.quotaBytes && (
-                  <span className="text-[11px] text-muted">
-                    浏览器给的额度 {prettyBytes(store.quotaBytes)}
-                  </span>
-                )}
+                </span>
               </div>
-              <ul className="mt-3 space-y-1.5 text-[11px] leading-4 text-muted">
-                <li>
-                  设置与数据（localStorage）· <span className="text-fg">{prettyBytes(store.localBytes)}</span>
+              <ul className="mt-3 divide-y divide-line border-t border-line text-[12px]">
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="k-row__title">设置与数据</span>
+                  <span className="shrink-0 text-muted">{prettyBytes(store.localBytes)}</span>
                 </li>
-                <li>
-                  本地音乐（IndexedDB）· <span className="text-fg">{prettyBytes(store.musicBytes)}</span>
-                  <span className="text-subtle"> · {store.musicTracks} 首</span>
+                <li className="flex items-center justify-between gap-3 py-3">
+                  <span className="k-row__title">本地音乐</span>
+                  <span className="shrink-0 text-muted">
+                    {prettyBytes(store.musicBytes)} · {store.musicTracks} 首
+                  </span>
                 </li>
                 {/*
                   **存档安全网**的状态（2026-11，起因："数据全没了，我又没卸载过"）。
                   存档现在是两份轮换 + 读坏自动退备份，这一行让人看得见它有没有在工作。
                 */}
-                <li>
-                  自动备份 ·{" "}
-                  <span className={backupWhen ? "text-fg" : "text-warn"}>
+                <li className="flex items-start justify-between gap-3 py-3">
+                  <span className="k-row__title shrink-0">自动备份</span>
+                  <span className={cn("text-right text-[11px]", backupWhen ? "text-muted" : "text-warn")}>
                     {backupWhen ? `${backupWhen}（读坏了会自动用它）` : "还没有（下次写入后就有了）"}
                   </span>
                 </li>
                 {recoveredFromBackup && (
-                  <li className="text-warn">
+                  <li className="py-3 text-warn">
                     ⚠️ 上次是从备份恢复的 —— 主存档当时读不出来（原文件已保留，可去「数据」导出）
                   </li>
                 )}
                 {readFailedThisSession && (
-                  <li className="text-warn">
+                  <li className="py-3 text-warn">
                     ⚠️ 这次启动**没读到本地存档** —— 已暂停自动保存，免得用空白把它盖掉。
                     重启一次 App 试试。
                   </li>
@@ -403,7 +461,7 @@ function Stepper({
         >
           −
         </button>
-        <span className="min-w-16 text-center text-[12px]">{value}</span>
+        <span className="w-24 text-center text-[12px]">{value}</span>
         <button
           type="button"
           aria-label={`${label} 增加`}

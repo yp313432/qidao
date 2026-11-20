@@ -283,10 +283,10 @@ export function VoiceView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/*
-        返回目标交给 nav-tree 算（/voice → /me）。
-        原来这里硬写着 `to="/"` + "返回对话" —— 但语音设置是从
-        **「我的 → 系统 → 语音」**进去的，回对话首页就跳过了一整级。
-        这正是"返回只能返回上一级"要治的那类 bug，脚本查出来的。
+        返回目标交给 nav-tree 算（层级表里 `/voice` → 对话页 `/`：这一页是
+        从对话页顶栏那颗麦克风进来的）。原来这里硬写着 `to="/"` + "返回对话" ——
+        目标其实对，但写死之后页面一挪位置就跟着错，这才是"返回只能返回上一级"
+        要治的那类 bug。
       */}
       <PageHeader
         title="语音对话"

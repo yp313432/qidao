@@ -1516,16 +1516,15 @@ html[data-drawer-open] .glass-nav-bar {
 /* ------------------------------------------------------------------
  * 对话页的输入框底部留白。
  *
- * 原来这里只留 0.75rem —— 因为那时对话页**没有**底部导航（导航在抽屉里）。
- * 后来导航统一挪到底部胶囊、抽屉那套撤掉了，这个留白却没跟着改，
- * 结果导航直接**压住输入框卡片最底下 52px**（就是「+ / 模型 / 表情 / 发送」
- * 那一排工具栏）。实测：导航 y 780–832，输入框卡片 y 695–832，重叠 52px。
+ * 历史：原来只留 0.75rem（那时对话页没有底部导航）；后来导航挪到底部胶囊，
+ * 这里加到 4.5rem（72px = 导航 61 + 呼吸缝 11），否则导航压住输入卡片 52px。
  *
- * 所以现在跟别的页面一样给导航留位（4.5rem = 72px = 导航 61 + 呼吸缝 11）。
- * 打字时导航会收下去（keyboardUp），多出来的留白落在键盘后面，看不见。
+ * 2026-11-18（S5）：底部导航两主题都退役了（纯色也走抽屉导航），
+ * 那 4.5rem 的"给导航让位"已经没有对象 —— 收回到 0.5rem 的**贴底呼吸缝**。
+ * 液态那份本来就有自己的覆盖（liquid/styles/glass.css 的 .lq-skin .pb-composer）。
  * ------------------------------------------------------------------ */
 .pb-composer {
-  padding-bottom: calc(4.5rem + var(--aster-mini, 0rem) + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  padding-bottom: calc(0.5rem + var(--aster-mini, 0rem) + var(--q-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 /* ------------------------------------------------------------------
@@ -5078,54 +5077,9 @@ html.q-paused * {
   46%, 84% { opacity: 1; }
   92%, 100% { opacity: 0; }
 }
-/* ── 抽屉里的像素蟹：桌宠行为 ───────────────────────────────────────
-   用户 2026-11-01："它不需要呼吸感，不需要像情绪球那样一缩一放的，
-   他就改成动画……就跟桌宠类似，是可以动的那种"。
-   所以这里全部是位移/换帧，没有任何缩放。 */
-
-/* 待机时自己溜达：慢慢左右挪，偶尔往边上走两步再回来 */
-.crab-roam { animation: crab-roam 19s ease-in-out infinite; }
-@keyframes crab-roam {
-  0%, 54%, 100% { transform: translate(0, 0); }
-  60%, 66% { transform: translate(-14px, -1px); }
-  70%, 76% { transform: translate(-14px, 0); }
-  82%, 88% { transform: translate(9px, -1px); }
-  93% { transform: translate(9px, 0); }
-}
-
-/* 点一下头顶冒出来的情绪气泡（只写情绪词） */
-.crab-bubble {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 10px;
-  border-radius: 9px;
-  background: #1a1512;
-  color: #f7f2ea;
-  font-size: 12.5px;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .16), 0 8px 20px rgba(0, 0, 0, .38);
-  animation: crab-bubble-in 160ms ease-out;
-}
-.crab-bubble::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #1a1512;
-}
-@keyframes crab-bubble-in {
-  from { opacity: 0; transform: translate(-50%, 4px) scale(.92); }
-  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .crab-roam { animation: none; }
-}
+/* 2026-11-18：抽屉里那只 126px 旧桌宠连同 .crab-roam / .crab-bubble 一起删了
+   （用户 m01541「只留新的那个桌宠，不管哪个模式下，老的删除就行」）。
+   现在桌宠只有对话页的 ChatCrab，走动/说话/拖动都由 pet-life.ts 驱动，不用这些动画。 */
 /*
  * 「卡片」≠「玻璃」（用户 2026-11-01 原话：
  *   "白玻璃加白字根本不糊，是卡片因为他不是玻璃所以会糊"）。

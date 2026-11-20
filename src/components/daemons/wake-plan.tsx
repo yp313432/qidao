@@ -35,6 +35,11 @@ export function WakePlan() {
       for (const task of st.tasks) if (isSystemWake(task)) st.removeTask(task.id);
       return;
     }
+    /** 回响单独一个开关（用户 m00490）：关掉就撤掉还没跑的，也不再排新的 */
+    const echoOn = st.settings.echoEnabled !== false;
+    if (!echoOn) {
+      for (const task of st.tasks) if (task.prompt.startsWith("【回响】")) st.removeTask(task.id);
+    }
     /**
      * ⚠️ **上游不全就一件事都不排**（用户点名要求："记得和上游统一，
      * 不要出现我没填 api 还能做事这样的"）。跟后台唤醒那条共用同一个判定
@@ -69,7 +74,7 @@ export function WakePlan() {
         (t.lastRunDay ?? "") === todayKey,
     ).length;
     const pendingEcho = st.tasks.filter((t) => t.prompt.startsWith("【回响】") && !t.lastRunDay).length;
-    if (ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t), upstreamOk, (info) => {
+    if (echoOn && ranEcho + pendingEcho < echoCapOf(level)) queueEchoes(moments, (t) => useApp.getState().addTask(t), upstreamOk, (info) => {
       /** 顺手交给后台：你互动的那一刻 App 开着，所以这份料能存下来 */
       void pushWakeConfig({ [WAKE_KEYS.echoId]: info.id, [WAKE_KEYS.echoWhat]: info.what });
     });

@@ -58,16 +58,16 @@ export function worldPresets(): WorldEntry[] {
     ),
     make(
       "preset_qidao",
-      "栖岛是什么",
-      ["栖岛", "这个app", "这个app"],
-      "栖岛是用户自己动手做的私人 App：界面、数据、记忆都只存在他那台设备上，不联网、不上传。",
+      "Yisle 是什么",
+      ["Yisle", "这个app", "这个app"],
+      "Yisle 是用户自己动手做的私人 App：界面、数据、记忆都只存在他那台设备上，不联网、不上传。",
       "tail",
     ),
     make(
       "preset_shigan",
       "时感",
       ["时感"],
-      "「时感」是栖岛里嵌着的一个时钟页面（在 玩乐 → 时感）。",
+      "「时感」是 Yisle 里嵌着的一个时钟页面（在 玩乐 → 时感）。",
       "tail",
     ),
     make(

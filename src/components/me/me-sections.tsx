@@ -376,7 +376,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       return;
     }
     setSw(await registerServiceWorker());
-    const ok = await localNotify("栖岛", "这是一条测试通知 —— 收到了就说明本地通知这条链路通了。");
+    const ok = await localNotify("Yisle", "这是一条测试通知 —— 收到了就说明本地通知这条链路通了。");
     flash(ok ? "已发出，看一下通知栏" : "发不出去（可能被系统或浏览器限制）");
   }
 
@@ -879,7 +879,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
       {/* 工具调用探测：下一版要用原生 tools 干活，先得知道这把上游认不认 */}
       <Section title="工具调用（原生 tools）">
         <p className="mb-2 text-[12px] leading-5 text-muted">
-          栖岛用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
+          Yisle 用「原生工具调用」干活 —— 但这件事实在取决于上游：有的中转会把工具调用
           吞掉、变成一坨普通文字，有的直接报错（还有的只跟流式一起给）。点一下测出来，再决定怎么接。
           <br />
           用的就是上面那三格（地址 / 密钥 / 模型名），密钥只在本机这次请求里用。
@@ -1084,6 +1084,15 @@ export function MeSections({ tab }: { tab: MeTab }) {
                 </KOpt>
               ))}
             </KOpts>
+          </Sub>
+
+          {/* 引用：她引他 / 他引她，一个总开关（用户 m00490 的补开关） */}
+          <Sub title="引用">
+            <Row
+              label="引用消息"
+              checked={settings.quoteEnabled !== false}
+              onChange={(v) => patch({ quoteEnabled: v })}
+            />
           </Sub>
 
           {/* 分句、逐条发送节奏、合并等待和正文清理。 */}
@@ -1437,6 +1446,13 @@ export function MeSections({ tab }: { tab: MeTab }) {
               onChange={(v) => patch({ autonomyEnabled: v })}
             />
 
+            <Row
+              label="回响"
+              hint="你发动态、评论他或点赞之后，他过一会儿回你一条。"
+              checked={settings.echoEnabled !== false}
+              onChange={(v) => patch({ echoEnabled: v })}
+            />
+
             <p className="k-row__title">他的活跃度（一天自己动几次）</p>
             <KOpts cols={3}>
               {WAKE_LEVELS.map((lv) => (
@@ -1593,11 +1609,18 @@ export function MeSections({ tab }: { tab: MeTab }) {
       order: 2,
       body: (
         <>
-          <Sub title="朗读回复">
+          <Sub title="回复方式">
             <Row
               label="朗读回复"
               checked={settings.voiceReplies}
               onChange={(v) => patch({ voiceReplies: v })}
+            />
+            {/* 用语音气泡回（用户 m00296：点开=他可以发；你发语音或直接让他发一条时才会用） */}
+            <Row
+              label="用语音气泡回复"
+              hint="你发语音、或直接让他「发条语音」时，他才用语音回；关掉就只发文字。"
+              checked={settings.voiceBubbleReply !== "off"}
+              onChange={(v) => patch({ voiceBubbleReply: v ? "whenVoice" : "off" })}
             />
           </Sub>
 

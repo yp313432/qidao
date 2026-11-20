@@ -163,7 +163,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: "archive_chat", title: "把对话存成文档", hint: "归档一段对话", risk: "L2", status: "ready", group: "write" },
   { id: "learn_card", title: "生成学习卡片", hint: "给你加生词进词库", risk: "L2", status: "ready", group: "write" },
   { id: "reminder", title: "创建提醒 / 闹钟", hint: "到点提醒或全屏响铃（可设一次或每天）", risk: "L2", status: "ready", group: "write" },
-  { id: "memory", title: "长期记忆", hint: "记住你的偏好与项目上下文（只存本机）", risk: "L2", status: "ready", group: "write" },
+  { id: "memory", title: "长期记忆", hint: "记住你说过的偏好与事情；聊天时也会翻旧记忆和旧摘要（只存本机）", risk: "L2", status: "ready", group: "write" },
   { id: "persona", title: "修改他自己的人设", hint: "改他自己的名字与自述", risk: "L2", status: "ready", group: "write" },
   { id: "moment_post", title: "发布动态", hint: "在朋友圈里发动态，也能给你点赞、评论", risk: "L2", status: "ready", group: "write" },
   { id: "letter_write", title: "写信给我", hint: "写一封新的信；我下次进前端时会跳出拆信动画", risk: "L2", status: "ready", group: "write" },

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { systemBackTarget } from "@/lib/nav-tree";
-import { materialOf } from "@/lib/material";
-import { useApp } from "@/lib/store";
+import { dismissTop } from "@/lib/dismiss-stack";
 
 /**
  * 安卓的**系统返回**：返回键 + 侧边滑动手势。
@@ -22,27 +21,32 @@ import { useApp } from "@/lib/store";
  *
  * 网页版不挂这个监听：浏览器里"历史返回"本来就是对的。
  *
- * ⚠️ 还没做的（如实说）：如果有**弹层/底部抽屉**开着，App 的规矩是先关弹层。
- *    那需要一个全局的"弹层栈"，现在没有 —— 这也是这个文件将来该长的地方。
+ * 2026-11-18 补上另一半（任务书 3.3 第 5 条）：开着的**弹层先关**，
+ * 没有弹层才退页 —— 栈在 `lib/dismiss-stack.ts`，抽屉/弹窗/思考链/动作确认卡
+ * 打开时各自压一层进去。以前这里是"不管开没开都直接退页"。
  */
 export function AppBack() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  /** 液态下"上一级"要重算（那边没有底部导航，工具/玩乐/我的都回对话页） */
-  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  /** 事件回调里要读**此刻**的路径，用 ref 免得闭包读到旧的 */
+  /**
+   * 层级表两种主题共用一张（2026-11-18），所以这里不再按材质分叉；
+   * 事件回调里要读**此刻**的路径，用 ref 免得闭包读到旧的。
+   */
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
-  /** 同上：事件回调里读此刻的材质，别读闭包里的旧值 */
-  const liquidRef = useRef(liquid);
-  liquidRef.current = liquid;
 
   useEffect(() => {
     let disposed = false;
     let remove: (() => void) | null = null;
 
     async function goBack() {
-      const target = systemBackTarget(pathRef.current, liquidRef.current);
+      /*
+        1) 先关最上面那一层：抽屉、弹窗、思考链、动作确认卡……
+           （任务书 3.3 第 5 条，用户 m00516 拍板：弹层关闭行为单独处理）
+           没人接这一下 = 没有弹层，才轮到退页。
+      */
+      if (dismissTop()) return;
+      const target = systemBackTarget(pathRef.current);
       if (target !== "exit") {
         // replace：App 的返回不往历史里再压一层（不然栈会越走越深）
         navigate({ to: target, replace: true });

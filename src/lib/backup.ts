@@ -138,7 +138,7 @@ export async function buildBackup(): Promise<{ json: string; filename: string; b
   const json = JSON.stringify(backup, null, 2);
   return {
     json,
-    filename: `栖岛备份-${stamp}.json`,
+    filename: `Yisle备份-${stamp}.json`,
     bytes: new Blob([json]).size,
     redacted: hits.length,
     counts: countData(clean),
@@ -176,7 +176,7 @@ export function parseBackup(text: string): Parsed {
   }
   const b = data as Partial<Backup>;
   if (!b || typeof b !== "object" || b.kind !== "qidao-backup" || !b.app) {
-    return { ok: false, error: "这不是栖岛的备份文件（缺少 qidao-backup 标记）" };
+    return { ok: false, error: "这不是 Yisle 的备份文件（缺少 qidao-backup 标记）" };
   }
   return { ok: true, backup: b as Backup, counts: countData(b.app) };
 }

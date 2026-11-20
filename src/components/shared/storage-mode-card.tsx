@@ -99,14 +99,16 @@ export function StorageModeCard() {
   }
 
   return (
-    <section className="mt-5 px-4">
-      <h2 className="mb-2 px-1 text-[12px] tracking-wide text-muted">存储方式（实验）</h2>
+    <section className="mt-5">
       <div className="k-card">
-        <div className="flex items-baseline justify-between">
-          <p className="text-[15px] font-medium">
-            {mode === "v2" ? "新存储 · 一个库多张表" : "老存储 · 一条大记录"}
-          </p>
-          <span className={cn("text-[11px]", mode === "v2" ? "text-accent" : "text-muted")}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="k-row__body">
+            <p className="k-row__title">存储方式（实验）</p>
+            <p className="k-row__meta">
+              {mode === "v2" ? "新存储 · 一个库多张表" : "老存储 · 一条大记录"}
+            </p>
+          </div>
+          <span className={cn("shrink-0 text-[11px]", mode === "v2" ? "text-accent" : "text-muted")}>
             {mode === "v2" ? "正在用" : "正在用（默认）"}
           </span>
         </div>

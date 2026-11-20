@@ -25,7 +25,6 @@ const EXACT = [
   "/memories",
   "/memory",
   "/permissions",
-  "/play",
   "/play/add",
   "/play/days",
   "/play/games",

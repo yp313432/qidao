@@ -1,5 +1,5 @@
 import type { PersistStorage, StateStorage, StorageValue } from "zustand/middleware";
-import { looksLikeSnapshot, pickSnapshot, type SnapshotSource } from "@/lib/data/snapshot";
+import { looksLikeSnapshot, parseSnapshot, pickSnapshot, type SnapshotParsed, type SnapshotSource } from "@/lib/data/snapshot";
 import { storageMode } from "@/lib/data/switch";
 
 /**
@@ -95,82 +95,97 @@ export let skippedWrites = 0;
 /** 备份节流用的内存时间戳（跨启动不记，够用） */
 let lastBackupAt = 0;
 
-export const idbStorage: StateStorage = {
-  getItem: async (name) => {
-    /**
-     * **PH3：开关打开时走新存储**（一个库多张表、单条写）。
-     * 默认是关的 —— 没打开时下面那条老路一字未改。
-     * 读失败**先记 `readFailedThisSession` 再返回 null**，于是 `setItem` 会拒绝写入
-     * （"读不到就别写"，见 §12.4）。
-     */
-    if (name === MAIN_KEY && storageMode() === "v2") {
-      try {
-        const { loadLegacyShaped } = await import("@/lib/data/adapter");
-        const r = await loadLegacyShaped();
-        if (!r.ok) {
-          readFailedThisSession = true;
-          return null;
-        }
-        lastSnapshotSource = "main";
-        return r.value ?? null;
-      } catch {
-        readFailedThisSession = true;
-        return null;
-      }
-    }
+/**
+ * 读一次存档、parse 一次（2026-11 性能排查）。
+ *
+ * 原来 `looksLikeSnapshot()` 判断时整包 parse 一遍、结果扔掉，真正要用时再 parse 一遍；
+ * 一份存档是几 MB 的 JSON 文本，手机上单次 parse 是几百毫秒级 —— 启动时白做三四遍。
+ * 现在 `pickSnapshot()` 把 parse 好的对象一并返回，两条读路径共用这一次结果：
+ *   · `idbStorage.getItem`（StateStorage 要字符串）
+ *   · `createQidaoPersistStorage.getItem`（zustand 要对象）
+ */
+async function readSnapshot(name: string): Promise<{ text: string | null; parsed: SnapshotParsed | null }> {
+  /**
+   * **PH3：开关打开时走新存储**（一个库多张表、单条写）。
+   * 默认是关的 —— 没打开时下面那条老路一字未改。
+   * 读失败**先记 `readFailedThisSession` 再返回 null**，于是 `setItem` 会拒绝写入
+   * （"读不到就别写"，见 §12.4）。
+   */
+  if (name === MAIN_KEY && storageMode() === "v2") {
     try {
-      const main = await tx<string | undefined>("readonly", (s) => s.get(name) as IDBRequest<string | undefined>);
-      const backup =
-        name === MAIN_KEY
-          ? await tx<string | undefined>("readonly", (s) => s.get(backupKeyOf(name)) as IDBRequest<string | undefined>)
-          : undefined;
-      const legacy = globalThis.localStorage?.getItem(name) ?? null;
-      const picked = pickSnapshot({ main, backup, legacy });
-      lastSnapshotSource = picked.source;
-      /**
-       * 主存档"有东西但读不出来"、靠备份救回来 → 记一笔（不静默）。
-       * 这也意味着下一步**不能**让空状态覆盖主存档：所以这里立刻把救回来的那份写回主格。
-       */
-      if (backup !== undefined && !looksLikeSnapshot(main) && picked.source === "backup") {
-        recoveredFromBackup = true;
-        try {
-          await tx("readwrite", (s) => s.put(picked.text ?? "", name) as IDBRequest<IDBValidKey>);
-        } catch {
-          /* 写不回去也不影响这次能用 */
-        }
+      const { loadLegacyShaped } = await import("@/lib/data/adapter");
+      const r = await loadLegacyShaped();
+      if (!r.ok) {
+        readFailedThisSession = true;
+        return { text: null, parsed: null };
       }
-      /**
-       * 主存档**存在但读不出来**、而且备份也不顶用 → 先把那份坏档**挪到一边留证**
-       * （`aster-app::corrupt`），再让 App 继续跑。这样"写坏"这件事不会静默丢东西，
-       * 以后还能拿出来看是坏在哪一步。
-       */
-      if (typeof main === "string" && main.length > 0 && !looksLikeSnapshot(main) && picked.source !== "main") {
-        try {
-          const already = await tx<string | undefined>(
-            "readonly",
-            (s) => s.get(corruptKeyOf(name)) as IDBRequest<string | undefined>,
-          );
-          if (!already) {
-            await tx("readwrite", (s) => s.put(main, corruptKeyOf(name)) as IDBRequest<IDBValidKey>);
-          }
-        } catch {
-          /* 留证失败不影响主流程 */
-        }
-      }
-      return picked.text;
+      lastSnapshotSource = "main";
+      const text = r.value ?? null;
+      return { text, parsed: parseSnapshot(text) };
     } catch {
-      /**
-       * ⚠️ **IndexedDB 这次读不了**（打不开 / 事务失败）—— 关键：**别把这个当成"没有存档"**。
-       * 老实现就是把它当成"没有"，于是从空状态开始，空状态随后又被写回主格 → 真没了。
-       * 现在：标记一下，`setItem` 会**暂停自动保存**，老记录原样留着。
-       */
       readFailedThisSession = true;
-      const legacy = globalThis.localStorage?.getItem(name) ?? null;
-      const picked = pickSnapshot({ legacy });
-      lastSnapshotSource = picked.source;
-      return picked.text;
+      return { text: null, parsed: null };
     }
-  },
+  }
+  try {
+    const main = await tx<string | undefined>("readonly", (s) => s.get(name) as IDBRequest<string | undefined>);
+    const backup =
+      name === MAIN_KEY
+        ? await tx<string | undefined>("readonly", (s) => s.get(backupKeyOf(name)) as IDBRequest<string | undefined>)
+        : undefined;
+    const legacy = globalThis.localStorage?.getItem(name) ?? null;
+    const picked = pickSnapshot({ main, backup, legacy });
+    lastSnapshotSource = picked.source;
+    /**
+     * 主存档"有东西但读不出来"、靠备份救回来 → 记一笔（不静默）。
+     * 这也意味着下一步**不能**让空状态覆盖主存档：所以这里立刻把救回来的那份写回主格。
+     *
+     * 判据直接用 `picked.source`：选中的不是主档，就等于主档不合格 ——
+     * 不用再 `looksLikeSnapshot(main)` 整包 parse 一遍（这就是这次省掉的那两次）。
+     */
+    if (backup !== undefined && picked.source === "backup") {
+      recoveredFromBackup = true;
+      try {
+        await tx("readwrite", (s) => s.put(picked.text ?? "", name) as IDBRequest<IDBValidKey>);
+      } catch {
+        /* 写不回去也不影响这次能用 */
+      }
+    }
+    /**
+     * 主存档**存在但读不出来**、而且备份也不顶用 → 先把那份坏档**挪到一边留证**
+     * （`aster-app::corrupt`），再让 App 继续跑。这样"写坏"这件事不会静默丢东西，
+     * 以后还能拿出来看是坏在哪一步。
+     */
+    if (typeof main === "string" && main.length > 0 && picked.source !== "main") {
+      try {
+        const already = await tx<string | undefined>(
+          "readonly",
+          (s) => s.get(corruptKeyOf(name)) as IDBRequest<string | undefined>,
+        );
+        if (!already) {
+          await tx("readwrite", (s) => s.put(main, corruptKeyOf(name)) as IDBRequest<IDBValidKey>);
+        }
+      } catch {
+        /* 留证失败不影响主流程 */
+      }
+    }
+    return { text: picked.text, parsed: picked.parsed };
+  } catch {
+    /**
+     * ⚠️ **IndexedDB 这次读不了**（打不开 / 事务失败）—— 关键：**别把这个当成"没有存档"**。
+     * 老实现就是把它当成"没有"，于是从空状态开始，空状态随后又被写回主格 → 真没了。
+     * 现在：标记一下，`setItem` 会**暂停自动保存**，老记录原样留着。
+     */
+    readFailedThisSession = true;
+    const legacy = globalThis.localStorage?.getItem(name) ?? null;
+    const picked = pickSnapshot({ legacy });
+    lastSnapshotSource = picked.source;
+    return { text: picked.text, parsed: picked.parsed };
+  }
+}
+
+export const idbStorage: StateStorage = {
+  getItem: async (name) => (await readSnapshot(name)).text,
 
   setItem: async (name, value) => {
     /**
@@ -310,13 +325,13 @@ export function createQidaoPersistStorage<S = unknown>(): PersistStorage<S> {
 
   return {
     getItem: async (name) => {
-      const raw = await idbStorage.getItem(name);
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw) as StorageValue<S>;
-      } catch {
-        return null;
-      }
+      /**
+       * 直接用 `readSnapshot` 已经 parse 好的对象，不再 `JSON.parse(raw)` 第二遍。
+       * （2026-11 性能排查：几 MB 的存档在手机上一次 parse 几百毫秒，启动时白做一遍。）
+       */
+      const { text, parsed } = await readSnapshot(name);
+      if (!text || !parsed) return null;
+      return parsed as unknown as StorageValue<S>;
     },
     setItem: (name, value) => {
       pending = { name, value };

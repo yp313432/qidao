@@ -46,32 +46,6 @@ function NavKey() {
   );
 }
 
-/** 蝴蝶（玩乐）：四翼两触角 + 翅点。 */
-function NavFly() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 11.5 C9.5 6.5 4.5 5 3.6 8.4 C3 10.8 6.8 12.6 12 11.5" />
-      <path d="M12 11.5 C14.5 6.5 19.5 5 20.4 8.4 C21 10.8 17.2 12.6 12 11.5" />
-      <path d="M12 12.5 C10 14.2 6.5 14.9 6.3 17.2 C6.2 19 9 18.6 12 13.8" />
-      <path d="M12 12.5 C14 14.2 17.5 14.9 17.7 17.2 C17.8 19 15 18.6 12 13.8" />
-      <path d="M12 11 C11.6 9.6 11 8.6 10 7.7" />
-      <path d="M12 11 C12.4 9.6 13 8.6 14 7.7" />
-      <circle cx="7.6" cy="9.3" r={0.9} fill="currentColor" stroke="none" fillOpacity={0.55} />
-      <circle cx="16.4" cy="9.3" r={0.9} fill="currentColor" stroke="none" fillOpacity={0.55} />
-      <circle cx="8.7" cy="15.9" r={0.7} fill="currentColor" stroke="none" fillOpacity={0.45} />
-      <circle cx="15.3" cy="15.9" r={0.7} fill="currentColor" stroke="none" fillOpacity={0.45} />
-    </svg>
-  );
-}
-
 /** 双框章「我」（我的）：外框 + 内淡框 + 中字，整体微斜。 */
 function NavSeal() {
   return (
@@ -100,15 +74,13 @@ function NavSeal() {
   );
 }
 
-/** 传 tab.to（"/" "/tools" "/play" "/me"），渲染对应票图。 */
+/** 传 tab.to（"/" "/tools" "/me"），渲染对应票图。（`/play` 这张票 2026-11-18 随玩乐区一起删了） */
 export function NavEtch({ name }: { name: string }) {
   switch (name) {
     case "/":
       return <NavEnv />;
     case "/tools":
       return <NavKey />;
-    case "/play":
-      return <NavFly />;
     case "/me":
       return <NavSeal />;
     default:

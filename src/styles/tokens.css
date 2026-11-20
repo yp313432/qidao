@@ -184,5 +184,38 @@
      写死高度会让不同字号的模式互相看着别扭，所以收成槽位统一给。 */
   --k-code-h: 160px;
   --k-long-h: 224px;
+
+  /*
+    ── 抽屉条目的几何 ─────────────────────────────────────────
+    两主题**同一个模子**（用户 2026-11-18：把两种主题的侧边栏截图叠着比，
+    说「各组件尺寸大小位置你照搬就好了」）。
+
+    液态那边由 glass.css 的 `.lq-func__row` / `.lq-conv` 写死同一组数；
+    纯色这边走 kit 的 `.k-drawer-row` / `.k-drawer-conv` 从这里取。
+    两边要改就一起改，不许只改一边 —— 只改一边就会出现「条目矮 6px、
+    八条少 108px、整组往下掉」的那种错位。
+
+    46 是历史定稿值：会话条与功能条都 46 高、13 圆角、8 间距，
+    抽屉里所有条目看起来是同一个模子刻出来的（m01859 / m02543 / m02727）。
+  */
+  --k-drawer-row-h: 46px;
+  --k-drawer-row-radius: 13px;
+  --k-drawer-row-gap: 8px;
+  --k-drawer-row-gap-x: 11px;
+  --k-drawer-row-pad-x: 14px;
+  --k-drawer-row-fs: 14px;
+  --k-drawer-ico: 18px;
+  --k-drawer-nav-pad: 4px 12px 2px;
+  --k-drawer-nav-max: 62%;
+  --k-drawer-head-pad: 6px 26px 2px;
+  --k-drawer-head-fs: 12px;
+  --k-drawer-head-track: 0.14em;
+  --k-drawer-foot-pad-t: 6px;
+  --k-drawer-foot-pad-b: 10px;
+
+  /* 材质槽位：默认给"薄纸"+一层软影，纯色在 modes/solid.css 里换成纸卡那套 */
+  --k-drawer-row-bg: var(--k-surface);
+  --k-drawer-row-line: var(--k-line-soft);
+  --k-drawer-row-shadow: 0 1px 2px color-mix(in oklab, var(--aster-fg) 8%, transparent);
 }
 

@@ -71,8 +71,16 @@ export function installKeyboardInset(): () => void {
   let lastWeb = -1;
   let lastUp: boolean | null = null;
 
-  /** 原生那条路推的值（安卓主路径，见 ShellBridgePlugin） */
-  const nativeIme = (): number => {
+  /**
+   * 原生那条路推的值（安卓主路径，见 ShellBridgePlugin）。
+   *
+   * **缓存读**（2026-11 性能排查）：原来每次 `sync()` 都 `getComputedStyle(root)`，
+   * 而键盘弹起那 200–300ms 里安卓几乎每帧写一次 `--q-ime-bottom-native`，
+   * 等于每帧一次强制样式重算。现在只在 MutationObserver 真收到 style 变化时读一次，
+   * rAF 那条快路径只读缓存 —— 数值一样，工作量少一个量级。
+   */
+  let nativeCache = 0;
+  const readNativeIme = (): number => {
     const raw = getComputedStyle(root).getPropertyValue("--q-ime-bottom-native").trim();
     const n = Number.parseFloat(raw);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -118,7 +126,7 @@ export function installKeyboardInset(): () => void {
       lastWeb = web;
       root.style.setProperty(WEB_IME_VAR, `${web}px`);
     }
-    const up = typing && Math.max(web, nativeIme()) >= IME_MIN_PX;
+    const up = typing && Math.max(web, nativeCache) >= IME_MIN_PX;
     if (up !== lastUp) {
       lastUp = up;
       root.dataset.keyboard = up ? "up" : "down";
@@ -133,6 +141,7 @@ export function installKeyboardInset(): () => void {
       sync();
     });
   };
+  nativeCache = readNativeIme();
   sync();
   vv?.addEventListener("resize", scheduleSync);
   vv?.addEventListener("scroll", scheduleSync);
@@ -142,7 +151,11 @@ export function installKeyboardInset(): () => void {
    * 原生是"往 `<html>` 上写 CSS 变量"的方式推键盘高度 —— 盯住那次 style 变化，
    * 这样 data-keyboard 才会跟着翻转（网页自己算不出来的时候全靠它）。
    */
-  const mo = new MutationObserver(scheduleSync);
+  const mo = new MutationObserver(() => {
+    /* 只有原生真写了变量才重读（顺便刷新缓存），rAF 快路径不再碰 getComputedStyle */
+    nativeCache = readNativeIme();
+    scheduleSync();
+  });
   mo.observe(root, { attributes: true, attributeFilter: ["style"] });
 
   /**

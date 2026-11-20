@@ -133,8 +133,8 @@ export function MeHub() {
   const scrollRef = useScrollMemory("me");
   /** 液态：这一页自己画那颗行内返回箭头（见下面标题块）。 */
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
-  // 有页头就不让 app-shell 再补兜底箭头（否则一页两颗）
-  useEffect(() => (liquid ? registerPageHeader() : undefined), [liquid]);
+  // 有页头就不让 app-shell 再补兜底箭头（否则一页两颗）；两主题都一样（2026-11-18）
+  useEffect(() => registerPageHeader(), []);
   /** 称呼在轮换表里的位置（空的/认不出来的都算第 0 个「不说」） */
   const genderIndex = Math.max(
     0,
@@ -323,20 +323,23 @@ export function MeHub() {
           往下滑，返回键依旧挡在那。" —— 那颗兜底箭头是绝对定位、**不在滚动容器里**，
           所以标题跟着手指滚走了，它还钉在原处挡内容。现在箭头画进这一块
           （跟标题同一个 `overflow-y-auto` 容器），下滑时一起走。
-          纯色下没有返回钮，结构保持原样（`contents` 不产生额外盒子）。 */}
+
+          2026-11-18（S5 之后）：纯色这里也要画箭头了。以前不画是因为底部导航的
+          「我的」就是回对话页的路；底导退役、两主题共用侧边栏之后，如果这里还空着，
+          纯色下「我的」就成了死路。几何跟 PageHeader 一致（size-9 + size-6 折角）。 */}
       <div ref={titleRef} className="me-title px-5 inset-top-100 pb-1">
         <p className="text-xs tracking-wide text-muted">账号与系统</p>
-        <div className={liquid ? "mt-1 flex items-center gap-3" : "contents"}>
-          {liquid && (
-            <Link
-              to="/"
-              aria-label="返回"
-              className="lq-back lq-back--inline"
-              onClick={() => requestDrawer()}
-            >
-              <ChevronLeft strokeWidth={1.5} />
-            </Link>
-          )}
+        <div className="mt-1 flex items-center gap-3">
+          <Link
+            to="/"
+            aria-label="返回对话"
+            className={
+              liquid ? "lq-back lq-back--inline" : "flex size-9 shrink-0 items-center justify-center"
+            }
+            onClick={() => requestDrawer()}
+          >
+            <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
+          </Link>
           <h1 className="font-serif text-2xl font-medium">我的</h1>
         </div>
       </div>

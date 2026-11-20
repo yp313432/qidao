@@ -18,6 +18,7 @@ import { prettySize } from "@/lib/attachments";
 import { setChatPageActive } from "@/lib/chat-presence";
 import { splitSegments, stripInvisible } from "@/lib/segment";
 import { cleanAssistantMarkup } from "@/lib/assistant-cleanup";
+import { EmptyChat } from "@/components/chat/empty-chat";
 import { Avatar } from "@/components/shared/avatar";
 
 /**
@@ -283,14 +284,61 @@ function cleanTextForRender(s: string): string {
 }
 // #endregion body-clean
 
-/** 整条正文（不分段那一条路）：清洗 + 去重 */
+/** 整条正文 / 分段正文的清洗结果按文本缓存：流式时只有正在写的那条文本在变，其余全命中 */
+const cleanMemo = new Map<string, string>();
+const partMemo = new Map<string, string>();
+function memoBy(cache: Map<string, string>, s: string, make: () => string): string {
+  const hit = cache.get(s);
+  if (hit !== undefined) return hit;
+  const out = make();
+  if (cache.size > 300) cache.clear();
+  cache.set(s, out);
+  return out;
+}
 function cleanForRender(s: string): string {
-  return dedupeBody(cleanTextForRender(stripActionLines(s))).replace(/\n{3,}/g, "\n\n");
+  return memoBy(cleanMemo, s, () =>
+    dedupeBody(cleanTextForRender(stripActionLines(s))).replace(/\n{3,}/g, "\n\n"),
+  );
 }
 
 /** 分段气泡里的**某一段**：只清洗、不去重（跨段的重复由 `dedupeParts` 负责，别把一段删成半截） */
 function cleanPartForRender(s: string): string {
-  return cleanTextForRender(stripActionLines(s));
+  return memoBy(partMemo, s, () => cleanTextForRender(stripActionLines(s)));
+}
+
+/**
+ * 每条消息画之前要算的三样：切思考、去重分段、判空壳。
+ * 流式时 store 每 100ms 换一次 conversations，但**没变的消息还是同一个对象**
+ * （`patchMessage` 只替换正在写的那条：`m.id === messageId ? {...m, ...patch} : m`），
+ * 所以按对象身份缓存 —— 60 条里每次只有 1 条真重算。
+ * 历史结论（别删）：m03533 定时回复/主动唤醒先建空消息再填内容，中间几秒 content 为空且不走 liveId，
+ * 不兜只剩头像=空壳（判定即 noBody）；m02108 工具循环每轮从头重说，dedupeParts 只做画前过滤；
+ * m07120 正文只剩 `**`/`>`/`[]()` 记号的，剥掉记号后没字，按空壳处理（用 hasRenderedText 判）。
+ */
+type PreparedRow = { m: ChatMessage; visibleParts: string[]; noBody: boolean; quoted: string | null };
+const preparedRows = new WeakMap<ChatMessage, PreparedRow>();
+
+/** 分段正文的第一段若也带着引用头，一起摘掉（否则气泡里会重复出现那行字） */
+function stripPartQuote(parts: string[] | undefined): string[] | undefined {
+  if (!parts?.length) return parts;
+  const first = splitQuote(parts[0]!);
+  return first.quote ? [first.body, ...parts.slice(1)] : parts;
+}
+
+function prepareMessage(raw: ChatMessage): PreparedRow {
+  const hit = preparedRows.get(raw);
+  if (hit) return hit;
+  const base = splitThoughtMsg(raw);
+  /* AI 引用她说过的原话（用户 m01264/m01282）：正文开头那行 `> 引用：…` 摘出来单独画，
+     正文照常渲染。真假在渲染时用 `isVerbatimQuote` 校验 —— 编造的引句不会画成引用条。 */
+  const { quote: quoted, body } = splitQuote(base.content ?? "");
+  const m = quoted ? { ...base, content: body, parts: stripPartQuote(base.parts) } : base;
+  const visibleParts = dedupeParts((m.parts ?? []).filter((p) => hasRenderedText(p) && !isPunctOnly(p)));
+  const noBody = m.role !== "user" && !hasRenderedText(m.content) && !m.requestError &&
+    messageWebSources(raw).length === 0 && visibleParts.length === 0 && !(m.attachments && m.attachments.length);
+  const made: PreparedRow = { m, visibleParts, noBody, quoted };
+  preparedRows.set(raw, made);
+  return made;
 }
 
 /**
@@ -368,7 +416,7 @@ import { greetingFor } from "@/lib/greeting";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
 import { transcribe } from "@/lib/voice-service";
-import type { Attachment } from "@/lib/types";
+import type { Attachment, ChatMessage } from "@/lib/types";
 import { stripActionLines, useChatStream } from "@/lib/use-chat";
 import { useActivity } from "@/lib/use-activity";
 import { useStickToBottom } from "@/lib/use-stick-to-bottom";
@@ -376,31 +424,17 @@ import { chatFontPx } from "@/lib/ux";
 import { cn, formatClock } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
 import { consumeDrawerRequest } from "@/lib/drawer-request";
+import { useDismissable } from "@/lib/dismiss-stack";
+import { useMessageWindow } from "@/components/chat/use-message-window";
+import { QuoteBar } from "@/components/chat/quote-bar";
+import { isVerbatimQuote, splitQuote } from "@/lib/quote";
 
 /**
  * **引用头**：发送引用时把 `> 引用：xxx\n\n正文` 拼在你这条消息前面（见下面 Composer 的 onSend）——
  * 这样你和他都看得见引的是哪句、模型也能从上下文读到。
- *
- * 但**显示**时不许把它当正文摆在气泡里（用户 m01498 第 1 条："引用修改在气泡下面引用，
- * 跟微信那样"）：这里把它摘出来，气泡**下面**单独摆一条小灰条。数据本身不动 ——
- * 引用仍然原样存在消息正文里，所以历史消息、模型上下文全都不受影响。
+ * 显示时摘出来单独摆一条小灰条（用户 m01498 第 1 条："跟微信那样"）；数据本身不动。
+ * 解析/校验在 `src/lib/quote.ts`，小条在 `quote-bar.tsx` —— 用户与 AI 共用一套（用户 m01264）。
  */
-const QUOTE_HEAD = /^>\s*引用\s*[：:]\s*([^\n]*)\n+([\s\S]*)$/;
-
-function splitQuote(content: string): { quote: string | null; body: string } {
-  const m = QUOTE_HEAD.exec(content);
-  if (!m) return { quote: null, body: content };
-  return { quote: m[1]!.trim(), body: m[2]! };
-}
-
-/** 气泡下面的引用小条（灰底 + 左侧一道竖线，跟微信那套一致） */
-function QuoteBar({ text }: { text: string }) {
-  return (
-    <p className="mt-1 max-w-[85%] truncate rounded-lg border-l-2 border-line bg-chip/80 px-2.5 py-1.5 text-[11px] text-muted">
-      {text}
-    </p>
-  );
-}
 
 /**
  * 纸世界 · Step2 刊头用：电讯行空态的「D+N」——认识第几天。
@@ -482,6 +516,14 @@ export function ChatView() {
   }, []);
   const conv = conversations.find((c) => c.id === activeId) ?? null;
   const empty = !conv || conv.messages.length === 0;
+  /* 长对话只铺最近几十条，往上翻再补（微信式分批渲染，见 use-message-window） */
+  const win = useMessageWindow(conv?.messages ?? [], conv?.id ?? "", scroller);
+  const summaryAt = conv?.summary?.upToIndex ?? 0;
+  /* AI 引用校验用：她说过的原话（用户 m01264 —— 模型编造引句时宁可不画引用条） */
+  const userWords = useMemo(
+    () => (conv?.messages ?? []).filter((x) => x.role === "user").map((x) => x.content).join("\n"),
+    [conv?.messages],
+  );
   const aiName = resolveAiName(settings.aiName);
   const hydrated = useApp((s) => s.hydrated);
   /** 他现在醒着还是打盹（只由 lib/awake.ts 写）—— 用户 m10324 要能一眼看到 */
@@ -634,6 +676,9 @@ export function ChatView() {
   const [hitIndex, setHitIndex] = useState(0);
   const [flashId, setFlashId] = useState<string | null>(null);
 
+  // 安卓返回键：搜索条开着时先收搜索条（Esc 之外的另一条路，见 lib/dismiss-stack.ts）
+  useDismissable(findOpen, () => setFindOpen(false));
+
   /**
    * **引用**（用户："长按引用就可以"）。
    *
@@ -755,6 +800,7 @@ export function ChatView() {
     }
     const ids = hitKey.split(",");
     const id = ids[Math.min(hitIndex, ids.length - 1)]!;
+    win.reveal(id);
     const el = document.getElementById(`msg-${id}`);
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
     setFlashId(id);
@@ -962,14 +1008,11 @@ export function ChatView() {
       )}
 
       {empty ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-          <Avatar role="ai" size={48} />
-          <h1 className="mt-6 font-serif text-[1.85rem] font-medium tracking-tight text-fg">
-            {/* 问候语按「现在是几点」算 —— 服务端和客户端算出来可能不同
-                （部署到 UTC 服务器时必然不同），所以挂载后再显示。 */}
-            {hydrated ? greetingFor(settings.displayName) : "\u00A0"}
-          </h1>
-          {conv?.incognito && <p className="mt-2 text-sm text-muted">临时对话不会写入本地记录</p>}
+        /* 空态也铺滚动区（m01541）：螃蟹要舞台，否则 ChatCrab 不显示；开场见 empty-chat。 */
+        <div className="relative min-h-0 flex-1">
+          <div ref={scroller} className="h-full overflow-y-auto">
+            <EmptyChat greeting={hydrated ? greetingFor(settings.displayName) : "\u00A0"} incognito={Boolean(conv?.incognito)} />
+          </div>
         </div>
       ) : (
         /**
@@ -979,16 +1022,9 @@ export function ChatView() {
         <div className="relative min-h-0 flex-1">
           <div ref={scroller} className="h-full overflow-y-auto">
             {/*
-              ⚠️ **水平内边距必须跟输入框那条一致**（都是 16px）——2026-11 用户实测：
-              "聊天气泡的边距能跟下面的对话框对齐吗？他俩其实是错开的，看上去很不协调。"
-
-              原因是两边用了不同的值：气泡列 `px-2`(8px) vs 输入框外壳 `px-4`(16px)
-              → 差 8px，一眼就看出"对不齐"。现在统一 16px。
-
-              历史（别改回去）：px-5 + max-w-[86%] → 用户嫌"缩在中间太局促"，
-              所以宽度仍然让它**占满内容列**（`max-w-full`），只是两侧留白跟输入框一致。
-              短消息仍然靠它该靠的那一边（我的靠右、他的靠左）—— 那是气泡宽度跟着文字走，
-              不是被挤住了。
+              水平内边距必须跟输入框一致（16px，用户实测"气泡跟对话框错开"；
+              历史：px-5 + max-w-[86%] 被嫌局促 → 宽度占满内容列，靠 mine 分左右）。
+              窄屏 14px 由 px-3.5 提供，别改回 px-2（两边会差 8px）。
             */}
             <ol
               className="space-y-5 px-3.5 pt-4"
@@ -999,59 +1035,18 @@ export function ChatView() {
                 paddingBottom: padBottom,
               }}
             >
-              {/*
-              ⚠️ 2026-10（用户 m09634）：这条线原来放在**整个列表最前面**，
-              于是它永远钉在顶上、上方什么都没有 —— 看着像"页面被截断"、
-              上面的消息翻不到了。其实原文一条都没删，只是线站错地方了。
-              现在它插在"摘要覆盖的最后一条之后"，跟着数据走。
-            */}
-              {conv!.messages.map((raw, i) => {
-                const m = splitThoughtMsg(raw);
+              {/* 摘要线插在「摘要覆盖的最后一条」之后（m09634 钉顶上像被截断） */}
+              {win.list((raw, i) => {
+                const { m, visibleParts, noBody, quoted } = prepareMessage(raw);
                 const mine = m.role === "user";
                 const streaming = liveId === m.id;
-                /**
-                 * ⭐ 空壳消息（用户 m03533："定时回复的气泡会这样"——截图里是一个
-                 * 只有头像、没有说话内容的圆）。
-                 *
-                 * 定时任务 / 主动唤醒是**先建一条空消息、再把内容填进去**的
-                 * （`store.beginScheduledReply` → 模型流式 → `finalizeAssistant`）。
-                 * 中间那几秒 `content` 是空串，而且这类消息不走 `liveId`
-                 * （`liveId` 只跟聊天页自己发的请求走），于是 `streaming` 是 false，
-                 * 正文那段就渲染成 null —— 只剩头像 + 徽章，看着像"卡住了"。
-                 *
-                 * 兜法：内容为空的他的消息分两种 ——
-                 *   · 刚建出来不到 2 分钟：当占位，显示"正在写回复…"；
-                 *   · 更早的还是空：说明那次没写成（历史里留下的空壳），整条不渲染。
-                 */
-                /*
-                ⚠️ 用户 m02108 截图：工具循环每轮回来的正文被按轮拼进同一条消息，
-                模型每轮**从头重说**，于是分段气泡 + 后面又一大块重复。
-                这里只做**画之前**的过滤（数据不动、parts 结构不动）：
-                先按"开头 20 字"去掉重说的段，再按老规矩滤掉空壳/纯标点。
-              */
-                const visibleParts = dedupeParts(
-                  (m.parts ?? []).filter((p) => hasRenderedText(p) && !isPunctOnly(p)),
-                );
-                /*
-                ⚠️ 这里原来用 `hasVisibleText`（只认"有没有字"），于是正文只剩 `**`、
-                `>`、`[]()` 这类 Markdown 记号的空壳仍算"有内容"，渲染出来就是一个
-                只有两三个符号的小气泡（用户 m07120："定时唤醒多余气泡"）。
-                改用 `hasRenderedText`：把记号剥掉之后没字，就按空壳处理。
-              */
-                const noBody =
-                  !mine &&
-                  !hasRenderedText(m.content) &&
-                  !m.requestError &&
-                  messageWebSources(raw).length === 0 &&
-                  visibleParts.length === 0 &&
-                  !(m.attachments && m.attachments.length);
                 const pendingPlaceholder =
                   noBody && (streaming || Date.now() - (m.createdAt ?? 0) < 120_000);
                 if (noBody && !pendingPlaceholder) return null;
                 return (
                   <Fragment key={m.id}>
                     {/* 摘要线：在"摘要覆盖的最后一条"之后插一条，点开才是摘要 */}
-                    {i === (conv!.summary?.upToIndex ?? 0) && (
+                    {i === summaryAt && (
                       <li>
                         <SummaryLine conversationId={conv!.id} />
                       </li>
@@ -1473,6 +1468,8 @@ export function ChatView() {
                                 )}
                               </div>
                             ) : null}
+                            {/* 引用她说过的原话（用户 m01264/m01282）：跟用户那条一样摆在**气泡下面**（用户 m01412：放下面统一一些）；编造的引句不画（校验见 lib/quote） */}
+                            {quoted && isVerbatimQuote(quoted, userWords) && <QuoteBar text={quoted} />}
                             {/*
                           他这一轮真的动过手（原生 tools 的记录）—— 如实摆出来，失败不美化。
                           ⚠️ 不再要求 `!streaming`：每一步的结果**当场**就写进消息了
@@ -1552,6 +1549,7 @@ export function ChatView() {
                                 data-contrast=""
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                {settings.quoteEnabled !== false && (
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
@@ -1564,6 +1562,7 @@ export function ChatView() {
                                 >
                                   引用这一句
                                 </button>
+                                )}
                                 <button
                                   type="button"
                                   className="block w-full rounded-2xl px-3 py-3 text-left text-[13px]"
@@ -1645,7 +1644,11 @@ export function ChatView() {
                     </li>
                   </Fragment>
                 );
-              })}
+              }, summaryAt < win.start ? (
+                <li key="__summary">
+                  <SummaryLine conversationId={conv!.id} />
+                </li>
+              ) : null)}
             </ol>
           </div>
 
@@ -2234,5 +2237,3 @@ function VoiceBubble({
     </div>
   );
 }
-
-

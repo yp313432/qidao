@@ -33,7 +33,7 @@
  *   —— 光看这一句**分不清**是"后台整条网络不通"还是"只有这个域名解析不了"。
  *   所以现在：网络类失败 → 隔 2s / 5s 重试（最多 3 次尝试）→ 还不行就**再探一个对照组**
  *   （`https://www.baidu.com/`，国内几乎必然能通），把结论写进通知**和** `wake_log`：
- *     · 对照组也不通 → `bg-offline` 后台没网（不是栖岛的问题）
+ *     · 对照组也不通 → `bg-offline` 后台没网（不是 Yisle 的问题）
  *     · 对照组通、上游解析不出来 → `dns-only` 只有这个域名拿不到 IP
  *     · 对照组通、上游超时/连不上 → `connect-timeout` / `connect-only`
  *   ⚠️ 4xx/5xx（key 错、余额空）**一次都不重试**；重试和诊断都算进那 30 秒预算。
@@ -353,7 +353,7 @@ function errorNotify(count, stamp, why, code) {
   var shown = streak >= FAIL_STREAK_CAP ? FAIL_STREAK_CAP + "+" : String(streak);
   notify(
     NOTIFY_ID_BASE + 999,
-    "栖岛 · 主动找你（没成功）",
+    "Yisle · 主动找你（没成功）",
     "已经连续 " + shown + " 次没成功：" + maskSecrets(why).slice(0, 160),
   );
 }
@@ -427,7 +427,7 @@ function probeControl(ms) {
 
 /**
  * **把两个结果翻译成一句人话** —— 这一句就是用户要的确定答案：
- *   · 对照组也不通 → 后台整条网络不通（不是栖岛的问题）
+ *   · 对照组也不通 → 后台整条网络不通（不是 Yisle 的问题）
  *   · 对照组通、只有上游解析不出来 → 只有这个域名拿不到 IP
  *   · 对照组通、上游超时/连不上 → 能解析但连不通
  */
@@ -435,7 +435,7 @@ function verdictOf(probeKind, upstreamKind, host) {
   if (probeKind !== "ok") {
     return {
       code: "bg-offline",
-      text: "后台没网：连 www.baidu.com 都不通（不是栖岛的问题，是系统把后台联网掐了）",
+      text: "后台没网：连 www.baidu.com 都不通（不是 Yisle 的问题，是系统把后台联网掐了）",
     };
   }
   if (upstreamKind === "dns") {
@@ -642,7 +642,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
     var baseUrl = cfg("cfg_base_url");
     var apiKey = cfg("cfg_api_key");
     var model = cfg("cfg_model");
-    var aiName = cfg("cfg_ai_name") || "栖岛";
+    var aiName = cfg("cfg_ai_name") || "Yisle";
     /**
      * **配置指纹自检**（2026-10 加，用户提出的"唤醒还开着用旧那家 API"那件事）。
      *
@@ -662,7 +662,7 @@ addEventListener("qidaoWake", function (resolve, reject) {
       /* 配置来路不明（没有指纹）→ 宁可不说，也不能拿旧配置乱发 */
       kvSet("muted_at", now);
       logLine("#" + count + " " + stamp + " 抽屉里的配置没有指纹（旧版写的）→ 这次不发，等 App 同步");
-      errorNotify(count, stamp, "唤醒配置需要刷新：打开一次栖岛，让它把当前的上游同步过来", "stale-config");
+      errorNotify(count, stamp, "唤醒配置需要刷新：打开一次 Yisle，让它把当前的上游同步过来", "stale-config");
       resolve();
       return;
     }

@@ -193,8 +193,20 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
   useEffect(() => {
     const el = ta.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+    /*
+      自适应高度（2026-11 性能排查）：原来每敲一个字同步做「置 auto → 读 scrollHeight
+      → 再写高」，一次输入就是两回强制布局。现在合并到下一帧做一次：
+      连打多个字只量一次，滚动手感不变（高度在同一帧里定下来）。
+    */
+    let raf = 0;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+    });
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [value]);
 
   /**
@@ -450,9 +462,21 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const onViewportResize = () => closeAll();
+    /*
+      键盘动画期间 resize 会连发很多次（安卓 200–300ms 一帧一次），
+      原来每次 resize 都同步跑 closeAll（五个 setState）→ 每帧一次 React 提交。
+      合并成「停稳后 120ms 收一次」：浮层本来就是被键盘挡住才收，晚 120ms 看不出来。
+    */
+    let timer = 0;
+    const onViewportResize = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => closeAll(), 120);
+    };
     vv.addEventListener("resize", onViewportResize);
-    return () => vv.removeEventListener("resize", onViewportResize);
+    return () => {
+      window.clearTimeout(timer);
+      vv.removeEventListener("resize", onViewportResize);
+    };
   }, [closeAll]);
 
   // 模型弹层的 Esc 关闭（模态层该有的手感）
@@ -1302,7 +1326,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                       {settings.upstreamModels.length === 0 ? (
                         <div className="px-2 py-2.5">
                           <p className="text-[12px] leading-5 text-muted">
-                            还没配模型 —— 要先告诉栖岛用哪家、用哪个模型。
+                            还没配模型 —— 要先告诉 Yisle 用哪家、用哪个模型。
                           </p>
                           <button
                             type="button"

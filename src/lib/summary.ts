@@ -2,10 +2,31 @@
  * 本文件为纯逻辑，不依赖浏览器或 store。
  */
 
+/**
+ * 摘要里的一小块（2026-11 用户："摘要是被切分成一件一件的小事"）。
+ *
+ * 摘要仍然由模型写成**一整段**（保留情绪、语气和前后因果），
+ * 小块由本地按句切出来（`looseSummaryBlocks`），不是让模型直接按轮次切；
+ * 检索命中哪块就只带回哪块，出处还能指回摘要本身。
+ */
+export type SummaryBlock = {
+  /** 这一小段本身（60~160 字，通常一件事） */
+  text: string;
+  /** 主题标签（1~3 个）—— 目前只有早期实验格式才有，本地切块不带 */
+  tags?: string[];
+  /** 日期线索（如 "11-18"）—— 同上，本地切块不带 */
+  at?: string;
+};
+
+/** 早期实验格式的分隔标记；现在只用于兼容解析旧摘要，不再要求模型输出 */
+export const SUMMARY_BLOCK_HEAD = "【要点】";
+
 /** 摘要存什么（存在这条对话自己身上，换对话各算各的） */
 export type ConversationSummary = {
-  /** 摘要正文 */
+  /** 摘要正文（整段回顾） */
   text: string;
+  /** 本地切好的小块；旧摘要用到时再按句临时切 */
+  blocks?: SummaryBlock[];
   /** 已经摘到第几条（**不含**这条）—— 它之前的消息都在摘要里了 */
   upToIndex: number;
   /** 一共吸收了多条 */
@@ -133,6 +154,86 @@ export function cleanSummaryText(raw: string, truncated = false): string | null 
   if (truncated) return null;
   const text = raw.trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").replace(/\n{3,}/g, "\n\n").trim();
   return text && text.replace(/^标题[：:][^\n]*\n/, "").trim().length <= SUMMARY_MAX_CHARS ? text : null;
+}
+
+/** 一对方括号里像不像日期（"11-18"/"11月18日"/"昨天"…）；不像就当标签 */
+function looksLikeDate(value: string): boolean {
+  return /(?:\d{1,2}\s*[-/月.]\s*\d{1,2}|\d{4}|今天|昨天|前天|上周|这周|周[一二三四五六日天])/.test(value);
+}
+
+/** 解析一行要点："- [11-18][论文,疲惫] 改论文到凌晨两点，很累" */
+function parseBlockLine(line: string): SummaryBlock | null {
+  const match = /^\s*[-*·]\s*(?:\[([^\]\n]{1,24})\])?\s*(?:\[([^\]\n]{1,40})\])?\s*(.+?)\s*$/.exec(line);
+  if (!match) return null;
+  const text = match[3].replace(/\s+/g, " ").trim();
+  if (text.length < 4) return null;
+  let at = match[1]?.trim() || undefined;
+  let tags = match[2] ? match[2].split(/[,，、\s]+/).map((t) => t.trim()).filter(Boolean) : [];
+  /* 只写了一个括号、内容又不像日期 → 那其实是标签 */
+  if (at && tags.length === 0 && !looksLikeDate(at)) {
+    tags = at.split(/[,，、\s]+/).filter(Boolean);
+    at = undefined;
+  }
+  return { text: text.slice(0, 200), at, tags: tags.length ? tags.slice(0, 4) : undefined };
+}
+
+/** 把「【要点】」后面那一段解析成小块；一行一块，最多 8 块，重复的丢掉 */
+export function parseSummaryBlocks(part: string): SummaryBlock[] {
+  const out: SummaryBlock[] = [];
+  for (const line of part.split(/\r?\n/)) {
+    const block = parseBlockLine(line);
+    if (!block || out.some((item) => item.text === block.text)) continue;
+    out.push(block);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/**
+ * 解析一次摘要输出：标题 + 正文 + 要点块。
+ *
+ * 解析不出来（正文为空 / 超长）返回 `null` —— 调用方据此**不推进水位线**，
+ * 跟原来 cleanSummaryText 的纪律一致：宁可不记，也不把半截当完整记忆。
+ */
+export function parseSummaryOutput(raw: string): { title?: string; text: string; blocks: SummaryBlock[] } | null {
+  const body = String(raw ?? "").trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").trim();
+  if (!body) return null;
+  const headAt = body.indexOf(SUMMARY_BLOCK_HEAD);
+  const narrative = (headAt >= 0 ? body.slice(0, headAt) : body).replace(/\n{3,}/g, "\n\n").trim();
+  const blockPart = headAt >= 0 ? body.slice(headAt + SUMMARY_BLOCK_HEAD.length) : "";
+  const titleMatch = /^标题[：:]\s*([^\n]*)\n?/.exec(narrative);
+  const title = titleMatch?.[1].trim() || undefined;
+  const text = (titleMatch ? narrative.slice(titleMatch[0].length) : narrative).trim();
+  if (!text || text.length > SUMMARY_MAX_CHARS) return null;
+  return { title, text, blocks: parseSummaryBlocks(blockPart) };
+}
+
+/**
+ * 旧摘要没有 blocks（这个字段是 2026-11 才加的）—— 用到时按句临时拆。
+ *
+ * 只临时拆、不回写：摘要是模型写的，逐条改存档会让"编辑/重摘"更绕；
+ * 检索时拆一次足够，拆不干净也不会丢内容（整段仍能按句命中）。
+ */
+export function looseSummaryBlocks(text: string): SummaryBlock[] {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.match(/[^。！？；…!?;]+[。！？；…!?;]?/g) ?? [clean];
+  const out: SummaryBlock[] = [];
+  let buffer = "";
+  const flush = () => {
+    const piece = buffer.trim();
+    if (piece.length >= 8) out.push({ text: piece.slice(0, 200) });
+    buffer = "";
+  };
+  for (const sentence of sentences) {
+    const piece = sentence.trim();
+    if (!piece) continue;
+    if (buffer && (buffer + piece).length > 160) flush();
+    buffer += piece;
+    if (buffer.length >= 160) flush();
+  }
+  flush();
+  return out.slice(0, 12);
 }
 
 /**

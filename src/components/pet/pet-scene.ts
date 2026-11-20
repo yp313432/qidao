@@ -25,6 +25,16 @@ export function measureScene(layer: HTMLElement, list: HTMLElement, composer: HT
       if (obstacles.every(o => o === r || p.x + w - 5 <= o.left - left || p.x + 5 >= o.right - left || p.y + h - 4 <= o.top - top || p.y + 4 >= o.bottom - top)) surfaces.push(p);
     }
   }
+  // 空对话（新对话）：一条气泡都没有，落脚点收在输入条上方那一排。
+  // 用户 m01541：「螃蟹是独立的，不跟对话界面有没有气泡绑定」——但空态若用下面那套
+  // 「页边 + 1/4 高度」的兜底点，蟹会孤零零挂在右上方空白里，看着像调试占位。
+  // 所以空态改成沿纸的下边缘来回走：站起来的地方是输入条上面那条边，落地感最自然。
+  if (!bubbles.length) {
+    const y = Math.max(4, height - h - 6);
+    const xs = [4, Math.round((width - w) / 2), Math.max(4, width - w - 4)];
+    for (const x of xs) surfaces.push({ x: clamp(x, 4, Math.max(4, width - w - 4)), y });
+    return { width, height, surfaces, obstacles, left: left - box.left, top: top - box.top };
+  }
   // Safe fallback perches near the input, plus page edges when the chat is dense.
   for (const x of [4, Math.max(4, width - w - 4)]) {
     for (const y of [height - h - 6, height * .55, height * .25]) {

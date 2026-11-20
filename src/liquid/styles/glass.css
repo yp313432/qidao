@@ -1199,7 +1199,7 @@
   isolation: isolate;
 }
 
-/* ⚠️ 必须排除 `.lq-page`：液态对话页的根就是 `<main class="lq-page">`（见 liquid-chat），
+/* ⚠️ 必须排除 `.lq-page`：液态对话页的根就是 `<main class="lq-page">`（见 chat-view），
    而它靠 `position: absolute; inset: 0` 撑满舞台。这条选择器 (0,1,1) 会把
    `position` 改成 relative —— 整页塌成内容高度，气泡区 0 高、输入条浮在屏幕中间
    （用户 m08765 真机："输入框去哪了 / 聊天气泡去哪了 / 新建对话对话框跑到中间"）。 */
@@ -1959,6 +1959,15 @@ html.lq-skin[data-keyboard="up"] .pb-composer {
 
 .lq-skin .lq-composer-dock .pb-composer {
   margin-bottom: 0;
+}
+
+/* 键盘弹起时，卡片底边到键盘顶的留白和纯色一模一样（用户 m01165：
+   “纯色模式下键盘拉起和输入框之间的缝隙很小，液态模式下缝隙很大，跟纯色看齐”）。
+   实测差 6px：液态卡片自己带 `calc(env(safe-area) + 12px)` 下外边距，
+   纯色那边是 `.pb-composer` 的 4px + 外壳的 2px。这里把它收到 6px 对齐，
+   横向外边距（12px）不动，卡片宽度不变。 */
+.lq-skin .lq-composer-dock .lq-composer {
+  margin-bottom: 6px;
 }
 
 html.lq-skin[data-keyboard="up"] .lq-composer-dock {

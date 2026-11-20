@@ -34,6 +34,17 @@ export function lastUserWasVoice(messages: ChatMessage[]): boolean {
   return false;
 }
 
+/** 她是不是直接开口要了一条语音（"发条语音""用语音回我""说给我听"） */
+export function lastUserAskedVoice(messages: ChatMessage[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i]!;
+    if (m.role !== "user") continue;
+    const text = (m.content ?? "").replace(/\s+/g, "");
+    return /(?:发|回|来|说)(?:一?条|一?段|一?个)?(?:语音|声音)|语音(?:回|回复)|用语音|说给我听/.test(text);
+  }
+  return false;
+}
+
 export function voiceReplyMode(): VoiceReplyMode {
   const mode = useApp.getState().settings.voiceBubbleReply;
   if (mode === "off" || mode === "always") return mode;
@@ -45,7 +56,8 @@ export function shouldVoiceReply(messages: ChatMessage[]): boolean {
   const mode = voiceReplyMode();
   if (mode === "off") return false;
   if (mode === "always") return true;
-  return lastUserWasVoice(messages);
+  /* 默认档：她发了语音，或者她直接让他发条语音（用户 m00296 要的"我说让它发"） */
+  return lastUserWasVoice(messages) || lastUserAskedVoice(messages);
 }
 
 /**

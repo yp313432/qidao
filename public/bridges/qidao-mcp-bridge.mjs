@@ -93,7 +93,7 @@ export function startMcpBridge(config, { port = 8767, host = "127.0.0.1" } = {})
   };
   const launch = (name) => {
     if (name === TERMINAL_NAME) {
-      if (!terminalEnabled) throw new Error("terminal_disabled: 请在栖岛启用 Termux 控制并重新导出配置");
+      if (!terminalEnabled) throw new Error("terminal_disabled: 请在 Yisle 启用 Termux 控制并重新导出配置");
       const id = randomUUID(), session = { name, at: Date.now(), terminal: createTerminalRuntime() }; sessions.set(id, session); return [id, session];
     }
     const options = config.mcpServers?.[name];
@@ -155,7 +155,7 @@ export function startMcpBridge(config, { port = 8767, host = "127.0.0.1" } = {})
         const headers = { "content-type": "application/json", "Mcp-Session-Id": sessionId };
         if (message.id == null) { res.writeHead(202, headers).end(); return; }
         let result;
-        if (message.method === "initialize") result = { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "栖岛 Termux", version: "1.0.0" } };
+        if (message.method === "initialize") result = { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "Yisle Termux", version: "1.0.0" } };
         else if (message.method === "tools/list") result = { tools: terminalTools };
         else if (message.method === "ping") result = {};
         else if (message.method === "tools/call") {
@@ -199,7 +199,7 @@ if (isCliEntry(import.meta.url)) {
     const file = process.argv[2]; if (!file) throw new Error("Usage: node qidao-mcp-bridge.mjs qidao-mcp.json");
     const config = JSON.parse(readFileSync(file, "utf8"));
     const server = startMcpBridge(config);
-    server.on("listening", () => console.log("栖岛 MCP 桥接已启动：http://127.0.0.1:8767；保持 Termux 运行，回栖岛点测试连接。"));
+    server.on("listening", () => console.log("Yisle MCP 桥接已启动：http://127.0.0.1:8767；保持 Termux 运行，回 Yisle 点测试连接。"));
     process.on("SIGINT", () => server.close()); process.on("SIGTERM", () => server.close());
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

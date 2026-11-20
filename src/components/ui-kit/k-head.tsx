@@ -21,9 +21,13 @@ import { cn } from "@/lib/utils";
  * 一起滚），但「工具」页（`components/views/tools-view.tsx`）用的是这块老的
  * `KHead` —— 它没有箭头，箭头全靠 app-shell 那颗绝对定位的兜底 `.lq-back`，
  * 于是位置是"钉"出来的、对不齐，下滑也不跟着走。
- * 现在 KHead 自己也长一颗行内箭头（只在液态），几何跟 `PageHeader` 完全一样：
+ * 现在 KHead 自己也长一颗行内箭头，几何跟 `PageHeader` 完全一样：
  * 箭头 26 / 与标题间距 12 / 带高 64 + 安全区 / 标题 23px（见 glass.css 的
  * `.lq-head-row`）。这样「工具」页不用换组件就能跟其它页站在同一条线上。
+ *
+ * 2026-11-18（S5 后）：**纯色也画这颗箭头**。以前纯色不用它，是因为底部导航
+ * 里的「对话」就是回去的路；底导退役后如果这里还不画，纯色下「工具」页
+ * 就成了死路（只剩安卓系统返回）。两主题现在同一套层级，入口也得是同一个。
  */
 export function KHead({
   title,
@@ -43,27 +47,27 @@ export function KHead({
 }) {
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const target = parentOf(pathname, liquid) ?? (liquid ? "/" : "/me");
-  const label = backLabelOf(pathname, liquid);
+  const target = parentOf(pathname) ?? "/";
+  const label = backLabelOf(pathname);
 
   // 有页头就不让 app-shell 再补那颗兜底箭头（否则一页两颗）
-  useEffect(() => (liquid ? registerPageHeader() : undefined), [liquid]);
+  useEffect(() => registerPageHeader(), []);
 
   return (
     <div className={cn("k-head", liquid && "lq-head-row", className)}>
-      {liquid && (
-        <Link
-          to={target as never}
-          aria-label={label}
-          className="lq-back lq-back--inline"
-          onClick={() => {
-            if (target === "/") requestDrawer();
-          }}
-        >
-          <ChevronLeft strokeWidth={1.5} />
-        </Link>
-      )}
-      <div className="k-head__main">
+      <Link
+        to={target as never}
+        aria-label={label}
+        className={
+          liquid ? "lq-back lq-back--inline" : "flex size-9 shrink-0 items-center justify-center self-center"
+        }
+        onClick={() => {
+          if (target === "/") requestDrawer();
+        }}
+      >
+        <ChevronLeft className={liquid ? undefined : "size-6"} strokeWidth={liquid ? 1.5 : 1.6} />
+      </Link>
+      <div className={cn("k-head__main", !liquid && "flex-1")}>
         {kicker !== undefined && <span className="k-head__kicker">{kicker}</span>}
         <h2 className="k-head__title">{title}</h2>
       </div>

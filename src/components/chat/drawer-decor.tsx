@@ -1,9 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { materialOf } from "@/lib/material";
-import { useApp } from "@/lib/store";
-import { DrawerMood } from "@/components/chat/drawer-crab";
 
 /**
  * 「对话列表」抽屉上下的装饰。
@@ -12,7 +8,8 @@ import { DrawerMood } from "@/components/chat/drawer-crab";
  * 上下都是空白，显得像"一块大方块展开了，没有东西很奇怪"。
  * 于是：
  *   上面 —— 垂下来的星野：细闪的线挂着星星，还有一轮月亮，可以划过流星
- *   下面 —— 小宇宙：几颗行星带星环，跟上面的星月呼应
+ *   下面 —— （2026-11-18 删掉：原来那块「小宇宙 + 像素蟹」，桌宠已统一到
+ *            对话页的 `ChatCrab`，抽屉结构两主题保持一致）
  *
  * 用户对质感的要求很具体："动态效果及粒子特效一定要**细、闪、柔和**，
  * 像碎钻一样"，后来又补了三条：
@@ -306,41 +303,15 @@ export function DrawerSky() {
   );
 }
 
-
-/**
- * 下面那块：**像素小螃蟹** + 碎钻粒子。
- *
- * 原来这里画的是「小宇宙」（带星环的玻璃行星 + 小卫星 + 星尘）。
- * 用户后来的要求：
- *   "之前那个下面不是画的星球体，现在把星球体去掉，但后面的粒子星星可以保留，
- *    上面的不用动，然后把这个小螃蟹放到星球体那里，
- *    根据我们的十个组别，设计十个动态效果"
- * 所以行星、星环、卫星、星尘全部删掉，只留粒子 + 一只橙色像素蟹。
- *
- * 为什么用像素：用户 "我想要像素风格的……能不能就用橙色的，然后靠动画区分情绪"。
- * 十种形态的映射在 `drawer-crab.tsx` 里。
+/*
+ * 2026-11-18：原来的 `DrawerCosmos`（180px 的碎钻粒子 + 126px 抽屉像素蟹 +
+ * 液态专属「我的 · 设置」胶囊）整块删掉，原因有三：
+ *   · 桌宠 2026-11 起已经搬到对话页（`chat-crab.tsx` 的 `ChatCrab`，尺寸跟
+ *     设置里的 36/44/52 走），抽屉里再留一只 = 纯色多一只、液态没有、
+ *     而且 126px 跟对话页的 44px 对不上（用户 m01345 指出「尺寸也不对」）；
+ *   · `我的 · 设置` 那个胶囊只在 `liquid` 才画，而这块本身又只在纯色画，
+ *     等于永远不会出现 —— 底栏头像已经承担了同一个入口；
+ *   · 两主题的抽屉结构要一致，纯色这边不再额外占 180px。
+ * 顶部星野 `DrawerSky` 是纯装饰、不吃结构，继续保留。
  */
-export function DrawerCosmos() {
-  const liquid = useApp((s) => materialOf(s.settings) === "liquid");
 
-  return (
-    <div className="relative h-[180px] shrink-0 overflow-hidden">
-      {/* 粒子沿用 --decor，细闪那套不动 */}
-      <Sparkles count={26} />
-      <DrawerMood />
-      {/*
-        液态没有底部导航（用户要的），那条「我的」入口原本就没了 ——
-        按用户 m09221 的原则（"UI 跟功能是绑定的一块，我只是把它俩打包挪了个地方"），
-        入口挪进抽屉底部：头像那屏（一级）→ 八项列表（二级）全都在 `/me`。
-      */}
-      {liquid && (
-        <Link
-          to="/me"
-          className="lq-glass absolute inset-x-3 bottom-3 flex h-11 items-center justify-center rounded-full text-sm"
-        >
-          我的 · 设置
-        </Link>
-      )}
-    </div>
-  );
-}
