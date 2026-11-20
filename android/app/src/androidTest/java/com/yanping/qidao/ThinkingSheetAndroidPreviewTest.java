@@ -159,7 +159,7 @@ public class ThinkingSheetAndroidPreviewTest {
       evaluate(translate + ".click()");
       until("original restored", translate + ".getAttribute('aria-pressed') === 'false' && document.body?.innerText?.includes('Give her room to talk')");
 
-      evaluate("document.querySelector('.lq-dialog--sheet button[aria-label=\"关闭\"]').click()");
+      evaluate("document.querySelector('.lq-dialog--sheet button[aria-label=关闭]').click()");
       until("thinking sheet closed", "!document.querySelector('.lq-dialog--sheet.backdrop-blur-2xl')");
       seed("light");
       openThinkingSheet();
