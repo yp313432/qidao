@@ -61,6 +61,12 @@ createServer(async (request, response) => {
   }
   console.log("Received the two sample thinking passages");
   const content = JSON.stringify(translated);
+  if (JSON.parse(body).stream) {
+    response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8" });
+    const frame = JSON.stringify({ choices: [{ delta: { content }, finish_reason: "stop" }] });
+    response.end("data: " + frame + "\n\ndata: [DONE]\n\n");
+    return;
+  }
   response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: "stop" }] }));
 }).listen(4661, "127.0.0.1");
