@@ -1,0 +1,16 @@
+/* 不进入布局的聊天页和抽屉背景。 */
+.solid-chat-paper,
+.paper-drawer {
+  --chat-paper-ivory: color-mix(in oklab, var(--aster-bg) 25%, oklch(97% 0.019 68));
+}
+
+.solid-chat-paper {
+  --chat-topbar-background: transparent;
+  background: var(--chat-paper-ivory) url("/decor/solid-chat.webp") center / 100% 100% no-repeat;
+}
+
+.paper-drawer {
+  --chat-drawer-background: var(--chat-paper-ivory) url("/decor/solid-drawer.webp")
+    right clamp(28px, 6vh, 46px) / 84% auto no-repeat;
+  --k-drawer-row-line: color-mix(in oklab, var(--chat-paper-ivory) 66%, oklch(67% 0.041 71));
+}

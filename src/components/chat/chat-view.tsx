@@ -816,7 +816,7 @@ export function ChatView() {
   return (
     /* relative：悬浮的对话框（absolute）以这一块为参照 —— 见上面 composerWrap 那段注释 */
     <div
-      className="relative flex h-full min-h-0 flex-1 flex-col"
+      className={cn("relative flex h-full min-h-0 flex-1 flex-col", solidPaper && "solid-chat-paper")}
       /* 第 11 条：抽屉打开时聊天页斜插进去一点点（样式在 liquid/styles/glass.css，
          只认 .lq-skin 下的这个属性 —— 纯色下等于没有）。 */
       data-lq-fold={liquid && menu ? "true" : undefined}
@@ -829,19 +829,6 @@ export function ChatView() {
         ⚠️ 网页版没有外壳 inset，env() 也是 0，所以这里仍留 0.25rem 兜底，别把它删成 0。
       */}
       <header className="chat-topbar flex items-center gap-1 px-4 inset-top-25 pb-2">
-        {/*
-          纸世界 · Step2：垂枝 C（qidao-docs/概念-纸刊头装饰-v1.html 的"标本枝"）。
-          背景装饰层：z:-1 + pointer-events:none，画在实底纸上、按钮后面——
-          压不到功能也盖不着点击。只在纯色材质渲染（液态 没有这个 DOM）。
-        */}
-        {solidPaper && (
-          /* 装饰层：水彩花枝斜横着搭在顶栏右角（用户 m01956：向左斜一点、斜横着放，
-             画在按钮下面但枝头要露出来）。素材在 public/decor/，按文件名替换即可。 */
-          <div className="mast-deco" aria-hidden="true">
-            <img className="mast-flower" src="/decor/cherry-branch.webp" alt="" draggable={false} />
-          </div>
-        )}
-
         <button
           type="button"
           aria-label="对话列表"
