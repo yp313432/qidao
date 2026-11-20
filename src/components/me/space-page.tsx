@@ -36,13 +36,6 @@ const MATERIALS = [
   { id: "liquid", label: "液态" },
 ] as const;
 
-const PALETTES = [
-  { id: "cream", label: "奶油白", dot: "#f6f3ee" },
-  { id: "blue", label: "雾蓝", dot: "#5b7f9e" },
-  { id: "green", label: "苔绿", dot: "#6f8c6a" },
-  { id: "pink", label: "淡粉", dot: "#c07f8c" },
-] as const;
-
 /**
  * 外观页。从 `me-sections.tsx` 整段搬出来，只为把那个文件的行数降回棘轮线以内；
  * 长相、行为、`patch(...)` 的字段名一个都没改。
@@ -53,7 +46,7 @@ export function SpacePage() {
   const background = settings.background;
   /** 哪一组是展开的（null = 全收起，一屏能看完） */
   const [openFold, setOpenFold] = useState<
-    null | "material" | "paper" | "bg" | "font" | "date"
+    null | "material" | "bg" | "font" | "date"
   >(null);
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
@@ -61,8 +54,6 @@ export function SpacePage() {
   const material = materialOf(settings);
   const materialName = MATERIALS.find((x) => x.id === material)?.label ?? "纯色";
 
-  const palette = settings.palette ?? "cream";
-  const palName = PALETTES.find((x) => x.id === palette)?.label ?? "奶油白";
   const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(
     Boolean,
   ).length;
@@ -88,26 +79,6 @@ export function SpacePage() {
               key={x.id}
               active={material === x.id}
               onClick={() => patch({ material: x.id })}
-            >
-              {x.label}
-            </KOpt>
-          ))}
-        </KOpts>
-      </KFold>
-
-      <KFold
-        title="纸色"
-        meta={palName}
-        open={openFold === "paper"}
-        onToggle={() => setOpenFold(openFold === "paper" ? null : "paper")}
-      >
-        <KOpts cols={2}>
-          {PALETTES.map((x) => (
-            <KOpt
-              key={x.id}
-              active={palette === x.id}
-              dot={x.dot}
-              onClick={() => patch({ palette: x.id })}
             >
               {x.label}
             </KOpt>

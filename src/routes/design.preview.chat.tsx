@@ -4,7 +4,7 @@ import { ChevronDown, Paperclip, SendHorizontal, Sparkles, Wrench } from "lucide
 import { Avatar } from "@/components/shared/avatar";
 import { KButton, KChip, KHead, KInput } from "@/components/ui-kit";
 import { applyAppearance, useApp } from "@/lib/store";
-import type { MaterialId, PaletteId } from "@/lib/types";
+import type { MaterialId } from "@/lib/types";
 
 /**
  * 对话页预览（`/design/preview/chat`）—— 假数据，**真对话页一行都没动**。
@@ -34,13 +34,6 @@ import type { MaterialId, PaletteId } from "@/lib/types";
 const MATERIALS: { id: MaterialId; label: string }[] = [
   { id: "solid", label: "纯色" },
   { id: "liquid", label: "液态" },
-];
-
-const PALETTES: { id: PaletteId; label: string }[] = [
-  { id: "cream", label: "米白" },
-  { id: "blue", label: "青蓝" },
-  { id: "green", label: "苔绿" },
-  { id: "pink", label: "藕粉" },
 ];
 
 type Demo = { id: string; role: "me" | "ai"; time: string; body: ReactNode };
@@ -124,10 +117,9 @@ const SEED: Demo[] = [
 
 function ChatPreview() {
   const settings = useApp((s) => s.settings);
-  // 起始值写死成"纯色 + 米白"：这一页是预览，不跟随用户设置，
+  // 起始值写死成"纯色"：这一页是预览，不跟随用户设置，
   // 免得服务端渲染与客户端首次渲染读到不同的值（差异会让整页刷成空白）。
   const [material, setMaterial] = useState<MaterialId>("solid");
-  const [palette, setPalette] = useState<PaletteId>("cream");
   const [draft, setDraft] = useState("");
   const [msgs, setMsgs] = useState<Demo[]>(SEED);
   const [typing, setTyping] = useState(true);
@@ -136,10 +128,9 @@ function ChatPreview() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.material = material;
-    root.dataset.palette = palette;
     // 离开这一页时把用户自己的设置还回去
     return () => applyAppearance(useApp.getState().settings);
-  }, [material, palette]);
+  }, [material]);
 
   // 新消息进来滚到底：等两帧再写滚动位置，别跟这一帧的排版抢
   useEffect(() => {
@@ -173,7 +164,7 @@ function ChatPreview() {
     <div className="k-stage k-page min-h-dvh">
       <KHead title="对话 · 预览" meta="假数据，真页面未改动" />
 
-      {/* 现场切换材质 / 纸色，方便看这套版式在三种模式下各是什么样 */}
+      {/* 现场切换材质，方便对比纯色和液态 */}
       <div className="k-vstack mt-2">
         <div className="k-hstack">
           {MATERIALS.map((m) => (
@@ -183,17 +174,6 @@ function ChatPreview() {
               onClick={() => setMaterial(m.id)}
             >
               {m.label}
-            </KButton>
-          ))}
-        </div>
-        <div className="k-hstack">
-          {PALETTES.map((p) => (
-            <KButton
-              key={p.id}
-              variant={palette === p.id ? "primary" : "default"}
-              onClick={() => setPalette(p.id)}
-            >
-              {p.label}
             </KButton>
           ))}
         </div>

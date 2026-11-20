@@ -16,8 +16,7 @@
     · 不许写颜色以外的样式（padding、font-size 之类的字面量都属于 tokens/kit）；
     · 新增值 = 新增 --k-* 槽位，并在 tokens.css 里给默认值。
 
-  颜色一律从 --aster-* 派生，所以 cream / blue / green / pink 四套调色板
-  和 dawn / dusk / ink 三套主题依然照常生效 —— 这里只钉"材质性格"。
+  颜色从 --aster-* 派生，纯色统一使用奶油白纸面。
 */
 
 [data-material="solid"] {

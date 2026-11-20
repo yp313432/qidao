@@ -425,10 +425,6 @@ export type ThemeId = "dawn" | "dusk" | "ink";
  */
 export type MaterialId = "solid" | "liquid";
 
-/** 纯色模式下的纸色（只有 `material === "solid"` 时有意义） */
-export type PaletteId = "cream" | "blue" | "green" | "pink";
-
-
 /** 正文字体族 */
 export type FontId = "system" | "serif" | "kai" | "mono";
 
@@ -504,8 +500,6 @@ export type Settings = {
   theme: ThemeId;
   /** 材质两档（默认 `solid` = 纯色纸；`liquid` 未上线） */
   material?: MaterialId;
-  /** 纯色模式的纸色（默认奶油白） */
-  palette?: PaletteId;
   /** 纯色模式下压在背景图上的纸色浓度（0~40，单位 %） */
   bgPaper?: number;
   font: FontId;

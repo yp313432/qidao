@@ -262,38 +262,6 @@
 }
 
 
-/* ── 纯色模式的四套配色（只换纸和强调色的色相，不碰材质） ── */
-[data-palette="cream"] {
-  --aster-canvas: #ece6dc;
-  --aster-bg: #f6f3ee;
-  --aster-accent: #c17b5a;
-}
-
-[data-palette="blue"] {
-  --aster-canvas: #e3eaf0;
-  --aster-bg: #f2f5f8;
-  --aster-fg: #1b242c;
-  --aster-muted: #6b7883;
-  --aster-accent: #5b7f9e;
-  --aster-canvas-ink: #dfe8ef;
-}
-
-[data-palette="green"] {
-  --aster-canvas: #e5eae0;
-  --aster-bg: #f3f6f1;
-  --aster-fg: #1f261c;
-  --aster-muted: #6e7669;
-  --aster-accent: #6f8c6a;
-}
-
-[data-palette="pink"] {
-  --aster-canvas: #f0e4e6;
-  --aster-bg: #faf3f4;
-  --aster-fg: #2a1f22;
-  --aster-muted: #7d6b6f;
-  --aster-accent: #c07f8c;
-}
-
 /* 纯色模式下，背景图上面压一层主题纸色（0~40%，由 --aster-bg-paper 控制） */
 /* 纯色模式：大面积的浮层（输入框、底部导航、面板）也走实色，一整套都"不透明" */
 [data-material="solid"] .glass-float,
@@ -326,13 +294,11 @@
    2026-11 用户定稿（qidao-docs/纸世界-落地清单.md Step1，概念稿
    qidao-docs/概念-水彩纸光球-v2.html）：纯色材质的底不再是三团玻璃
    光斑，换成一张水彩纸——晕染三团 + 水痕圈 + 印刷网点 + 纸纹颗粒 +
-   纤维。晕染色全部从主题 --aster-accent 派生，换 [data-palette]
-   时色相自动跟着变。选择器全部锁在 [data-material="solid"]，
+   纤维。晕染色从主题 --aster-accent 派生。
+   选择器全部锁在 [data-material="solid"]，
    液态玻璃一行不碰。 */
 
-/* 换纸色时晕染要"化开"而不是硬跳：自定义属性注册成 <color> 才能
-   transition。不支持 @property 的老 WebView 自动退回硬切换（=现状），
-   不坏事。 */
+/* 注册晕染色属性，支持主题色变化时的过渡。 */
 @property --paper-wash-a {
   syntax: "<color>";
   inherits: true;

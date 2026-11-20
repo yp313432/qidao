@@ -13,14 +13,14 @@ import {
   KSwitch,
 } from "@/components/ui-kit";
 import { applyAppearance, useApp } from "@/lib/store";
-import type { MaterialId, PaletteId } from "@/lib/types";
+import type { MaterialId } from "@/lib/types";
 
 /**
  * 标准件样板间（`/design/kit`）。
  *
  * 为什么要有这一页：`src/styles/kit.css` 里那套 `.k-*` 在**真手机上**是什么手感，
  * 光看代码看不出来 —— 圆角、边框粗细、按下位移、字号，都得拿手指点一遍才知道。
- * 这一页把所有标准件摆在一起，还能当场切换材质和纸色，方便对比。
+ * 这一页把所有标准件摆在一起，还能当场切换材质，方便对比。
  *
  * 它是**开发用的**，不挂在 `_app` 布局里（不要 AppShell 的导航和返回钮），
  * 也不进任何菜单。上线要不要保留：交给用户定（见 design/ARCHITECTURE.md 阶段 2）。
@@ -34,17 +34,9 @@ const MATERIALS: { id: MaterialId; label: string }[] = [
   { id: "liquid", label: "液态" },
 ];
 
-const PALETTES: { id: PaletteId; label: string }[] = [
-  { id: "cream", label: "米白" },
-  { id: "blue", label: "青蓝" },
-  { id: "green", label: "苔绿" },
-  { id: "pink", label: "藕粉" },
-];
-
 function KitShowcase() {
   const settings = useApp((s) => s.settings);
   const [material, setMaterial] = useState<MaterialId>(settings.material ?? "solid");
-  const [palette, setPalette] = useState<PaletteId>(settings.palette ?? "cream");
   const [switchA, setSwitchA] = useState(true);
   const [switchB, setSwitchB] = useState(false);
   const [nav, setNav] = useState("home");
@@ -54,16 +46,15 @@ function KitShowcase() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.material = material;
-    root.dataset.palette = palette;
     // 离开这一页时把用户自己的设置还回去
     return () => applyAppearance(useApp.getState().settings);
-  }, [material, palette]);
+  }, [material]);
 
   return (
     <div className="k-stage k-page k-nav-space min-h-dvh">
       <KHead title="标准件" meta="/design/kit" />
 
-      {/* ── 现场切换材质 / 纸色 ─────────────────────────────── */}
+      {/* ── 现场切换材质 ─────────────────────────────── */}
       <KCard>
         <div className="k-vstack">
           <span className="k-row__meta">材质</span>
@@ -75,18 +66,6 @@ function KitShowcase() {
                 onClick={() => setMaterial(m.id)}
               >
                 {m.label}
-              </KButton>
-            ))}
-          </div>
-          <span className="k-row__meta">纸色（只对纯色有意义）</span>
-          <div className="k-hstack">
-            {PALETTES.map((p) => (
-              <KButton
-                key={p.id}
-                variant={material === "solid" && palette === p.id ? "primary" : "default"}
-                onClick={() => setPalette(p.id)}
-              >
-                {p.label}
               </KButton>
             ))}
           </div>

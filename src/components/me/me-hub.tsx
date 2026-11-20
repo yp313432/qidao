@@ -86,7 +86,7 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         hint: "认识的日子",
         icon: UserRound,
       },
-      { to: "/space", label: "外观", hint: "材质 · 纸色 · 字体 · 背景", icon: Palette },
+      { to: "/space", label: "外观", hint: "材质 · 字体 · 背景", icon: Palette },
       {
         to: "/chat-settings",
         label: "对话",

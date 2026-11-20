@@ -105,7 +105,6 @@ const defaultSettings: Settings = {
   theme: "dawn",
   /** 材质只剩两档：纯色（在线）/ 液态（未上线）。`frost` 已下线，见 lib/material.ts */
   material: "solid",
-  palette: "cream",
   bgPaper: 12,
   showThinking: true,
   saveThinking: true,
@@ -1943,6 +1942,7 @@ export const useApp = create<AppState>()(
       // 用默认值补齐，避免升级后读到 undefined。
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<AppState> & { memories?: unknown };
+        const { palette: _retiredPalette, ...savedSettings } = (saved.settings ?? {}) as Partial<Settings> & { palette?: unknown };
         /**
          * 记忆的结构升级过：老版本存的是 { id, text, createdAt }。
          * 这里平滑转成新结构（自动猜类别、自动找日期），**一条都不丢**。
@@ -2030,7 +2030,7 @@ export const useApp = create<AppState>()(
            */
           settings: {
             ...current.settings,
-            ...(saved.settings ?? {}),
+            ...savedSettings,
             material: normalizeMaterial(saved.settings?.material),
           },
         };
@@ -2157,8 +2157,7 @@ export function applyAppearance(settings: Settings) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   /*
-    材质与纸色：`data-material` 决定卡片怎么画（纯色一套变量、液态一套变量，
-    两套文件互不引用），`data-palette` 只在纯色模式下有意义（换纸的色相）。
+    `data-material` 决定界面使用奶油白纯色或液态材质。
     压纸色只在纯色模式下生效，液态强制 0（压了就糊）。
   */
   const material = materialOf(settings);
@@ -2166,7 +2165,6 @@ export function applyAppearance(settings: Settings) {
   // 液态钩子同时挂到 <html>：抽屉/模型选择/世界书/思考链都 portal 到 body，
   // 不在 AppShell 那颗 .lq-skin 里，只挂根节点时 glass.css 一条都够不着（m02187）。
   root.classList.toggle("lq-skin", material === "liquid");
-  root.dataset.palette = settings.palette ?? "cream";
   const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 12)) : 0;
   root.style.setProperty("--aster-bg-paper", String(paper / 100));
   root.dataset.font = settings.font ?? "system";
