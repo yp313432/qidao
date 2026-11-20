@@ -34,7 +34,7 @@ export function CopyMessageSheet({ message, onClose }: { message: CopyMessage; o
       <Dialog.Overlay className={cn("k-copy-scrim", liquid && "lq-dialog-scrim")} />
       <Dialog.Content data-contrast="" className={cn(
         "k-copy-sheet",
-        isSolid(settings) && "paper-sheet", liquid && "lq-dialog lq-dialog--sheet",
+        isSolid(settings) && "paper-sheet", liquid && "lq-dialog lq-dialog--sheet lq-dialog--reading",
       )}>
         <span aria-hidden="true" className="k-copy-sheet__handle" />
         <div className="flex items-center justify-between gap-3">

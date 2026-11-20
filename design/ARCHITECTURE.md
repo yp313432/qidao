@@ -68,7 +68,8 @@
 消息复制与网址（2026-11）：`chat/copy-message-sheet.tsx` 负责两种格式和复制范围，
 `lib/message-copy.ts` 保留换行、转换纯文本及处理剪贴板失败；`lib/message-links.ts`
 共用 HTTP(S) 链接解析，Markdown 中点击后走现有 `plugin-open.ts` 浏览器通道。
-长按菜单保留当前气泡原文，不再把整条消息直接写入剪贴板。复制 UI 使用 kit/tokens。
+长按菜单保留当前气泡原文，不再把整条消息直接写入剪贴板。复制 UI 使用 kit/tokens；液态阅读面板保留透镜边，复制预览使用独立对比底。
+思考链按需复用用户配置的上游翻译，只提交思考段落和翻译指令；译文保留段落顺序，原文与工具过程照常显示。
 搜索由 `web-http.ts` 共用 DuckDuckGo HTML/Lite 优先、Bing HTML 兜底；不再自动使用 RSS。
 
 来源展示（2026-11）：`web-actions.ts` 返回带版本号的结构化搜索/读取回执，仍存于

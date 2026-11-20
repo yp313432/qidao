@@ -1816,6 +1816,16 @@
   border-bottom: 0;
 }
 
+/* 需要阅读正文的弹层用随字色变化的对比底。透镜描边照旧，预览区再垫一层。 */
+.lq-dialog.lq-dialog--reading[data-contrast] {
+  background-color: var(--aster-menu);
+  background-image: linear-gradient(158deg, var(--aster-sheen), transparent 42%);
+}
+
+.lq-dialog--reading .k-copy-sheet__preview {
+  background-color: var(--aster-menu);
+}
+
 .lq-dialog-scrim.lq-dialog-scrim {
   background: rgba(30, 22, 14, 0.42);
 }

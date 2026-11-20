@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { callSentence } from "@/lib/call-sentence";
 import { resolveAiName } from "@/lib/branding";
@@ -7,6 +7,7 @@ import type { ChatStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSolid, materialOf } from "@/lib/material";
 import { WebToolResult } from "@/components/chat/web-tool-result";
+import { translateThinking } from "@/lib/thinking-translation";
 
 /**
  * 思考链 —— 从底部弹出来的一层（Claude 那种）。
@@ -68,6 +69,62 @@ export function ThinkingSheet({
   const solidPaper = useApp((s) => isSolid(s.settings));
   /** 液态思考链弹层：白膜 + 磨砂（第 12 条） */
   const liquid = useApp((s) => materialOf(s.settings) === "liquid");
+
+  const passages = useMemo(() => {
+    if (!open || live) return [];
+    return steps?.length
+      ? steps.flatMap((step) => step.kind === "think" && step.text.trim() ? [step.text] : [])
+      : text.trim() ? [text] : [];
+  }, [open, live, steps, text]);
+  const source = passages.length ? JSON.stringify(passages) : "";
+  const [cached, setCached] = useState<{ source: string; translations: ReadonlyMap<string, string> }>();
+  const [view, setView] = useState<"original" | "translation">("original");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const request = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setView("original");
+    setError("");
+    setPending(false);
+    return () => {
+      request.current?.abort();
+      request.current = null;
+    };
+  }, [source]);
+
+  const currentTranslation = cached?.source === source ? cached.translations : undefined;
+  const translated = view === "translation" ? currentTranslation : undefined;
+
+  async function showTranslation() {
+    if (!source || request.current) return;
+    if (currentTranslation) {
+      setView("translation");
+      return;
+    }
+    const controller = new AbortController();
+    request.current = controller;
+    setPending(true);
+    setError("");
+    try {
+      const result = await translateThinking(passages, useApp.getState().settings, controller.signal);
+      if (controller.signal.aborted) return;
+      setCached({
+        source,
+        translations: new Map(result.map((translation, i) => [passages[i]!, translation])),
+      });
+      setView("translation");
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setError(cause instanceof Error ? cause.message : "翻译失败，请重试。");
+      }
+    } finally {
+      if (request.current === controller) {
+        request.current = null;
+        setPending(false);
+      }
+    }
+  }
 
   // Esc 关闭（桌面端顺手）
   useEffect(() => {
@@ -141,7 +198,7 @@ export function ThinkingSheet({
           "relative flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)]",
           /* 纸世界 Step3 补：实底纸+墨顶线+纸影+衬线 */
           solidPaper && "paper-sheet",
-          liquid && "lq-dialog lq-dialog--sheet backdrop-blur-xl",
+          liquid && "lq-dialog lq-dialog--sheet lq-dialog--reading backdrop-blur-xl",
         )}
         data-contrast
         style={{
@@ -181,12 +238,28 @@ export function ThinkingSheet({
             <X className="size-4" />
           </button>
         </div>
+        {source && (
+          <div className="shrink-0 px-4 pb-3">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="思考内容语言">
+              <button type="button" className="k-opt" aria-pressed={!translated}
+                data-active={!translated} onClick={() => setView("original")}>
+                原文
+              </button>
+              <button type="button" className="k-opt" aria-pressed={Boolean(translated)}
+                data-active={Boolean(translated)} disabled={pending} onClick={() => void showTranslation()}>
+                {pending ? "正在翻译…" : currentTranslation ? "中文译文" : "译成中文"}
+              </button>
+            </div>
+            {pending && <p className="sr-only" role="status">正在用当前模型翻译</p>}
+            {error && <p className="mt-2 text-sm" role="alert">{error}</p>}
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(var(--aster-nav-h)+1.5rem)]">
           {steps && steps.length > 0 ? (
-            <StepList steps={steps} live={live} activeStep={activeStep} />
+            <StepList steps={steps} live={live} activeStep={activeStep} translations={translated} />
           ) : (
             <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[0.95em] leading-[1.85] text-muted">
-              {text || (live && activeStep ? "" : "（没有思考内容）")}
+              {translated?.get(text) ?? (text || (live && activeStep ? "" : "（没有思考内容）"))}
               {live && activeStep && <span className="mt-2 block text-[12px] text-subtle" role="status">{activeStep}</span>}
               {live && <span className="ml-0.5 animate-pulse">▍</span>}
             </p>
@@ -203,7 +276,12 @@ export function ThinkingSheet({
  * 只在这里出现一次 —— 对话流里**不再**放过程（用户 m12579："不能放在对话里，
  * 会显得很长，放在思考链里"），那边只有一行入口。
  */
-function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boolean; activeStep?: string }) {
+function StepList({ steps, live, activeStep, translations }: {
+  steps: ChatStep[];
+  live?: boolean;
+  activeStep?: string;
+  translations?: ReadonlyMap<string, string>;
+}) {
   const aiName = resolveAiName(useApp((st) => st.settings.aiName));
   const [open, setOpen] = useState<number[]>([]);
   const isOpen = (i: number) => open.includes(i);
@@ -236,7 +314,7 @@ function StepList({ steps, live, activeStep }: { steps: ChatStep[]; live?: boole
                       !expanded && "line-clamp-2",
                     )}
                   >
-                    {step.text}
+                    {translations?.get(step.text) ?? step.text}
                   </span>
                   <ChevronRight
                     className={cn(
