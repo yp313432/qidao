@@ -12,7 +12,6 @@ import {
   planSummary,
   summarySystemPrompt,
   parseSummaryOutput,
-  looseSummaryBlocks,
   type ConversationSummary,
   type SummaryMsg,
 } from "@/lib/summary";
@@ -112,14 +111,9 @@ async function runAndStore(
     recent,
   }) });
   if (!output) return null;
-  const parsed = parseSummaryOutput(output);
+  const parsed = parseSummaryOutput(output, true);
   if (!parsed) return null;
-  const { text } = parsed;
-  /**
-   * 模型只写**整段回顾**（保持情绪和前后语气），小块由本地按句切。
-   * 老摘要若曾被解析出「【要点】」块，优先用模型写的那些；新摘要一律本地切。
-   */
-  const blocks = parsed.blocks.length > 0 ? parsed.blocks : looseSummaryBlocks(text);
+  const { text, blocks } = parsed;
   const title = parsed.title?.match(/\p{Script=Han}{2,9}/u)?.[0] ?? "随手记";
   const conv = useApp.getState().conversations.find((c) => c.id === conversationId);
   if (!conv || conv.incognito || conv.summary !== previous || upToIndex > conv.messages.length) return null;
@@ -127,8 +121,7 @@ async function runAndStore(
     fromIndex: previous?.upToIndex ?? 0,
     title,
     text,
-    /* 一件一件的小事：本地从整段回顾里切，检索时只带命中那一小段 */
-    blocks: blocks.length ? blocks : undefined,
+    blocks,
     /* 仅记录总结次数，不再机械压缩旧内容比例。 */
     passes: (previous?.passes ?? 0) + 1,
     upToIndex,

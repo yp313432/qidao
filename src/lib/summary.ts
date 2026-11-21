@@ -5,27 +5,26 @@
 /**
  * 摘要里的一小块（2026-11 用户："摘要是被切分成一件一件的小事"）。
  *
- * 摘要仍然由模型写成**一整段**（保留情绪、语气和前后因果），
- * 小块由本地按句切出来（`looseSummaryBlocks`），不是让模型直接按轮次切；
- * 检索命中哪块就只带回哪块，出处还能指回摘要本身。
+ * 模型根据同一批原文分别写连贯回顾和独立要点。
+ * 检索命中哪条就只带回哪条，出处还能指回摘要本身。
  */
 export type SummaryBlock = {
   /** 这一小段本身（60~160 字，通常一件事） */
   text: string;
-  /** 主题标签（1~3 个）—— 目前只有早期实验格式才有，本地切块不带 */
+  /** 主题标签（1~3 个）—— 旧版按句切出的块可能没有 */
   tags?: string[];
-  /** 日期线索（如 "11-18"）—— 同上，本地切块不带 */
+  /** 日期线索（如 "11-18"）—— 原文没提到时不填 */
   at?: string;
 };
 
-/** 早期实验格式的分隔标记；现在只用于兼容解析旧摘要，不再要求模型输出 */
+/** 自然回顾和独立要点的分隔标记 */
 export const SUMMARY_BLOCK_HEAD = "【要点】";
 
 /** 摘要存什么（存在这条对话自己身上，换对话各算各的） */
 export type ConversationSummary = {
   /** 摘要正文（整段回顾） */
   text: string;
-  /** 本地切好的小块；旧摘要用到时再按句临时切 */
+  /** 模型提炼的要点，或历史版本留下的摘录。空数组表示明确无要点。 */
   blocks?: SummaryBlock[];
   /** 已经摘到第几条（**不含**这条）—— 它之前的消息都在摘要里了 */
   upToIndex: number;
@@ -131,7 +130,10 @@ export function summarySystemPrompt(aiName = "小克", userName = "yan"): string
 用第一人称写，可以亲近、有感受，保留你在意的细节、对某句话的反应和你们之间的语气。不要填栏目、写档案或用“关系加深”等空泛标签代替具体经历。
 过去发生的事、双方说过的话要对得上原文；此刻回看的感受可以自然表达，但不要编造经历、引语，或把对对方心思的猜测当成她明说过的话。
 重要的约定、未完成的事、明确偏好与忌讳、称呼和日期要自然留下。新对话更新或取消的事按新的记；此前仍然重要的事继续保留，不按记忆年龄分配删减比例。
-通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。第一行用「标题：」加 2–3 个汉字概括这段交流，下一行开始写回顾正文。不附工具调用或解释写作步骤。`;
+通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。第一行用「标题：」加 2–3 个汉字概括这段交流，下一行开始写回顾正文。不附工具调用或解释写作步骤。
+正文写完后，另起一行写「${SUMMARY_BLOCK_HEAD}」，直接根据「本次需要回顾的原文」提炼 1–8 条值得以后找回的要点。
+每条只写一件事，用自己的话概括，写清涉及的人、对象和结果或进度，让它离开正文也读得懂。优先保留明确的决定、约定、偏好、重要经历和待办。不要从回顾复制句子或按句切分，也不要重复同一件事。
+每条另起一行，以「- 」开始，可在前面加「[日期][主题1,主题2]」（日期只取原文明示的日期）。每条最多 200 字。语境和心情只供理解；仅把本次原文支持的内容写入要点，区分提议、确认和完成。没有值得记的要点就在标记下一行写「无」。`;
 }
 
 export function buildSummaryPrompt(batch: SummaryMsg[], previous?: ConversationSummary, mindset: SummaryMindset = {}): string {
@@ -162,11 +164,11 @@ function looksLikeDate(value: string): boolean {
 }
 
 /** 解析一行要点："- [11-18][论文,疲惫] 改论文到凌晨两点，很累" */
-function parseBlockLine(line: string): SummaryBlock | null {
+function parseBlockLine(line: string, rejectOversize = false): SummaryBlock | null {
   const match = /^\s*[-*·]\s*(?:\[([^\]\n]{1,24})\])?\s*(?:\[([^\]\n]{1,40})\])?\s*(.+?)\s*$/.exec(line);
   if (!match) return null;
   const text = match[3].replace(/\s+/g, " ").trim();
-  if (text.length < 4) return null;
+  if (text.length < 4 || (rejectOversize && text.length > 200)) return null;
   let at = match[1]?.trim() || undefined;
   let tags = match[2] ? match[2].split(/[,，、\s]+/).map((t) => t.trim()).filter(Boolean) : [];
   /* 只写了一个括号、内容又不像日期 → 那其实是标签 */
@@ -195,7 +197,7 @@ export function parseSummaryBlocks(part: string): SummaryBlock[] {
  * 解析不出来（正文为空 / 超长）返回 `null` —— 调用方据此**不推进水位线**，
  * 跟原来 cleanSummaryText 的纪律一致：宁可不记，也不把半截当完整记忆。
  */
-export function parseSummaryOutput(raw: string): { title?: string; text: string; blocks: SummaryBlock[] } | null {
+export function parseSummaryOutput(raw: string, requirePoints = false): { title?: string; text: string; blocks: SummaryBlock[] } | null {
   const body = String(raw ?? "").trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").trim();
   if (!body) return null;
   const headAt = body.indexOf(SUMMARY_BLOCK_HEAD);
@@ -205,7 +207,24 @@ export function parseSummaryOutput(raw: string): { title?: string; text: string;
   const title = titleMatch?.[1].trim() || undefined;
   const text = (titleMatch ? narrative.slice(titleMatch[0].length) : narrative).trim();
   if (!text || text.length > SUMMARY_MAX_CHARS) return null;
-  return { title, text, blocks: parseSummaryBlocks(blockPart) };
+  if (!requirePoints) return { title, text, blocks: parseSummaryBlocks(blockPart) };
+
+  if (headAt < 0 || body.lastIndexOf(SUMMARY_BLOCK_HEAD) !== headAt) return null;
+  if (blockPart.trim() === "无") return { title, text, blocks: [] };
+  const lines = blockPart.trim().split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length === 0 || lines.length > 8) return null;
+
+  const normalize = (value: string) => value.replace(/[\s\p{P}]+/gu, "");
+  const narrativeText = normalize(text);
+  const points = new Map<string, SummaryBlock>();
+  for (const line of lines) {
+    const block = parseBlockLine(line, true);
+    if (!block) return null;
+    const key = normalize(block.text);
+    if (!key || narrativeText.includes(key)) return null;
+    if (!points.has(key)) points.set(key, block);
+  }
+  return { title, text, blocks: [...points.values()] };
 }
 
 /**

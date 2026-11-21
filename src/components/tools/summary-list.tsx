@@ -38,9 +38,7 @@ export function SummaryList() {
   const targetBlock = rawId?.startsWith("block:") ? blockIndexOf(rawId) : -1;
   const selected = entries.find((entry) => entry.id === selectedId);
   const selectedBlocks = selected
-    ? selected.summary.blocks?.length
-      ? selected.summary.blocks
-      : looseSummaryBlocks(selected.summary.text)
+    ? selected.summary.blocks ?? looseSummaryBlocks(selected.summary.text)
     : [];
   const active = conversations.find((conversation) => conversation.id === activeId);
 

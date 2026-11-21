@@ -389,7 +389,7 @@ export type Conversation = {
     title?: string;
     fromIndex?: number;
     text: string;
-    /** 拆成一件一件的小事（2026-11 起；旧摘要没有，检索时按句临时拆） */
+    /** 独立要点。空数组表示没有可用要点，未定义时按旧摘要兼容。 */
     blocks?: SummaryBlock[];
     /** 已经摘到第几条（不含）—— 之前那些消息都在摘要里了 */
     upToIndex: number;

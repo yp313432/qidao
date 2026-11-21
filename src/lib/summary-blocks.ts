@@ -4,7 +4,7 @@
  * 用户原话："摘要是被切分成一件一件的小事……提到论文，这行字就被检索到，
  * 带回给模型，而不是把包含这行字的那一整段都注入。"
  *
- * 职责只有一件事：把库里所有摘要拆成"块引用"，给 `recall.ts` 当候选；
+ * 职责只有一件事：把库里的摘要要点变成"块引用"，给 `recall.ts` 当候选；
  * 回写、编辑、渲染都不在这里。旧摘要（没有 `blocks`）在读取时按句临时拆，
  * 不回写存档 —— 拆不干净也不会丢内容。
  */
@@ -47,9 +47,7 @@ export function summaryBlockRefs(conversations: readonly Conversation[]): Summar
       : (conversation.summaryArchive ?? []);
     for (const summary of summaries) {
       if (!summary?.text?.trim()) continue;
-      const blocks: SummaryBlock[] = summary.blocks?.length
-        ? summary.blocks
-        : looseSummaryBlocks(summary.text);
+      const blocks: SummaryBlock[] = summary.blocks ?? looseSummaryBlocks(summary.text);
       const summaryId = `summary:${conversation.id}:${summary.upToIndex}`;
       blocks.forEach((block, index) => {
         const text = block.text.trim();

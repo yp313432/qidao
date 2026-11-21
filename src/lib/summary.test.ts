@@ -103,3 +103,21 @@ describe("looseSummaryBlocks", () => {
     assert.deepEqual(looseSummaryBlocks("   "), []);
   });
 });
+
+describe("新摘要的模型要点", () => {
+  it("保留独立改写的要点和标签", () => {
+    const raw = "标题：论文\n我记得她说选题已经定下来了。\n【要点】\n- [论文] 用户确认采用八段锦与老年衰弱作为综述方向。";
+    assert.deepEqual(parseSummaryOutput(raw, true)?.blocks.map(({ text, tags }) => ({ text, tags })), [
+      { text: "用户确认采用八段锦与老年衰弱作为综述方向。", tags: ["论文"] },
+    ]);
+  });
+
+  it("有正文无要点时需明确写无，拒绝照搬、超长或格式不完整的要点", () => {
+    const narrative = "标题：论文\n她确定写八段锦与老年衰弱。";
+    assert.deepEqual(parseSummaryOutput(narrative + "\n【要点】\n无", true)?.blocks, []);
+    assert.equal(parseSummaryOutput(narrative, true), null);
+    assert.equal(parseSummaryOutput(narrative + "\n【要点】\n- 她确定写八段锦与老年衰弱！", true), null);
+    assert.equal(parseSummaryOutput(narrative + "\n【要点】\n要点缺少列表标记", true), null);
+    assert.equal(parseSummaryOutput(narrative + "\n【要点】\n- " + "长".repeat(201), true), null);
+  });
+});

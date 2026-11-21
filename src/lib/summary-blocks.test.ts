@@ -94,3 +94,14 @@ describe("id 反查", () => {
     assert.equal(blockIndexOf("block:c1:50:x"), -1);
   });
 });
+
+it("显式无要点的摘要不参与分块检索；旧摘要仍能按原来源 ID 定位", () => {
+  const conversation = {
+    id: "conv", title: "对话", incognito: false,
+    summary: { text: "仅有回顾正文。", upToIndex: 10, updatedAt: 2, blocks: [] },
+    summaryArchive: [{ text: "旧摘要的完整句子。", upToIndex: 5, updatedAt: 1 }],
+  } as unknown as Conversation;
+  assert.deepEqual(summaryBlockRefs([conversation]).map(({ id, summaryId }) => ({ id, summaryId })), [
+    { id: "block:conv:5:0", summaryId: "summary:conv:5" },
+  ]);
+});
