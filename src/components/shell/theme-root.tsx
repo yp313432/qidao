@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { applyAppearance, applyTheme, useApp } from "@/lib/store";
 
 export function ThemeRoot({ children }: { children: React.ReactNode }) {
@@ -23,7 +23,7 @@ export function ThemeRoot({ children }: { children: React.ReactNode }) {
     return unsub;
   }, [setHydrated]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hydrated) {
       applyTheme(settings.theme);
       applyAppearance(settings);

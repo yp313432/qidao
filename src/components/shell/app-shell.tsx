@@ -1,7 +1,7 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { WORLD_TICK_MS, tickWorld } from "@/lib/world-clock";
 import { startAwakeLoop } from "@/lib/awake";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Outlet, useRouterState } from "@tanstack/react-router";
 import { hasPageHeader, subscribePageHeader } from "@/lib/header-registry";
 import { ActionGate } from "@/components/shared/action-gate";
 import { AppBack } from "@/components/shell/app-back";
@@ -22,36 +22,15 @@ import { TaskDaemon } from "@/components/daemons/task-daemon";
 import { WakePlan } from "@/components/daemons/wake-plan";
 import { WakeDaemon } from "@/components/daemons/wake-daemon";
 import { UiEffects } from "@/components/shared/ui-effects";
-import { hidesNav, parentOf } from "@/lib/nav-tree";
+import { parentOf } from "@/lib/nav-tree";
 import { installKeyboardInset } from "@/lib/keyboard";
 import { installBreadcrumbs } from "@/lib/breadcrumbs";
-import { MAIN_TABS, tabOwning } from "@/lib/tabs";
-import { NavEtch } from "@/components/shell/nav-icons";
 import { PerfProbe } from "@/components/shell/perf-probe";
 import { Splash } from "@/components/shell/splash";
 import { cn } from "@/lib/utils";
 import { initShell } from "@/lib/shell";
 import { useApp } from "@/lib/store";
 import { isSolid, materialOf } from "@/lib/material";
-
-const TABS = MAIN_TABS;
-
-/**
- * 底部导航开关（2026-11-18 起 = false）。
- *
- * 液态从来没有底导（导航全在抽屉里），S5 起纯色也照搬同一套，
- * 于是这条导航在两主题下都不该再出现。代码先留着当回退版本：
- * 真机验证过、用户点头之后（S7）再连 TABS / NAV_LATIN / NavEtch /
- * nav-stamp / paper-tab 一起删。
- */
-const LEGACY_BOTTOM_NAV = false;
-
-/** 纸世界 Step5：三枚票图的拉丁小注（概念稿 TABS 第二列，塞 label 行）。`/play` 那张随玩乐区删了。 */
-const NAV_LATIN: Record<string, string> = {
-  "/": "PARLA",
-  "/tools": "STRUMENTI",
-  "/me": "IO",
-};
 
 // 普通子页共用暖纸底。朋友圈、花园、记忆库与各插件详情保留自己的画面。
 const PAPER_SUBPAGES = new Set([
@@ -63,44 +42,8 @@ const PAPER_SUBPAGES = new Set([
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  /**
-   * 什么时候不显示底部导航 —— 规则**只定义在 nav-tree.ts 一处**
-   * （`hidesNav` / `FULL_BLEED_PREFIXES`），这里不自己写路径判断：
-   *
-   *   · 玩乐的子页（自己带返回，本来就没有）
-   *   · 工具区的编辑器页（/tools/http 这些）
-   *
-   * 对话页**要显示**。以前这里把对话页也排除掉，是因为抽屉底部自带了一套
-   * 四项导航；于是全 App 出现两份导航实现，样子还不一样（抽屉那套是横向
-   * 铺满 + 分隔线，别的页面是漂浮胶囊），高亮规则也不一致。
-   *
-   * 用户的原话："底部导航栏改一下，不要放在侧边栏，就放下面，但是还要省空间"。
-   * 文档第十节：主导航保持底部四项，移动端不要移到侧边栏；二级页用左上角
-   * 返回，不再额外放一套永久导航。
-   *
-   * 所以现在**只留这一个底部胶囊**，抽屉那套撤掉了。
-   *
-   * ── 「打字时把导航收下去」这个机制**整个删掉了**（2026-10）──────────
-   *
-   * 用户原话（说了不止一次）：
-   *   "我点开键盘之后，底部导航栏是不是没有了，中间是不是空了一块，
-   *    然后我退出键盘状态之后，要点一下界面才出现导航栏，
-   *    能不能直接就把导航栏不消失了，不用再点了"
-   *
-   * 真相是：**收下去换来的那块地方本来就是空的**（键盘上方那一段留白），
-   * 等于什么也没省，却引入了"要点一下才回来"这个毛病。
-   * 我前两次都在修"什么时候让它回来"，**方向就错了** ——
-   * 正确做法是根本不让它消失。
-   */
-  const hideNav = hidesNav(pathname);
   const hydrated = useApp((s) => s.hydrated);
-  /** 纸世界（qidao-docs/纸世界-落地清单.md）：纯色材质下底部导航换 F 邮票版。 */
   const solidPaper = useApp((s) => isSolid(s.settings));
-  /**
-   * 液态世界**没有底部导航**（用户 m07494："不要纯色那版底部导航栏，只剩下一个对话框"）。
-   * 导航全在抽屉里，所以这一层整块不渲染 —— 不是藏起来，是不挂，
-   * 免得占位把 `main.lq-page` 挤上去。
-   */
   const liquidWorld = useApp((s) => materialOf(s.settings) === "liquid");
 
   /**
@@ -154,29 +97,15 @@ export function AppShell() {
    */
   const headerPresent = useSyncExternalStore(subscribePageHeader, hasPageHeader, () => false);
 
-  /** 页面内容那一层（`key={pathname}` 那个 div），用来在切页时清掉旧的合成层。 */
+  // 丢掉液态页面拆卸后可能留在 Android WebView 中的玻璃合成层。
   const routeLayerRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * **路由切换时把上一页的合成层丢掉**（用户 m02009 的 bug）：
-   *   "点侧边栏花园。之后，然后又退出又卡了一个之前的这个玩乐区的页面。
-   *    中间卡了一个，你给我删掉。"
-   *
-   * 代码里没有残留节点：`outlet` 每次靠 `key={pathname}` 重建，`view-enter`
-   * 只动 opacity。留下的是**安卓 WebView 自己的合成层**——它卸载一张带
-   * backdrop-filter 的大玻璃卡之后，偶尔不回收那层位图，于是上一页那张
-   * 虚化的卡就飘在屏幕中间（跟"碎片 / 一闪一闪"是同一个根子）。
-   *
-   * 对策：在 pathname 变化后让内容层 `display:none` 一次、立刻恢复。
-   * 同步读写布局，中间不会真的画帧（不会闪），但会逼合成器把旧层丢掉。
-   */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = routeLayerRef.current;
-    if (!el) return;
+    if (!liquidWorld || !el) return;
     el.style.display = "none";
-    void el.offsetHeight; // 强制同步布局：让合成器真的"忘掉"上一页那层
+    void el.offsetHeight;
     el.style.display = "";
-  }, [pathname]);
+  }, [pathname, liquidWorld, hydrated]);
 
   /**
    * 系统栏那一层：问一次安全区高度 + 同步状态栏图标颜色（见 `lib/shell.ts`）。
@@ -388,111 +317,12 @@ export function AppShell() {
         ref={routeLayerRef}
         className={cn(
           "view-enter flex min-h-0 flex-1 flex-col overflow-hidden",
+          liquidWorld && "view-enter-motion",
           solidPaper && PAPER_SUBPAGES.has(pathname.replace(/\/$/, "")) && "paper-directory paper-subpage",
         )}
       >
         <Outlet />
       </div>
-      {/*
-        2026-11-18（S5）：**底部导航正式退役**。用户 m00516 定的是
-        "两个模式的层级逻辑一样"，液态本来就没有底导（导航全在抽屉里），
-        纯色也不再单独留一条。
-
-        原话（任务书 3.2）："原底部导航暂时保留在可回退版本中，验证完成后再清理。"
-        所以这里是**开关关掉**、代码原样留着 —— 不是删。等 S7 真机验证过、
-        用户点头，再删这段和 TABS/NAV_LATIN/NavEtch/nav-stamp/paper-tab 这一套。
-      */}
-      {!hideNav && LEGACY_BOTTOM_NAV && !liquidWorld && (
-        /**
-         * 底部导航：**全宽 + 贴着屏幕下边缘**的一层薄玻璃。
-         *
-         * 用户的要求（对着抖音那张参考图提的）：
-         *   · "导航栏可以压在最底部"
-         *   · "那个方形改成圆形，撑满左右边框"
-         *   · "质感还是要透玻璃的"
-         *
-         * 所以从原来的「居中胶囊 + 两侧各留 69px + 浮起 12px」改成
-         * 「左边缘贯到右边缘、紧贴屏幕底」。省下来的那 12px 浮起，
-         * 让给了输入框和导航之间的**呼吸缝**（见 .pb-composer）——
-         * 总占用没变，但两块玻璃不再贴在一起。
-         *
-         * 背景保持透明（只留一层渐变把文字托住），让用户自己那张背景图
-         * 透上来；真正的"玻璃"落在激活项那个圆上。
-         *
-         * z-[60]：必须高于对话抽屉（z-50）。抽屉只占左边 84% 宽，
-         * 导航在右边一直露着，用户才能一边看列表一边切页。
-         *
-         * ⚠️ **打字时它不抬**（2026-10 用户第二次纠正）：
-         *   "导航栏不弹起，对话框弹起来就行了……他和导航栏做切割，不放在一起。"
-         *   键盘一弹，只有**对话框**落到键盘上面；导航留在屏幕底下（在键盘后面）。
-         *   上一版我让它跟着抬，用户装上去说"填 API 的时候导航也跟着起来，很怪"。
-         */
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
-          <nav
-            aria-label="主导航"
-            className="glass-nav-bar pointer-events-auto flex w-full items-stretch"
-          >
-            {/* 四项平分，但整体限宽居中 —— 否则 390px 上四项会被拉散、飘在两头 */}
-            <div className="mx-auto flex w-full max-w-sm items-stretch">
-              {TABS.map((tab) => {
-                const active = tabOwning(pathname) === tab.to;
-                const Icon = tab.icon;
-                return (
-                  <Link
-                    key={tab.to}
-                    to={tab.to}
-                    /*
-                      切标签用 replace：**标签之间没有层级关系**，
-                      不该往历史里压一层（不然"返回"会回到上一个标签 ——
-                      那是网页的行为，App 里返回应该回上一级）。
-                    */
-                    replace
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex min-w-0 flex-1 flex-col items-center pt-1 pb-1 text-[10px] font-medium tracking-wide transition-colors",
-                      active ? "text-fg" : "text-muted",
-                      solidPaper && "paper-tab",
-                    )}
-                  >
-                    {solidPaper ? (
-                      /* 纸世界 Step5：F 邮票版 —— 素态是铜版画票图，贴上虚线票框＝选中。
-                       * 高亮仍走 aria-current（tabOwning 一行没动）。 */
-                      <>
-                        <span className="nav-stamp">
-                          <NavEtch name={tab.to} />
-                        </span>
-                        <span className="nav-label">
-                          {tab.label}
-                          <span className="nav-la" aria-hidden="true">
-                            {NAV_LATIN[tab.to]}
-                          </span>
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {/* 圆形：激活时这个圆变成一块玻璃高亮，图标变实 */}
-                        <span
-                          className={cn(
-                            "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-                            active ? "glass-active" : "",
-                          )}
-                        >
-                          <Icon
-                            className="size-[1.3rem]"
-                            strokeWidth={active ? 2.2 : 1.7}
-                            aria-hidden="true"
-                          />
-                        </span>
-                        {tab.label}
-                      </>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
-        </div>
-      )}
     </div>
   );
 }

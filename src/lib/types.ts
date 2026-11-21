@@ -498,10 +498,8 @@ export type Settings = {
   /** 我自己的头像（dataURL，空表示用名字首字） */
   userAvatar: string;
   theme: ThemeId;
-  /** 材质两档（默认 `solid` = 纯色纸；`liquid` 未上线） */
+  /** 材质两档，默认为纯色。 */
   material?: MaterialId;
-  /** 纯色模式下压在背景图上的纸色浓度（0~40，单位 %） */
-  bgPaper?: number;
   font: FontId;
   /**
    * **对话框（玻璃输入框）自选的渐变色**（2026-11 用户要的）。

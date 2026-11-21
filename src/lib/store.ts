@@ -105,7 +105,6 @@ const defaultSettings: Settings = {
   theme: "dawn",
   /** 材质只剩两档：纯色（在线）/ 液态（未上线）。`frost` 已下线，见 lib/material.ts */
   material: "solid",
-  bgPaper: 12,
   showThinking: true,
   saveThinking: true,
   quoteEnabled: true,
@@ -2157,17 +2156,11 @@ function menuFillFor(textColor: string): string {
 export function applyAppearance(settings: Settings) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  /*
-    `data-material` 决定界面使用奶油白纯色或液态材质。
-    压纸色只在纯色模式下生效，液态强制 0（压了就糊）。
-  */
   const material = materialOf(settings);
   root.dataset.material = material;
   // 液态钩子同时挂到 <html>：抽屉/模型选择/世界书/思考链都 portal 到 body，
   // 不在 AppShell 那颗 .lq-skin 里，只挂根节点时 glass.css 一条都够不着（m02187）。
   root.classList.toggle("lq-skin", material === "liquid");
-  const paper = material === "solid" ? Math.min(40, Math.max(0, settings.bgPaper ?? 12)) : 0;
-  root.style.setProperty("--aster-bg-paper", String(paper / 100));
   root.dataset.font = settings.font ?? "system";
   // 动画开关：auto 时由 CSS 里的 prefers-reduced-motion 决定，on/off 由这里强制定
   root.dataset.motion = settings.motion ?? "auto";

@@ -20,7 +20,7 @@ import { useState } from "react";
 import { Lock, SlidersHorizontal } from "lucide-react";
 import { KButton, KCard, KFold, KOpt, KOpts, KSlider } from "@/components/ui-kit";
 import { resolveAiName } from "@/lib/branding";
-import { isSolid, materialOf } from "@/lib/material";
+import { materialOf } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { CHAT_FONT_SIZES } from "@/lib/ux";
 import { FONTS, TONES } from "./me-options";
@@ -46,7 +46,7 @@ export function SpacePage() {
   const background = settings.background;
   /** 哪一组是展开的（null = 全收起，一屏能看完） */
   const [openFold, setOpenFold] = useState<
-    null | "material" | "bg" | "font" | "date"
+    null | "material" | "bg" | "font" | "motion"
   >(null);
   // 背景那几个滑杆默认锁住 —— 手机上滑页面太容易误改
   const [bgUnlocked, setBgUnlocked] = useState(false);
@@ -57,7 +57,7 @@ export function SpacePage() {
   const bgCount = [background.image, settings.musicImage, settings.diaryImage].filter(
     Boolean,
   ).length;
-  const bgHint = `${bgCount ? `${bgCount} 张都设了` : "还没设"} · 压纸色 ${settings.bgPaper ?? 18}%`;
+  const bgHint = bgCount ? `已设置 ${bgCount} 张` : "还没设";
   const fontHint = `${FONTS.find((f) => f.id === (settings.font ?? "system"))?.label ?? "默认"} · ${
     /* 默认档是 `normal`（标准 15px）。原来这里写的是 "md" —— 没有这个 id，
        所以「外观」页标题上那行永远显示「中号」，选了大号也不变（顺手修掉）。 */
@@ -151,36 +151,86 @@ export function SpacePage() {
         )}
       </KFold>
 
-      <KFold
-        title="背景"
-        meta={bgHint}
-        open={openFold === "bg"}
-        onToggle={() => setOpenFold(openFold === "bg" ? null : "bg")}
-      >
-        {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
-        <ImageRow
-          label="主页背景"
-          hint="整个 App 的底"
-          value={background.image}
-          onPick={(url) => patch({ background: { ...background, image: url } })}
-          onClear={() => patch({ background: { ...background, image: "" } })}
-        />
-        <ImageRow
-          label="音乐播放页"
-          hint="只在这一页出现"
-          value={settings.musicImage}
-          onPick={(url) => patch({ musicImage: url })}
-          onClear={() => patch({ musicImage: "" })}
-        />
-        <ImageRow
-          label="日记动态页"
-          hint="只在这一页出现"
-          value={settings.diaryImage}
-          onPick={(url) => patch({ diaryImage: url })}
-          onClear={() => patch({ diaryImage: "" })}
-        />
+      {material === "liquid" && (
+        <KFold
+          title="背景"
+          meta={bgHint}
+          open={openFold === "bg"}
+          onToggle={() => setOpenFold(openFold === "bg" ? null : "bg")}
+        >
+          {/* 三张图各管一处：主页是全局的底，另外两张只在自己那页出现 */}
+          <ImageRow
+            label="主页背景"
+            hint="整个 App 的底"
+            value={background.image}
+            onPick={(url) => patch({ background: { ...background, image: url } })}
+            onClear={() => patch({ background: { ...background, image: "" } })}
+          />
+          <ImageRow
+            label="音乐播放页"
+            hint="只在这一页出现"
+            value={settings.musicImage}
+            onPick={(url) => patch({ musicImage: url })}
+            onClear={() => patch({ musicImage: "" })}
+          />
+          <ImageRow
+            label="日记动态页"
+            hint="只在这一页出现"
+            value={settings.diaryImage}
+            onPick={(url) => patch({ diaryImage: url })}
+            onClear={() => patch({ diaryImage: "" })}
+          />
 
-        <p className="k-sect__title">动画</p>
+          <div className="k-hstack">
+            <span className="k-hint k-grow">
+              {bgUnlocked ? "正在调整 —— 调完记得锁上" : "已锁定，滑动页面不会误改"}
+            </span>
+            <KButton
+              variant={bgUnlocked ? "primary" : "default"}
+              aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
+              onClick={() => setBgUnlocked((v) => !v)}
+            >
+              {bgUnlocked ? <Lock /> : <SlidersHorizontal />}
+              {bgUnlocked ? "锁定" : "调整"}
+            </KButton>
+          </div>
+
+          <KSlider
+            label="模糊"
+            value={background.blur}
+            min={0}
+            max={60}
+            step={1}
+            unit="px"
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, blur: v } })}
+          />
+          <KSlider
+            label="暗化"
+            value={background.dim}
+            min={0}
+            max={0.8}
+            step={0.05}
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, dim: v } })}
+          />
+          <KSlider
+            label="透明度"
+            value={background.opacity}
+            min={0.2}
+            max={1}
+            step={0.05}
+            disabled={!bgUnlocked}
+            onChange={(v) => patch({ background: { ...background, opacity: v } })}
+          />
+        </KFold>
+      )}
+
+      <KFold
+        title="动画"
+        open={openFold === "motion"}
+        onToggle={() => setOpenFold(openFold === "motion" ? null : "motion")}
+      >
         <div className="k-tabs">
           {(
             [
@@ -200,70 +250,7 @@ export function SpacePage() {
             </button>
           ))}
         </div>
-
-        <div className="k-hstack">
-          <span className="k-hint k-grow">
-            {bgUnlocked ? "正在调整 —— 调完记得锁上" : "已锁定，滑动页面不会误改"}
-          </span>
-          <KButton
-            variant={bgUnlocked ? "primary" : "default"}
-            aria-label={bgUnlocked ? "锁定背景调整" : "解锁背景调整"}
-            onClick={() => setBgUnlocked((v) => !v)}
-          >
-            {bgUnlocked ? <Lock /> : <SlidersHorizontal />}
-            {bgUnlocked ? "锁定" : "调整"}
-          </KButton>
-        </div>
-
-        <KSlider
-          label="模糊"
-          value={background.blur}
-          min={0}
-          max={60}
-          step={1}
-          unit="px"
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, blur: v } })}
-        />
-        <KSlider
-          label="暗化"
-          value={background.dim}
-          min={0}
-          max={0.8}
-          step={0.05}
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, dim: v } })}
-        />
-        <KSlider
-          label="透明度"
-          value={background.opacity}
-          min={0.2}
-          max={1}
-          step={0.05}
-          disabled={!bgUnlocked}
-          onChange={(v) => patch({ background: { ...background, opacity: v } })}
-        />
-        {/* 压纸色只在纯色模式下有意义（液态是极透，压了就糊）——
-            材质判断走 lib/material.ts，别自己写 `settings.material === …` */}
-        {isSolid(settings) && (
-          <>
-            <KSlider
-              label="背景压纸色"
-              value={settings.bgPaper ?? 18}
-              min={0}
-              max={40}
-              step={2}
-              unit="%"
-              onChange={(v) => patch({ bgPaper: v })}
-            />
-          </>
-        )}
       </KFold>
-
-      {/* 认识的日子 —— 玩乐区首页那个「NNN DAYS TOGETHER」用它算天数。
-        用户："可以来个组件，上面是两个的名字或头像，写着认识多久了"、
-        "用户自己填日子"。填了才显示，没填就提示来这儿填，不编数字。
-        （结构定案里它归「账号与资料」，那一页还没建，先留在这儿。） */}
 
       {/* 效果预览：不用跳去聊天页就能看气泡长什么样 */}
       <KCard>

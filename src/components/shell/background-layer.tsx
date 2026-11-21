@@ -1,16 +1,13 @@
 import { useEffect } from "react";
+import { isSolid } from "@/lib/material";
 import { useApp } from "@/lib/store";
 import { syncBarIcons } from "@/lib/shell";
 
-/**
- * 全屏背景层：默认渲染主题对应的「光斑渐变」作为液态玻璃的折射底，
- * 若用户上传了自定义图片，则叠加在渐变之上并按 blur / dim / opacity 处理。
- * 固定在内容之后（z-0），内容通过 relative z-10 盖在其上，玻璃面用
- * backdrop-filter 模糊它，从而形成「漂浮在照片上的透明玻璃空间」。
- */
 export function BackgroundLayer() {
+  const solid = useApp((s) => isSolid(s.settings));
+  const theme = useApp((s) => s.settings.theme);
   const background = useApp((s) => s.settings.background);
-  const image = background.image;
+  const image = solid ? "" : background.image;
 
   /**
    * 背景变了 → 重新决定**状态栏图标用浅色还是深色**（2026-11）。
@@ -27,12 +24,16 @@ export function BackgroundLayer() {
     w.__qidaoBg = image || "";
     w.__qidaoBgState = { dim: background.dim, opacity: background.opacity };
     void syncBarIcons();
-  }, [image, background.dim, background.opacity]);
+  }, [solid, theme, image, background.dim, background.opacity]);
+
+  if (solid) {
+    return <div key="paper" className="paper-canvas pointer-events-none fixed inset-0 z-0" aria-hidden="true" />;
+  }
 
   return (
     <div
-      className="background-canvas pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      data-bg-layer=""
+      key="liquid"
+      className="liquid-canvas pointer-events-none fixed inset-0 z-0 overflow-hidden"
       aria-hidden="true"
     >
       {image ? (
@@ -60,11 +61,11 @@ export function BackgroundLayer() {
  * 没设图就什么都不渲染，直接露出主页背景。
  */
 export function SceneBackdrop({ image }: { image?: string }) {
-  if (!image) return null;
+  const solid = useApp((s) => isSolid(s.settings));
+  if (solid || !image) return null;
   return (
     <div
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      data-bg-layer=""
       aria-hidden="true"
     >
       <img

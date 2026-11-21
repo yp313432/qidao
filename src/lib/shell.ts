@@ -64,9 +64,10 @@ export function parseColor(input: string): { r: number; g: number; b: number; a:
  */
 async function topBandColor(): Promise<{ r: number; g: number; b: number }> {
   const cs = getComputedStyle(document.documentElement);
-  const canvas = parseColor(cs.getPropertyValue("--aster-canvas")) ?? { r: 14, g: 15, b: 18, a: 1 };
+  const liquid = document.documentElement.dataset.material === "liquid";
+  const canvas = parseColor(cs.getPropertyValue(liquid ? "--aster-canvas" : "--aster-bg")) ?? { r: 14, g: 15, b: 18, a: 1 };
   const raw = (window as unknown as { __qidaoBg?: string }).__qidaoBg;
-  if (!raw) return { r: canvas.r, g: canvas.g, b: canvas.b };
+  if (!liquid || !raw) return { r: canvas.r, g: canvas.g, b: canvas.b };
 
   const state = (window as unknown as { __qidaoBgState?: { dim?: number; opacity?: number } })
     .__qidaoBgState;
@@ -113,11 +114,15 @@ async function topBandColor(): Promise<{ r: number; g: number; b: number }> {
   }
 }
 
+let barIconRequest = 0;
+
 /** 按当前背景决定状态栏/导航栏图标用浅色还是深色 */
 export async function syncBarIcons(): Promise<void> {
   if (!isNative()) return;
   try {
+    const request = ++barIconRequest;
     const { r, g, b } = await topBandColor();
+    if (request !== barIconRequest) return;
     /** 阈值 0.5：亮背景 → 深色图标（light=false） */
     const light = luminance(r, g, b) < 0.5;
     await ShellBridge.setBarIcons({ light });

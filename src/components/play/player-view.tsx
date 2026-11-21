@@ -14,6 +14,7 @@ import { FileButton } from "@/components/shared/file-button";
 import { SceneBackdrop } from "@/components/shell/background-layer";
 import { SongStage } from "@/components/play/song-stage";
 import { activeLineIndex, parseLrc, readEmbeddedLyrics } from "@/lib/lyrics";
+import { isSolid } from "@/lib/material";
 import { embedHeight, kindLabel } from "@/lib/music-embed";
 import { usePlayer } from "@/lib/player";
 import { useApp } from "@/lib/store";
@@ -215,12 +216,13 @@ export function PlayerView() {
 
   const pct = duration > 0 ? (time / duration) * 100 : 0;
   const hasLocal = Boolean(current);
+  const backdrop = isSolid(settings) ? undefined : settings.musicImage || settings.background.image;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 这一页自己的背景；没设就跟着主页那张走 —— 和下面装饰块的配图用**同一个来源**，
           否则会出现「换了背景只有小组件变、页面不变」的错位。 */}
-      <SceneBackdrop image={settings.musicImage || settings.background.image} />
+      <SceneBackdrop image={backdrop} />
       <header className="flex items-center gap-1 px-2 inset-top-60 pb-1">
         <Link
           to="/play/listen"
@@ -250,9 +252,9 @@ export function PlayerView() {
             <div className="aster-card relative overflow-hidden rounded-[2rem] border border-line">
               {/* 配图：和这一页的背景**同一个来源**（音乐页背景优先，否则主页背景）。
                   以前这里只读主页背景，于是「换了音乐页背景」只有小组件变、页面不变。 */}
-              {settings.musicImage || settings.background.image ? (
+              {backdrop ? (
                 <img
-                  src={settings.musicImage || settings.background.image}
+                  src={backdrop}
                   alt=""
                   className="absolute inset-0 size-full object-cover"
                   style={{ filter: "saturate(0.85)" }}
