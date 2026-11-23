@@ -793,6 +793,7 @@ export type Settings = {
   defaultModel: ModelId;
   chatGptPlanEnabled?: boolean;
   chatGptPlanModel?: string;
+  chatGptPlanModels?: { id: string; label: string }[];
   customBaseUrl: string;
   savedUpstreamAddresses?: string[];
   customApiKey: string;

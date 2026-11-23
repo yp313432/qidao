@@ -1,7 +1,7 @@
 import { ChatDeliverySettings, ChatStickerSettings } from "./chat-delivery-settings";
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { ChatGptPlanSettings } from "./chatgpt-plan-settings";
-import { chatGptPlanAvailable } from "@/lib/chatgpt-plan";
+import { chatModelSelection } from "@/lib/chatgpt-plan";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
@@ -415,7 +415,8 @@ export function MeSections({ tab }: { tab: MeTab }) {
    * 这条通道配没配齐（三样都有才算）。
    * 现在一次只用一条通道 —— 用户原话："在设置里配了就哪个，聊天页就显示当前那个"。
    */
-  const chatGptActive = settings.chatGptPlanEnabled === true && chatGptPlanAvailable();
+  const chatSelection = chatModelSelection(settings);
+  const chatGptActive = chatSelection.plan;
   const chanCustom = Boolean(
     (settings.customBaseUrl ?? "").trim() &&
     (settings.customApiKey ?? "").trim() &&
@@ -804,7 +805,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">ChatGPT 计划</span>
                   <span className="mt-0.5 block text-[11px] text-subtle">
-                    {chatGptActive ? settings.chatGptPlanModel : "使用自己的 ChatGPT 订阅额度"}
+                    {chatGptActive ? `当前使用 · ${chatSelection.label || "未选模型"}` : "使用自己的 ChatGPT 订阅额度"}
                   </span>
                 </span>
                 <ChevronRight

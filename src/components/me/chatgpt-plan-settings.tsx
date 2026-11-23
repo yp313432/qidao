@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getChatGptPlan, chatGptPlanAvailable, readChatGptPlanStatus } from "@/lib/chatgpt-plan";
+import { getChatGptPlan, chatGptPlanAvailable, chatGptPlanCatalogPatch, readChatGptPlanStatus } from "@/lib/chatgpt-plan";
+import { pushToast } from "@/lib/toast";
 import { useApp } from "@/lib/store";
 
 export function ChatGptPlanSettings() {
@@ -7,7 +8,8 @@ export function ChatGptPlanSettings() {
   const selected = useApp((s) => s.settings.chatGptPlanModel ?? "");
   const patch = useApp((s) => s.patchSettings);
   const [status, setStatus] = useState({ connected: false, allowed: false, email: "", hasRegistration: false });
-  const [models, setModels] = useState<{ id: string; label: string }[]>([]);
+  const models = useApp((s) => s.settings.chatGptPlanModels);
+  const catalog = models ?? [];
   const [step, setStep] = useState<"local" | "browser" | "models" | "disconnect" | "idle">("local");
   const busy = step !== "idle";
   const [error, setError] = useState("");
@@ -23,7 +25,7 @@ export function ChatGptPlanSettings() {
         if (result.allowed && live) {
           setStep("models");
           const catalog = await getChatGptPlan().models();
-          if (live) setModels(catalog.models);
+          if (live) patch(chatGptPlanCatalogPatch(catalog.models, useApp.getState().settings.chatGptPlanModel ?? ""));
         }
       } catch (e) {
         if (live) setError(e instanceof Error ? e.message : "无法读取 ChatGPT 连接");
@@ -33,7 +35,7 @@ export function ChatGptPlanSettings() {
     }
     void load();
     return () => { live = false; };
-  }, [available]);
+  }, [available, patch]);
 
   async function connect(replaceAccount = false) {
     setStep("browser");
@@ -48,10 +50,7 @@ export function ChatGptPlanSettings() {
       }
       setStep("models");
       const catalog = await chatGptPlan.models();
-      setModels(catalog.models);
-      if (!catalog.models.some((model) => model.id === selected)) {
-        patch({ chatGptPlanModel: catalog.models[0]?.id ?? "" });
-      }
+      patch(chatGptPlanCatalogPatch(catalog.models, useApp.getState().settings.chatGptPlanModel ?? ""));
     } catch (e) {
       setError(e instanceof Error ? e.message : "ChatGPT 授权失败");
     } finally {
@@ -65,9 +64,8 @@ export function ChatGptPlanSettings() {
     try {
       const chatGptPlan = getChatGptPlan();
       const result = await chatGptPlan.disconnect();
-      patch({ chatGptPlanEnabled: false, chatGptPlanModel: "" });
+      patch({ chatGptPlanEnabled: false, chatGptPlanModel: "", chatGptPlanModels: [] });
       setStatus((old) => ({ ...old, connected: false, allowed: false, email: "" }));
-      setModels([]);
       if (!result.revoked) setError("已断开本机连接。可在 ChatGPT 的登录连接中撤销远程授权。");
     } catch (e) {
       setError(e instanceof Error ? e.message : "断开 ChatGPT 失败");
@@ -105,14 +103,18 @@ export function ChatGptPlanSettings() {
               onChange={(e) => patch({ chatGptPlanModel: e.target.value })}
             >
               <option value="">选择模型</option>
-              {models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              {catalog.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </label>
           <button
             type="button"
             className="k-btn k-btn--block"
-            disabled={busy || (!active && !models.some((m) => m.id === selected))}
-            onClick={() => patch({ chatGptPlanEnabled: !active })}
+            aria-pressed={active}
+            disabled={busy || (!active && !catalog.some((m) => m.id === selected))}
+            onClick={() => {
+              patch({ chatGptPlanEnabled: !active });
+              pushToast(active ? "聊天已切回自定义上游" : "聊天已切换到 ChatGPT 计划");
+            }}
           >
             {active ? "切回自定义上游" : "聊天使用 ChatGPT 计划"}
           </button>

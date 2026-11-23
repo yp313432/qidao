@@ -1,4 +1,4 @@
-import { chatGptPlanAvailable } from "./chatgpt-plan.ts";
+import { usesChatGptPlan } from "./chatgpt-plan.ts";
 import { chatError, formatChatError } from "@/lib/chat-errors";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
@@ -613,7 +613,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 这一轮走哪条通道（见 `shouldUseNativeTools` 的说明）。
        * 只有**原生**那条路才把动作的定义当 `tools` 发出去。
        */
-      const chatGptPlan = settings.chatGptPlanEnabled === true && chatGptPlanAvailable();
+      const chatGptPlan = usesChatGptPlan(settings);
       const native = !chatGptPlan && (forceProtocolRef.current
         ? forceProtocolRef.current === "native"
         : shouldUseNativeTools(settings));
@@ -1393,7 +1393,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
 
       // 「本机计数快满了」只在**走服务端**时提醒（那时花的才是服务端那把 key）；
       // 自己带 key 的用户不该被打扰 —— 他花自己的钱，本机不限制。
-      if (!isOwnApi(settings) && settings.notifications && settings.quotaAlerts) {
+      if (!chatGptPlan && !isOwnApi(settings) && settings.notifications && settings.quotaAlerts) {
         const q = useApp.getState().quota;
         if (q.used / QUOTA_LIMIT >= 0.9) notifyQuota(aiName);
       }
@@ -1420,7 +1420,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
         ? 0 : Math.max(0, Math.min(5000, current.mergeSendDelayMs ?? 1200));
       await sendQueue.enqueue(conversationId, delay, async () => {
         if (!useApp.getState().conversations.some((c) => c.id === conversationId)) return;
-        if (!useApp.getState().bumpQuota()) { pushToast("本窗口额度用尽了，请检查模型与用量设置。"); return; }
+        const app = useApp.getState();
+        if (!usesChatGptPlan(app.settings) && !app.bumpQuota()) { pushToast("本窗口额度用尽了，请检查模型与用量设置。"); return; }
         const assistant = useApp.getState().beginAssistantReply(conversationId);
         if (!assistant) return;
         try {

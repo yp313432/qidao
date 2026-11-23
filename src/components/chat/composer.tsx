@@ -19,6 +19,7 @@ import { FileButton } from "@/components/shared/file-button";
 import { filesToAttachments, prettySize, stickerFromFile } from "@/lib/attachments";
 import { stripWhiteBackground } from "@/lib/white-removal";
 import { getModel, isOwnApi, MODELS, QUOTA_LIMIT } from "@/lib/models";
+import { chatGptPlanCatalogPatch, chatModelSelection, getChatGptPlan } from "@/lib/chatgpt-plan";
 import { DEFAULT_STICKER_GROUP, guessGroupFromName, stickerGroupList } from "@/lib/stickers";
 import { recordSupported, startRecording, type Recorder } from "@/lib/record";
 import { transcribe } from "@/lib/voice-service";
@@ -144,6 +145,8 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
   const navigate = useNavigate();
   const model = useApp((s) => s.model);
   const settings = useApp((s) => s.settings);
+  const selection = chatModelSelection(settings);
+  const hasPlanCatalog = Boolean(settings.chatGptPlanModels?.length);
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = isSolid(settings);
   /** 液态弹层（模型选择）：白膜 + 磨砂，见 glass.css 第 12 条 */
@@ -184,7 +187,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
     所以这里不再订阅 requestLog —— 完整用量在「我的 → 模型与用量」。
   */
   /** 自己带 key = 花自己的钱 → 只统计；走服务端 → 才有窗口额度 */
-  const ownApi = isOwnApi(settings);
+  const ownApi = selection.plan || isOwnApi(settings);
   const quota = useApp((s) => s.quota);
   const resetAt = useApp((s) => s.quotaResetAt());
   const usedPct = Math.min(100, Math.round((quota.used / QUOTA_LIMIT) * 100));
@@ -489,12 +492,26 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
     return () => window.removeEventListener("keydown", onKey);
   }, [modelPickOpen]);
 
-  /** 弹层里实际列出来的模型（按搜索词过滤，大小写不敏感） */
-  const modelPickShown = (() => {
-    const q = modelPickQuery.trim().toLowerCase();
-    if (!q) return settings.upstreamModels;
-    return settings.upstreamModels.filter((m) => m.toLowerCase().includes(q));
-  })();
+  useEffect(() => {
+    if (!selection.plan || !modelPickOpen || hasPlanCatalog) return;
+    let mounted = true;
+    void (async () => {
+      try {
+        const { models } = await getChatGptPlan().models();
+        if (mounted && models.length) {
+          patch(chatGptPlanCatalogPatch(models, useApp.getState().settings.chatGptPlanModel ?? ""));
+        }
+      } catch {
+        // A saved model stays usable when a fresh catalog can't be fetched.
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selection.plan, modelPickOpen, hasPlanCatalog, patch]);
+
+  const q = modelPickQuery.trim().toLowerCase();
+  const modelPickShown = q
+    ? selection.models.filter(({ id, label }) => id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
+    : selection.models;
 
   return (
     <div className="px-1 pb-composer">
@@ -1178,7 +1195,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                 setPlusOpen(false);
                 setStickerOpen(false);
               }}
-              aria-label="模型与推理等级"
+              aria-label={selection.plan ? "ChatGPT 计划模型" : "模型与推理等级"}
               className={cn(
                 "flex w-full flex-col items-start justify-center gap-px rounded-2xl bg-chip text-left",
                 // 液态：高度跟旁边圆钮一起收到 32，左右内边距收窄，把宽度留给模型名
@@ -1191,12 +1208,12 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
             >
               <span className="flex w-full items-center gap-1">
                 <span className="truncate font-mono text-[10.5px] leading-none text-fg">
-                  {settings.upstreamModel || "未选模型"}
+                  {selection.label || "未选模型"}
                 </span>
                 <ChevronDown className="ml-auto size-3 shrink-0 text-muted" />
               </span>
               <span className="truncate text-[9px] leading-none text-muted">
-                推理 · {getModel(model).label}
+                {selection.plan ? "ChatGPT 计划" : `推理 · ${getModel(model).label}`}
               </span>
             </button>
 
@@ -1223,11 +1240,11 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                 >
                   <span className="w-14 shrink-0 text-[12px] text-muted">模型</span>
                   <span className="min-w-0 flex-1 truncate font-mono text-[12.5px]">
-                    {settings.upstreamModel || "未选模型"}
+                    {selection.label || "未选模型"}
                   </span>
                   <ChevronRight className="size-3.5 shrink-0 text-muted" />
                 </button>
-                <button
+                {!selection.plan && <button
                   type="button"
                   onClick={() => {
                     setModelOpen(false);
@@ -1240,7 +1257,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                     {getModel(model).label}
                   </span>
                   <ChevronRight className="size-3.5 shrink-0 text-muted" />
-                </button>
+                </button>}
               </div>
             )}
 
@@ -1282,7 +1299,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-fg">用哪个模型</p>
                         <p className="mt-0.5 text-[11px] text-muted">
-                          {settings.upstreamModels.length} 个可选 · 点一行就用它
+                          {selection.plan ? "ChatGPT 计划 · " : ""}{selection.models.length} 个可选
                         </p>
                       </div>
                       <button
@@ -1323,7 +1340,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
 
                     {/* min-h-0 + flex-1 + overflow-y-auto：搜索框和底部说明固定，只有列表滚 */}
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-1">
-                      {settings.upstreamModels.length === 0 ? (
+                      {selection.models.length === 0 ? (
                         <div className="px-2 py-2.5">
                           <p className="text-[12px] leading-5 text-muted">
                             还没配模型 —— 要先告诉 Yisle 用哪家、用哪个模型。
@@ -1336,7 +1353,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                             }}
                             className="mt-2 rounded-full bg-chip px-3 py-1.5 text-[12px] font-medium"
                           >
-                            去「我的 → 自定义上游」配
+                            {selection.plan ? "去「我的 → ChatGPT 计划」设置" : "去「我的 → 自定义上游」配"}
                           </button>
                         </div>
                       ) : modelPickShown.length === 0 ? (
@@ -1344,14 +1361,14 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                           没有匹配「{modelPickQuery.trim()}」的模型
                         </p>
                       ) : (
-                        modelPickShown.map((m) => {
-                          const active = m === settings.upstreamModel;
+                        modelPickShown.map(({ id, label }) => {
+                          const active = id === selection.model;
                           return (
                             <button
-                              key={m}
+                              key={id}
                               type="button"
                               onClick={() => {
-                                patch({ upstreamModel: m });
+                                patch(selection.plan ? { chatGptPlanModel: id } : { upstreamModel: id });
                                 setModelPickOpen(false);
                                 setModelPickQuery("");
                               }}
@@ -1360,7 +1377,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                                 active ? "data-pill" : "text-fg active:bg-chip",
                               )}
                             >
-                              <span className="truncate font-mono text-[12.5px]">{m}</span>
+                              <span className="truncate font-mono text-[12.5px]">{label}</span>
                               {active && <Check className="size-3.5 shrink-0" />}
                             </button>
                           );
@@ -1369,7 +1386,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
                     </div>
 
                     <p className="border-t border-line px-4 py-2 text-[10.5px] leading-4 text-muted">
-                      这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。
+                      {selection.plan ? "来自你已连接的 ChatGPT 账号。" : "这里列的是你上游真实可用的模型名（在「我的 → 自定义上游」里拉取或手填）。"}
                     </p>
                   </div>
                 </div>,
@@ -1377,7 +1394,7 @@ export function Composer({ onSend, disabled, streaming, queuedCount = 0, onStop,
               )}
 
             {/* 第二层：推理等级 */}
-            {reasonOpen && (
+            {reasonOpen && !selection.plan && (
               <div
                 className={cn(
                   "glass-menu absolute bottom-13 left-0 z-20 w-full overflow-hidden rounded-2xl border border-line py-1",

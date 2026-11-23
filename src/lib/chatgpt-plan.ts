@@ -1,5 +1,6 @@
 import type { CapacitorGlobal, PluginListenerHandle } from "@capacitor/core";
 import type { ApiMessage, ChatDelta } from "./chat-client";
+import type { Settings } from "./types";
 import { normalizeUsage } from "./request-accounting.ts";
 
 type PlanStatus = { connected: boolean; allowed: boolean; email: string; hasRegistration: boolean };
@@ -53,6 +54,31 @@ export async function readChatGptPlanStatus(timeoutMs = 5000): Promise<PlanStatu
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function usesChatGptPlan(settings: Pick<Settings, "chatGptPlanEnabled">): boolean {
+  return settings.chatGptPlanEnabled === true && chatGptPlanAvailable();
+}
+
+type ModelSelectionSettings = Pick<Settings,
+  "chatGptPlanEnabled" | "chatGptPlanModel" | "chatGptPlanModels" | "upstreamModel" | "upstreamModels">;
+
+export function chatModelSelection(settings: ModelSelectionSettings) {
+  const plan = usesChatGptPlan(settings);
+  const model = plan ? settings.chatGptPlanModel ?? "" : settings.upstreamModel;
+  const catalog = plan
+    ? settings.chatGptPlanModels ?? []
+    : settings.upstreamModels.map((id) => ({ id, label: id }));
+  const models = plan && catalog.length === 0 && model ? [{ id: model, label: model }] : catalog;
+  return { plan, model, label: models.find((item) => item.id === model)?.label ?? model, models };
+}
+
+export function chatGptPlanCatalogPatch(models: PlanModel[], selected: string): Pick<Settings,
+  "chatGptPlanModel" | "chatGptPlanModels"> {
+  return {
+    chatGptPlanModels: models,
+    chatGptPlanModel: models.some((item) => item.id === selected) ? selected : models[0]?.id ?? "",
+  };
 }
 
 function responseInput(messages: readonly ApiMessage[]): ResponseMessage[] {
