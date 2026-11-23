@@ -1,4 +1,4 @@
-import { chatGptPlanAvailable } from "./chatgpt-plan";
+import { chatGptPlanAvailable } from "./chatgpt-plan.ts";
 import { chatError, formatChatError } from "@/lib/chat-errors";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";

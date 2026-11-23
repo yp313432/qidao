@@ -14,7 +14,7 @@ import { isNativeApp } from "./platform";
 import { looksLikeNetworkBlock, nativeHttp } from "./native-http";
 import type { ToolRoundResult, ToolRoundSend } from "./tool-loop";
 import { estimateTokens } from "./tokens";
-import { streamChatGptPlan } from "./chatgpt-plan";
+import { streamChatGptPlan } from "./chatgpt-plan.ts";
 
 export type ChatDelta = {
   thinking?: string;

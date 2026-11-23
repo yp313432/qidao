@@ -1,6 +1,6 @@
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import type { ApiMessage, ChatDelta } from "./chat-client";
-import { normalizeUsage } from "./request-accounting";
+import { normalizeUsage } from "./request-accounting.ts";
 
 type PlanStatus = { connected: boolean; allowed: boolean; email: string; hasRegistration: boolean };
 type PlanModel = { id: string; label: string };
