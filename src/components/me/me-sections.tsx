@@ -2,6 +2,7 @@ import { ChatDeliverySettings, ChatStickerSettings } from "./chat-delivery-setti
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
 import { ChatGptPlanSettings } from "./chatgpt-plan-settings";
 import { chatModelSelection } from "@/lib/chatgpt-plan";
+import { summarizeUsage } from "@/lib/request-accounting";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
@@ -96,6 +97,8 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const [designMsg, setDesignMsg] = useState("");
   const [designUrl, setDesignUrl] = useState("");
   const settings = useApp((s) => s.settings);
+  const chatSelection = chatModelSelection(settings);
+  const chatGptActive = chatSelection.plan;
   /* 纸世界 Step3 补：纯色材质下弹层全面纸化（用户 m00405），液态走自己的分支 */
   const solidPaper = isSolid(settings);
   /** 语音服务商（按地址认，和 voice-service 里同一套规则） */
@@ -108,16 +111,10 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const usageToday = (() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    const today = requestLog.filter((r) => r.at >= start.getTime());
-    if (today.length === 0) return null;
-    const sum = (k: "prompt" | "completion" | "cached") =>
-      today.reduce((n, r) => n + (r[k] ?? 0), 0);
-    return {
-      calls: today.length,
-      prompt: sum("prompt"),
-      completion: sum("completion"),
-      cached: sum("cached"),
-    };
+    const today = requestLog.filter((r) =>
+      r.at >= start.getTime() && (!chatGptActive || r.upstream === "ChatGPT 计划"),
+    );
+    return today.length ? summarizeUsage(today) : null;
   })();
   const hydrationDone = useApp((s) => s.hydrated);
   // 配额重置时间是按「现在」算的 —— 服务端和客户端算出来必然不同，
@@ -415,8 +412,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
    * 这条通道配没配齐（三样都有才算）。
    * 现在一次只用一条通道 —— 用户原话："在设置里配了就哪个，聊天页就显示当前那个"。
    */
-  const chatSelection = chatModelSelection(settings);
-  const chatGptActive = chatSelection.plan;
   const chanCustom = Boolean(
     (settings.customBaseUrl ?? "").trim() &&
     (settings.customApiKey ?? "").trim() &&
@@ -427,12 +422,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
     modelNow ?? "sonnet",
   ); /** 三档是不是"测过且真能调" —— 决定下面那句提示是"已确认"还是"还没测" */
   const effortOk = settings.effortProbeOk === true;
-  /** 缓存命中率：命中数 / 输入总数（DeepSeek 的 prompt_tokens 已包含命中的部分） */
-  const cacheHitRate =
-    usageToday && usageToday.prompt > 0
-      ? Math.round((usageToday.cached / usageToday.prompt) * 100)
-      : 0;
-
   const usageSections = (
     <>
       <Section title="用哪个">
@@ -825,23 +814,24 @@ export function MeSections({ tab }: { tab: MeTab }) {
         </div>
       </Section>
 
-      <Section title="今天用掉的">
+      <Section title={chatGptActive ? "今天的 ChatGPT 用量" : "今天用掉的"}>
         <div className="flex flex-col gap-1 py-1">
           {usageToday ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-[15px] font-medium">今天 {usageToday.calls} 次请求</p>
+                <p className="text-[15px] font-medium">今天 {usageToday.count} 次请求</p>
                 <p className="shrink-0 text-[12px] text-muted">
-                  输入 {usageToday.prompt.toLocaleString()} · 输出{" "}
-                  {usageToday.completion.toLocaleString()}
+                  输入 {usageToday.known ? usageToday.prompt.toLocaleString() : "未返回"} · 输出{" "}
+                  {usageToday.outputKnown ? usageToday.completion.toLocaleString() : "未返回"}
                 </p>
               </div>
               <p className="mt-1.5 text-[12px] text-muted">
-                缓存命中 {usageToday.cached.toLocaleString()}（{cacheHitRate}%）
+                {usageToday.hitRate === undefined ? "缓存命中率未返回" :
+                  `缓存命中 ${usageToday.cached.toLocaleString()}（${Math.round(usageToday.hitRate)}%）`}
               </p>
             </>
           ) : (
-            <p className="text-[13px] text-subtle">今天还没发过消息。</p>
+            <p className="text-[13px] text-subtle">{chatGptActive ? "今天还没有 ChatGPT 请求。" : "今天还没发过消息。"}</p>
           )}
           <p className="mt-2 text-[12px] leading-5 text-muted">
             这里记录上游返回的用量。ChatGPT 计划剩余额度请在 ChatGPT 的「设置 → 用量」查看。
