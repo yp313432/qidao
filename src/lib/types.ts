@@ -791,6 +791,8 @@ export type Settings = {
    */
   stickerRemoveWhite?: boolean;
   defaultModel: ModelId;
+  chatGptPlanEnabled?: boolean;
+  chatGptPlanModel?: string;
   customBaseUrl: string;
   savedUpstreamAddresses?: string[];
   customApiKey: string;

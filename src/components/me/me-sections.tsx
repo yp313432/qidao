@@ -1,5 +1,7 @@
 import { ChatDeliverySettings, ChatStickerSettings } from "./chat-delivery-settings";
 import { SavedUpstreamAddresses } from "./saved-upstream-addresses";
+import { ChatGptPlanSettings } from "./chatgpt-plan-settings";
+import { chatGptPlanAvailable } from "@/lib/chatgpt-plan";
 import { listVoiceModels, voiceConfig, voiceProviderOf } from "@/lib/voice-service";
 import { dsVoiceStatusHint, DS_SYSTEM_VOICES, DS_TTS_MODELS, designVoice } from "@/lib/dashscope";
 import { createPortal } from "react-dom";
@@ -176,7 +178,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
   /**
    * 「用哪个上游」是**单选 + 点击展开**（用户要的两个交互）：
    * 一次只有一条通道在用，点哪条就展开哪条的参数，另一条收起。
-   * 现在只有「自定义上游」是能用的；「ChatGPT 计划」占位（等 SIWC 接入）。
    */
   const [openChan, setOpenChan] = useState<"custom" | "gpt" | "">("custom");
   /**
@@ -414,6 +415,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
    * 这条通道配没配齐（三样都有才算）。
    * 现在一次只用一条通道 —— 用户原话："在设置里配了就哪个，聊天页就显示当前那个"。
    */
+  const chatGptActive = settings.chatGptPlanEnabled === true && chatGptPlanAvailable();
   const chanCustom = Boolean(
     (settings.customBaseUrl ?? "").trim() &&
     (settings.customApiKey ?? "").trim() &&
@@ -439,7 +441,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
         */}
         <div className="overflow-hidden">
           <div>
-            {/* ① 自定义上游 —— 现在唯一能真用的通道 */}
+            {/* 自定义上游 */}
             <div className="border-b border-line/60">
               <button
                 type="button"
@@ -453,10 +455,10 @@ export function MeSections({ tab }: { tab: MeTab }) {
                 <span
                   className={cn(
                     "mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border",
-                    chanCustom ? "border-fg" : "border-line",
+                    chanCustom && !chatGptActive ? "border-fg" : "border-line",
                   )}
                 >
-                  {chanCustom && <span className="size-[7px] rounded-full bg-fg" />}
+                  {chanCustom && !chatGptActive && <span className="size-[7px] rounded-full bg-fg" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">自定义上游</span>
@@ -794,17 +796,22 @@ export function MeSections({ tab }: { tab: MeTab }) {
               )}
             </div>
 
-            {/* ② ChatGPT 计划 —— 占位（SIWC 还没接），先把位置留出来 */}
+            {/* ChatGPT 计划 */}
             <div>
               <button
                 type="button"
                 onClick={() => toggleChan("gpt")}
                 className="flex w-full items-start gap-3 px-4 py-3.5 text-left"
               >
-                <span className="mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border border-line" />
+                <span className={cn("mt-[3px] grid size-4 shrink-0 place-items-center rounded-full border",
+                  chatGptActive ? "border-fg" : "border-line")}>
+                  {chatGptActive && <span className="size-[7px] rounded-full bg-fg" />}
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-muted">ChatGPT 计划</span>
-                  <span className="mt-0.5 block text-[11px] text-subtle">未开通</span>
+                  <span className="block text-[13px] font-medium">ChatGPT 计划</span>
+                  <span className="mt-0.5 block text-[11px] text-subtle">
+                    {chatGptActive ? settings.chatGptPlanModel : "使用自己的 ChatGPT 订阅额度"}
+                  </span>
                 </span>
                 <ChevronRight
                   className={cn(
@@ -815,9 +822,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
               </button>
               {openChan === "gpt" && (
                 <div className="bubble-in px-4 pb-4">
-                  <button type="button" disabled className="k-btn k-btn--block mt-2.5 text-subtle">
-                    登录 ChatGPT（还没接）
-                  </button>
+                  <ChatGptPlanSettings />
                 </div>
               )}
             </div>
@@ -844,7 +849,7 @@ export function MeSections({ tab }: { tab: MeTab }) {
             <p className="text-[13px] text-subtle">今天还没发过消息。</p>
           )}
           <p className="mt-2 text-[12px] leading-5 text-muted">
-            花的是你自己的 key，本机不做任何限制，只如实记录上游返回的用量。
+            这里记录上游返回的用量。ChatGPT 计划剩余额度请在 ChatGPT 的「设置 → 用量」查看。
           </p>
         </div>
       </Section>

@@ -14,6 +14,7 @@ import { isNativeApp } from "./platform";
 import { looksLikeNetworkBlock, nativeHttp } from "./native-http";
 import type { ToolRoundResult, ToolRoundSend } from "./tool-loop";
 import { estimateTokens } from "./tokens";
+import { streamChatGptPlan } from "./chatgpt-plan";
 
 export type ChatDelta = {
   thinking?: string;
@@ -145,6 +146,7 @@ export type ChatRequest = {
    */
   assembledMessages?: ApiMessage[];
 
+  chatGptPlanModel?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   /** 自定义上游的真实模型名（留空则用服务端配的） */
@@ -244,6 +246,11 @@ async function streamDirect(
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
 ): Promise<StreamOutcome> {
+  if (req.chatGptPlanModel !== undefined) {
+    const messages = req.assembled ?? assembleMessages(req, req.messages) as ApiMessage[];
+    await streamChatGptPlan(req.chatGptPlanModel, messages, onDelta, signal);
+    return { stalled: false, toolsRejected: false };
+  }
   const rawBase = (req.customBaseUrl ?? "").trim().replace(/\/+$/, "");
   /**
    * 用户填自定义上游有两种习惯：填到根（`https://api.lmuai.ai`）或填到 `/v1`。
@@ -688,7 +695,7 @@ async function streamChatUnwatched(
   onDelta: (d: ChatDelta) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  if (DIRECT_BUILD) {
+  if (DIRECT_BUILD || req.chatGptPlanModel !== undefined) {
     await streamDirect(req, onDelta, signal);
     return;
   }

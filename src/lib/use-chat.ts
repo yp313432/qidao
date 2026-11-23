@@ -1,3 +1,4 @@
+import { chatGptPlanAvailable } from "./chatgpt-plan";
 import { chatError, formatChatError } from "@/lib/chat-errors";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSendQueue, mergeUserMessages } from "@/lib/chat-send-queue";
@@ -612,9 +613,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
        * 这一轮走哪条通道（见 `shouldUseNativeTools` 的说明）。
        * 只有**原生**那条路才把动作的定义当 `tools` 发出去。
        */
-      const native = forceProtocolRef.current
+      const chatGptPlan = settings.chatGptPlanEnabled === true && chatGptPlanAvailable();
+      const native = !chatGptPlan && (forceProtocolRef.current
         ? forceProtocolRef.current === "native"
-        : shouldUseNativeTools(settings);
+        : shouldUseNativeTools(settings));
 
       /**
        * ⭐ **P3 按需注册**：这一轮到底发哪些动作。
@@ -694,9 +696,10 @@ export function useChatStream(opts: UseChatOpts = {}) {
           quoteEnabled: settings.quoteEnabled !== false,
           emotionReporting: settings.emotionReporting,
           tools,
-          customBaseUrl: settings.customBaseUrl || undefined,
-          customApiKey: settings.customApiKey || undefined,
-          upstreamModel: settings.upstreamModel || undefined,
+          chatGptPlanModel: chatGptPlan ? settings.chatGptPlanModel ?? "" : undefined,
+          customBaseUrl: chatGptPlan ? undefined : settings.customBaseUrl || undefined,
+          customApiKey: chatGptPlan ? undefined : settings.customApiKey || undefined,
+          upstreamModel: chatGptPlan ? settings.chatGptPlanModel : settings.upstreamModel || undefined,
           maxTokens: settings.maxTokens,
           /**
            * 三档强度要不要真发出去 —— **只认测出来的结论**。
@@ -802,7 +805,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
           perception: perceptionBlock(req), sections: systemPromptSections(req),
         });
         const id = ++requestNumber;
-        let upstream = "内置上游";
+        let upstream = chatGptPlan ? "ChatGPT 计划" : "内置上游";
         try { if (req.customBaseUrl) upstream = new URL(req.customBaseUrl).host; } catch { upstream = "自定义上游"; }
         const entry = {
           at: Date.now(), requestId: uid("request"), replyId: requestGroupId, conversationId, requestIndex: id, purpose,
@@ -1251,7 +1254,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           messages: recoveryMessages,
         };
         const report = recordInput(req, recoveryMessages, null, "recovery");
-        const send = (settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim() ? makeDirectRound(req) : makeServerRound(req);
+        const send = chatGptPlan || ((settings.customBaseUrl ?? "").trim() && (settings.customApiKey ?? "").trim())
+          ? makeDirectRound(req) : makeServerRound(req);
         setPhase("正在补上回答");
         try {
           const result = await send({ messages: recoveryMessages, tools: null, signal: ac.signal, onDelta: (delta) => {

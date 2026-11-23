@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(QidaoMcpNetworkPlugin.class);
+    registerPlugin(ChatGptPlanPlugin.class);
     // 注册自定义插件：把闹钟交给系统时钟（见 SystemAlarmPlugin）
     registerPlugin(SystemAlarmPlugin.class);
     // 注册自定义插件：「他主动找你」的配置抽屉（见 WakeBridgePlugin）
