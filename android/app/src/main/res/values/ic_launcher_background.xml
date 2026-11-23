@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 2026-11 换新图标（猫）：背景色从新图标左上角取样（奶油色），
-         自适应图标的圆形/方形遮罩外面就是这一层，露不出白边。 -->
-    <color name="ic_launcher_background">#FDF9EE</color>
+    <color name="ic_launcher_background">#FFFEFC</color>
 </resources>

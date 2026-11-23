@@ -20,16 +20,39 @@ type ChatGptPlanBridge = {
     Promise<PluginListenerHandle>;
 };
 
-let bridge: Promise<ChatGptPlanBridge> | undefined;
+let bridge: ChatGptPlanBridge | undefined;
 
-export function getChatGptPlan(): Promise<ChatGptPlanBridge> {
-  return bridge ??= import("@capacitor/core").then(({ registerPlugin }) =>
-    registerPlugin<ChatGptPlanBridge>("ChatGptPlan"));
+function nativeCapacitor(): CapacitorGlobal | undefined {
+  return (globalThis as typeof globalThis & { Capacitor?: CapacitorGlobal }).Capacitor;
+}
+
+// Capacitor proxies expose method wrappers for arbitrary names, including "then".
+// Returning the proxy from a Promise makes Promise resolution try to call a native "then" method.
+export function getChatGptPlan(): ChatGptPlanBridge {
+  const capacitor = nativeCapacitor();
+  if (capacitor?.getPlatform?.() !== "android" || !capacitor.isPluginAvailable?.("ChatGptPlan")) {
+    throw new Error("当前版本没有安卓 ChatGPT 计划组件");
+  }
+  return bridge ??= capacitor.registerPlugin<ChatGptPlanBridge>("ChatGptPlan");
 }
 
 export function chatGptPlanAvailable(): boolean {
-  const { Capacitor } = globalThis as typeof globalThis & { Capacitor?: CapacitorGlobal };
-  return Capacitor?.getPlatform?.() === "android" && Capacitor.isPluginAvailable?.("ChatGptPlan") === true;
+  const capacitor = nativeCapacitor();
+  return capacitor?.getPlatform?.() === "android" && capacitor.isPluginAvailable?.("ChatGptPlan") === true;
+}
+
+export async function readChatGptPlanStatus(timeoutMs = 5000): Promise<PlanStatus> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getChatGptPlan().status(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("读取本机 ChatGPT 授权超时，可以重新登录。")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function responseInput(messages: readonly ApiMessage[]): ResponseMessage[] {
@@ -65,10 +88,11 @@ export async function streamChatGptPlan(
     return;
   }
   const id = crypto.randomUUID();
-  const chatGptPlan = await getChatGptPlan();
-  const cancel = () => { void chatGptPlan.cancel({ id }).catch(() => {}); };
+  let chatGptPlan: ChatGptPlanBridge | undefined;
+  const cancel = () => { void chatGptPlan?.cancel({ id }).catch(() => {}); };
   let listener: PluginListenerHandle | undefined;
   try {
+    chatGptPlan = getChatGptPlan();
     listener = await chatGptPlan.addListener("response", (event) => {
       if (event.id !== id || signal?.aborted) return;
       if (event.text) onDelta({ content: event.text });
