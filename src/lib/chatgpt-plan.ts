@@ -1,4 +1,4 @@
-import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import type { CapacitorGlobal, PluginListenerHandle } from "@capacitor/core";
 import type { ApiMessage, ChatDelta } from "./chat-client";
 import { normalizeUsage } from "./request-accounting.ts";
 
@@ -28,7 +28,8 @@ export function getChatGptPlan(): Promise<ChatGptPlanBridge> {
 }
 
 export function chatGptPlanAvailable(): boolean {
-  return Capacitor.getPlatform?.() === "android" && Capacitor.isPluginAvailable?.("ChatGptPlan") === true;
+  const { Capacitor } = globalThis as typeof globalThis & { Capacitor?: CapacitorGlobal };
+  return Capacitor?.getPlatform?.() === "android" && Capacitor.isPluginAvailable?.("ChatGptPlan") === true;
 }
 
 function responseInput(messages: readonly ApiMessage[]): ResponseMessage[] {
