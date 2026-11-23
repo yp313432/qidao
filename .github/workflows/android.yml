@@ -8,7 +8,7 @@ name: 构建安卓 App（栖岛）
 
 on:
   push:
-    branches: [main]
+    branches: [codex/apk-chatgpt-plan-f266c4c]
     paths:
       - "src/**"
       - "public/**"
@@ -174,7 +174,7 @@ jobs:
         # 解法：把 apk 拷成固定名字，作为 **Release 资产**发出去。
         # Release 资产是不打包的原始文件，点一下就是 .apk，可直接传手机安装；
         # 而且每次覆盖同一个名字 → 下载链接永久固定、不会越堆越多：
-        #   https://github.com/<owner>/<repo>/releases/download/apk-latest/qidao-latest.apk
+        #   https://github.com/<owner>/<repo>/releases/download/apk-chatgpt-plan-f266c4c/Yisle-ChatGPT-Plan-f266c4c.apk
         #
         # 顺带把 SHA-256 打进当页摘要：杀毒软件对新 APK 报「检测到病毒」是
         # 名声问题（自签名、无历史），有校验值至少能自己核对文件没被改。
@@ -182,18 +182,18 @@ jobs:
           set -euo pipefail
           src=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
           mkdir -p out
-          cp "$src" out/qidao-latest.apk
-          ( cd out && sha256sum qidao-latest.apk > SHA256SUMS.txt )
+          cp "$src" out/Yisle-ChatGPT-Plan-f266c4c.apk
+          ( cd out && sha256sum Yisle-ChatGPT-Plan-f266c4c.apk > SHA256SUMS.txt )
           sha=$(awk '{print $1}' out/SHA256SUMS.txt)
-          mb=$(awk -v b="$(stat -c%s out/qidao-latest.apk)" 'BEGIN{printf "%.1f", b/1048576}')
+          mb=$(awk -v b="$(stat -c%s out/Yisle-ChatGPT-Plan-f266c4c.apk)" 'BEGIN{printf "%.1f", b/1048576}')
           {
             echo "## 栖岛 APK"
             echo ""
-            echo "- 文件：\`qidao-latest.apk\`（${mb} MB，**不用解压**）"
+            echo "- 文件：\`Yisle-ChatGPT-Plan-f266c4c.apk\`（${mb} MB，**不用解压**）"
             echo "- SHA-256：\`${sha}\`"
             echo "- 提交：\`${GITHUB_SHA}\`"
             echo "- 直链（固定不变，可收藏）："
-            echo "  https://github.com/${GITHUB_REPOSITORY}/releases/download/apk-latest/qidao-latest.apk"
+            echo "  https://github.com/${GITHUB_REPOSITORY}/releases/download/apk-chatgpt-plan-f266c4c/Yisle-ChatGPT-Plan-f266c4c.apk"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 发成 Release 直链（.apk 原文件，不再发 zip）
@@ -202,19 +202,21 @@ jobs:
         with:
           # 固定 tag：每次构建覆盖同一个 release 的同一个资产名，
           # 所以下载链接永远是这个，不会像 artifact 那样每次生成新文件名。
-          tag_name: apk-latest
-          name: 栖岛 APK（自动构建，最新）
+          tag_name: apk-chatgpt-plan-f266c4c
+          name: Yisle ChatGPT 计划实机测试包
+          prerelease: true
+          target_commitish: ${{ github.sha }}
           make_latest: false
           body: |
             自动构建，提交 `${{ github.sha }}`。
 
-            下载 `qidao-latest.apk` 直接装（不用解压）。
+            下载 `Yisle-ChatGPT-Plan-f266c4c.apk` 直接装（不用解压）。
             校验值看 `SHA256SUMS.txt`。
 
             装不上或被浏览器/杀软拦：这是自签名、无商店分发的 APK，
             请选择「保留」或在手机上直接下载安装。
           files: |
-            out/qidao-latest.apk
+            out/Yisle-ChatGPT-Plan-f266c4c.apk
             out/SHA256SUMS.txt
 
       - name: 备份一份 artifact（带版本号，自动过期）
@@ -223,6 +225,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: 栖岛-APK-${{ github.run_number }}
-          path: out/qidao-latest.apk
+          path: out/Yisle-ChatGPT-Plan-f266c4c.apk
           if-no-files-found: error
           retention-days: 14
