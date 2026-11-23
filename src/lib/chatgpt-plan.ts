@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import type { ApiMessage, ChatDelta } from "./chat-client";
 import { normalizeUsage } from "./request-accounting";
 
@@ -9,7 +9,7 @@ type ResponsePart =
   | { type: "input_image"; image_url: string; detail: "auto" };
 type ResponseMessage = { role: "user" | "assistant" | "developer"; content: string | ResponsePart[] };
 
-export const chatGptPlan = registerPlugin<{
+type ChatGptPlanBridge = {
   status(): Promise<PlanStatus>;
   signIn(options?: { replaceAccount: boolean }): Promise<PlanStatus>;
   disconnect(): Promise<{ revoked: boolean }>;
@@ -18,10 +18,17 @@ export const chatGptPlan = registerPlugin<{
   cancel(options: { id: string }): Promise<void>;
   addListener(name: "response", listener: (event: { id: string; text?: string; usage?: unknown }) => void):
     Promise<PluginListenerHandle>;
-}>("ChatGptPlan");
+};
+
+let bridge: Promise<ChatGptPlanBridge> | undefined;
+
+export function getChatGptPlan(): Promise<ChatGptPlanBridge> {
+  return bridge ??= import("@capacitor/core").then(({ registerPlugin }) =>
+    registerPlugin<ChatGptPlanBridge>("ChatGptPlan"));
+}
 
 export function chatGptPlanAvailable(): boolean {
-  return Capacitor.getPlatform() === "android" && Capacitor.isPluginAvailable("ChatGptPlan");
+  return Capacitor.getPlatform?.() === "android" && Capacitor.isPluginAvailable?.("ChatGptPlan") === true;
 }
 
 function responseInput(messages: readonly ApiMessage[]): ResponseMessage[] {
@@ -57,6 +64,7 @@ export async function streamChatGptPlan(
     return;
   }
   const id = crypto.randomUUID();
+  const chatGptPlan = await getChatGptPlan();
   const cancel = () => { void chatGptPlan.cancel({ id }).catch(() => {}); };
   let listener: PluginListenerHandle | undefined;
   try {

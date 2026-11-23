@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { chatGptPlan, chatGptPlanAvailable } from "@/lib/chatgpt-plan";
+import { getChatGptPlan, chatGptPlanAvailable } from "@/lib/chatgpt-plan";
 import { useApp } from "@/lib/store";
 
 export function ChatGptPlanSettings() {
@@ -17,6 +17,7 @@ export function ChatGptPlanSettings() {
     let live = true;
     async function load() {
       try {
+        const chatGptPlan = await getChatGptPlan();
         const result = await chatGptPlan.status();
         if (live) setStatus(result);
         if (result.allowed) {
@@ -37,6 +38,7 @@ export function ChatGptPlanSettings() {
     setBusy(true);
     setError("");
     try {
+      const chatGptPlan = await getChatGptPlan();
       const result = await chatGptPlan.signIn({ replaceAccount });
       setStatus(result);
       if (!result.allowed) {
@@ -59,6 +61,7 @@ export function ChatGptPlanSettings() {
     setBusy(true);
     setError("");
     try {
+      const chatGptPlan = await getChatGptPlan();
       const result = await chatGptPlan.disconnect();
       patch({ chatGptPlanEnabled: false, chatGptPlanModel: "" });
       setStatus((old) => ({ ...old, connected: false, allowed: false, email: "" }));

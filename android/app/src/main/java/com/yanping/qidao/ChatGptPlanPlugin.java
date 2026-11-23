@@ -164,6 +164,7 @@ public class ChatGptPlanPlugin extends Plugin {
                 if (!target.startsWith(CALLBACK + "?")) continue;
                 Uri result = Uri.parse(target);
                 if (!state.equals(result.getQueryParameter("state"))) continue;
+                if (!readHeaders(incoming.getInputStream())) continue;
                 byte[] body = bytes("You can return to Yisle to see your ChatGPT connection status.");
                 incoming.getOutputStream().write(bytes("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
                     + "Cache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n"
@@ -175,6 +176,15 @@ public class ChatGptPlanPlugin extends Plugin {
             }
         }
         throw new SocketTimeoutException();
+    }
+
+    private static boolean readHeaders(InputStream input) throws IOException {
+        for (int i = 0; i < 48; i++) {
+            String header = readRequestLine(input);
+            if (header == null) return false;
+            if (header.isEmpty()) return true;
+        }
+        return false;
     }
 
     private static String readRequestLine(InputStream input) throws IOException {

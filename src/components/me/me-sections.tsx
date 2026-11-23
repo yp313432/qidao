@@ -435,13 +435,8 @@ export function MeSections({ tab }: { tab: MeTab }) {
   const usageSections = (
     <>
       <Section title="用哪个">
-        {/*
-          B 档玻璃（总则 §3 两层）：外层 = L2 主卡（rounded-[var(--k-card-radius)] + border-line + bg-surface），
-          里面两条通道 = L3 控件（bg-chip）。原来两张卡平铺在同一层，看不出"这是一组二选一"。
-        */}
         <div className="overflow-hidden">
           <div>
-            {/* 自定义上游 */}
             <div className="border-b border-line/60">
               <button
                 type="button"
@@ -796,7 +791,6 @@ export function MeSections({ tab }: { tab: MeTab }) {
               )}
             </div>
 
-            {/* ChatGPT 计划 */}
             <div>
               <button
                 type="button"
