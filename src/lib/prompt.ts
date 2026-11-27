@@ -83,6 +83,8 @@ export type PromptContext = {
 };
 
 export type PromptInput = {
+  /** 当前会话已覆盖旧原文的摘要，独立于本轮感知内容。 */
+  recentSummary?: string;
   skills?: SkillPackage[];
   style: ReplyStyle;
   /**
@@ -570,6 +572,7 @@ export function assembleMessages(
   history: ApiMsg[],
 ): { role: string; content: unknown }[] {
   const staticPrompt = systemPrompt(input);
+  const summary = typeof input.recentSummary === "string" ? input.recentSummary.trim() : "";
   const perception = perceptionBlock(input);
   /*
     历史窗口：**跟设置里的「至少保留最近 N 条」对齐**（原来硬编码 16）。
@@ -588,6 +591,7 @@ export function assembleMessages(
 
   return [
     { role: "system", content: staticPrompt },
+    ...(summary ? [{ role: "system", content: `【更早的对话（摘要，原文已不再带上）】\n${summary}` }] : []),
     ...raw.map((m, i) => {
       const base = normalizeContent(m.content);
       const reasoning = m.role === "assistant" && m.reasoning_content ? { reasoning_content: m.reasoning_content } : {};

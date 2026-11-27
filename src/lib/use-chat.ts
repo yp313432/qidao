@@ -711,9 +711,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           userGender: settings.userGender,
           aiName,
           persona: settings.persona || undefined,
-          context: !nativeTools && summaryText
-            ? { ...context, aware: [...(context.aware ?? []), `当前会话的近期摘要：${summaryText}`] }
-            : context,
+          context,
+          recentSummary: summaryText,
           worldAlways: world.always,
           worldHit: world.hit,
           recentActions,
@@ -834,23 +833,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
         // MCP、HTTP 与 Skills 通过 tool.search 读取说明，调用仍走 tool.call / http.call。
         const reqActive = buildReq(true);
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
-        /**
-         * ⚠️ **摘要要插在系统提示词之后、历史之前** —— 不能只加在 `history` 里：
-         * 原生工具那条路会**重拼 messages**（`assembleMessages`），
-         * 只加在 history 上的话，摘要会被这一步悄悄丢掉
-         * （第一版就这么错了：原文被水位线切掉了、摘要又没进去，等于那一段彻底失忆）。
-         */
-        const withSummary: ApiMessage[] = summaryText
-          ? [
-              assembled[0]!,
-              // 套上"这是摘要、原文已不再带上"的标记（不然模型会当成用户的原话）
-              {
-                role: "system",
-                content: `【更早的对话（摘要，原文已不再带上）】\n${summaryText.trim()}`,
-              },
-              ...assembled.slice(1),
-            ]
-          : assembled;
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
         const known = new Set(builtinTools.map((t) => t.function.name));
@@ -889,12 +871,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
          */
         crumb(
           "chat",
-          `发起请求：上下文 ${JSON.stringify(withSummary).length} 字 · 历史 ${history.length} 条 · 工具 ${kindsSent.length} 个`,
+          `发起请求：上下文 ${JSON.stringify(assembled).length} 字 · 历史 ${history.length} 条 · 工具 ${kindsSent.length} 个`,
         );
         setPhase("等模型回复");
         const result = await runToolLoop({
           send,
-          baseMessages: withSummary,
+          baseMessages: assembled,
           // 顺序跟着 ACTION_SCHEMA 走；外部能力只带固定查找/执行入口。
           tools: builtinTools,
           signal: ac.signal,

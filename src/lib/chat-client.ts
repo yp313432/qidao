@@ -147,6 +147,7 @@ export type ChatRequest = {
   assembledMessages?: ApiMessage[];
 
   chatGptPlanModel?: string;
+  recentSummary?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   /** 自定义上游的真实模型名（留空则用服务端配的） */
