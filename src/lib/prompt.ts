@@ -66,6 +66,7 @@ export function promptToolsFor(mcp: McpServer[], http: HttpTool[], skills: Skill
 }
 
 export type PromptContext = {
+  userMessageTiming?: string;
   activity?: string;
   recent?: string[];
   granted?: string[];
@@ -83,6 +84,8 @@ export type PromptContext = {
 };
 
 export type PromptInput = {
+  /** 当前会话已覆盖旧原文的摘要，独立于本轮感知内容。 */
+  recentSummary?: string;
   skills?: SkillPackage[];
   style: ReplyStyle;
   /**
@@ -486,6 +489,7 @@ export function perceptionBlock(input: PromptInput): string {
         }。`
       : "",
     ctx.now ? `客户端时间：${ctx.now}。` : "",
+    ctx.userMessageTiming ? `最近用户消息的发送时间（手机本地时间）：${ctx.userMessageTiming}。` : "",
     ctx.activity ? `用户此刻在做：${ctx.activity}。` : "",
     // 天气跟时间和"在做什么"并列 —— 属于"此刻"，不是资料
     ctx.weather ? `用户那边的天气：${ctx.weather}。` : "",
@@ -570,6 +574,7 @@ export function assembleMessages(
   history: ApiMsg[],
 ): { role: string; content: unknown }[] {
   const staticPrompt = systemPrompt(input);
+  const summary = typeof input.recentSummary === "string" ? input.recentSummary.trim() : "";
   const perception = perceptionBlock(input);
   /*
     历史窗口：**跟设置里的「至少保留最近 N 条」对齐**（原来硬编码 16）。
@@ -588,6 +593,7 @@ export function assembleMessages(
 
   return [
     { role: "system", content: staticPrompt },
+    ...(summary ? [{ role: "system", content: `【更早的对话（摘要，原文已不再带上）】\n${summary}` }] : []),
     ...raw.map((m, i) => {
       const base = normalizeContent(m.content);
       const reasoning = m.role === "assistant" && m.reasoning_content ? { reasoning_content: m.reasoning_content } : {};

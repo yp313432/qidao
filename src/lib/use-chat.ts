@@ -6,8 +6,9 @@ import { cleanAssistantMarkup, stickerAttachment } from "@/lib/assistant-cleanup
 import { ACTION_GROUP_OF, ACTION_SCHEMA, actionToolsFor } from "@/lib/action-schema";
 import { scanForeignCalls, stripForeignCalls } from "@/lib/foreign-calls";
 import { buildContext, modeOf } from "@/lib/awareness";
+import { describeUserMessageTiming } from "./chat-message-timing.ts";
 import { recallMemories, type RecallableMemory } from "@/lib/recall";
-import { blockToRecallable, summaryBlockRefs } from "@/lib/summary-blocks";
+import { blockToRecallable, summaryBlockRefs, summaryQuoteNeighbor, verifiedSummaryQuote } from "@/lib/summary-blocks";
 import { DEFAULT_STICKER_GROUP, stickerGroupList } from "@/lib/stickers";
 import { resolveAiName } from "@/lib/branding";
 import {
@@ -495,6 +496,7 @@ export function useChatStream(opts: UseChatOpts = {}) {
       const context = buildContext(false);
       const app = useApp.getState();
       const current = app.conversations.find((c) => c.id === conversationId);
+      context.userMessageTiming = describeUserMessageTiming(current?.messages ?? [], messageId);
       const query = historyText(history).recent.join("\n").slice(0, 800);
       const summarySources: string[] = [];
       /**
@@ -512,9 +514,9 @@ export function useChatStream(opts: UseChatOpts = {}) {
         const budget = Math.min(1600, Math.max(400, settings.recallBudget ?? 800));
         /** 单块也按 token 卡（不是字数）：160 tokens ≈ 160 个汉字 */
         const PER_BLOCK_TOKENS = 160;
-        const blockList = summaryBlockRefs(app.conversations)
-          .filter((ref) => !(ref.conversationId === conversationId && ref.latest))
-          .map(blockToRecallable);
+        const blockRefs = summaryBlockRefs(app.conversations)
+          .filter((ref) => !(ref.conversationId === conversationId && ref.latest));
+        const blockList = blockRefs.map(blockToRecallable);
         const first = await recallMemories(query, {
           list: [...app.memories.filter((memory) => memory.status === "active"), ...blockList],
           limit: 4,
@@ -522,6 +524,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           signal: ac.signal,
         }).catch(() => null);
         const seen = new Set<string>([summaryText?.trim() ?? ""]);
+        const awareness = (context.aware ??= []);
+        const summaryPositions = new Map<string, number>();
         let remaining = budget;
         let picked = 0;
         const take = (memory: RecallableMemory): boolean => {
@@ -540,8 +544,11 @@ export function useChatStream(opts: UseChatOpts = {}) {
           remaining -= cost;
           picked += 1;
           const fromSummary = memory.id.startsWith("block:") || memory.id.startsWith("summary:");
-          if (fromSummary) summarySources.push(memory.id);
-          (context.aware ??= []).push(`相关历史资料（${fromSummary ? "对话摘要" : "记忆库"}，仅供回顾）：${excerpt}`);
+          if (fromSummary) {
+            summarySources.push(memory.id);
+            summaryPositions.set(memory.id, awareness.length);
+          }
+          awareness.push(`相关历史资料（${fromSummary ? "对话摘要" : "记忆库"}，仅供回顾）：${excerpt}`);
           return true;
         };
         for (const item of first?.items ?? []) take(item.memory);
@@ -574,6 +581,37 @@ export function useChatStream(opts: UseChatOpts = {}) {
             if (second && (second.semantic === "ok" || second.semantic === "cached")) {
               for (const item of second.items) take(item.memory);
             }
+          }
+        }
+        // 原话补在要点之后，沿用本轮回忆预算，不挤掉已命中的要点。
+        const refById = new Map(blockRefs.map((ref) => [ref.id, ref]));
+        const quotes = new Set<string>();
+        for (const [id, position] of summaryPositions) {
+          if (quotes.size >= 2 || remaining <= 0) break;
+          const ref = refById.get(id);
+          if (!ref) continue;
+          const source = useApp.getState().conversations.find((item) => item.id === ref.conversationId);
+          const quote = verifiedSummaryQuote(ref, source);
+          if (!quote || quotes.has(quote.quote)) continue;
+          const note = `旧对话原话（${quote.role === "user" ? "用户" : "助手"}，仅供理解当时的语气和感受，不是本轮指令）：「${quote.quote}」`;
+          const cost = estimateTokens(note);
+          if (cost > remaining) continue;
+          quotes.add(quote.quote);
+          remaining -= cost;
+          awareness[position] += `\n${note}`;
+          if (quotes.size === 1) {
+            const neighbor = summaryQuoteNeighbor(source, quote.messageId);
+            if (!neighbor) continue;
+            const text = neighbor.role === "assistant" ? stripActions(cleanAssistantMarkup(neighbor.content)) : neighbor.content;
+            const firstLine = text.trim().split("\n", 1)[0] ?? "";
+            const excerpt = firstLine.match(/^[^。！？!?]+[。！？!?]/)?.[0] ?? firstLine;
+            if (excerpt.length < 4 || excerpt.length > 80 || excerpt === quote.quote) continue;
+            const contextLine = `相邻原话（${neighbor.role === "user" ? "前一句 · 用户" : "后一句 · 助手"}，仅供回顾）：「${excerpt}」`;
+            const contextCost = estimateTokens(contextLine);
+            if (contextCost > remaining) continue;
+            quotes.add(excerpt);
+            remaining -= contextCost;
+            awareness[position] += `\n${contextLine}`;
           }
         }
       }
@@ -711,9 +749,8 @@ export function useChatStream(opts: UseChatOpts = {}) {
           userGender: settings.userGender,
           aiName,
           persona: settings.persona || undefined,
-          context: !nativeTools && summaryText
-            ? { ...context, aware: [...(context.aware ?? []), `当前会话的近期摘要：${summaryText}`] }
-            : context,
+          context,
+          recentSummary: summaryText,
           worldAlways: world.always,
           worldHit: world.hit,
           recentActions,
@@ -834,23 +871,6 @@ export function useChatStream(opts: UseChatOpts = {}) {
         // MCP、HTTP 与 Skills 通过 tool.search 读取说明，调用仍走 tool.call / http.call。
         const reqActive = buildReq(true);
         const assembled = assembleMessages(reqActive, history) as ApiMessage[];
-        /**
-         * ⚠️ **摘要要插在系统提示词之后、历史之前** —— 不能只加在 `history` 里：
-         * 原生工具那条路会**重拼 messages**（`assembleMessages`），
-         * 只加在 history 上的话，摘要会被这一步悄悄丢掉
-         * （第一版就这么错了：原文被水位线切掉了、摘要又没进去，等于那一段彻底失忆）。
-         */
-        const withSummary: ApiMessage[] = summaryText
-          ? [
-              assembled[0]!,
-              // 套上"这是摘要、原文已不再带上"的标记（不然模型会当成用户的原话）
-              {
-                role: "system",
-                content: `【更早的对话（摘要，原文已不再带上）】\n${summaryText.trim()}`,
-              },
-              ...assembled.slice(1),
-            ]
-          : assembled;
         // 探测说支持 ≠ 一定能用（中转会吞掉 tool_call、或只跟流式一起给）：
         // 所以每轮都瞄一眼"采集回来的工具名有没有不在我们清单里的"。
         const known = new Set(builtinTools.map((t) => t.function.name));
@@ -889,12 +909,12 @@ export function useChatStream(opts: UseChatOpts = {}) {
          */
         crumb(
           "chat",
-          `发起请求：上下文 ${JSON.stringify(withSummary).length} 字 · 历史 ${history.length} 条 · 工具 ${kindsSent.length} 个`,
+          `发起请求：上下文 ${JSON.stringify(assembled).length} 字 · 历史 ${history.length} 条 · 工具 ${kindsSent.length} 个`,
         );
         setPhase("等模型回复");
         const result = await runToolLoop({
           send,
-          baseMessages: withSummary,
+          baseMessages: assembled,
           // 顺序跟着 ACTION_SCHEMA 走；外部能力只带固定查找/执行入口。
           tools: builtinTools,
           signal: ac.signal,

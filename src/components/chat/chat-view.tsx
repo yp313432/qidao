@@ -408,6 +408,7 @@ import { MessageSourceScope } from "@/components/chat/message-source-scope";
 import { messageWebSources } from "@/lib/web-sources";
 import { ThinkingSheet } from "@/components/chat/thinking-sheet";
 import { SummaryLine } from "@/components/chat/summary-line";
+import { SummarySourceDeck } from "@/components/chat/summary-source-deck";
 import { Ticker } from "@/components/chat/ticker";
 import { ChatDrawer } from "@/components/chat/chat-drawer";
 import { resolveAiName } from "@/lib/branding";
@@ -464,6 +465,8 @@ export function ChatView() {
   /** 底部弹出的思考链（Claude 那种一层）—— null 表示没打开 */
   const [crabReplay, setCrabReplay] = useState(0);
   const [thinkSheetId, setThinkSheetId] = useState<string | null>(null);
+  const [summarySources, setSummarySources] = useState<{ conversationId: string; ids: string[]; trigger: HTMLButtonElement } | null>(null);
+  useEffect(() => setSummarySources(null), [activeId]);
   const navigate = useNavigate();
   const scroller = useRef<HTMLDivElement>(null);
   /**
@@ -1467,13 +1470,7 @@ export function ChatView() {
                             而这里只有"他的"消息才会渲染 —— 于是长按自己的消息点了"修改"、
                             状态设了却什么都不出来（跟长按菜单同一个坑）。
                             现在它们在 mine/他 分支**之外**（本函数靠后那一段），一处渲染、两种消息都对。 */}
-                            {m.summarySources?.map((source, index) => (
-                              <Link key={source} to="/play/plugins/$slug"
-                                params={{ slug: "summaries" }} hash={source}
-                                className="mr-2 text-xs text-subtle underline">
-                                摘要来源{m.summarySources!.length > 1 ? ` ${index + 1}` : ""}
-                              </Link>
-                            ))}
+                            {conv && m.summarySources?.length ? <button type="button" aria-haspopup="dialog" className="k-source-deck-trigger" onClick={(event) => setSummarySources({ conversationId: conv.id, ids: [...new Set(m.summarySources)], trigger: event.currentTarget })}>摘要来源 · {new Set(m.summarySources).size}</button> : null}
                             {m.usage && (m.usage.prompt || m.usage.completion || m.usage.tools) && (
                               <p className="chat-meta mt-1 px-1 text-[10px]">
                                 {m.usage.prompt
@@ -1778,6 +1775,7 @@ export function ChatView() {
         )}
 
       {copyMessage && <CopyMessageSheet message={copyMessage} onClose={() => setCopyMessage(null)} />}
+      {summarySources && summarySources.conversationId === conv?.id && <SummarySourceDeck ids={summarySources.ids} trigger={summarySources.trigger} onClose={() => setSummarySources(null)} />}
 
       {/*
         **悬浮对话框**（用户 m02002："对话框独立，改成悬浮聊天浮层，然后消息是可滚动消息流，

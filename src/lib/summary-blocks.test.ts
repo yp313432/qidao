@@ -13,6 +13,8 @@ import {
   blockToRecallable,
   summaryBlockRefs,
   summaryIdOfBlock,
+  summaryQuoteNeighbor,
+  verifiedSummaryQuote,
 } from "./summary-blocks.ts";
 
 function fakeConversation(): Conversation {
@@ -78,6 +80,47 @@ describe("blockToRecallable", () => {
     conv.summary!.updatedAt = new Date(2026, 10, 19, 10, 0, 0).getTime();
     const [ref] = summaryBlockRefs([conv]);
     assert.match(blockToRecallable(ref).content, /^11-19 /);
+  });
+});
+
+describe("verifiedSummaryQuote", () => {
+  const quote = "老师一催，我脑子就空白了。";
+  const message = { id: "u1", role: "user" as const, content: quote, createdAt: 500, thinking: "", thinkingDurationMs: 0 };
+
+  it("keeps verified source text out of the search index and checks the live message before reuse", () => {
+    const conv = fakeConversation();
+    conv.messages = [message];
+    conv.summary!.blocks = [{ text: "老师催交让她紧张", source: { messageId: "u1", quote } }];
+    const [ref] = summaryBlockRefs([conv]);
+    assert.doesNotMatch(blockToRecallable(ref).content, /脑子就空白/);
+    assert.deepEqual(verifiedSummaryQuote(ref, conv), { quote, role: "user", messageId: "u1" });
+    assert.equal(verifiedSummaryQuote(ref, { ...conv, incognito: true }), undefined);
+    assert.equal(verifiedSummaryQuote(ref, { ...conv, messages: [] }), undefined);
+    assert.equal(verifiedSummaryQuote(ref, { ...conv, messages: [{ ...message, content: "编辑后的话" }] }), undefined);
+  });
+
+  it("uses a legacy quote only when one covered message contains it verbatim", () => {
+    const conv = fakeConversation();
+    conv.messages = [{ ...message, id: "before", content: "其他内容" }, message];
+    Object.assign(conv.summary!, { fromIndex: 1, upToIndex: 2, blocks: [{ text: `她说「${quote}」` }] });
+    const [ref] = summaryBlockRefs([conv]);
+    assert.deepEqual(verifiedSummaryQuote(ref, conv), { quote, role: "user", messageId: "u1" });
+    assert.equal(verifiedSummaryQuote({ ...ref, fromIndex: 0, upToIndex: 1 }, conv), undefined);
+    assert.equal(verifiedSummaryQuote({ ...ref, fromIndex: undefined }, conv), undefined);
+    assert.equal(verifiedSummaryQuote({ ...ref, fromIndex: 0 }, {
+      ...conv, messages: [{ ...message, id: "another" }, message],
+    }), undefined);
+  });
+
+  it("only returns the adjacent turn, without crossing another user message", () => {
+    const conv = fakeConversation();
+    const reply = { ...message, id: "a1", role: "assistant" as const, content: "先缓一下，我陪你理理。" };
+    conv.messages = [message, reply];
+    assert.equal(summaryQuoteNeighbor(conv, "u1"), reply);
+    assert.equal(summaryQuoteNeighbor(conv, "a1"), message);
+    conv.messages = [message, { ...message, id: "u2" }, reply];
+    assert.equal(summaryQuoteNeighbor(conv, "u1"), undefined);
+    assert.equal(summaryQuoteNeighbor(conv, "a1")?.id, "u2");
   });
 });
 

@@ -20,6 +20,9 @@
 */
 
 [data-material="solid"] {
+  --k-health-card-bg: color-mix(in oklab, var(--aster-surface) 96%, var(--aster-accent));
+  --k-health-wave: color-mix(in oklab, var(--aster-accent) 62%, var(--aster-fg));
+  --k-health-card-rim: var(--k-line-soft);
   /* 字：正文走无衬线（中文自动落到系统字，不再有"终端感"）；
      数字、代码、键值仍用等宽，扫表时对齐；小标签也回到无衬线 */
   --k-font-ui: var(--k-font-sans);

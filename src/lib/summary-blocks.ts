@@ -28,6 +28,9 @@ export type SummaryBlockRef = {
   /** 摘要生成时间（块的"新鲜度"跟它走） */
   updatedAt: number;
   index: number;
+  source?: SummaryBlock["source"];
+  fromIndex?: number;
+  upToIndex?: number;
 };
 
 /** "11-18"（本地时间；只用于给模型一个时间线索，不做时区/年份推断） */
@@ -63,11 +66,54 @@ export function summaryBlockRefs(conversations: readonly Conversation[]): Summar
           at: block.at,
           updatedAt: summary.updatedAt,
           index,
+          source: block.source,
+          fromIndex: summary.fromIndex,
+          upToIndex: summary.upToIndex,
         });
       });
     }
   }
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** Recheck the live message so editing or removing it also revokes its quote. */
+export function verifiedSummaryQuote(
+  ref: SummaryBlockRef,
+  conversation: Conversation | undefined,
+): { quote: string; role: "user" | "assistant"; messageId: string } | undefined {
+  if (!conversation || conversation.id !== ref.conversationId || conversation.incognito) return;
+  const { source, fromIndex, upToIndex } = ref;
+  if (source) {
+    const message = conversation.messages.find((item) => item.id === source.messageId);
+    if (message && (message.role === "user" || message.role === "assistant")
+        && typeof source.quote === "string" && source.quote.length >= 4 && source.quote.length <= 80
+        && message.content.includes(source.quote)) {
+      return { quote: source.quote, role: message.role, messageId: message.id };
+    }
+    return;
+  }
+
+  // Older summaries only have a batch range. Keep a quote only if it identifies one source.
+  if (fromIndex === undefined || upToIndex === undefined || !Number.isInteger(fromIndex)
+      || !Number.isInteger(upToIndex) || fromIndex < 0 || upToIndex > conversation.messages.length
+      || fromIndex >= upToIndex) return;
+  const messages = conversation.messages.slice(fromIndex, upToIndex);
+  for (const [, quote] of ref.text.matchAll(/[「『“]([^」』”\n]{4,80})[」』”]/gu)) {
+    const matches = messages.filter((message) => message.content.includes(quote));
+    const message = matches[0];
+    if (matches.length === 1 && (message?.role === "user" || message?.role === "assistant")) {
+      return { quote, role: message.role, messageId: message.id };
+    }
+  }
+}
+
+export function summaryQuoteNeighbor(conversation: Conversation | undefined, messageId: string) {
+  if (!conversation || conversation.incognito) return;
+  const index = conversation.messages.findIndex((message) => message.id === messageId);
+  const message = conversation.messages[index];
+  if (message?.role !== "user" && message?.role !== "assistant") return;
+  const neighbor = conversation.messages[index + (message.role === "user" ? 1 : -1)];
+  if (neighbor?.role === (message.role === "user" ? "assistant" : "user")) return neighbor;
 }
 
 /** 转成 `recall.ts` 认的最小形状；日期并进正文，模型看到就知道这是哪天的旧事 */

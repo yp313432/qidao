@@ -9,11 +9,29 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   SUMMARY_MAX_CHARS,
+  buildSummaryPrompt,
   looseSummaryBlocks,
   parseSummaryOutput,
 } from "./summary.ts";
 
 describe("parseSummaryOutput", () => {
+  it("only preserves a numbered, verbatim quote from the selected chat message", () => {
+    const batch = [
+      { id: "empty", role: "user" as const, content: " " },
+      { id: "u1", role: "user" as const, content: "老师一催，我脑子就空白了。" },
+      { id: "a1", role: "assistant" as const, content: "我们先挑最容易写的一段。" },
+    ];
+    assert.match(buildSummaryPrompt(batch), /\[1\] yan：老师一催/);
+    assert.match(buildSummaryPrompt(batch), /\[2\] 我：我们先挑/);
+    const summary = "回顾正文。\n【要点】\n- 她被催交时很紧张";
+    const parse = (marker: string) => parseSummaryOutput(summary + marker, true, batch)?.blocks[0];
+    assert.deepEqual(parse("〔原话 1：我脑子就空白了。〕")?.source, {
+      messageId: "u1", quote: "我脑子就空白了。",
+    });
+    assert.equal(parse("〔原话 2：我脑子就空白了。〕")?.source, undefined);
+    assert.equal(parse("〔原话 99：我脑子就空白了。〕")?.source, undefined);
+    assert.equal(parse("〔原话 1：我当时吓坏了。〕")?.text, "她被催交时很紧张");
+  });
   it("标题、正文、【要点】小块都拆出来", () => {
     const raw = [
       "标题：论文与失眠",

@@ -111,7 +111,7 @@ async function runAndStore(
     recent,
   }) });
   if (!output) return null;
-  const parsed = parseSummaryOutput(output, true);
+  const parsed = parseSummaryOutput(output, true, batch);
   if (!parsed) return null;
   const { text, blocks } = parsed;
   const title = parsed.title?.match(/\p{Script=Han}{2,9}/u)?.[0] ?? "随手记";
@@ -159,7 +159,7 @@ export async function maybeSummarize(opts: {
    */
   const keep = Math.max(2, settings.keepRecent);
   const from = watermark(conv);
-  const messages: SummaryMsg[] = conv.messages.map((m) => ({ role: m.role, content: m.content }));
+  const messages: SummaryMsg[] = conv.messages.map((m) => ({ id: m.id, role: m.role, content: m.content }));
 
   /** 用户关掉「自动折叠」就别再自动摘了（他手动点"重新总结"仍然可以） */
   if (settings.autoCompact === false) return;
@@ -213,7 +213,7 @@ export async function summarizeNow(conversationId: string): Promise<string | nul
     src = kept;
   }
 
-  const batch: SummaryMsg[] = src.map((m) => ({ role: m.role, content: m.content }));
+  const batch: SummaryMsg[] = src.map((m) => ({ id: m.id, role: m.role, content: m.content }));
   /* 水位线：这一批最后一条在**库里的下标 +1**（batchSrc 已过滤空消息，不能直接拿长度当下标） */
   const last = src[src.length - 1];
   let upTo = batchEnd;

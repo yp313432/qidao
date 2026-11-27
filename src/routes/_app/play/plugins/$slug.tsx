@@ -1,4 +1,5 @@
 import { SummaryList } from "@/components/tools/summary-list";
+import { lazy, Suspense } from "react";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { PluginFrame } from "@/components/play/plugin-frame";
 import { useEffect } from "react";
@@ -7,6 +8,8 @@ import { useApp } from "@/lib/store";
 import { openPluginWeb } from "@/lib/plugin-open";
 import { pushToast } from "@/lib/toast";
 import { KButton } from "@/components/ui-kit";
+
+const HealthView = lazy(() => import("@/components/play/plugins/health-view").then((module) => ({ default: module.HealthView })));
 
 /**
  * **用户自己加的插件**（iframe 型）—— `/play/plugins/c_<id>`。
@@ -33,6 +36,7 @@ function CustomPluginView() {
 
   if (!plugin) return null;
   if (slug === "summaries") return <SummaryList />;
+  if (slug === "health") return <Suspense fallback={<p className="k-note">正在打开身体数据…</p>}><HealthView /></Suspense>;
   if (!plugin.url) throw notFound();
   if (plugin.enabled === false) return <p className="k-note">这个插件已关闭，请回插件列表启用。</p>;
   if (plugin.openMode === "browser") return <div className="k-page k-list">

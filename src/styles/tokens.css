@@ -219,3 +219,29 @@
   --k-drawer-row-shadow: 0 1px 2px color-mix(in oklab, var(--aster-fg) 8%, transparent);
 }
 
+
+:root {
+  --k-source-card-w: min(45vw, 11.5rem);
+  --k-source-card-h: min(38dvh, 17rem);
+  --k-source-card-step: min(9.5vw, 2.3rem);
+  --k-source-card-turn: 4deg;
+  --k-source-card-tab: 2.75rem;
+  --k-source-card-out: -2rem;
+  --k-source-card-active: color-mix(in oklab, var(--k-bg) 74%, var(--k-surface));
+  --k-source-card-inactive: color-mix(in oklab, var(--k-bg) 86%, var(--k-accent));
+  --k-source-card-rim: color-mix(in oklab, var(--k-surface) 75%, var(--k-line-soft));
+}
+
+:root {
+  --k-health-width: 31rem;
+  --k-health-number: clamp(3rem, 15vw, 4.25rem);
+  --k-health-wave-size: 3.8rem;
+  --k-health-trend-size: 5rem;
+  --k-health-stroke: 1.5px;
+  --k-health-shift: -25%;
+  --k-health-wave: var(--k-accent);
+  --k-health-trace: color-mix(in oklab, var(--k-fg) 52%, var(--k-accent));
+  --k-health-card-bg: var(--k-surface);
+  --k-health-card-rim: var(--k-line);
+  --k-health-bar: color-mix(in oklab, var(--k-health-trace) 62%, transparent);
+}

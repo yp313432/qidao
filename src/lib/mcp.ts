@@ -5,7 +5,7 @@ import { isNativeMcp } from "./mcp-fetch.ts";
 
 export const DEFAULT_MCP: McpServer[] = [];
 export type McpProbe = { ok: boolean; message: string; tools: McpTool[]; serverName?: string; serverVersion?: string; protocolVersion?: string; needsAuth?: boolean; oauthPatch?: Partial<McpOAuth> };
-export type ToolCallResult = { ok: boolean; text: string; oauthPatch?: Partial<McpOAuth> };
+export type ToolCallResult = { ok: boolean; text: string; oauthPatch?: Partial<McpOAuth>; data?: unknown };
 const MAX_TOOL_TEXT = 8000;
 const sessions = new Map<string, { connection: McpConnection; key: string; at: number }>();
 const SESSION_TTL_MS = 5 * 60_000;
@@ -105,9 +105,14 @@ export function normalizeTools(input: unknown): McpTool[] {
 }
 
 
-export async function callTool(server: McpServer, tool: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
+export async function callTool(server: McpServer, tool: string, args: Record<string, unknown> = {},
+  options: { structured?: boolean; signal?: AbortSignal } = {},
+): Promise<ToolCallResult> {
   if (!server.url.trim()) return { ok: false, text: "还没填地址。" };
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 30000);
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) cancel();
   let oauthPatch: Partial<McpOAuth> | undefined;
   try {
     const prepared = await headersFor(server, controller.signal); oauthPatch = prepared.oauthPatch;
@@ -116,8 +121,9 @@ export async function callTool(server: McpServer, tool: string, args: Record<str
         const connection = await connectionFor(server, prepared.headers, controller.signal);
         const message = await connection.send("tools/call", { name: tool, arguments: args }, controller.signal);
         if (message.error) return { ok: false, text: message.error.message || "MCP 工具返回错误", oauthPatch };
-        return { ...callResultText(message.result), oauthPatch };
+        return { ...callResultText(message.result, options.structured), oauthPatch };
       } catch (error) {
+        if (options.signal?.aborted) throw error;
         closeMcpSession(server.id);
         // Retry only expired sessions; a business error must never execute twice.
         if (attempt === 0 && error instanceof McpHttpError && [400, 404].includes(error.status)) continue;
@@ -126,9 +132,12 @@ export async function callTool(server: McpServer, tool: string, args: Record<str
     }
     return { ok: false, text: "会话重连后仍未成功", oauthPatch };
   } catch (error) { return { ok: false, text: failure(error), oauthPatch }; }
-  finally { clearTimeout(timer); }
+  finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", cancel);
+  }
 }
-function callResultText(result: unknown): { ok: boolean; text: string } {
+function callResultText(result: unknown, structured = false): { ok: boolean; text: string; data?: unknown } {
   const r = (result ?? {}) as { content?: unknown; isError?: unknown; structuredContent?: unknown };
 
   const parts: string[] = [];
@@ -146,7 +155,14 @@ function callResultText(result: unknown): { ok: boolean; text: string } {
   if (!parts.length) parts.push("（工具跑完了，但没有返回任何内容）");
 
   let text = parts.join("\n").trim();
+  let data: unknown;
+  if (structured && r.isError !== true) {
+    data = r.structuredContent;
+    if (data === undefined) {
+      try { data = JSON.parse(text); } catch { /* Plain-text results remain available as text. */ }
+    }
+  }
   if (text.length > MAX_TOOL_TEXT) text = `${text.slice(0, MAX_TOOL_TEXT)}\n…（结果太长，截断了）`;
 
-  return { ok: r.isError !== true, text };
+  return { ok: r.isError !== true, text, ...(data !== undefined ? { data } : {}) };
 }

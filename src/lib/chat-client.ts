@@ -68,6 +68,7 @@ export type ApiMessage = {
 
 /** 随每条消息一起上报的「用户此刻的状态」，让 AI 知道你在干什么。 */
 export type ChatContext = {
+  userMessageTiming?: string;
   /** 当前活动，例如「在听歌 · 夜航 · 播放中」 */
   activity?: string;
   /** 最近的活动轨迹（新 → 旧） */
@@ -147,6 +148,7 @@ export type ChatRequest = {
   assembledMessages?: ApiMessage[];
 
   chatGptPlanModel?: string;
+  recentSummary?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   /** 自定义上游的真实模型名（留空则用服务端配的） */

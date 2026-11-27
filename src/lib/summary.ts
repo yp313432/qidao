@@ -15,6 +15,7 @@ export type SummaryBlock = {
   tags?: string[];
   /** 日期线索（如 "11-18"）—— 原文没提到时不填 */
   at?: string;
+  source?: { messageId: string; quote: string };
 };
 
 /** 自然回顾和独立要点的分隔标记 */
@@ -40,7 +41,7 @@ export type ConversationSummary = {
   passes?: number;
 };
 
-export type SummaryMsg = { role: "user" | "assistant" | "system" | "tool"; content: string };
+export type SummaryMsg = { id?: string; role: "user" | "assistant" | "system" | "tool"; content: string };
 
 export type SummaryPlan = {
   /** 该不该摘 */
@@ -133,12 +134,13 @@ export function summarySystemPrompt(aiName = "小克", userName = "yan"): string
 通常写成几段连贯的话，目标约 600~1000 字，最多 ${SUMMARY_MAX_CHARS} 字，内容少时就短些。第一行用「标题：」加 2–3 个汉字概括这段交流，下一行开始写回顾正文。不附工具调用或解释写作步骤。
 正文写完后，另起一行写「${SUMMARY_BLOCK_HEAD}」，直接根据「本次需要回顾的原文」提炼 1–8 条值得以后找回的要点。
 每条只写一件事，用自己的话概括，写清涉及的人、对象和结果或进度，让它离开正文也读得懂。优先保留明确的决定、约定、偏好、重要经历和待办。不要从回顾复制句子或按句切分，也不要重复同一件事。
-每条另起一行，以「- 」开始，可在前面加「[日期][主题1,主题2]」（日期只取原文明示的日期）。每条最多 200 字。语境和心情只供理解；仅把本次原文支持的内容写入要点，区分提议、确认和完成。没有值得记的要点就在标记下一行写「无」。`;
+每条另起一行，以「- 」开始，可在前面加「[日期][主题1,主题2]」（日期只取原文明示的日期）。每条最多 200 字。语境和心情只供理解；仅把本次原文支持的内容写入要点，区分提议、确认和完成。没有值得记的要点就在标记下一行写「无」。
+如果一小句原话能保留当时的情绪、语气或关键措辞，可以在对应要点的行尾附一个「〔原话 3：逐字摘出的原话〕」标记，其中 3 换成原文的消息编号。原话限 4～80 字，必须在同一条消息里连续出现，保留原字和标点，不加省略号。没有特别值得留的原话就省略标记。`;
 }
 
 export function buildSummaryPrompt(batch: SummaryMsg[], previous?: ConversationSummary, mindset: SummaryMindset = {}): string {
-  const lines = batch.filter((message) => message.content.trim()).map((message) =>
-    `${message.role === "user" ? "yan" : message.role === "assistant" ? "我" : "系统/工具结果"}：${message.content.trim()}`,
+  const lines = batch.filter((message) => message.content.trim()).map((message, index) =>
+    `[${index + 1}] ${message.role === "user" ? "yan" : message.role === "assistant" ? "我" : "系统/工具结果"}：${message.content.trim()}`,
   ).join("\n");
   const context = [
     mindset.now ? `现在：${mindset.now}` : "",
@@ -197,7 +199,11 @@ export function parseSummaryBlocks(part: string): SummaryBlock[] {
  * 解析不出来（正文为空 / 超长）返回 `null` —— 调用方据此**不推进水位线**，
  * 跟原来 cleanSummaryText 的纪律一致：宁可不记，也不把半截当完整记忆。
  */
-export function parseSummaryOutput(raw: string, requirePoints = false): { title?: string; text: string; blocks: SummaryBlock[] } | null {
+export function parseSummaryOutput(
+  raw: string,
+  requirePoints = false,
+  batch: readonly SummaryMsg[] = [],
+): { title?: string; text: string; blocks: SummaryBlock[] } | null {
   const body = String(raw ?? "").trim().replace(/^```(?:text|markdown|md)?\s*\n([\s\S]*?)\n```$/i, "$1").trim();
   if (!body) return null;
   const headAt = body.indexOf(SUMMARY_BLOCK_HEAD);
@@ -216,10 +222,20 @@ export function parseSummaryOutput(raw: string, requirePoints = false): { title?
 
   const normalize = (value: string) => value.replace(/[\s\p{P}]+/gu, "");
   const narrativeText = normalize(text);
+  const sources = batch.filter((message) => message.content.trim());
   const points = new Map<string, SummaryBlock>();
   for (const line of lines) {
-    const block = parseBlockLine(line, true);
+    const marker = /\s*〔原话\s*(\d+)\s*[：:]([^〕]*)〕\s*$/.exec(line);
+    const block = parseBlockLine(marker ? line.slice(0, marker.index) : line, true);
     if (!block) return null;
+    if (marker) {
+      const message = sources[Number(marker[1]) - 1];
+      const quote = marker[2].trim();
+      if (message?.id && (message.role === "user" || message.role === "assistant")
+          && quote.length >= 4 && quote.length <= 80 && message.content.includes(quote)) {
+        block.source = { messageId: message.id, quote };
+      }
+    }
     const key = normalize(block.text);
     if (!key || narrativeText.includes(key)) return null;
     if (!points.has(key)) points.set(key, block);

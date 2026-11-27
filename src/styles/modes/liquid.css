@@ -10,6 +10,9 @@
 */
 
 [data-material="liquid"] {
+  --k-health-wave: color-mix(in oklab, var(--aster-surface) 82%, var(--aster-accent));
+  --k-health-card-bg: var(--k-surface);
+  --k-health-card-rim: var(--k-idbar-line);
   --k-font-ui: var(--k-font-sans);
   --k-font-num: var(--k-font-mono);
 
